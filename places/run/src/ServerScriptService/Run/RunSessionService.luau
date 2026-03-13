@@ -27,11 +27,12 @@ function RunSessionService.new()
     local self = setmetatable({}, RunSessionService)
 
     self.Remotes = Remotes
-    self.StateMachine = SessionStateMachine.new(RunState.Camp)
+    self.StateMachine = SessionStateMachine.new(RunState.Lobby)
     self.InventoryService = InventoryService.new(SessionConfig.InventoryCapacity)
     self.RoleService = RoleService.new(Roles)
     self.MonsterService = MonsterService.new(Monsters[1], function()
-        return self.StateMachine.Current == RunState.Expedition or self.StateMachine.Current == RunState.Extraction
+        return self.StateMachine.Current == RunState.Expedition
+            or self.StateMachine.Current == RunState.Extraction
     end)
     self.SessionData = {
         Seed = SessionConfig.DefaultSeed,
@@ -39,9 +40,10 @@ function RunSessionService.new()
         RunDurationSeconds = SessionConfig.DefaultRunDurationSeconds,
         InventoryCapacity = SessionConfig.InventoryCapacity,
     }
-    self.Status = 'Preparing camp.'
+    self.Status = 'Select Single Player to enter the run.'
     self.TimeRemaining = self.SessionData.RunDurationSeconds
     self.TeamDepositedValue = 0
+    self.IsLaunched = false
     self.World = nil
     self.TickThread = nil
 
@@ -61,8 +63,10 @@ function RunSessionService:_loadSessionDataFromJoin()
     if type(incoming) == 'table' then
         self.SessionData.Seed = incoming.Seed or self.SessionData.Seed
         self.SessionData.Quota = incoming.Quota or self.SessionData.Quota
-        self.SessionData.RunDurationSeconds = incoming.RunDurationSeconds or self.SessionData.RunDurationSeconds
-        self.SessionData.InventoryCapacity = incoming.InventoryCapacity or self.SessionData.InventoryCapacity
+        self.SessionData.RunDurationSeconds = incoming.RunDurationSeconds
+            or self.SessionData.RunDurationSeconds
+        self.SessionData.InventoryCapacity = incoming.InventoryCapacity
+            or self.SessionData.InventoryCapacity
         self.InventoryService.Capacity = self.SessionData.InventoryCapacity
     end
 end
@@ -116,6 +120,7 @@ end
 function RunSessionService:_broadcastSnapshot()
     for _, player in ipairs(Players:GetPlayers()) do
         self.Remotes.RunSnapshot:FireClient(player, {
+            IsLaunched = self.IsLaunched,
             State = self.StateMachine.Current,
             Status = self.Status,
             Seed = self.SessionData.Seed,
@@ -132,6 +137,26 @@ end
 
 function RunSessionService:_assignRoles()
     self.RoleService:assign(Players:GetPlayers())
+end
+
+function RunSessionService:_launchRun(_player)
+    if self.IsLaunched then
+        return
+    end
+
+    self.IsLaunched = true
+
+    if self.StateMachine.Current == RunState.Lobby then
+        self.StateMachine:transition(RunState.Camp)
+    end
+
+    self.TeamDepositedValue = 0
+    self.TimeRemaining = self.SessionData.RunDurationSeconds
+    self.InventoryService:reset()
+    self:_assignRoles()
+    self:_rebuildWorld()
+    self:_startTickLoop()
+    self:_setStatus('Camp is live. Deploy when you are ready.')
 end
 
 function RunSessionService:_resetRunLoop()
@@ -177,7 +202,10 @@ function RunSessionService:_beginExpedition(player)
 end
 
 function RunSessionService:_pickupItem(player, itemEntry)
-    if self.StateMachine.Current ~= RunState.Expedition and self.StateMachine.Current ~= RunState.Extraction then
+    if
+        self.StateMachine.Current ~= RunState.Expedition
+        and self.StateMachine.Current ~= RunState.Extraction
+    then
         return
     end
 
@@ -195,7 +223,10 @@ function RunSessionService:_pickupItem(player, itemEntry)
 end
 
 function RunSessionService:_depositLoot(player)
-    if self.StateMachine.Current ~= RunState.Expedition and self.StateMachine.Current ~= RunState.Extraction then
+    if
+        self.StateMachine.Current ~= RunState.Expedition
+        and self.StateMachine.Current ~= RunState.Extraction
+    then
         return
     end
 
@@ -210,7 +241,9 @@ function RunSessionService:_depositLoot(player)
     end
 
     self.TeamDepositedValue += depositedValue
-    self:_setStatus(string.format('%s deposited %d scrap value.', player.DisplayName, depositedValue))
+    self:_setStatus(
+        string.format('%s deposited %d scrap value.', player.DisplayName, depositedValue)
+    )
 
     if self.TeamDepositedValue >= self.SessionData.Quota then
         self:_settle('Quota secured')
@@ -226,7 +259,10 @@ function RunSessionService:_startTickLoop()
         while true do
             task.wait(1)
 
-            if self.StateMachine.Current == RunState.Expedition or self.StateMachine.Current == RunState.Extraction then
+            if
+                self.StateMachine.Current == RunState.Expedition
+                or self.StateMachine.Current == RunState.Extraction
+            then
                 self.TimeRemaining -= 1
                 if self.TimeRemaining <= 0 then
                     self.TimeRemaining = 0
@@ -260,7 +296,11 @@ function RunSessionService:start()
                 character:PivotTo(self.World.SpawnCFrame)
             end
         end)
-        self:_assignRoles()
+
+        if self.IsLaunched then
+            self:_assignRoles()
+        end
+
         self:_broadcastSnapshot()
     end)
 
@@ -274,15 +314,14 @@ function RunSessionService:start()
             return
         end
 
-        if payload.Type == 'RequestStartExpedition' then
+        if payload.Type == 'RequestLaunchRun' then
+            self:_launchRun(player)
+        elseif payload.Type == 'RequestStartExpedition' then
             self:_beginExpedition(player)
         end
     end)
 
-    self:_assignRoles()
-    self:_rebuildWorld()
-    self:_startTickLoop()
-    self:_setStatus('Camp is live. Deploy when the crew is ready.')
+    self:_broadcastSnapshot()
 end
 
 return RunSessionService
