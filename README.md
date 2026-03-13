@@ -1,0 +1,32 @@
+# roblox_experience
+
+Roblox game skeleton for a two-place experience:
+
+- `places/lobby`: team assembly and launch flow
+- `places/run`: camp, expedition, extraction, and settlement loop
+- `packages/shared`: shared enums, networking, schema helpers, and utilities
+- `packages/gameplay`: pure gameplay data and stateful domain modules
+- `packages/ui`: lightweight UI helpers for the first vertical slice
+
+## Local Workflow
+
+1. Install toolchain with `aftman install`.
+2. Install Wally dependencies with `wally install`.
+3. Serve the run place from repo root with `rojo serve`.
+4. Serve the lobby place with `cd places/lobby && rojo serve`.
+5. Serve the run place directly with `cd places/run && rojo serve`.
+
+## Runtime Assumptions
+
+- `SessionConfig.PlaceIds.Lobby` and `SessionConfig.PlaceIds.Run` must be filled with real place IDs before teleport flow works.
+- The run loop is intentionally simple: camp, expedition, loot, extract, settle, reset.
+- Hidden-role gameplay is deferred, but visibility and permission interfaces are already present.
+
+## Tests
+
+Pure logic tests live under `tests/` for:
+
+- state machine transitions
+- maze generation structure
+- inventory capacity and deposit math
+- visibility filtering for private role data

@@ -1,0 +1,33 @@
+{
+  "name": "roblox-experience-run",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Packages": {
+        "$className": "Folder",
+        "Shared": {
+          "$path": "packages/shared/src"
+        },
+        "Gameplay": {
+          "$path": "packages/gameplay/src"
+        },
+        "UI": {
+          "$path": "packages/ui/src"
+        }
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "$path": "places/run/src/ServerScriptService"
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "$path": "places/run/src/StarterPlayer/StarterPlayerScripts"
+      }
+    }
+  }
+}
+

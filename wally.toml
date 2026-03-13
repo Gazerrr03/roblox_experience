@@ -1,0 +1,10 @@
+[package]
+name = "qizhi-dong/roblox-experience"
+version = "0.1.0"
+license = "MIT"
+realm = "shared"
+registry = "https://github.com/UpliftGames/wally-index"
+
+[dev-dependencies]
+TestEZ = "roblox/testez@0.4.1"
+

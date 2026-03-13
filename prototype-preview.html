@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Scene HUD Preview</title>
+    <style>
+      :root {
+        --bg: #09090b;
+        --card: rgba(17, 17, 20, 0.76);
+        --card-border: rgba(57, 57, 64, 0.82);
+        --text: #fafafa;
+        --muted: #a1a1aa;
+        --subtle: #71717a;
+        --accent: #fcd34d;
+        --accent-ink: #18181b;
+        --good: #86efac;
+        --warn: #f97316;
+        --warn-bg: rgba(39, 20, 10, 0.78);
+        --warn-border: rgba(124, 45, 18, 0.85);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at top, #1b1b1f 0%, #09090b 58%, #050507 100%);
+        font-family: Inter, system-ui, sans-serif;
+        color: var(--text);
+      }
+
+      .frame {
+        position: relative;
+        width: 1376px;
+        height: 768px;
+        overflow: hidden;
+        border-radius: 16px;
+        border: 1px solid #27272a;
+        background:
+          linear-gradient(rgba(6, 8, 10, 0.12), rgba(6, 8, 10, 0.12)),
+          url("./assets/scene-mock.png") center center / cover no-repeat;
+        box-shadow: 0 30px 70px rgba(0, 0, 0, 0.42);
+      }
+
+      .noise {
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(circle at center, transparent 36%, rgba(0, 0, 0, 0.48) 100%),
+          linear-gradient(to bottom, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
+        pointer-events: none;
+      }
+
+      .panel {
+        position: absolute;
+        background: var(--card);
+        border: 1px solid var(--card-border);
+        border-radius: 12px;
+        backdrop-filter: blur(9px);
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+      }
+
+      .label {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        font-size: 12px;
+        color: var(--accent);
+        letter-spacing: 0.02em;
+        margin-bottom: 10px;
+      }
+
+      .objective {
+        top: 28px;
+        left: 28px;
+        width: 340px;
+        padding: 18px 20px;
+      }
+
+      .objective .body {
+        font-size: 16px;
+        line-height: 1.42;
+        font-weight: 600;
+      }
+
+      .quota {
+        top: 28px;
+        left: 578px;
+        width: 220px;
+        padding: 16px 18px;
+        text-align: center;
+      }
+
+      .quota .mono {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+
+      .quota .value {
+        color: var(--accent);
+        font-size: 24px;
+        font-weight: 700;
+      }
+
+      .crew {
+        top: 28px;
+        right: 28px;
+        width: 262px;
+        padding: 16px 18px;
+      }
+
+      .crew .title,
+      .threat .title {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 12px;
+      }
+
+      .crew ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 8px;
+      }
+
+      .crew li {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+      }
+
+      .crew .name {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+      }
+
+      .state-safe {
+        color: var(--good);
+        font-weight: 600;
+      }
+
+      .state-inside {
+        color: var(--accent);
+        font-weight: 600;
+      }
+
+      .state-static {
+        color: var(--warn);
+        font-weight: 600;
+      }
+
+      .threat {
+        top: 324px;
+        right: 28px;
+        width: 240px;
+        padding: 16px;
+        background: var(--warn-bg);
+        border-color: var(--warn-border);
+      }
+
+      .threat .title {
+        color: #fdba74;
+        margin-bottom: 8px;
+      }
+
+      .threat .body {
+        color: #fed7aa;
+        font-size: 14px;
+        line-height: 1.4;
+      }
+
+      .vitals {
+        left: 28px;
+        bottom: 24px;
+        width: 340px;
+        padding: 16px 20px;
+        display: flex;
+        gap: 32px;
+      }
+
+      .metric-label {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        font-size: 10px;
+        color: var(--subtle);
+      }
+
+      .metric-value {
+        font-size: 24px;
+        font-weight: 600;
+        margin-top: 4px;
+      }
+
+      .prompt {
+        left: 438px;
+        bottom: 28px;
+        width: 500px;
+        height: 46px;
+        border-radius: 8px;
+        background: var(--accent);
+        color: var(--accent-ink);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 16px;
+        box-shadow: 0 10px 18px rgba(0, 0, 0, 0.28);
+      }
+
+      .prompt .key {
+        font-weight: 600;
+        font-size: 14px;
+      }
+
+      .prompt .action {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        font-size: 12px;
+      }
+
+      .quickbar {
+        right: 28px;
+        bottom: 24px;
+        width: 300px;
+        padding: 12px;
+        display: flex;
+        gap: 12px;
+      }
+
+      .slot {
+        width: 60px;
+        height: 60px;
+        border-radius: 8px;
+        border: 1px solid #27272a;
+        background: rgba(24, 24, 27, 0.9);
+        display: grid;
+        place-items: center;
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        font-size: 12px;
+        line-height: 1.15;
+        color: var(--text);
+        text-align: center;
+      }
+
+      .slot.active {
+        border-color: var(--accent);
+      }
+
+      .slot.empty {
+        color: var(--subtle);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="frame">
+      <div class="noise"></div>
+
+      <section class="panel objective">
+        <div class="label">CURRENT OBJECTIVE</div>
+        <div class="body">
+          Search the corridor branch, recover salvage, and stay out of direct
+          sight lines.
+        </div>
+      </section>
+
+      <section class="panel quota">
+        <div class="mono">TEAM VALUE</div>
+        <div class="value">$ 860 / 1200</div>
+      </section>
+
+      <section class="panel crew">
+        <div class="title">CREW LINK</div>
+        <ul>
+          <li><span class="name">RAY</span><span class="state-safe">SAFE</span></li>
+          <li><span class="name">DONG</span><span class="state-inside">INSIDE</span></li>
+          <li><span class="name">GUEST-03</span><span class="state-static">STATIC</span></li>
+        </ul>
+      </section>
+
+      <section class="panel threat">
+        <div class="title">THREAT ALERT</div>
+        <div class="body">Irregular sound source detected ahead.</div>
+      </section>
+
+      <section class="panel vitals">
+        <div>
+          <div class="metric-label">HP</div>
+          <div class="metric-value">76</div>
+        </div>
+        <div>
+          <div class="metric-label">STAMINA</div>
+          <div class="metric-value">54%</div>
+        </div>
+        <div>
+          <div class="metric-label">LOAD</div>
+          <div class="metric-value">38 KG</div>
+        </div>
+      </section>
+
+      <section class="prompt">
+        <div class="key">E</div>
+        <div class="action">PICK UP SCRAP // +$180</div>
+      </section>
+
+      <section class="panel quickbar">
+        <div class="slot active">1<br />FLASH</div>
+        <div class="slot">2<br />SCRAP</div>
+        <div class="slot">3<br />KEY</div>
+        <div class="slot empty">4<br />EMPTY</div>
+      </section>
+    </main>
+  </body>
+</html>
