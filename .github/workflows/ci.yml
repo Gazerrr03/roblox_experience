@@ -21,5 +21,41 @@ jobs:
       - name: Install Aftman toolchain
         uses: ok-nick/setup-aftman@v0.4.2
 
+      - name: Lint Luau
+        run: selene .
+
       - name: Check formatting
         run: stylua --check .
+
+  roblox-tests:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Verify Roblox Studio install secret
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.ROBLOSECURITY }}" ]; then
+            echo "ROBLOSECURITY secret is required to install Roblox Studio for CI tests."
+            exit 1
+          fi
+
+      - name: Install Aftman toolchain
+        uses: ok-nick/setup-aftman@v0.4.2
+
+      - name: Install Roblox Studio
+        uses: OrbitalOwen/roblox-win-installer-action@1.1
+        with:
+          cookie: ${{ secrets.ROBLOSECURITY }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build test place
+        shell: bash
+        run: rojo build tests/default.project.json -o "$RUNNER_TEMP/roblox_experience-tests.rbxlx"
+
+      - name: Run Roblox logic tests
+        shell: bash
+        run: run-in-roblox --place "$RUNNER_TEMP/roblox_experience-tests.rbxlx" --script tests/run-in-roblox.lua
