@@ -23,6 +23,15 @@ local RunWorldBuilder = require(script.Parent.RunWorldBuilder)
 local RunSessionService = {}
 RunSessionService.__index = RunSessionService
 
+local function bindCharacterTeleport(self, player)
+    player.CharacterAdded:Connect(function(character)
+        task.wait()
+        if self.World and character.Parent then
+            character:PivotTo(self.World.SpawnCFrame)
+        end
+    end)
+end
+
 function RunSessionService.new()
     local self = setmetatable({}, RunSessionService)
 
@@ -145,6 +154,7 @@ function RunSessionService:_launchRun(_player)
     end
 
     self.IsLaunched = true
+    Players.CharacterAutoLoads = true
 
     if self.StateMachine.Current == RunState.Lobby then
         self.StateMachine:transition(RunState.Camp)
@@ -155,6 +165,11 @@ function RunSessionService:_launchRun(_player)
     self.InventoryService:reset()
     self:_assignRoles()
     self:_rebuildWorld()
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        player:LoadCharacter()
+    end
+
     self:_startTickLoop()
     self:_setStatus('Camp is live. Deploy when you are ready.')
 end
@@ -277,25 +292,20 @@ end
 
 function RunSessionService:start()
     self:_loadSessionDataFromJoin()
+    Players.CharacterAutoLoads = false
 
     for _, player in ipairs(Players:GetPlayers()) do
         self.InventoryService:addPlayer(player)
-        player.CharacterAdded:Connect(function(character)
-            task.wait()
-            if self.World and character.Parent then
-                character:PivotTo(self.World.SpawnCFrame)
-            end
-        end)
+        bindCharacterTeleport(self, player)
+
+        if player.Character then
+            player.Character:Destroy()
+        end
     end
 
     Players.PlayerAdded:Connect(function(player)
         self.InventoryService:addPlayer(player)
-        player.CharacterAdded:Connect(function(character)
-            task.wait()
-            if self.World and character.Parent then
-                character:PivotTo(self.World.SpawnCFrame)
-            end
-        end)
+        bindCharacterTeleport(self, player)
 
         if self.IsLaunched then
             self:_assignRoles()
