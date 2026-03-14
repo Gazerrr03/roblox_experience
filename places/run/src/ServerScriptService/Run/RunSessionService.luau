@@ -36,7 +36,7 @@ function RunSessionService.new()
     local self = setmetatable({}, RunSessionService)
 
     self.Remotes = Remotes
-    self.StateMachine = SessionStateMachine.new(RunState.Lobby)
+    self.StateMachine = SessionStateMachine.new(RunState.Camp)
     self.InventoryService = InventoryService.new(SessionConfig.InventoryCapacity)
     self.RoleService = RoleService.new(Roles)
     self.MonsterService = MonsterService.new(Monsters[1], function()
@@ -155,10 +155,6 @@ function RunSessionService:_launchRun(_player)
 
     self.IsLaunched = true
     Players.CharacterAutoLoads = true
-
-    if self.StateMachine.Current == RunState.Lobby then
-        self.StateMachine:transition(RunState.Camp)
-    end
 
     self.TeamDepositedValue = 0
     self.TimeRemaining = self.SessionData.RunDurationSeconds
@@ -309,6 +305,7 @@ function RunSessionService:start()
 
         if self.IsLaunched then
             self:_assignRoles()
+            player:LoadCharacter()
         end
 
         self:_broadcastSnapshot()

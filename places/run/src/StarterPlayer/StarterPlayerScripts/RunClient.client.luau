@@ -244,7 +244,7 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
     for _, rosterEntry in pairs(snapshot.Roster) do
         table.insert(
             rosterLines,
-            string.format('%s · %s', rosterEntry.Name, rosterEntry.PublicRole)
+            string.format('%s - %s', rosterEntry.Name, rosterEntry.PublicRole)
         )
     end
 
