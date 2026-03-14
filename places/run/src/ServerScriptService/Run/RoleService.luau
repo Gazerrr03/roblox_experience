@@ -40,4 +40,3 @@ function RoleService:getPrivateState(player)
 end
 
 return RoleService
-

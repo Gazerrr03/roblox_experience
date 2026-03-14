@@ -77,7 +77,8 @@ function MonsterService:update(dt)
     end
 
     local currentPosition = self.MonsterPart.Position
-    local targetPlayer = MonsterLogic.pickNearestTarget(currentPosition, playerPositions, self.Definition.SightRange)
+    local targetPlayer =
+        MonsterLogic.pickNearestTarget(currentPosition, playerPositions, self.Definition.SightRange)
     local nextPosition
 
     if targetPlayer then
@@ -89,7 +90,8 @@ function MonsterService:update(dt)
         )
     elseif #self.PatrolPoints > 0 then
         local patrolTarget = self.PatrolPoints[self.PatrolIndex] + Vector3.new(0, 4, 0)
-        nextPosition = MonsterLogic.stepToward(currentPosition, patrolTarget, self.Definition.Speed * 0.45, dt)
+        nextPosition =
+            MonsterLogic.stepToward(currentPosition, patrolTarget, self.Definition.Speed * 0.45, dt)
 
         if (nextPosition - patrolTarget).Magnitude <= 2 then
             self.PatrolIndex = (self.PatrolIndex % #self.PatrolPoints) + 1
@@ -102,4 +104,3 @@ function MonsterService:update(dt)
 end
 
 return MonsterService
-

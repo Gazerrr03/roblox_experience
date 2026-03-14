@@ -107,7 +107,13 @@ function RunWorldBuilder.build(layout, itemDefinitions, procGenConfig)
             or room.Kind == 'Camp' and Color3.fromRGB(50, 91, 75)
             or Color3.fromRGB(68, 73, 84)
 
-        createFloor(room.Id .. '_Floor', room.Position + Vector3.new(0, -0.5, 0), roomSize, color, roomFolder)
+        createFloor(
+            room.Id .. '_Floor',
+            room.Position + Vector3.new(0, -0.5, 0),
+            roomSize,
+            color,
+            roomFolder
+        )
         createRoomMarkers(room.Position, roomSize, roomFolder)
         table.insert(patrolPoints, room.Position)
 
@@ -123,7 +129,8 @@ function RunWorldBuilder.build(layout, itemDefinitions, procGenConfig)
                 itemPart.Material = Enum.Material.SmoothPlastic
                 itemPart.Color = itemDef.Color
                 itemPart.Size = Vector3.new(2.4, 2.4, 2.4)
-                itemPart.Position = room.Position + Vector3.new(random:NextNumber(-9, 9), 1.5, random:NextNumber(-9, 9))
+                itemPart.Position = room.Position
+                    + Vector3.new(random:NextNumber(-9, 9), 1.5, random:NextNumber(-9, 9))
                 itemPart.Parent = roomFolder
 
                 local prompt = Instance.new('ProximityPrompt')

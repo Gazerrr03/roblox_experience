@@ -71,4 +71,3 @@ function InventoryService:getSummary(player)
 end
 
 return InventoryService
-

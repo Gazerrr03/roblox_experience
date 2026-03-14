@@ -121,4 +121,3 @@ Remotes.LobbyState.OnClientEvent:Connect(function(snapshot)
     startButton.AutoButtonColor = snapshot.CanStart
     startButton.BackgroundColor3 = snapshot.CanStart and Theme.Warning or Theme.Surface
 end)
-
