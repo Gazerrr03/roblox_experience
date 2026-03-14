@@ -23,6 +23,15 @@ local RunWorldBuilder = require(script.Parent.RunWorldBuilder)
 local RunSessionService = {}
 RunSessionService.__index = RunSessionService
 
+local function bindCharacterTeleport(self, player)
+    player.CharacterAdded:Connect(function(character)
+        task.wait()
+        if self.World and character.Parent then
+            character:PivotTo(self.World.SpawnCFrame)
+        end
+    end)
+end
+
 function RunSessionService.new()
     local self = setmetatable({}, RunSessionService)
 
@@ -40,9 +49,10 @@ function RunSessionService.new()
         RunDurationSeconds = SessionConfig.DefaultRunDurationSeconds,
         InventoryCapacity = SessionConfig.InventoryCapacity,
     }
-    self.Status = 'Preparing camp.'
+    self.Status = 'Select Single Player to enter the run.'
     self.TimeRemaining = self.SessionData.RunDurationSeconds
     self.TeamDepositedValue = 0
+    self.IsLaunched = false
     self.World = nil
     self.TickThread = nil
 
@@ -119,6 +129,7 @@ end
 function RunSessionService:_broadcastSnapshot()
     for _, player in ipairs(Players:GetPlayers()) do
         self.Remotes.RunSnapshot:FireClient(player, {
+            IsLaunched = self.IsLaunched,
             State = self.StateMachine.Current,
             Status = self.Status,
             Seed = self.SessionData.Seed,
@@ -135,6 +146,28 @@ end
 
 function RunSessionService:_assignRoles()
     self.RoleService:assign(Players:GetPlayers())
+end
+
+function RunSessionService:_launchRun(_player)
+    if self.IsLaunched then
+        return
+    end
+
+    self.IsLaunched = true
+    Players.CharacterAutoLoads = true
+
+    self.TeamDepositedValue = 0
+    self.TimeRemaining = self.SessionData.RunDurationSeconds
+    self.InventoryService:reset()
+    self:_assignRoles()
+    self:_rebuildWorld()
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        player:LoadCharacter()
+    end
+
+    self:_startTickLoop()
+    self:_setStatus('Camp is live. Deploy when you are ready.')
 end
 
 function RunSessionService:_resetRunLoop()
@@ -255,31 +288,32 @@ end
 
 function RunSessionService:start()
     self:_loadSessionDataFromJoin()
+    Players.CharacterAutoLoads = false
 
     for _, player in ipairs(Players:GetPlayers()) do
         self.InventoryService:addPlayer(player)
-        player.CharacterAdded:Connect(function(character)
-            task.wait()
-            if self.World and character.Parent then
-                character:PivotTo(self.World.SpawnCFrame)
-            end
-        end)
+        bindCharacterTeleport(self, player)
+
+        if player.Character then
+            player.Character:Destroy()
+        end
     end
 
     Players.PlayerAdded:Connect(function(player)
         self.InventoryService:addPlayer(player)
-        player.CharacterAdded:Connect(function(character)
-            task.wait()
-            if self.World and character.Parent then
-                character:PivotTo(self.World.SpawnCFrame)
-            end
-        end)
-        self:_assignRoles()
+        bindCharacterTeleport(self, player)
+
+        if self.IsLaunched then
+            self.RoleService:assignPlayer(player)
+            player:LoadCharacter()
+        end
+
         self:_broadcastSnapshot()
     end)
 
     Players.PlayerRemoving:Connect(function(player)
         self.InventoryService:removePlayer(player)
+        self.RoleService:removePlayer(player)
         self:_broadcastSnapshot()
     end)
 
@@ -288,15 +322,14 @@ function RunSessionService:start()
             return
         end
 
-        if payload.Type == 'RequestStartExpedition' then
+        if payload.Type == 'RequestLaunchRun' then
+            self:_launchRun(player)
+        elseif payload.Type == 'RequestStartExpedition' then
             self:_beginExpedition(player)
         end
     end)
 
-    self:_assignRoles()
-    self:_rebuildWorld()
-    self:_startTickLoop()
-    self:_setStatus('Camp is live. Deploy when the crew is ready.')
+    self:_broadcastSnapshot()
 end
 
 return RunSessionService
