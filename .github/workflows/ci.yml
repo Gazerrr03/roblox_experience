@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  luau-quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Aftman toolchain
+        uses: ok-nick/setup-aftman@v0.4.2
+
+      - name: Check formatting
+        run: stylua --check .
+
+      - name: Lint Luau
+        run: selene .
