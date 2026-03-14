@@ -111,7 +111,10 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
 
     local rosterLines = {}
     for _, rosterEntry in pairs(snapshot.Roster) do
-        table.insert(rosterLines, string.format('%s · %s', rosterEntry.Name, rosterEntry.PublicRole))
+        table.insert(
+            rosterLines,
+            string.format('%s · %s', rosterEntry.Name, rosterEntry.PublicRole)
+        )
     end
 
     table.sort(rosterLines)

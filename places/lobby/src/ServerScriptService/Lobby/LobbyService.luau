@@ -57,7 +57,8 @@ end
 
 function LobbyService:_setReady(player, isReady)
     self.ReadyByUserId[player.UserId] = isReady
-    self.Status = isReady and string.format('%s is ready.', player.DisplayName) or string.format('%s is waiting.', player.DisplayName)
+    self.Status = isReady and string.format('%s is ready.', player.DisplayName)
+        or string.format('%s is waiting.', player.DisplayName)
     self:_broadcast()
 end
 
@@ -142,4 +143,3 @@ function LobbyService:start()
 end
 
 return LobbyService
-

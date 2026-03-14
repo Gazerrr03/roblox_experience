@@ -17,4 +17,3 @@ return function()
     inventory:clear()
     assert(inventory.Weight == 0, 'Inventory clear should reset weight')
 end
-

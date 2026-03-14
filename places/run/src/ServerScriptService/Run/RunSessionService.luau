@@ -31,7 +31,8 @@ function RunSessionService.new()
     self.InventoryService = InventoryService.new(SessionConfig.InventoryCapacity)
     self.RoleService = RoleService.new(Roles)
     self.MonsterService = MonsterService.new(Monsters[1], function()
-        return self.StateMachine.Current == RunState.Expedition or self.StateMachine.Current == RunState.Extraction
+        return self.StateMachine.Current == RunState.Expedition
+            or self.StateMachine.Current == RunState.Extraction
     end)
     self.SessionData = {
         Seed = SessionConfig.DefaultSeed,
@@ -61,8 +62,10 @@ function RunSessionService:_loadSessionDataFromJoin()
     if type(incoming) == 'table' then
         self.SessionData.Seed = incoming.Seed or self.SessionData.Seed
         self.SessionData.Quota = incoming.Quota or self.SessionData.Quota
-        self.SessionData.RunDurationSeconds = incoming.RunDurationSeconds or self.SessionData.RunDurationSeconds
-        self.SessionData.InventoryCapacity = incoming.InventoryCapacity or self.SessionData.InventoryCapacity
+        self.SessionData.RunDurationSeconds = incoming.RunDurationSeconds
+            or self.SessionData.RunDurationSeconds
+        self.SessionData.InventoryCapacity = incoming.InventoryCapacity
+            or self.SessionData.InventoryCapacity
         self.InventoryService.Capacity = self.SessionData.InventoryCapacity
     end
 end
@@ -177,7 +180,10 @@ function RunSessionService:_beginExpedition(player)
 end
 
 function RunSessionService:_pickupItem(player, itemEntry)
-    if self.StateMachine.Current ~= RunState.Expedition and self.StateMachine.Current ~= RunState.Extraction then
+    if
+        self.StateMachine.Current ~= RunState.Expedition
+        and self.StateMachine.Current ~= RunState.Extraction
+    then
         return
     end
 
@@ -195,7 +201,10 @@ function RunSessionService:_pickupItem(player, itemEntry)
 end
 
 function RunSessionService:_depositLoot(player)
-    if self.StateMachine.Current ~= RunState.Expedition and self.StateMachine.Current ~= RunState.Extraction then
+    if
+        self.StateMachine.Current ~= RunState.Expedition
+        and self.StateMachine.Current ~= RunState.Extraction
+    then
         return
     end
 
@@ -210,7 +219,9 @@ function RunSessionService:_depositLoot(player)
     end
 
     self.TeamDepositedValue += depositedValue
-    self:_setStatus(string.format('%s deposited %d scrap value.', player.DisplayName, depositedValue))
+    self:_setStatus(
+        string.format('%s deposited %d scrap value.', player.DisplayName, depositedValue)
+    )
 
     if self.TeamDepositedValue >= self.SessionData.Quota then
         self:_settle('Quota secured')
@@ -226,7 +237,10 @@ function RunSessionService:_startTickLoop()
         while true do
             task.wait(1)
 
-            if self.StateMachine.Current == RunState.Expedition or self.StateMachine.Current == RunState.Extraction then
+            if
+                self.StateMachine.Current == RunState.Expedition
+                or self.StateMachine.Current == RunState.Extraction
+            then
                 self.TimeRemaining -= 1
                 if self.TimeRemaining <= 0 then
                     self.TimeRemaining = 0

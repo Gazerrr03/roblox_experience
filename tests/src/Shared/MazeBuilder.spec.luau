@@ -14,4 +14,3 @@ return function()
     local extractionRoom = maze.Rooms[maze.ExtractionRoomId]
     assert(extractionRoom.Kind == 'Extraction', 'Extraction room should be tagged correctly')
 end
-
