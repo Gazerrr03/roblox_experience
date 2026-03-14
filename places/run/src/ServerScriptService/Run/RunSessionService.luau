@@ -304,7 +304,7 @@ function RunSessionService:start()
         bindCharacterTeleport(self, player)
 
         if self.IsLaunched then
-            self:_assignRoles()
+            self.RoleService:assignPlayer(player)
             player:LoadCharacter()
         end
 
@@ -313,6 +313,7 @@ function RunSessionService:start()
 
     Players.PlayerRemoving:Connect(function(player)
         self.InventoryService:removePlayer(player)
+        self.RoleService:removePlayer(player)
         self:_broadcastSnapshot()
     end)
 
