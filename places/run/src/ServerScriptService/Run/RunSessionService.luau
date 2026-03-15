@@ -1,5 +1,6 @@
 local Players = game:GetService('Players')
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local Workspace = game:GetService('Workspace')
 
 local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
@@ -12,6 +13,8 @@ local RunWorldBuilder = require(script.Parent.RunWorldBuilder)
 local RunSessionService = {}
 RunSessionService.__index = RunSessionService
 
+local DEFAULT_WORKSPACE_SHELL_NAMES = { 'Baseplate', 'SpawnLocation' }
+
 local function bindCharacterTeleport(self, player)
     player.CharacterAdded:Connect(function(character)
         task.wait()
@@ -19,6 +22,15 @@ local function bindCharacterTeleport(self, player)
             character:PivotTo(self.World.SpawnCFrame)
         end
     end)
+end
+
+local function clearDefaultWorkspaceShell()
+    for _, instanceName in ipairs(DEFAULT_WORKSPACE_SHELL_NAMES) do
+        local instance = Workspace:FindFirstChild(instanceName)
+        if instance then
+            instance:Destroy()
+        end
+    end
 end
 
 function RunSessionService.new()
@@ -66,6 +78,7 @@ function RunSessionService:_teleportCharactersToSpawn()
 end
 
 function RunSessionService:_rebuildWorld()
+    clearDefaultWorkspaceShell()
     self.World = RunWorldBuilder.build()
     self:_bindWorldInteractions()
     self:_teleportCharactersToSpawn()
