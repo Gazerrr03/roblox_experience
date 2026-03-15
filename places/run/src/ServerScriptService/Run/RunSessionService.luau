@@ -13,6 +13,8 @@ local RunWorldBuilder = require(script.Parent.RunWorldBuilder)
 local RunSessionService = {}
 RunSessionService.__index = RunSessionService
 
+local DEFAULT_WORKSPACE_SHELL_NAMES = { 'Baseplate', 'SpawnLocation' }
+
 local function bindCharacterTeleport(self, player)
     player.CharacterAdded:Connect(function(character)
         task.wait()
@@ -23,7 +25,7 @@ local function bindCharacterTeleport(self, player)
 end
 
 local function clearDefaultWorkspaceShell()
-    for _, instanceName in ipairs({ 'Baseplate', 'SpawnLocation' }) do
+    for _, instanceName in ipairs(DEFAULT_WORKSPACE_SHELL_NAMES) do
         local instance = Workspace:FindFirstChild(instanceName)
         if instance then
             instance:Destroy()
