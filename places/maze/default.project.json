@@ -1,0 +1,32 @@
+{
+  "name": "roblox-experience-maze",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Packages": {
+        "$className": "Folder",
+        "Shared": {
+          "$path": "../../packages/shared/src"
+        },
+        "Gameplay": {
+          "$path": "../../packages/gameplay/src"
+        },
+        "UI": {
+          "$path": "../../packages/ui/src"
+        }
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "$path": "src/ServerScriptService"
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "$path": "src/StarterPlayer/StarterPlayerScripts"
+      }
+    }
+  }
+}

@@ -108,8 +108,8 @@ function OutdoorAreaBuilder.build(worldFolder, createPart, createPromptPart)
         CFrame = CFrame.new(0, 0.5, 120),
         Color = Color3.fromRGB(154, 113, 214),
         Material = Enum.Material.Neon,
-        ActionText = 'Inspect',
-        ObjectText = 'Maze Run Gate (Soon)',
+        ActionText = 'Enter',
+        ObjectText = 'Shared Maze Gate',
         MaxActivationDistance = 12,
     }, outdoorFolder)
 
