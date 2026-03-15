@@ -85,7 +85,8 @@ startButton.Parent = frame
 
 local hintLabel = makeLabel(UDim2.new(1, 0, 0, 60), Theme.SubtleText)
 hintLabel.TextSize = 16
-hintLabel.Text = 'Fill Run place ID in SessionConfig before teleporting from the lobby.'
+hintLabel.Text =
+    'Fill SessionConfig.PlaceIds.Run or SessionPlaceIdRun before teleporting from the lobby.'
 hintLabel.Parent = frame
 
 local localReady = false

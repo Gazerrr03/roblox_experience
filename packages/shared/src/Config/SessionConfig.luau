@@ -1,9 +1,46 @@
+local ReplicatedStorage = game:GetService('ReplicatedStorage')
+
+local DEFAULT_PLACE_IDS = {
+    Lobby = 0,
+    Maze = 0,
+    Run = 0,
+}
+
+local PLACE_ID_KEYS = { 'Lobby', 'Maze', 'Run' }
+
+local function coercePlaceId(value)
+    local numericValue = value
+    if type(value) == 'string' then
+        numericValue = tonumber(value)
+    end
+
+    if type(numericValue) ~= 'number' or numericValue <= 0 then
+        return nil
+    end
+
+    return math.floor(numericValue)
+end
+
+local function resolvePlaceIds()
+    local resolved = table.clone(DEFAULT_PLACE_IDS)
+    local candidates = { game, ReplicatedStorage }
+
+    for _, key in ipairs(PLACE_ID_KEYS) do
+        local attributeName = string.format('SessionPlaceId%s', key)
+        for _, container in ipairs(candidates) do
+            local placeId = coercePlaceId(container:GetAttribute(attributeName))
+            if placeId then
+                resolved[key] = placeId
+                break
+            end
+        end
+    end
+
+    return resolved
+end
+
 local SessionConfig = {
-    PlaceIds = {
-        Lobby = 0,
-        Maze = 0,
-        Run = 0,
-    },
+    PlaceIds = resolvePlaceIds(),
     MinPlayers = 1,
     MaxPlayers = 4,
     DefaultSeed = 12345,
