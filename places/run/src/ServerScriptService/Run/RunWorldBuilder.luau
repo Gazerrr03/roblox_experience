@@ -43,7 +43,7 @@ local function createPromptPart(config, parent)
     return part, prompt
 end
 
-function RunWorldBuilder.build(_seed)
+function RunWorldBuilder.build()
     local existing = Workspace:FindFirstChild('GeneratedWorld')
     if existing then
         existing:Destroy()

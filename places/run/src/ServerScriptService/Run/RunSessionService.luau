@@ -66,7 +66,7 @@ function RunSessionService:_teleportCharactersToSpawn()
 end
 
 function RunSessionService:_rebuildWorld()
-    self.World = RunWorldBuilder.build(self.SessionData.Seed)
+    self.World = RunWorldBuilder.build()
     self:_bindWorldInteractions()
     self:_teleportCharactersToSpawn()
 end
