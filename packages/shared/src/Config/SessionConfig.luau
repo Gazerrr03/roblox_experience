@@ -9,10 +9,7 @@ local DEFAULT_PLACE_IDS = {
 local PLACE_ID_KEYS = { 'Lobby', 'Maze', 'Run' }
 
 local function coercePlaceId(value)
-    local numericValue = value
-    if type(value) == 'string' then
-        numericValue = tonumber(value)
-    end
+    local numericValue = tonumber(value)
 
     if type(numericValue) ~= 'number' or numericValue <= 0 then
         return nil
