@@ -10,16 +10,20 @@ local UI = require(Packages:WaitForChild('UI'))
 
 local Remotes = Shared.Network.Remotes.ensure()
 local Theme = UI.Hud.Theme
-local firstPersonLockStarted = false
 
-local function ensureFirstPersonLock()
-    if firstPersonLockStarted then
-        return
-    end
-
-    Shared.Client.FirstPersonController.start(localPlayer)
-    firstPersonLockStarted = true
+local disconnectFirstPersonLock
+local ensureFirstPersonLock
+ensureFirstPersonLock = function()
+    disconnectFirstPersonLock = Shared.Client.FirstPersonController.start(localPlayer)
+    ensureFirstPersonLock = function() end
 end
+
+script.Destroying:Connect(function()
+    if disconnectFirstPersonLock ~= nil then
+        disconnectFirstPersonLock()
+        disconnectFirstPersonLock = nil
+    end
+end)
 
 local screenGui = Instance.new('ScreenGui')
 screenGui.Name = 'RunHud'
