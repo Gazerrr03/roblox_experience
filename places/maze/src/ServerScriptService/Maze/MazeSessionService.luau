@@ -13,6 +13,7 @@ local SharedPackage = Packages:WaitForChild('Shared')
 
 local SessionConfig = Shared.Config.SessionConfig
 local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
+local Remotes = Shared.Network.Remotes.ensure()
 local InventoryService =
     require(SharedPackage:WaitForChild('Runtime'):WaitForChild('InventoryService'))
 local MonsterService = require(SharedPackage:WaitForChild('Runtime'):WaitForChild('MonsterService'))
@@ -56,6 +57,7 @@ function MazeSessionService.new()
         RunDurationSeconds = SessionConfig.DefaultRunDurationSeconds,
         InventoryCapacity = SessionConfig.InventoryCapacity,
     }
+    self.Remotes = Remotes
     self.CampSession = CampMazeSessionContract.newCampSession({
         MazeAccessCode = 'local-debug-maze',
         MazeStatus = CampMazeSessionContract.MazeStatus.Active,
@@ -64,6 +66,7 @@ function MazeSessionService.new()
     self.World = nil
     self.IsDirectBoot = true
     self.IsLaunched = false
+    self.SnapshotThread = nil
     self.RunTracker = Gameplay.Session.MazeRunTracker.new()
     self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
     self.MonsterService = MonsterService.new(Gameplay.Config.Monsters[1], function()
@@ -143,9 +146,102 @@ function MazeSessionService:_removePlayerState(player)
     self.InventoryService:removePlayer(player)
 end
 
+function MazeSessionService:_getMazeStatus()
+    if self.RunTracker.IsCompleted then
+        return CampMazeSessionContract.MazeStatus.Completed
+    end
+
+    return CampMazeSessionContract.MazeStatus.Active
+end
+
+function MazeSessionService:_buildRoster()
+    local roster = {}
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        table.insert(roster, {
+            Name = player.DisplayName,
+            UserId = player.UserId,
+            InMaze = self.RunTracker:isPlayerActive(player.UserId),
+        })
+    end
+
+    table.sort(roster, function(left, right)
+        return left.Name < right.Name
+    end)
+
+    return roster
+end
+
+function MazeSessionService:_getPlayerArea(player)
+    if not self.IsLaunched or not self.World then
+        return 'Maze Staging'
+    end
+
+    local character = player.Character
+    local rootPart = character and character:FindFirstChild('HumanoidRootPart')
+    if not rootPart then
+        return 'Maze Staging'
+    end
+
+    local room = self.World.FindRoomByPosition(rootPart.Position)
+    if not room then
+        return 'Maze Staging'
+    end
+
+    return string.format('%s Room', room.Kind)
+end
+
+function MazeSessionService:_getObjectiveFor()
+    local state = self.RunTracker:getState()
+
+    if state == 'Camp' then
+        return 'Use the expedition console to deploy, or use the return marker to leave early later.'
+    end
+
+    if state == 'Expedition' then
+        return 'Collect loot, avoid the monster, and reach the settlement pad.'
+    end
+
+    if state == 'Extraction' then
+        return 'Settlement is underway. Hold position until the camp return begins.'
+    end
+
+    return 'Settlement is complete. Review the return summaries or head back to camp.'
+end
+
+function MazeSessionService:_broadcastSnapshot()
+    if not self.IsLaunched then
+        return
+    end
+
+    local roster = self:_buildRoster()
+    local returnedSummaries = self.RunTracker:getReturnedSummaries()
+    local mazeStatus = self:_getMazeStatus()
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        self.Remotes.RunSnapshot:FireClient(player, {
+            IsLaunched = true,
+            Status = self.Status,
+            Area = self:_getPlayerArea(player),
+            Objective = self:_getObjectiveFor(),
+            State = self.RunTracker:getState(),
+            Inventory = self.InventoryService:getSummary(player),
+            Roster = roster,
+            SessionId = self.CampSession.SessionId,
+            MazeAccessCode = self.CampSession.MazeAccessCode,
+            MazeStatus = mazeStatus,
+            ReturnedPlayerSummaries = returnedSummaries,
+            IsDirectBoot = self.IsDirectBoot,
+        })
+
+        self.Remotes.PrivateState:FireClient(player, nil)
+    end
+end
+
 function MazeSessionService:_setStatus(status)
     self.Status = status
     print(string.format('[Maze] %s', status))
+    self:_broadcastSnapshot()
 end
 
 function MazeSessionService:_rebuildWorld()
@@ -428,6 +524,25 @@ function MazeSessionService:_launchMaze()
     for _, player in ipairs(Players:GetPlayers()) do
         player:LoadCharacter()
     end
+
+    self:_startSnapshotLoop()
+    self:_broadcastSnapshot()
+end
+
+function MazeSessionService:_startSnapshotLoop()
+    if self.SnapshotThread then
+        return
+    end
+
+    self.SnapshotThread = task.spawn(function()
+        while true do
+            task.wait(1)
+
+            if self.IsLaunched then
+                self:_broadcastSnapshot()
+            end
+        end
+    end)
 end
 
 function MazeSessionService:start()
@@ -451,11 +566,15 @@ function MazeSessionService:start()
         if self.IsLaunched then
             player:LoadCharacter()
             self:_setStatus(string.format('%s joined the shared maze session.', player.DisplayName))
+            return
         end
+
+        self:_broadcastSnapshot()
     end)
 
     Players.PlayerRemoving:Connect(function(player)
         self:_removePlayerState(player)
+        self:_broadcastSnapshot()
     end)
 
     self:_launchMaze()
