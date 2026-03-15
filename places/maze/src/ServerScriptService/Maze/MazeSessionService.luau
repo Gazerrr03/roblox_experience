@@ -5,6 +5,7 @@ local Workspace = game:GetService('Workspace')
 
 local DEFAULT_WORKSPACE_SHELL_NAMES = { 'Baseplate', 'SpawnLocation' }
 local EXTRACTION_DELAY_SECONDS = 2
+local CAMP_SESSION_LOCK_WAIT_SECONDS = 0.05
 
 local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
@@ -47,6 +48,22 @@ local function bindCharacterTeleport(self, player)
     end)
 end
 
+local function runWithCampSessionLock(self, callback)
+    while self.CampSessionLock do
+        task.wait(CAMP_SESSION_LOCK_WAIT_SECONDS)
+    end
+
+    self.CampSessionLock = true
+    local results = table.pack(pcall(callback))
+    self.CampSessionLock = false
+
+    if not results[1] then
+        error(results[2], 0)
+    end
+
+    return table.unpack(results, 2, results.n)
+end
+
 function MazeSessionService.new()
     local self = setmetatable({}, MazeSessionService)
 
@@ -64,6 +81,7 @@ function MazeSessionService.new()
     self.World = nil
     self.IsDirectBoot = true
     self.IsLaunched = false
+    self.CampSessionLock = false
     self.RunTracker = Gameplay.Session.MazeRunTracker.new()
     self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
     self.MonsterService = MonsterService.new(Gameplay.Config.Monsters[1], function()
@@ -195,43 +213,46 @@ function MazeSessionService:_canReturnToCamp()
 end
 
 function MazeSessionService:_teleportToCamp(players, summaries, mazeCompleted)
-    if not self:_canReturnToCamp() then
-        self:_setStatus(
-            'Camp return is unavailable in direct boot. Set SessionConfig.PlaceIds.Run and enter from camp.'
-        )
-        return false
-    end
+    return runWithCampSessionLock(self, function()
+        if not self:_canReturnToCamp() then
+            self:_setStatus(
+                'Camp return is unavailable in direct boot. Set SessionConfig.PlaceIds.Run and enter from camp.'
+            )
+            return false
+        end
 
-    local nextCampSession = self.CampSession
-    for _, summary in ipairs(summaries) do
-        nextCampSession =
-            CampMazeSessionContract.applyReturn(nextCampSession, summary, mazeCompleted)
-    end
+        -- Teleports yield, so keep the camp-side handoff serialized per maze server.
+        local nextCampSession = self.CampSession
+        for _, summary in ipairs(summaries) do
+            nextCampSession =
+                CampMazeSessionContract.applyReturn(nextCampSession, summary, mazeCompleted)
+        end
 
-    local teleportData = CampMazeSessionContract.buildMazeToCampTeleportData({
-        SessionConfig = self.SessionData,
-        CampSession = nextCampSession,
-        Summaries = summaries,
-        MazeCompleted = mazeCompleted,
-    })
+        local teleportData = CampMazeSessionContract.buildMazeToCampTeleportData({
+            SessionConfig = self.SessionData,
+            CampSession = nextCampSession,
+            Summaries = summaries,
+            MazeCompleted = mazeCompleted,
+        })
 
-    local success, message = pcall(function()
-        TeleportService:TeleportToPrivateServer(
-            SessionConfig.PlaceIds.Run,
-            nextCampSession.CampAccessCode,
-            players,
-            nil,
-            teleportData
-        )
+        local success, message = pcall(function()
+            TeleportService:TeleportToPrivateServer(
+                SessionConfig.PlaceIds.Run,
+                nextCampSession.CampAccessCode,
+                players,
+                nil,
+                teleportData
+            )
+        end)
+
+        if not success then
+            self:_setStatus(string.format('Camp return failed: %s', tostring(message)))
+            return false
+        end
+
+        self.CampSession = nextCampSession
+        return true
     end)
-
-    if not success then
-        self:_setStatus(string.format('Camp return failed: %s', tostring(message)))
-        return false
-    end
-
-    self.CampSession = nextCampSession
-    return true
 end
 
 function MazeSessionService:_deployCrew(player)

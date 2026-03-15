@@ -16,6 +16,7 @@ local RunSessionService = {}
 RunSessionService.__index = RunSessionService
 
 local DEFAULT_WORKSPACE_SHELL_NAMES = { 'Baseplate', 'SpawnLocation' }
+local CAMP_SESSION_LOCK_WAIT_SECONDS = 0.05
 
 local function bindCharacterTeleport(self, player)
     player.CharacterAdded:Connect(function(character)
@@ -50,6 +51,22 @@ local function cloneArray(input)
     return result
 end
 
+local function runWithCampSessionLock(self, callback)
+    while self.CampSessionLock do
+        task.wait(CAMP_SESSION_LOCK_WAIT_SECONDS)
+    end
+
+    self.CampSessionLock = true
+    local results = table.pack(pcall(callback))
+    self.CampSessionLock = false
+
+    if not results[1] then
+        error(results[2], 0)
+    end
+
+    return table.unpack(results, 2, results.n)
+end
+
 function RunSessionService.new()
     local self = setmetatable({}, RunSessionService)
 
@@ -68,6 +85,7 @@ function RunSessionService.new()
     self.World = nil
     self.SnapshotThread = nil
     self.PendingSpawnByUserId = {}
+    self.CampSessionLock = false
 
     return self
 end
@@ -317,58 +335,61 @@ function RunSessionService:_openGate(player)
 end
 
 function RunSessionService:_enterMaze(player)
-    if SessionConfig.PlaceIds.Maze == 0 then
-        self:_setStatus('Set SessionConfig.PlaceIds.Maze before using the maze gate.')
-        return
-    end
+    runWithCampSessionLock(self, function()
+        if SessionConfig.PlaceIds.Maze == 0 then
+            self:_setStatus('Set SessionConfig.PlaceIds.Maze before using the maze gate.')
+            return
+        end
 
-    if self.CampSession.MazeStatus == CampMazeSessionContract.MazeStatus.Completed then
-        self:_setStatus('The maze session is already complete for this camp.')
-        return
-    end
+        if self.CampSession.MazeStatus == CampMazeSessionContract.MazeStatus.Completed then
+            self:_setStatus('The maze session is already complete for this camp.')
+            return
+        end
 
-    local previousSession = CampMazeSessionContract.normalizeCampSession(self.CampSession)
-    local mazeAccessCode = previousSession.MazeAccessCode
-        or TeleportService:ReserveServer(SessionConfig.PlaceIds.Maze)
+        -- Teleports yield, so keep the camp session mutation serialized per server.
+        local previousSession = CampMazeSessionContract.normalizeCampSession(self.CampSession)
+        local mazeAccessCode = previousSession.MazeAccessCode
+            or TeleportService:ReserveServer(SessionConfig.PlaceIds.Maze)
 
-    previousSession.MazeAccessCode = mazeAccessCode
-    previousSession.GateOpen = self.GateOpen
+        previousSession.MazeAccessCode = mazeAccessCode
+        previousSession.GateOpen = self.GateOpen
 
-    local nextSession = CampMazeSessionContract.markPlayerEntered(previousSession, {
-        UserId = player.UserId,
-        Name = player.DisplayName,
-    })
-    nextSession.MazeAccessCode = mazeAccessCode
-    nextSession.GateOpen = self.GateOpen
-
-    local teleportData = CampMazeSessionContract.buildCampToMazeTeleportData({
-        SessionConfig = self.SessionData,
-        CampSession = nextSession,
-        EnteringPlayer = {
+        local nextSession = CampMazeSessionContract.markPlayerEntered(previousSession, {
             UserId = player.UserId,
             Name = player.DisplayName,
-        },
-        EntryReason = 'maze_gate',
-    })
+        })
+        nextSession.MazeAccessCode = mazeAccessCode
+        nextSession.GateOpen = self.GateOpen
 
-    local success, message = pcall(function()
-        TeleportService:TeleportToPrivateServer(
-            SessionConfig.PlaceIds.Maze,
-            mazeAccessCode,
-            { player },
-            nil,
-            teleportData
-        )
+        local teleportData = CampMazeSessionContract.buildCampToMazeTeleportData({
+            SessionConfig = self.SessionData,
+            CampSession = nextSession,
+            EnteringPlayer = {
+                UserId = player.UserId,
+                Name = player.DisplayName,
+            },
+            EntryReason = 'maze_gate',
+        })
+
+        local success, message = pcall(function()
+            TeleportService:TeleportToPrivateServer(
+                SessionConfig.PlaceIds.Maze,
+                mazeAccessCode,
+                { player },
+                nil,
+                teleportData
+            )
+        end)
+
+        if not success then
+            self.CampSession = previousSession
+            self:_setStatus(string.format('Maze gate failed: %s', tostring(message)))
+            return
+        end
+
+        self.CampSession = nextSession
+        self:_setStatus(string.format('%s is entering the shared maze run.', player.DisplayName))
     end)
-
-    if not success then
-        self.CampSession = previousSession
-        self:_setStatus(string.format('Maze gate failed: %s', tostring(message)))
-        return
-    end
-
-    self.CampSession = nextSession
-    self:_setStatus(string.format('%s is entering the shared maze run.', player.DisplayName))
 end
 
 function RunSessionService:_launchRun(_player)
