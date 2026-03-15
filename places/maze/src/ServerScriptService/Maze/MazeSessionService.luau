@@ -1,17 +1,21 @@
 local Players = game:GetService('Players')
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local TeleportService = game:GetService('TeleportService')
 local Workspace = game:GetService('Workspace')
 
 local DEFAULT_WORKSPACE_SHELL_NAMES = { 'Baseplate', 'SpawnLocation' }
 local EXTRACTION_DELAY_SECONDS = 2
 
 local Packages = ReplicatedStorage:WaitForChild('Packages')
-local Shared = Packages:WaitForChild('Shared')
+local Shared = require(Packages:WaitForChild('Shared'))
 local Gameplay = require(Packages:WaitForChild('Gameplay'))
+local SharedPackage = Packages:WaitForChild('Shared')
 
-local SessionConfig = require(Shared:WaitForChild('Config'):WaitForChild('SessionConfig'))
-local InventoryService = require(Shared:WaitForChild('Runtime'):WaitForChild('InventoryService'))
-local MonsterService = require(Shared:WaitForChild('Runtime'):WaitForChild('MonsterService'))
+local SessionConfig = Shared.Config.SessionConfig
+local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
+local InventoryService =
+    require(SharedPackage:WaitForChild('Runtime'):WaitForChild('InventoryService'))
+local MonsterService = require(SharedPackage:WaitForChild('Runtime'):WaitForChild('MonsterService'))
 
 local MazeWorldBuilder = require(script.Parent.MazeWorldBuilder)
 
@@ -48,10 +52,17 @@ function MazeSessionService.new()
 
     self.SessionData = {
         Seed = SessionConfig.DefaultSeed,
+        Quota = SessionConfig.DefaultQuota,
+        RunDurationSeconds = SessionConfig.DefaultRunDurationSeconds,
         InventoryCapacity = SessionConfig.InventoryCapacity,
     }
+    self.CampSession = CampMazeSessionContract.newCampSession({
+        MazeAccessCode = 'local-debug-maze',
+        MazeStatus = CampMazeSessionContract.MazeStatus.Active,
+    })
     self.Status = 'Direct boot: use the expedition console to begin the maze run.'
     self.World = nil
+    self.IsDirectBoot = true
     self.IsLaunched = false
     self.RunTracker = Gameplay.Session.MazeRunTracker.new()
     self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
@@ -64,29 +75,54 @@ function MazeSessionService.new()
     return self
 end
 
+function MazeSessionService:_readTeleportData(player)
+    local joinData = player:GetJoinData()
+    return joinData and joinData.TeleportData
+end
+
+function MazeSessionService:_mergeTeleportData(teleportData, resetInventoryService)
+    if type(teleportData) ~= 'table' then
+        return
+    end
+
+    local incoming = teleportData.SessionConfig
+    if type(incoming) == 'table' then
+        if type(incoming.Seed) == 'number' then
+            self.SessionData.Seed = incoming.Seed
+        end
+        if type(incoming.Quota) == 'number' then
+            self.SessionData.Quota = incoming.Quota
+        end
+        if type(incoming.RunDurationSeconds) == 'number' then
+            self.SessionData.RunDurationSeconds = incoming.RunDurationSeconds
+        end
+        if type(incoming.InventoryCapacity) == 'number' then
+            self.SessionData.InventoryCapacity = incoming.InventoryCapacity
+        end
+    end
+
+    if type(teleportData.CampSession) == 'table' then
+        self.CampSession = CampMazeSessionContract.normalizeCampSession(teleportData.CampSession)
+        self.IsDirectBoot = false
+        self.Status = 'Maze session is ready. Use the expedition console to deploy the crew.'
+    end
+
+    if resetInventoryService == true then
+        self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
+    end
+end
+
 function MazeSessionService:_loadSessionDataFromJoin()
     local players = Players:GetPlayers()
     if #players == 0 then
         return
     end
 
-    local joinData = players[1]:GetJoinData()
-    local teleportData = joinData and joinData.TeleportData
-    local incoming = teleportData and teleportData.SessionConfig
+    self:_mergeTeleportData(self:_readTeleportData(players[1]), true)
+end
 
-    if type(incoming) ~= 'table' then
-        return
-    end
-
-    if type(incoming.Seed) == 'number' then
-        self.SessionData.Seed = incoming.Seed
-    end
-
-    if type(incoming.InventoryCapacity) == 'number' then
-        self.SessionData.InventoryCapacity = incoming.InventoryCapacity
-    end
-
-    self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
+function MazeSessionService:_handlePlayerTeleportData(player)
+    self:_mergeTeleportData(self:_readTeleportData(player), false)
 end
 
 function MazeSessionService:_addPlayerState(player)
@@ -142,7 +178,7 @@ function MazeSessionService:_buildSummaryFor(player, returnReason, wasSettled)
     local inventorySummary = self.InventoryService:getSummary(player)
     self.InventoryService:deposit(player)
 
-    return {
+    return CampMazeSessionContract.buildReturnSummary({
         UserId = player.UserId,
         Name = player.DisplayName,
         ReturnReason = returnReason,
@@ -151,7 +187,51 @@ function MazeSessionService:_buildSummaryFor(player, returnReason, wasSettled)
         Weight = inventorySummary.Weight,
         WasExtracted = returnReason == 'extracted' or returnReason == 'settled',
         WasSettled = wasSettled == true,
-    }
+    })
+end
+
+function MazeSessionService:_canReturnToCamp()
+    return SessionConfig.PlaceIds.Run ~= 0 and self.CampSession.CampAccessCode ~= 'local-debug-camp'
+end
+
+function MazeSessionService:_teleportToCamp(players, summaries, mazeCompleted)
+    if not self:_canReturnToCamp() then
+        self:_setStatus(
+            'Camp return is unavailable in direct boot. Set SessionConfig.PlaceIds.Run and enter from camp.'
+        )
+        return false
+    end
+
+    local nextCampSession = self.CampSession
+    for _, summary in ipairs(summaries) do
+        nextCampSession =
+            CampMazeSessionContract.applyReturn(nextCampSession, summary, mazeCompleted)
+    end
+
+    local teleportData = CampMazeSessionContract.buildMazeToCampTeleportData({
+        SessionConfig = self.SessionData,
+        CampSession = nextCampSession,
+        Summaries = summaries,
+        MazeCompleted = mazeCompleted,
+    })
+
+    local success, message = pcall(function()
+        TeleportService:TeleportToPrivateServer(
+            SessionConfig.PlaceIds.Run,
+            nextCampSession.CampAccessCode,
+            players,
+            nil,
+            teleportData
+        )
+    end)
+
+    if not success then
+        self:_setStatus(string.format('Camp return failed: %s', tostring(message)))
+        return false
+    end
+
+    self.CampSession = nextCampSession
+    return true
 end
 
 function MazeSessionService:_deployCrew(player)
@@ -235,12 +315,23 @@ function MazeSessionService:_returnPlayer(player)
         return
     end
 
-    local recorded, reason =
-        self.RunTracker:recordReturn(self:_buildSummaryFor(player, 'early_return', false))
+    local summary = self:_buildSummaryFor(player, 'early_return', false)
+    local recorded, reason = self.RunTracker:recordReturn(summary)
     if not recorded then
         if reason == 'MissingActivePlayer' then
             self:_setStatus(string.format('%s already returned to camp.', player.DisplayName))
         end
+        return
+    end
+
+    if self:_teleportToCamp({ player }, { summary }, false) then
+        self:_setStatus(
+            string.format(
+                '%s is returning to camp with %d value.',
+                player.DisplayName,
+                summary.Value
+            )
+        )
         return
     end
 
@@ -249,8 +340,6 @@ function MazeSessionService:_returnPlayer(player)
         character:PivotTo(self.World.ReturnHoldCFrame)
     end
 
-    local summaries = self.RunTracker:getReturnedSummaries()
-    local summary = summaries[#summaries]
     self:_setStatus(
         string.format('%s returned early with %d value.', player.DisplayName, summary.Value)
     )
@@ -275,6 +364,16 @@ function MazeSessionService:_completeSettlement(player)
     end
 
     self.MonsterService:destroy()
+
+    if self:_teleportToCamp(Players:GetPlayers(), summaries, true) then
+        self:_setStatus(
+            string.format(
+                '%s completed settlement. Returning the crew to camp.',
+                player.DisplayName
+            )
+        )
+        return
+    end
 
     for _, currentPlayer in ipairs(Players:GetPlayers()) do
         if currentPlayer.Character and currentPlayer.Character.Parent then
@@ -345,6 +444,7 @@ function MazeSessionService:start()
     end
 
     Players.PlayerAdded:Connect(function(player)
+        self:_handlePlayerTeleportData(player)
         bindCharacterTeleport(self, player)
         self:_addPlayerState(player)
 

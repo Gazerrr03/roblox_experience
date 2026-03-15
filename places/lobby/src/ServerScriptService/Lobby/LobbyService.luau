@@ -1,4 +1,5 @@
 local Players = game:GetService('Players')
+local HttpService = game:GetService('HttpService')
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
 local TeleportService = game:GetService('TeleportService')
 
@@ -7,6 +8,7 @@ local Shared = require(Packages:WaitForChild('Shared'))
 
 local SessionConfig = Shared.Config.SessionConfig
 local Remotes = Shared.Network.Remotes.ensure()
+local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
 
 local LobbyService = {}
 LobbyService.__index = LobbyService
@@ -86,9 +88,11 @@ function LobbyService:_teleportToRun()
 
     self.Seed = Random.new():NextInteger(100000, 999999)
 
-    local options = Instance.new('TeleportOptions')
-    options.ShouldReserveServer = true
-    options:SetTeleportData({
+    local campAccessCode = TeleportService:ReserveServer(SessionConfig.PlaceIds.Run)
+    local sessionId = HttpService:GenerateGUID(false)
+    local teleportData = CampMazeSessionContract.buildLobbyToCampTeleportData({
+        SessionId = sessionId,
+        CampAccessCode = campAccessCode,
         SessionConfig = {
             Seed = self.Seed,
             Quota = SessionConfig.DefaultQuota,
@@ -101,7 +105,13 @@ function LobbyService:_teleportToRun()
     self:_broadcast()
 
     local success, message = pcall(function()
-        TeleportService:TeleportAsync(SessionConfig.PlaceIds.Run, players, options)
+        TeleportService:TeleportToPrivateServer(
+            SessionConfig.PlaceIds.Run,
+            campAccessCode,
+            players,
+            nil,
+            teleportData
+        )
     end)
 
     if not success then
