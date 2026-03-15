@@ -11,6 +11,8 @@ local UI = require(Packages:WaitForChild('UI'))
 local Remotes = Shared.Network.Remotes.ensure()
 local Theme = UI.Hud.Theme
 
+Shared.Client.FirstPersonController.start(localPlayer)
+
 local screenGui = Instance.new('ScreenGui')
 screenGui.Name = 'MazeHud'
 screenGui.IgnoreGuiInset = true

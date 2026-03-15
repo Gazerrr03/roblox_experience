@@ -11,6 +11,8 @@ local UI = require(Packages:WaitForChild('UI'))
 local Theme = UI.Hud.Theme
 local Remotes = Shared.Network.Remotes.ensure()
 
+Shared.Client.FirstPersonController.start(localPlayer)
+
 local screenGui = Instance.new('ScreenGui')
 screenGui.Name = 'LobbyHud'
 screenGui.ResetOnSpawn = false
