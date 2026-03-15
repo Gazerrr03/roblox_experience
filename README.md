@@ -25,7 +25,10 @@ Roblox game skeleton for a two-place experience:
 
 ## Runtime Assumptions
 
-- `SessionConfig.PlaceIds.Lobby` and `SessionConfig.PlaceIds.Run` must be filled with real place IDs before teleport flow works.
+- Teleport flow needs real place IDs for `Lobby`, `Run`, and `Maze`.
+- You can configure place IDs in either of these ways:
+  - source-controlled defaults in `packages/shared/src/Config/SessionConfig.luau`
+  - Studio attributes on `game` or `ReplicatedStorage`: `SessionPlaceIdLobby`, `SessionPlaceIdRun`, `SessionPlaceIdMaze`
 - The run loop is intentionally simple: camp, expedition, loot, extract, settle, reset.
 - Hidden-role gameplay is deferred, but visibility and permission interfaces are already present.
 

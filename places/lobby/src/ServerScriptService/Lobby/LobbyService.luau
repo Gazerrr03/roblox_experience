@@ -73,7 +73,8 @@ function LobbyService:_teleportToRun()
     end
 
     if SessionConfig.PlaceIds.Run == 0 then
-        self.Status = 'Set SessionConfig.PlaceIds.Run before starting teleports.'
+        self.Status =
+            'Set SessionConfig.PlaceIds.Run or SessionPlaceIdRun before starting teleports.'
         self:_broadcast()
         return
     end

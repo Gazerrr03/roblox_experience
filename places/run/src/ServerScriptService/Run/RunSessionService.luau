@@ -337,7 +337,9 @@ end
 function RunSessionService:_enterMaze(player)
     runWithCampSessionLock(self, function()
         if SessionConfig.PlaceIds.Maze == 0 then
-            self:_setStatus('Set SessionConfig.PlaceIds.Maze before using the maze gate.')
+            self:_setStatus(
+                'Set SessionConfig.PlaceIds.Maze or SessionPlaceIdMaze before using the maze gate.'
+            )
             return
         end
 
