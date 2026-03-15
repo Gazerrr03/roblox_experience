@@ -11,9 +11,9 @@ local OPTIONAL_PLAYER_PROPERTIES = {
 }
 
 FirstPersonController.StarterPlayerProperties = {
-    CameraMode = Enum.CameraMode.LockFirstPerson,
-    CameraMinZoomDistance = 0.5,
-    CameraMaxZoomDistance = 0.5,
+    CameraMode = TARGET_PLAYER_PROPERTIES.CameraMode,
+    CameraMinZoomDistance = TARGET_PLAYER_PROPERTIES.CameraMinZoomDistance,
+    CameraMaxZoomDistance = TARGET_PLAYER_PROPERTIES.CameraMaxZoomDistance,
     EnableMouseLockOption = false,
 }
 
