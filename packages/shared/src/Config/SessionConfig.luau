@@ -2,6 +2,7 @@ local SessionConfig = {
     PlaceIds = {
         Lobby = 0,
         Run = 0,
+        Maze = 0,
     },
     MinPlayers = 1,
     MaxPlayers = 4,

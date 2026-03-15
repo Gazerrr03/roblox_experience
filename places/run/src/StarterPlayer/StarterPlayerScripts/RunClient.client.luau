@@ -69,7 +69,7 @@ menuTitle.Text = 'Enter the expedition camp'
 
 local menuBody = makeTextLabel(menuPanel, UDim2.new(1, 0, 0, 78), Theme.SubtleText, 18, false)
 menuBody.Text =
-    'Start inside the camp house, meet up with the crew, and open the main gate when you are ready to step into the wilderness.'
+    'Start inside the camp house, meet up with the crew, and open the main gate when you are ready to step into the wilderness and the shared maze gate.'
 
 local singlePlayerButton = Instance.new('TextButton')
 singlePlayerButton.Size = UDim2.new(1, 0, 0, 52)
@@ -116,13 +116,13 @@ local function makePlaceholder(text)
 end
 
 makePlaceholder('Shop Terminal (Soon)')
-makePlaceholder('Maze Run Gate (Soon)')
+makePlaceholder('Shared Maze Gate')
 
 local panel = Instance.new('Frame')
 panel.Name = 'CampPanel'
 panel.AnchorPoint = Vector2.new(0, 0)
 panel.Position = UDim2.fromScale(0.03, 0.05)
-panel.Size = UDim2.fromOffset(420, 320)
+panel.Size = UDim2.fromOffset(440, 420)
 panel.BackgroundColor3 = Theme.Background
 panel.BorderSizePixel = 0
 panel.Visible = false
@@ -154,10 +154,13 @@ objectiveLabel.Text = 'Objective: --'
 
 local guideLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 60), Theme.Text, 16, false)
 guideLabel.Text =
-    'In-world prompts:\n- Shop Terminal (Soon)\n- Loadout Bench (Soon)\n- Camp Gate / Maze Run Gate'
+    'In-world prompts:\n- Shop Terminal (Soon)\n- Loadout Bench (Soon)\n- Camp Gate / Shared Maze Gate'
 
 local rosterLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 90), Theme.SubtleText, 16, false)
 rosterLabel.Text = ''
+
+local mazeLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 96), Theme.SubtleText, 16, false)
+mazeLabel.Text = ''
 
 singlePlayerButton.MouseButton1Click:Connect(function()
     singlePlayerButton.AutoButtonColor = false
@@ -188,10 +191,11 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
     end
 
     statusLabel.Text = string.format(
-        '%s\nArea: %s | Gate: %s',
+        '%s\nArea: %s | Gate: %s | Maze: %s',
         snapshot.Status,
         snapshot.Area,
-        snapshot.GateOpen and 'Open' or 'Closed'
+        snapshot.GateOpen and 'Open' or 'Closed',
+        snapshot.MazeStatus or 'idle'
     )
 
     objectiveLabel.Text = string.format('Objective: %s', snapshot.Objective)
@@ -203,4 +207,35 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
     end
 
     rosterLabel.Text = 'Camp roster:\n' .. table.concat(rosterLines, '\n')
+
+    local mazeLines = {}
+    local activeMazePlayers = snapshot.PlayersInMaze or {}
+    if #activeMazePlayers > 0 then
+        table.insert(mazeLines, 'In maze:')
+        for _, entry in ipairs(activeMazePlayers) do
+            table.insert(mazeLines, string.format('- %s', entry.Name))
+        end
+    end
+
+    local returnedSummaries = snapshot.ReturnedPlayerSummaries or {}
+    if #returnedSummaries > 0 then
+        if #mazeLines > 0 then
+            table.insert(mazeLines, '')
+        end
+        table.insert(mazeLines, 'Returned:')
+        for _, entry in ipairs(returnedSummaries) do
+            table.insert(
+                mazeLines,
+                string.format(
+                    '- %s: %d value (%s)',
+                    entry.Name,
+                    entry.Value or 0,
+                    entry.ReturnReason or 'unknown'
+                )
+            )
+        end
+    end
+
+    mazeLabel.Text = #mazeLines > 0 and table.concat(mazeLines, '\n')
+        or 'Maze summary:\n- No players have entered the maze yet.'
 end)

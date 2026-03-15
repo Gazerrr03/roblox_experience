@@ -59,6 +59,7 @@ function RunWorldBuilder.build()
     return {
         Root = worldFolder,
         SpawnCFrame = CFrame.new(0, 4, -6),
+        ReturnCFrame = CFrame.new(0, 4, -2),
         OutdoorThresholdZ = OUTDOOR_THRESHOLD_Z,
         ShopPrompt = house.ShopPrompt,
         LoadoutPrompt = house.LoadoutPrompt,
