@@ -318,6 +318,20 @@ function MazeWorldBuilder.build(seed, config)
         ExtractionPrompt = extractionPrompt,
         LootPrompts = lootPrompts,
         PatrolPoints = patrolPoints,
+        FindRoomByPosition = function(position)
+            local nearestRoom = nil
+            local nearestDistance = math.huge
+
+            for _, room in pairs(layout.Rooms) do
+                local distance = (room.Position - position).Magnitude
+                if distance < nearestDistance then
+                    nearestRoom = room
+                    nearestDistance = distance
+                end
+            end
+
+            return nearestRoom
+        end,
     }
 end
 
