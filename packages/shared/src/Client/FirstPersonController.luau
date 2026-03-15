@@ -60,16 +60,18 @@ function FirstPersonController.start(player)
         )
     end
 
-    local ok, mouseLockConnection = pcall(function()
-        return player:GetPropertyChangedSignal('DevEnableMouseLock'):Connect(function()
-            if player.DevEnableMouseLock ~= false then
-                reapply()
-            end
+    for propertyName, targetValue in pairs(OPTIONAL_PLAYER_PROPERTIES) do
+        local ok, connection = pcall(function()
+            return player:GetPropertyChangedSignal(propertyName):Connect(function()
+                if player[propertyName] ~= targetValue then
+                    reapply()
+                end
+            end)
         end)
-    end)
 
-    if ok and mouseLockConnection ~= nil then
-        table.insert(connections, mouseLockConnection)
+        if ok and connection ~= nil then
+            table.insert(connections, connection)
+        end
     end
 
     return function()
