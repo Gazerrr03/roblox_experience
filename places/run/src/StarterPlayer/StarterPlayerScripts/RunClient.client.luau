@@ -62,14 +62,14 @@ menuList.Padding = UDim.new(0, 14)
 menuList.Parent = menuPanel
 
 local eyebrow = makeTextLabel(menuPanel, UDim2.new(1, 0, 0, 20), Theme.Accent, 16, true)
-eyebrow.Text = 'EXPEDITION PROTOTYPE'
+eyebrow.Text = 'CAMP STAGING PROTOTYPE'
 
 local menuTitle = makeTextLabel(menuPanel, UDim2.new(1, 0, 0, 72), Theme.Text, 34, true)
-menuTitle.Text = 'Choose how you enter the run'
+menuTitle.Text = 'Enter the expedition camp'
 
-local menuBody = makeTextLabel(menuPanel, UDim2.new(1, 0, 0, 70), Theme.SubtleText, 18, false)
+local menuBody = makeTextLabel(menuPanel, UDim2.new(1, 0, 0, 78), Theme.SubtleText, 18, false)
 menuBody.Text =
-    'Start from a dedicated title screen, then launch into the current run only when you are ready.'
+    'Start inside the camp house, meet up with the crew, and open the main gate when you are ready to step into the wilderness.'
 
 local singlePlayerButton = Instance.new('TextButton')
 singlePlayerButton.Size = UDim2.new(1, 0, 0, 52)
@@ -85,8 +85,8 @@ singlePlayerCorner.CornerRadius = UDim.new(0, 12)
 singlePlayerCorner.Parent = singlePlayerButton
 
 local menuStatusLabel =
-    makeTextLabel(menuPanel, UDim2.new(1, 0, 0, 48), Theme.SubtleText, 16, false)
-menuStatusLabel.Text = 'Preparing launch options...'
+    makeTextLabel(menuPanel, UDim2.new(1, 0, 0, 52), Theme.SubtleText, 16, false)
+menuStatusLabel.Text = 'Preparing camp access...'
 
 local placeholders = Instance.new('Frame')
 placeholders.Size = UDim2.new(1, 0, 0, 78)
@@ -115,18 +115,22 @@ local function makePlaceholder(text)
     corner.Parent = button
 end
 
-makePlaceholder('Multiplayer (Soon)')
-makePlaceholder('Settings (Soon)')
+makePlaceholder('Shop Terminal (Soon)')
+makePlaceholder('Maze Run Gate (Soon)')
 
 local panel = Instance.new('Frame')
-panel.Name = 'RunPanel'
+panel.Name = 'CampPanel'
 panel.AnchorPoint = Vector2.new(0, 0)
 panel.Position = UDim2.fromScale(0.03, 0.05)
-panel.Size = UDim2.fromOffset(380, 300)
+panel.Size = UDim2.fromOffset(420, 320)
 panel.BackgroundColor3 = Theme.Background
 panel.BorderSizePixel = 0
 panel.Visible = false
 panel.Parent = screenGui
+
+local panelCorner = Instance.new('UICorner')
+panelCorner.CornerRadius = UDim.new(0, 16)
+panelCorner.Parent = panel
 
 local panelPadding = Instance.new('UIPadding')
 panelPadding.PaddingTop = UDim.new(0, 18)
@@ -139,75 +143,34 @@ local list = Instance.new('UIListLayout')
 list.Padding = UDim.new(0, 10)
 list.Parent = panel
 
-local function makeHudLabel(height, color, textSize, bold)
-    local label = Instance.new('TextLabel')
-    label.Size = UDim2.new(1, 0, 0, height)
-    label.BackgroundTransparency = 1
-    label.Font = bold and Enum.Font.GothamBold or Theme.Font
-    label.TextColor3 = color
-    label.TextSize = textSize
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.TextYAlignment = Enum.TextYAlignment.Top
-    label.TextWrapped = true
-    return label
-end
+local title = makeTextLabel(panel, UDim2.new(1, 0, 0, 36), Theme.Text, 28, true)
+title.Text = 'Camp Status'
 
-local title = makeHudLabel(36, Theme.Text, 28, true)
-title.Text = 'Run Control'
-title.Parent = panel
+local statusLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 70), Theme.SubtleText, 18, false)
+statusLabel.Text = 'Waiting for camp snapshot...'
 
-local statusLabel = makeHudLabel(48, Theme.SubtleText, 18, false)
-statusLabel.Text = 'Waiting for run snapshot...'
-statusLabel.Parent = panel
+local objectiveLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 64), Theme.Accent, 18, false)
+objectiveLabel.Text = 'Objective: --'
 
-local privateRoleLabel = makeHudLabel(40, Theme.Accent, 18, false)
-privateRoleLabel.Text = 'Role: --'
-privateRoleLabel.Parent = panel
+local guideLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 60), Theme.Text, 16, false)
+guideLabel.Text =
+    'In-world prompts:\n- Shop Terminal (Soon)\n- Loadout Bench (Soon)\n- Camp Gate / Maze Run Gate'
 
-local inventoryLabel = makeHudLabel(42, Theme.Text, 18, false)
-inventoryLabel.Text = 'Inventory: --'
-inventoryLabel.Parent = panel
-
-local rosterLabel = makeHudLabel(100, Theme.SubtleText, 16, false)
+local rosterLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 90), Theme.SubtleText, 16, false)
 rosterLabel.Text = ''
-rosterLabel.Parent = panel
-
-local deployButton = Instance.new('TextButton')
-deployButton.Size = UDim2.new(1, 0, 0, 44)
-deployButton.BackgroundColor3 = Theme.Accent
-deployButton.TextColor3 = Theme.Background
-deployButton.Font = Theme.Font
-deployButton.TextSize = 18
-deployButton.Text = 'Deploy Crew'
-deployButton.Parent = panel
-
-local deployCorner = Instance.new('UICorner')
-deployCorner.CornerRadius = UDim.new(0, 10)
-deployCorner.Parent = deployButton
 
 singlePlayerButton.MouseButton1Click:Connect(function()
     singlePlayerButton.AutoButtonColor = false
     singlePlayerButton.Active = false
-    singlePlayerButton.Text = 'Launching...'
+    singlePlayerButton.Text = 'Entering Camp...'
 
     Remotes.RunAction:FireServer({
         Type = 'RequestLaunchRun',
     })
 end)
 
-deployButton.MouseButton1Click:Connect(function()
-    Remotes.RunAction:FireServer({
-        Type = 'RequestStartExpedition',
-    })
-end)
-
-Remotes.PrivateState.OnClientEvent:Connect(function(privateState)
-    if not privateState then
-        privateRoleLabel.Text = 'Role: --'
-        return
-    end
-
-    privateRoleLabel.Text = string.format('Role: %s', privateState.PrivateRole)
+Remotes.PrivateState.OnClientEvent:Connect(function()
+    -- Private role data is intentionally unused in the camp staging run.
 end)
 
 Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
@@ -225,35 +188,19 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
     end
 
     statusLabel.Text = string.format(
-        '%s\nState: %s | Time: %ds | Quota: %d/%d',
+        '%s\nArea: %s | Gate: %s',
         snapshot.Status,
-        snapshot.State,
-        snapshot.TimeRemaining,
-        snapshot.TeamDepositedValue,
-        snapshot.Quota
+        snapshot.Area,
+        snapshot.GateOpen and 'Open' or 'Closed'
     )
 
-    inventoryLabel.Text = string.format(
-        'Inventory: %d items | %d weight | %d value',
-        snapshot.Inventory.Count,
-        snapshot.Inventory.Weight,
-        snapshot.Inventory.Value
-    )
+    objectiveLabel.Text = string.format('Objective: %s', snapshot.Objective)
 
     local rosterLines = {}
-    for _, rosterEntry in pairs(snapshot.Roster) do
-        table.insert(
-            rosterLines,
-            string.format('%s - %s', rosterEntry.Name, rosterEntry.PublicRole)
-        )
+    for _, rosterEntry in ipairs(snapshot.Roster) do
+        local marker = rosterEntry.UserId == localPlayer.UserId and ' (You)' or ''
+        table.insert(rosterLines, string.format('%s%s', rosterEntry.Name, marker))
     end
 
-    table.sort(rosterLines)
-    rosterLabel.Text = 'Visible roster:\n' .. table.concat(rosterLines, '\n')
-
-    local inCamp = snapshot.State == 'Camp'
-    deployButton.Visible = true
-    deployButton.AutoButtonColor = inCamp
-    deployButton.BackgroundColor3 = inCamp and Theme.Accent or Theme.Surface
-    deployButton.Text = inCamp and 'Deploy Crew' or 'Crew Already Deployed'
+    rosterLabel.Text = 'Camp roster:\n' .. table.concat(rosterLines, '\n')
 end)

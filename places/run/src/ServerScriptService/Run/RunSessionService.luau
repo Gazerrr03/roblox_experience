@@ -3,21 +3,10 @@ local ReplicatedStorage = game:GetService('ReplicatedStorage')
 
 local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
-local Gameplay = require(Packages:WaitForChild('Gameplay'))
 
 local SessionConfig = Shared.Config.SessionConfig
-local RunState = Shared.Enums.RunState
 local Remotes = Shared.Network.Remotes.ensure()
 
-local Items = Gameplay.Config.Items
-local Monsters = Gameplay.Config.Monsters
-local Roles = Gameplay.Config.Roles
-local MazeBuilder = Gameplay.ProcGen.MazeBuilder
-local SessionStateMachine = Gameplay.Session.SessionStateMachine
-
-local InventoryService = require(script.Parent.InventoryService)
-local RoleService = require(script.Parent.RoleService)
-local MonsterService = require(script.Parent.MonsterService)
 local RunWorldBuilder = require(script.Parent.RunWorldBuilder)
 
 local RunSessionService = {}
@@ -36,25 +25,14 @@ function RunSessionService.new()
     local self = setmetatable({}, RunSessionService)
 
     self.Remotes = Remotes
-    self.StateMachine = SessionStateMachine.new(RunState.Camp)
-    self.InventoryService = InventoryService.new(SessionConfig.InventoryCapacity)
-    self.RoleService = RoleService.new(Roles)
-    self.MonsterService = MonsterService.new(Monsters[1], function()
-        return self.StateMachine.Current == RunState.Expedition
-            or self.StateMachine.Current == RunState.Extraction
-    end)
     self.SessionData = {
         Seed = SessionConfig.DefaultSeed,
-        Quota = SessionConfig.DefaultQuota,
-        RunDurationSeconds = SessionConfig.DefaultRunDurationSeconds,
-        InventoryCapacity = SessionConfig.InventoryCapacity,
     }
-    self.Status = 'Select Single Player to enter the run.'
-    self.TimeRemaining = self.SessionData.RunDurationSeconds
-    self.TeamDepositedValue = 0
+    self.Status = 'Select Single Player to enter the camp.'
     self.IsLaunched = false
+    self.GateOpen = false
     self.World = nil
-    self.TickThread = nil
+    self.SnapshotThread = nil
 
     return self
 end
@@ -69,14 +47,8 @@ function RunSessionService:_loadSessionDataFromJoin()
     local teleportData = joinData and joinData.TeleportData
     local incoming = teleportData and teleportData.SessionConfig
 
-    if type(incoming) == 'table' then
-        self.SessionData.Seed = incoming.Seed or self.SessionData.Seed
-        self.SessionData.Quota = incoming.Quota or self.SessionData.Quota
-        self.SessionData.RunDurationSeconds = incoming.RunDurationSeconds
-            or self.SessionData.RunDurationSeconds
-        self.SessionData.InventoryCapacity = incoming.InventoryCapacity
-            or self.SessionData.InventoryCapacity
-        self.InventoryService.Capacity = self.SessionData.InventoryCapacity
+    if type(incoming) == 'table' and type(incoming.Seed) == 'number' then
+        self.SessionData.Seed = incoming.Seed
     end
 end
 
@@ -94,9 +66,7 @@ function RunSessionService:_teleportCharactersToSpawn()
 end
 
 function RunSessionService:_rebuildWorld()
-    local layout = MazeBuilder.build(self.SessionData.Seed, SessionConfig.ProcGen)
-    self.World = RunWorldBuilder.build(layout, Items, SessionConfig.ProcGen)
-    self.MonsterService:spawn(self.World.PatrolPoints)
+    self.World = RunWorldBuilder.build(self.SessionData.Seed)
     self:_bindWorldInteractions()
     self:_teleportCharactersToSpawn()
 end
@@ -106,19 +76,85 @@ function RunSessionService:_bindWorldInteractions()
         return
     end
 
-    self.World.CampPrompt.Triggered:Connect(function(player)
-        self:_beginExpedition(player)
+    self.World.ShopPrompt.Triggered:Connect(function(player)
+        self:_setStatus(
+            string.format(
+                '%s checked the shop terminal. Purchases coming soon.',
+                player.DisplayName
+            )
+        )
     end)
 
-    self.World.ExtractionPrompt.Triggered:Connect(function(player)
-        self:_depositLoot(player)
+    self.World.LoadoutPrompt.Triggered:Connect(function(player)
+        self:_setStatus(
+            string.format(
+                '%s checked the loadout bench. Equipment setup is coming soon.',
+                player.DisplayName
+            )
+        )
     end)
 
-    for _, itemEntry in ipairs(self.World.ItemEntries) do
-        itemEntry.Prompt.Triggered:Connect(function(player)
-            self:_pickupItem(player, itemEntry)
-        end)
+    self.World.GatePrompt.Triggered:Connect(function(player)
+        self:_openGate(player)
+    end)
+
+    self.World.MazePrompt.Triggered:Connect(function(player)
+        self:_setStatus(
+            string.format(
+                '%s reached the maze gate. The dedicated maze run is not wired yet.',
+                player.DisplayName
+            )
+        )
+    end)
+end
+
+function RunSessionService:_getPlayerArea(player)
+    if not self.IsLaunched or not self.World then
+        return 'Title Screen'
     end
+
+    local character = player.Character
+    local rootPart = character and character:FindFirstChild('HumanoidRootPart')
+    if not rootPart then
+        return self.GateOpen and 'Camp Threshold' or 'Camp House'
+    end
+
+    if rootPart.Position.Z >= self.World.OutdoorThresholdZ then
+        return 'Wilderness'
+    end
+
+    return 'Camp House'
+end
+
+function RunSessionService:_buildRoster()
+    local roster = {}
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        table.insert(roster, {
+            Name = player.DisplayName,
+            UserId = player.UserId,
+        })
+    end
+
+    table.sort(roster, function(left, right)
+        return left.Name < right.Name
+    end)
+
+    return roster
+end
+
+function RunSessionService:_getObjectiveFor(player)
+    local area = self:_getPlayerArea(player)
+
+    if not self.GateOpen then
+        return 'Inspect the camp terminals and open the gate when the group is ready.'
+    end
+
+    if area == 'Wilderness' then
+        return 'Explore the clearing and inspect the maze gate outside.'
+    end
+
+    return 'Step outside to the wilderness clearing and inspect the maze gate.'
 end
 
 function RunSessionService:_setStatus(status)
@@ -127,25 +163,45 @@ function RunSessionService:_setStatus(status)
 end
 
 function RunSessionService:_broadcastSnapshot()
+    local roster = self:_buildRoster()
+
     for _, player in ipairs(Players:GetPlayers()) do
         self.Remotes.RunSnapshot:FireClient(player, {
             IsLaunched = self.IsLaunched,
-            State = self.StateMachine.Current,
             Status = self.Status,
-            Seed = self.SessionData.Seed,
-            Quota = self.SessionData.Quota,
-            TeamDepositedValue = self.TeamDepositedValue,
-            TimeRemaining = math.max(0, math.ceil(self.TimeRemaining)),
-            Inventory = self.InventoryService:getSummary(player),
-            Roster = self.RoleService:getVisibleRoster(player),
+            Area = self:_getPlayerArea(player),
+            GateOpen = self.GateOpen,
+            Objective = self:_getObjectiveFor(player),
+            Roster = roster,
         })
 
-        self.Remotes.PrivateState:FireClient(player, self.RoleService:getPrivateState(player))
+        self.Remotes.PrivateState:FireClient(player, nil)
     end
 end
 
-function RunSessionService:_assignRoles()
-    self.RoleService:assign(Players:GetPlayers())
+function RunSessionService:_openGate(player)
+    if not self.World then
+        return
+    end
+
+    if not self.GateOpen then
+        self.GateOpen = true
+        self.World.OpenGate()
+        self:_setStatus(
+            string.format(
+                '%s opened the camp gate. The wilderness trail is now accessible.',
+                player.DisplayName
+            )
+        )
+        return
+    end
+
+    self:_setStatus(
+        string.format(
+            '%s checked the camp gate. The wilderness trail is already open.',
+            player.DisplayName
+        )
+    )
 end
 
 function RunSessionService:_launchRun(_player)
@@ -154,133 +210,30 @@ function RunSessionService:_launchRun(_player)
     end
 
     self.IsLaunched = true
+    self.GateOpen = false
     Players.CharacterAutoLoads = true
 
-    self.TeamDepositedValue = 0
-    self.TimeRemaining = self.SessionData.RunDurationSeconds
-    self.InventoryService:reset()
-    self:_assignRoles()
     self:_rebuildWorld()
 
     for _, player in ipairs(Players:GetPlayers()) do
         player:LoadCharacter()
     end
 
-    self:_startTickLoop()
-    self:_setStatus('Camp is live. Deploy when you are ready.')
+    self:_startSnapshotLoop()
+    self:_setStatus('Camp is ready. Gather inside, then open the gate when you want to head out.')
 end
 
-function RunSessionService:_resetRunLoop()
-    if self.StateMachine.Current ~= RunState.Camp then
-        self.StateMachine:transition(RunState.Camp)
-    end
-
-    self.TeamDepositedValue = 0
-    self.TimeRemaining = self.SessionData.RunDurationSeconds
-    self.InventoryService:reset()
-    self.SessionData.Seed += 1
-    self:_assignRoles()
-    self:_rebuildWorld()
-    self:_setStatus('Camp is live. Deploy when the crew is ready.')
-end
-
-function RunSessionService:_settle(reason)
-    if self.StateMachine.Current == RunState.Expedition then
-        self.StateMachine:transition(RunState.Extraction)
-    end
-
-    if self.StateMachine:canTransition(RunState.Settlement) then
-        self.StateMachine:transition(RunState.Settlement)
-    end
-
-    self:_setStatus(string.format('Settlement: %s', reason))
-
-    task.delay(SessionConfig.SettlementDurationSeconds, function()
-        if self.StateMachine.Current == RunState.Settlement then
-            self:_resetRunLoop()
-        end
-    end)
-end
-
-function RunSessionService:_beginExpedition(player)
-    if self.StateMachine.Current ~= RunState.Camp then
+function RunSessionService:_startSnapshotLoop()
+    if self.SnapshotThread then
         return
     end
 
-    self.StateMachine:transition(RunState.Expedition)
-    self.TimeRemaining = self.SessionData.RunDurationSeconds
-    self:_setStatus(string.format('%s deployed the crew.', player.DisplayName))
-end
-
-function RunSessionService:_pickupItem(player, itemEntry)
-    if
-        self.StateMachine.Current ~= RunState.Expedition
-        and self.StateMachine.Current ~= RunState.Extraction
-    then
-        return
-    end
-
-    local success, payload = self.InventoryService:pickup(player, itemEntry.ItemDef)
-    if not success then
-        self:_setStatus(string.format('%s is at capacity.', player.DisplayName))
-        return
-    end
-
-    if itemEntry.Part and itemEntry.Part.Parent then
-        itemEntry.Part:Destroy()
-    end
-
-    self:_setStatus(string.format('%s picked up %s.', player.DisplayName, payload.Name))
-end
-
-function RunSessionService:_depositLoot(player)
-    if
-        self.StateMachine.Current ~= RunState.Expedition
-        and self.StateMachine.Current ~= RunState.Extraction
-    then
-        return
-    end
-
-    if self.StateMachine.Current == RunState.Expedition then
-        self.StateMachine:transition(RunState.Extraction)
-    end
-
-    local depositedValue = self.InventoryService:deposit(player)
-    if depositedValue <= 0 then
-        self:_setStatus(string.format('%s has no loot to deposit.', player.DisplayName))
-        return
-    end
-
-    self.TeamDepositedValue += depositedValue
-    self:_setStatus(
-        string.format('%s deposited %d scrap value.', player.DisplayName, depositedValue)
-    )
-
-    if self.TeamDepositedValue >= self.SessionData.Quota then
-        self:_settle('Quota secured')
-    end
-end
-
-function RunSessionService:_startTickLoop()
-    if self.TickThread then
-        return
-    end
-
-    self.TickThread = task.spawn(function()
+    self.SnapshotThread = task.spawn(function()
         while true do
             task.wait(1)
 
-            if
-                self.StateMachine.Current == RunState.Expedition
-                or self.StateMachine.Current == RunState.Extraction
-            then
-                self.TimeRemaining -= 1
-                if self.TimeRemaining <= 0 then
-                    self.TimeRemaining = 0
-                    self:_settle('Timer expired')
-                else
-                    self:_broadcastSnapshot()
-                end
+            if self.IsLaunched then
+                self:_broadcastSnapshot()
             end
         end
     end)
@@ -291,7 +244,6 @@ function RunSessionService:start()
     Players.CharacterAutoLoads = false
 
     for _, player in ipairs(Players:GetPlayers()) do
-        self.InventoryService:addPlayer(player)
         bindCharacterTeleport(self, player)
 
         if player.Character then
@@ -300,20 +252,16 @@ function RunSessionService:start()
     end
 
     Players.PlayerAdded:Connect(function(player)
-        self.InventoryService:addPlayer(player)
         bindCharacterTeleport(self, player)
 
         if self.IsLaunched then
-            self.RoleService:assignPlayer(player)
             player:LoadCharacter()
         end
 
         self:_broadcastSnapshot()
     end)
 
-    Players.PlayerRemoving:Connect(function(player)
-        self.InventoryService:removePlayer(player)
-        self.RoleService:removePlayer(player)
+    Players.PlayerRemoving:Connect(function()
         self:_broadcastSnapshot()
     end)
 
@@ -325,7 +273,12 @@ function RunSessionService:start()
         if payload.Type == 'RequestLaunchRun' then
             self:_launchRun(player)
         elseif payload.Type == 'RequestStartExpedition' then
-            self:_beginExpedition(player)
+            self:_setStatus(
+                string.format(
+                    '%s checked the old deploy action. Use the camp gate to head outside instead.',
+                    player.DisplayName
+                )
+            )
         end
     end)
 
