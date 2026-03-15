@@ -11,7 +11,19 @@ local UI = require(Packages:WaitForChild('UI'))
 local Remotes = Shared.Network.Remotes.ensure()
 local Theme = UI.Hud.Theme
 
-Shared.Client.FirstPersonController.start(localPlayer)
+local disconnectFirstPersonLock
+local ensureFirstPersonLock
+ensureFirstPersonLock = function()
+    disconnectFirstPersonLock = Shared.Client.FirstPersonController.start(localPlayer)
+    ensureFirstPersonLock = function() end
+end
+
+script.Destroying:Connect(function()
+    if disconnectFirstPersonLock ~= nil then
+        disconnectFirstPersonLock()
+        disconnectFirstPersonLock = nil
+    end
+end)
 
 local screenGui = Instance.new('ScreenGui')
 screenGui.Name = 'RunHud'
@@ -191,6 +203,8 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
         singlePlayerButton.Text = 'Single Player'
         return
     end
+
+    ensureFirstPersonLock()
 
     statusLabel.Text = string.format(
         '%s\nArea: %s | Gate: %s | Maze: %s',
