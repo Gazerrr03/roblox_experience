@@ -48,11 +48,31 @@ jobs:
             echo "available=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Summarize roblox-tests prerequisites
+        shell: bash
+        env:
+          SECRET_AVAILABLE: ${{ steps.roblosecurity.outputs.available }}
+        run: |
+          {
+            echo "## roblox-tests prerequisites"
+            echo ""
+            if [ "$SECRET_AVAILABLE" = "true" ]; then
+              echo "- Secret check: configured"
+              echo "- Expected path: install toolchain -> install Roblox Studio -> build test place -> run run-in-roblox"
+            else
+              echo "- Secret check: missing \`ROBLOSECURITY\`"
+              echo "- Result: this job will stay green but skip all Studio-backed steps"
+              echo "- Action: add the repository secret before treating this workflow as an end-to-end Roblox test signal"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Install Aftman toolchain
+        id: aftman
         if: steps.roblosecurity.outputs.available == 'true'
         uses: ok-nick/setup-aftman@v0.4.2
 
       - name: Install Roblox Studio
+        id: studio
         if: steps.roblosecurity.outputs.available == 'true'
         uses: OrbitalOwen/roblox-win-installer-action@1.1
         with:
@@ -60,11 +80,55 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build test place
+        id: build_test_place
         if: steps.roblosecurity.outputs.available == 'true'
         shell: bash
         run: rojo build tests/default.project.json -o "$RUNNER_TEMP/roblox_experience-tests.rbxlx"
 
       - name: Run Roblox logic tests
+        id: run_logic_tests
         if: steps.roblosecurity.outputs.available == 'true'
         shell: bash
         run: run-in-roblox --place "$RUNNER_TEMP/roblox_experience-tests.rbxlx" --script tests/run-in-roblox.lua
+
+      - name: Diagnose roblox-tests result
+        if: always()
+        shell: bash
+        env:
+          SECRET_AVAILABLE: ${{ steps.roblosecurity.outputs.available }}
+          AFTMAN_OUTCOME: ${{ steps.aftman.outcome }}
+          STUDIO_OUTCOME: ${{ steps.studio.outcome }}
+          BUILD_OUTCOME: ${{ steps.build_test_place.outcome }}
+          RUN_OUTCOME: ${{ steps.run_logic_tests.outcome }}
+        run: |
+          {
+            echo ""
+            echo "## roblox-tests diagnostics"
+            echo ""
+            if [ "$SECRET_AVAILABLE" != "true" ]; then
+              echo "- Classification: configuration"
+              echo "- Result: skipped before Roblox Studio installation because \`ROBLOSECURITY\` is missing"
+              echo "- First check: add the repository secret, then rerun the workflow"
+            elif [ "$AFTMAN_OUTCOME" = "failure" ]; then
+              echo "- Classification: toolchain setup"
+              echo "- Result: Aftman setup failed before any Roblox-specific step ran"
+              echo "- First check: inspect the \`Install Aftman toolchain\` step log"
+            elif [ "$STUDIO_OUTCOME" = "failure" ]; then
+              echo "- Classification: Studio installation"
+              echo "- Result: the workflow failed while installing Roblox Studio on the Windows runner"
+              echo "- First check: inspect the \`Install Roblox Studio\` step log for cookie/auth/install errors"
+            elif [ "$BUILD_OUTCOME" = "failure" ]; then
+              echo "- Classification: test place build"
+              echo "- Result: Studio was available, but \`rojo build tests/default.project.json\` failed"
+              echo "- First check: inspect the \`Build test place\` step log for missing files, Rojo mapping issues, or syntax errors"
+            elif [ "$RUN_OUTCOME" = "failure" ]; then
+              echo "- Classification: runner startup or test logic"
+              echo "- Result: the built place launched into \`run-in-roblox\`, but the final execution step failed"
+              echo "- First check: inspect the \`Run Roblox logic tests\` step log"
+              echo "- Triage hint: if Studio never boots, treat it as a runner/Studio problem; if tests boot and report failures, treat it as test logic"
+            else
+              echo "- Classification: success"
+              echo "- Result: Studio-backed tests completed successfully"
+              echo "- First check: none"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
