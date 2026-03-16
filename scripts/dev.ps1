@@ -28,15 +28,15 @@ function Resolve-Executable {
         [string[]]$Candidates = @()
     )
 
-    $command = Get-Command $Name -ErrorAction SilentlyContinue
-    if ($command) {
-        return $command.Source
-    }
-
     foreach ($candidate in $Candidates) {
         if ($candidate -and (Test-Path $candidate)) {
             return (Resolve-Path $candidate).Path
         }
+    }
+
+    $command = Get-Command $Name -ErrorAction SilentlyContinue
+    if ($command) {
+        return $command.Source
     }
 
     return $null
