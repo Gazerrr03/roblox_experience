@@ -1,5 +1,6 @@
 local Players = game:GetService('Players')
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local RunService = game:GetService('RunService')
 local UserInputService = game:GetService('UserInputService')
 
 local localPlayer = Players.LocalPlayer
@@ -14,9 +15,39 @@ local Theme = UI.Hud.Theme
 
 local disconnectFirstPersonLock
 local ensureFirstPersonLock
+local isMenuMouseUnlockBound = false
+local MENU_MOUSE_UNLOCK_STEP = 'RunMenuMouseUnlock'
 ensureFirstPersonLock = function()
     disconnectFirstPersonLock = Shared.Client.FirstPersonController.start(localPlayer)
     ensureFirstPersonLock = function() end
+end
+
+local function bindMenuMouseUnlock()
+    if isMenuMouseUnlockBound then
+        return
+    end
+
+    isMenuMouseUnlockBound = true
+    RunService:BindToRenderStep(
+        MENU_MOUSE_UNLOCK_STEP,
+        Enum.RenderPriority.Camera.Value + 1,
+        function()
+            localPlayer.CameraMode = Enum.CameraMode.Classic
+            localPlayer.CameraMinZoomDistance = 0.5
+            localPlayer.CameraMaxZoomDistance = 12
+            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+            UserInputService.MouseIconEnabled = true
+        end
+    )
+end
+
+local function unbindMenuMouseUnlock()
+    if not isMenuMouseUnlockBound then
+        return
+    end
+
+    isMenuMouseUnlockBound = false
+    RunService:UnbindFromRenderStep(MENU_MOUSE_UNLOCK_STEP)
 end
 
 local function releaseFirstPersonLockForMenu()
@@ -41,6 +72,8 @@ script.Destroying:Connect(function()
         disconnectFirstPersonLock()
         disconnectFirstPersonLock = nil
     end
+
+    unbindMenuMouseUnlock()
 end)
 
 local screenGui = Instance.new('ScreenGui')
@@ -195,6 +228,7 @@ local mazeLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 96), Theme.SubtleText,
 mazeLabel.Text = ''
 
 releaseFirstPersonLockForMenu()
+bindMenuMouseUnlock()
 
 singlePlayerButton.MouseButton1Click:Connect(function()
     singlePlayerButton.AutoButtonColor = false
@@ -218,6 +252,7 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
 
     if not hasLaunched then
         releaseFirstPersonLockForMenu()
+        bindMenuMouseUnlock()
         menuStatusLabel.Text = snapshot.Status
         singlePlayerButton.Active = true
         singlePlayerButton.AutoButtonColor = true
@@ -225,6 +260,7 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
         return
     end
 
+    unbindMenuMouseUnlock()
     ensureFirstPersonLock()
 
     statusLabel.Text = string.format(
