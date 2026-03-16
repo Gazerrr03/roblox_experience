@@ -19,6 +19,7 @@ local DOORWAY_HEIGHT = 10
 local DOOR_LEAF_THICKNESS = 0.5
 local DOOR_CLEARANCE = 0
 local ROOM_DETECTION_BUFFER = 18
+local EXIT_CORRIDOR_LENGTH = 6
 local HEX_CIRCUMRADIUS_MULTIPLIER = 1 / math.cos(math.pi / 6)
 local SIDE_ANGLE_OFFSET_DEGREES = 30
 
@@ -29,6 +30,7 @@ local FLOOR_COLOR = Color3.fromRGB(98, 96, 92)
 local CEILING_COLOR = Color3.fromRGB(88, 86, 82)
 local DOOR_MATERIAL = Enum.Material.Concrete
 local DOOR_COLOR = Color3.fromRGB(74, 72, 68)
+local EXIT_FLOOR_COLOR = Color3.fromRGB(40, 36, 28)
 
 local ROOM_KIND_COLORS = {
     Camp = Color3.fromRGB(83, 126, 78),
@@ -256,9 +258,17 @@ local function buildRoom(parent, room, roomCenter, roomRadius)
         CanCollide = false,
     }, roomFolder)
 
+    local doorwayDirections = {}
+    for directionIndex in pairs(room.Neighbors) do
+        doorwayDirections[directionIndex] = true
+    end
+    for _, directionIndex in ipairs(room.ExitDirections or {}) do
+        doorwayDirections[directionIndex] = true
+    end
+
     local sideLength = 2 * roomRadius * math.tan(math.pi / 6)
     for directionIndex = 1, 6 do
-        local hasDoorway = room.Neighbors[directionIndex] ~= nil
+        local hasDoorway = doorwayDirections[directionIndex] == true
         createHexSideWall(
             roomFolder,
             roomCenter,
@@ -267,6 +277,25 @@ local function buildRoom(parent, room, roomCenter, roomRadius)
             sideLength,
             hasDoorway
         )
+    end
+end
+
+local function buildExitCorridors(parent, room, roomCenter, roomRadius)
+    for _, directionIndex in ipairs(room.ExitDirections or {}) do
+        local normal = sideVectors(directionIndex)
+        local corridorCenter = roomCenter
+            + (normal * (roomRadius + (EXIT_CORRIDOR_LENGTH / 2)))
+            + Vector3.new(0, -(SLAB_THICKNESS / 2), 0)
+        local corridorForward = CFrame.lookAt(corridorCenter, corridorCenter + normal)
+
+        createPart({
+            Name = string.format('ExitCorridor_%s_%d', room.Id, directionIndex),
+            Size = Vector3.new(DOORWAY_WIDTH, SLAB_THICKNESS, EXIT_CORRIDOR_LENGTH),
+            CFrame = corridorForward,
+            Color = EXIT_FLOOR_COLOR,
+            Material = FLOOR_MATERIAL,
+            CanCollide = true,
+        }, parent)
     end
 end
 
@@ -303,6 +332,7 @@ function MazeWorldBuilder.build(seed, config, options)
         roomById[roomId] = room
 
         buildRoom(worldFolder, room, roomCenter, roomRadius)
+        buildExitCorridors(worldFolder, room, roomCenter, roomRadius)
 
         if room.Kind == 'Loot' then
             local itemDef = Items[itemIndex]
