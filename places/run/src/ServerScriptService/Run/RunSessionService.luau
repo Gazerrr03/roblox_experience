@@ -22,6 +22,15 @@ local CAMP_SESSION_LOCK_WAIT_SECONDS = 0.05
 local MAZE_ENTRY_REQUEST_COOLDOWN_SECONDS = 0.35
 local MAZE_ENTRY_DISTANCE_BUFFER = 2
 
+local TELEPORT_FAILURE_CODE = {
+    ReserveServerFailed = 'ReserveServerFailed',
+    TeleportToPrivateServerFailed = 'TeleportToPrivateServerFailed',
+}
+
+local function formatTeleportFailureReason(step, message)
+    return string.format('%s failed: %s', step, tostring(message))
+end
+
 local function bindCharacterTeleport(self, player)
     player.CharacterAdded:Connect(function(character)
         task.wait()
@@ -94,6 +103,7 @@ function RunSessionService.new()
     self.MazeEntryMode = MazeEntryAvailability.Mode.Blocked
     self.MazeEntryReason =
         'Set SessionConfig.PlaceIds.Maze or SessionPlaceIdMaze before using the maze gate.'
+    self.MazeEntryReasonCode = MazeEntryAvailability.ReasonCode.MazePlaceIdMissing
 
     return self
 end
@@ -306,6 +316,7 @@ function RunSessionService:_resolveMazeEntryAvailability()
 
     self.MazeEntryMode = availability.Mode
     self.MazeEntryReason = availability.Reason
+    self.MazeEntryReasonCode = availability.ReasonCode
 
     return availability
 end
@@ -330,6 +341,7 @@ function RunSessionService:_broadcastSnapshot()
             ReturnedPlayerSummaries = returnedSummaries,
             MazeEntryMode = mazeEntryAvailability.Mode,
             MazeEntryReason = mazeEntryAvailability.Reason,
+            MazeEntryReasonCode = mazeEntryAvailability.ReasonCode,
         })
 
         self.Remotes.PrivateState:FireClient(player, nil)
@@ -379,7 +391,24 @@ function RunSessionService:_enterMaze(player)
         -- Teleports yield, so keep the camp session mutation serialized per server.
         local previousSession = CampMazeSessionContract.normalizeCampSession(self.CampSession)
         local mazeAccessCode = previousSession.MazeAccessCode
-            or TeleportService:ReserveServer(SessionConfig.PlaceIds.Maze)
+        if mazeAccessCode == nil then
+            local reserved, reserveResult = pcall(function()
+                return TeleportService:ReserveServer(SessionConfig.PlaceIds.Maze)
+            end)
+
+            if not reserved then
+                local reason = formatTeleportFailureReason('ReserveServer', reserveResult)
+                self.MazeEntryMode = MazeEntryAvailability.Mode.Blocked
+                self.MazeEntryReasonCode = TELEPORT_FAILURE_CODE.ReserveServerFailed
+                self.MazeEntryReason = reason
+                self:_setStatus(
+                    string.format('%s could not enter the maze: %s', player.DisplayName, reason)
+                )
+                return
+            end
+
+            mazeAccessCode = reserveResult
+        end
 
         previousSession.MazeAccessCode = mazeAccessCode
         previousSession.GateOpen = self.GateOpen
@@ -413,36 +442,21 @@ function RunSessionService:_enterMaze(player)
 
         if not success then
             self.CampSession = previousSession
-            self:_setStatus(string.format('Maze gate failed: %s', tostring(message)))
+            local reason = formatTeleportFailureReason('TeleportToPrivateServer', message)
+            self.MazeEntryMode = MazeEntryAvailability.Mode.Blocked
+            self.MazeEntryReasonCode = TELEPORT_FAILURE_CODE.TeleportToPrivateServerFailed
+            self.MazeEntryReason = reason
+            self:_setStatus(
+                string.format('%s could not enter the maze: %s', player.DisplayName, reason)
+            )
             return
         end
 
+        self.MazeEntryMode = MazeEntryAvailability.Mode.Teleport
+        self.MazeEntryReasonCode = MazeEntryAvailability.ReasonCode.TeleportReady
+        self.MazeEntryReason = 'Maze teleport target is ready.'
         self.CampSession = nextSession
         self:_setStatus(string.format('%s is entering the shared maze run.', player.DisplayName))
-    end)
-end
-
-function RunSessionService:_enterMazeLocalDebug(player)
-    runWithCampSessionLock(self, function()
-        if self.CampSession.MazeStatus == CampMazeSessionContract.MazeStatus.Completed then
-            self:_setStatus('The maze session is already complete for this camp.')
-            return
-        end
-
-        local nextSession = CampMazeSessionContract.markPlayerEntered(self.CampSession, {
-            UserId = player.UserId,
-            Name = player.DisplayName,
-        })
-        nextSession.GateOpen = self.GateOpen
-        nextSession.MazeAccessCode = nextSession.MazeAccessCode or 'local-debug-maze'
-
-        self.CampSession = nextSession
-        self:_setStatus(
-            string.format(
-                '%s entered local maze debug handoff (no cross-place teleport).',
-                player.DisplayName
-            )
-        )
     end)
 end
 
@@ -491,13 +505,16 @@ function RunSessionService:_requestMazeEntry(player, requireDistanceCheck)
         return
     end
 
-    if availability.Mode == MazeEntryAvailability.Mode.LocalDebugFallback then
-        self:_enterMazeLocalDebug(player)
-        return
-    end
-
     self:_setStatus(
-        string.format('%s could not enter the maze: %s', player.DisplayName, availability.Reason)
+        string.format(
+            '%s could not enter the maze: %s (code=%s, gameId=%d, placeId=%d, mazePlaceId=%d)',
+            player.DisplayName,
+            availability.Reason,
+            availability.ReasonCode or 'Unknown',
+            game.GameId,
+            game.PlaceId,
+            SessionConfig.PlaceIds.Maze
+        )
     )
 end
 

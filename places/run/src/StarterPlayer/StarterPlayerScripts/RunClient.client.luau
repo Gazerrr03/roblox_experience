@@ -105,12 +105,13 @@ end
 
 local function buildMazeEntryText(snapshot)
     local mode = snapshot.MazeEntryMode or 'Blocked'
+    local reasonCode = snapshot.MazeEntryReasonCode or 'Unknown'
     local reason = snapshot.MazeEntryReason
     if type(reason) == 'string' and reason ~= '' then
-        return string.format('%s (%s)', mode, reason)
+        return string.format('%s [%s] (%s)', mode, reasonCode, reason)
     end
 
-    return mode
+    return string.format('%s [%s]', mode, reasonCode)
 end
 
 local menuBackdrop = Instance.new('Frame')

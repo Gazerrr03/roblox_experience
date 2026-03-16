@@ -24,7 +24,7 @@ return function()
         'Teleport mode should use TeleportReady reason'
     )
 
-    local localDebugFallback = availability.evaluate({
+    local blockedStudioLocalFileWithDebugEnabled = availability.evaluate({
         PlaceIds = {
             Lobby = 1,
             Run = 2,
@@ -37,12 +37,13 @@ return function()
     })
 
     assert(
-        localDebugFallback.Mode == availability.Mode.LocalDebugFallback,
-        'Studio local-file mode should use local debug fallback when enabled'
+        blockedStudioLocalFileWithDebugEnabled.Mode == availability.Mode.Blocked,
+        'Studio local-file mode should still block real teleport even when debug flag is enabled'
     )
     assert(
-        localDebugFallback.ReasonCode == availability.ReasonCode.StudioLocalFileDebugFallback,
-        'Local debug fallback should expose the expected reason code'
+        blockedStudioLocalFileWithDebugEnabled.ReasonCode
+            == availability.ReasonCode.StudioLocalFileTeleportBlocked,
+        'Studio local-file block should expose the expected reason code'
     )
 
     local blockedStudioLocalFile = availability.evaluate({
@@ -58,12 +59,12 @@ return function()
     })
 
     assert(
-        blockedStudioLocalFile.Mode == availability.Mode.LocalDebugFallback,
-        'Studio local-file mode should auto-enable local debug fallback when debug flag is disabled'
+        blockedStudioLocalFile.Mode == availability.Mode.Blocked,
+        'Studio local-file mode should block teleport when debug flag is disabled'
     )
     assert(
-        blockedStudioLocalFile.ReasonCode == availability.ReasonCode.StudioLocalFileAutoFallback,
-        'Studio local-file auto fallback should expose the expected reason code'
+        blockedStudioLocalFile.ReasonCode == availability.ReasonCode.StudioLocalFileTeleportBlocked,
+        'Studio local-file block should expose the expected reason code'
     )
 
     local blockedMissingPlaceId = availability.evaluate({
