@@ -33,13 +33,13 @@ function ControlState:requestSprintStart(playerStateSummary)
         return false, 'Dead'
     end
 
-    if playerStateSummary.CanSprint ~= true then
-        self.SprintRequested = false
+    self.SprintRequested = true
+
+    if not playerStateSummary.CanSprint then
         self.Mode = MODE.Walk
         return false, 'StaminaDepleted'
     end
 
-    self.SprintRequested = true
     self.Mode = MODE.Sprint
     return true, self:getSummary()
 end
@@ -57,7 +57,7 @@ function ControlState:syncPlayerState(playerStateSummary)
         return self:getSummary()
     end
 
-    if self.SprintRequested and playerStateSummary.CanSprint == true then
+    if self.SprintRequested and playerStateSummary.CanSprint then
         self.Mode = MODE.Sprint
     else
         self.Mode = MODE.Walk
