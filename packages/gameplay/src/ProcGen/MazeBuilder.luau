@@ -137,14 +137,6 @@ local function popRandomFrontier(frontier, frontierIndexByKey, random)
     return entry
 end
 
-local function countRooms(rooms)
-    local count = 0
-    for _ in pairs(rooms) do
-        count += 1
-    end
-    return count
-end
-
 local function buildPrefabQuotas(roomCount)
     local baseTotal = 0
     for _, typeId in ipairs(RATIO_TYPE_ORDER) do
@@ -591,7 +583,7 @@ local function buildAttempt(seed, config)
         end
     end
 
-    while countRooms(rooms) < roomCount do
+    while #roomIds < roomCount do
         local frontierEntry = popRandomFrontier(frontier, frontierIndexByKey, random)
         if not frontierEntry then
             return nil, 'InsufficientExpansionFrontier'
