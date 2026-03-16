@@ -36,8 +36,9 @@ data contract explicit first.
 - When adding or renaming remotes, update
   `packages/shared/src/Network/Remotes.luau`, all producers/consumers, and the
   related tests in the same change. Do not create ad-hoc remotes in random scripts.
-- When changing replicated state shape, update all producers/consumers and the
-  related tests in the same change.
+- When changing replicated state shape, update its definition (for example in a
+  relevant `Config`, `Session`, or `Util` module), all producers/consumers, and
+  the related tests in the same change.
 - Preserve privacy boundaries. Private role data and permission tags must stay
   filtered through `packages/shared/src/Util/Visibility.luau` or an equally
   explicit visibility gate.
