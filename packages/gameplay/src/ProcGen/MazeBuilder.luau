@@ -1,4 +1,5 @@
 local MazeBuilder = {}
+local HexRoomPrefabs = require(script.Parent.HexRoomPrefabs)
 
 local HEX_DIRECTIONS = {
     { Q = 1, R = 0 },
@@ -60,35 +61,24 @@ local function setDoorDirection(room, directionIndex, neighborRoomId)
 end
 
 local function classifyRoomPrefab(room)
-    local degree = room.DoorCount
-
-    if degree <= 1 then
-        return 'Hex_DeadEnd'
+    local classified = HexRoomPrefabs.classifyDoorDirections(room.DoorDirections)
+    if classified then
+        return classified
     end
 
-    if degree == 2 then
-        local firstDirection = room.DoorDirections[1]
-        local secondDirection = room.DoorDirections[2]
-        if oppositeDirection(firstDirection) == secondDirection then
-            return 'Hex_Straight'
-        end
-
-        return 'Hex_Bend'
+    if room.DoorCount == 5 then
+        return {
+            TypeId = 'Legacy5',
+            PrefabId = 'Hex_Legacy5',
+            RotationSteps = 0,
+        }
     end
 
-    if degree == 3 then
-        return 'Hex_T'
-    end
-
-    if degree == 4 then
-        return 'Hex_Cross4'
-    end
-
-    if degree == 5 then
-        return 'Hex_Cross5'
-    end
-
-    return 'Hex_Open6'
+    return {
+        TypeId = 'LegacyUnknown',
+        PrefabId = 'Hex_LegacyUnknown',
+        RotationSteps = 0,
+    }
 end
 
 local function shuffleInPlace(list, random)
@@ -285,7 +275,10 @@ function MazeBuilder.build(seed, config)
 
     for _, room in pairs(rooms) do
         table.sort(room.DoorDirections)
-        room.PrefabId = classifyRoomPrefab(room)
+        local prefab = classifyRoomPrefab(room)
+        room.PrefabId = prefab.PrefabId
+        room.PrefabTypeId = prefab.TypeId
+        room.PrefabRotationSteps = prefab.RotationSteps
     end
 
     return {

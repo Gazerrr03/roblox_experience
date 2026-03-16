@@ -16,7 +16,8 @@ local Theme = UI.Hud.Theme
 local disconnectFirstPersonLock
 local ensureFirstPersonLock
 local canRequestMazeEntry = false
-local mazeEntryInputConnection
+local actionInputConnection
+local sprintInputEndedConnection
 local isMenuMouseUnlockBound = false
 local MENU_MOUSE_UNLOCK_STEP = 'RunMenuMouseUnlock'
 ensureFirstPersonLock = function()
@@ -75,9 +76,14 @@ script.Destroying:Connect(function()
         disconnectFirstPersonLock = nil
     end
 
-    if mazeEntryInputConnection ~= nil then
-        mazeEntryInputConnection:Disconnect()
-        mazeEntryInputConnection = nil
+    if actionInputConnection ~= nil then
+        actionInputConnection:Disconnect()
+        actionInputConnection = nil
+    end
+
+    if sprintInputEndedConnection ~= nil then
+        sprintInputEndedConnection:Disconnect()
+        sprintInputEndedConnection = nil
     end
 
     unbindMenuMouseUnlock()
@@ -205,7 +211,7 @@ local panel = Instance.new('Frame')
 panel.Name = 'CampPanel'
 panel.AnchorPoint = Vector2.new(0, 0)
 panel.Position = UDim2.fromScale(0.03, 0.05)
-panel.Size = UDim2.fromOffset(440, 420)
+panel.Size = UDim2.fromOffset(440, 500)
 panel.BackgroundColor3 = Theme.Background
 panel.BorderSizePixel = 0
 panel.Visible = false
@@ -237,7 +243,10 @@ objectiveLabel.Text = 'Objective: --'
 
 local guideLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 60), Theme.Text, 16, false)
 guideLabel.Text =
-    'In-world prompts:\n- Shop Terminal (Soon)\n- Loadout Bench (Soon)\n- Camp Gate / Shared Maze Gate'
+    'In-world prompts:\n- Shop Terminal (Soon)\n- Loadout Bench (Soon)\n- Camp Gate / Shared Maze Gate\nKeyboard: Hold LeftShift to sprint'
+
+local playerStateLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 72), Theme.Warning, 16, false)
+playerStateLabel.Text = 'Health: --\nStamina: --\nState: --'
 
 local rosterLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 90), Theme.SubtleText, 16, false)
 rosterLabel.Text = ''
@@ -247,8 +256,8 @@ mazeLabel.Text = ''
 
 releaseFirstPersonLockForMenu()
 bindMenuMouseUnlock()
-mazeEntryInputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
-    if not canRequestMazeEntry or gameProcessedEvent then
+actionInputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+    if gameProcessedEvent then
         return
     end
 
@@ -256,12 +265,35 @@ mazeEntryInputConnection = UserInputService.InputBegan:Connect(function(input, g
         return
     end
 
-    if input.KeyCode ~= Enum.KeyCode.E then
+    if input.KeyCode == Enum.KeyCode.LeftShift then
+        if panel.Visible then
+            Remotes.RunAction:FireServer({
+                Type = 'RequestSprintStart',
+            })
+        end
+        return
+    end
+
+    if input.KeyCode ~= Enum.KeyCode.E or not canRequestMazeEntry then
         return
     end
 
     Remotes.RunAction:FireServer({
         Type = 'RequestEnterMaze',
+    })
+end)
+
+sprintInputEndedConnection = UserInputService.InputEnded:Connect(function(input, gameProcessedEvent)
+    if gameProcessedEvent or input.UserInputType ~= Enum.UserInputType.Keyboard then
+        return
+    end
+
+    if input.KeyCode ~= Enum.KeyCode.LeftShift or not panel.Visible then
+        return
+    end
+
+    Remotes.RunAction:FireServer({
+        Type = 'RequestSprintStop',
     })
 end)
 
@@ -294,6 +326,7 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
         singlePlayerButton.Active = true
         singlePlayerButton.AutoButtonColor = true
         singlePlayerButton.Text = 'Enter Camp'
+        playerStateLabel.Text = 'Health: --\nStamina: --\nState: --'
         return
     end
 
@@ -311,6 +344,16 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
     )
 
     objectiveLabel.Text = string.format('Objective: %s', snapshot.Objective)
+
+    local playerState = snapshot.PlayerState or {}
+    playerStateLabel.Text = string.format(
+        'Health: %d/%d pips\nStamina: %d/%d\nState: %s',
+        playerState.HealthPips or 0,
+        playerState.MaxHealthPips or 0,
+        math.floor((playerState.CurrentStamina or 0) + 0.5),
+        math.floor((playerState.MaxStamina or 0) + 0.5),
+        playerState.IsDead and 'Dead' or 'Alive'
+    )
 
     local rosterLines = {}
     for _, rosterEntry in ipairs(snapshot.Roster) do

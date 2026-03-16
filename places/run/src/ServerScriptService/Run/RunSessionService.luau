@@ -11,6 +11,7 @@ local SessionConfig = Shared.Config.SessionConfig
 local Remotes = Shared.Network.Remotes.ensure()
 local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
 local MazeEntryAvailability = Shared.Session.MazeEntryAvailability
+local PlayerStateService = Shared.Runtime.PlayerStateService
 
 local LocalDebugMazeWorldBuilder = require(script.Parent.LocalDebugMazeWorldBuilder)
 local RunWorldBuilder = require(script.Parent.RunWorldBuilder)
@@ -24,6 +25,7 @@ local MAZE_ENTRY_REQUEST_COOLDOWN_SECONDS = 0.35
 local MAZE_ENTRY_DISTANCE_BUFFER = 2
 local LOCAL_DEBUG_ROOM_DETECTION_RADIUS = 20
 local LOCAL_DEBUG_MAZE_RETURN_REASON = 'local_debug_return'
+local SNAPSHOT_INTERVAL_SECONDS = 0.25
 
 local TELEPORT_FAILURE_CODE = {
     ReserveServerFailed = 'ReserveServerFailed',
@@ -119,8 +121,17 @@ function RunSessionService.new()
         'Set SessionConfig.PlaceIds.Maze or SessionPlaceIdMaze before using the maze gate.'
     self.MazeEntryReasonCode = MazeEntryAvailability.ReasonCode.MazePlaceIdMissing
     self.LocalDebugMazeWorld = nil
+    self.PlayerStateService = PlayerStateService.new()
 
     return self
+end
+
+function RunSessionService:_addPlayerState(player)
+    self.PlayerStateService:addPlayer(player)
+end
+
+function RunSessionService:_removePlayerState(player)
+    self.PlayerStateService:removePlayer(player)
 end
 
 function RunSessionService:_readTeleportData(player)
@@ -399,6 +410,7 @@ function RunSessionService:_broadcastSnapshot()
             MazeEntryMode = mazeEntryAvailability.Mode,
             MazeEntryReason = mazeEntryAvailability.Reason,
             MazeEntryReasonCode = mazeEntryAvailability.ReasonCode,
+            PlayerState = self.PlayerStateService:getSummary(player),
         })
 
         self.Remotes.PrivateState:FireClient(player, nil)
@@ -697,14 +709,34 @@ function RunSessionService:_startSnapshotLoop()
     end
 
     self.SnapshotThread = task.spawn(function()
+        local previousTick = os.clock()
+
         while true do
-            task.wait(1)
+            task.wait(SNAPSHOT_INTERVAL_SECONDS)
 
             if self.IsLaunched then
+                local currentTick = os.clock()
+                self.PlayerStateService:step(currentTick - previousTick)
+                previousTick = currentTick
                 self:_broadcastSnapshot()
+            else
+                previousTick = os.clock()
             end
         end
     end)
+end
+
+function RunSessionService:_setPlayerSprinting(player, isSprinting)
+    if not self.IsLaunched then
+        return
+    end
+
+    local success, result = self.PlayerStateService:setSprinting(player, isSprinting)
+    if success or result ~= 'StaminaDepleted' then
+        return
+    end
+
+    self:_setStatus(string.format('%s is too exhausted to sprint.', player.DisplayName))
 end
 
 function RunSessionService:_handlePlayerTeleportData(player)
@@ -753,6 +785,7 @@ function RunSessionService:start()
 
     for _, player in ipairs(Players:GetPlayers()) do
         bindCharacterTeleport(self, player)
+        self:_addPlayerState(player)
 
         if player.Character then
             player.Character:Destroy()
@@ -761,6 +794,7 @@ function RunSessionService:start()
 
     Players.PlayerAdded:Connect(function(player)
         bindCharacterTeleport(self, player)
+        self:_addPlayerState(player)
         self:_handlePlayerTeleportData(player)
 
         if self.IsLaunched then
@@ -781,6 +815,7 @@ function RunSessionService:start()
             ),
         })
         self.GateOpen = self.CampSession.GateOpen
+        self:_removePlayerState(player)
         self:_broadcastSnapshot()
     end)
 
@@ -795,6 +830,10 @@ function RunSessionService:start()
             if self:_canProcessMazeEntryRequest(player) then
                 self:_requestMazeEntry(player, true)
             end
+        elseif payload.Type == 'RequestSprintStart' then
+            self:_setPlayerSprinting(player, true)
+        elseif payload.Type == 'RequestSprintStop' then
+            self:_setPlayerSprinting(player, false)
         elseif payload.Type == 'RequestStartExpedition' then
             self:_setStatus(
                 string.format(
