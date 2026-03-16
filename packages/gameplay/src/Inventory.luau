@@ -29,7 +29,6 @@ function Inventory.new(capacity)
         Capacity = capacity,
         Weight = 0,
         BackpackItems = backpackItems,
-        Order = backpackItems,
         HeldItem = nil,
         NextItemInstanceId = 1,
     }, Inventory)
