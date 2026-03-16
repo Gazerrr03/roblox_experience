@@ -245,8 +245,8 @@ local guideLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 60), Theme.Text, 16, 
 guideLabel.Text =
     'In-world prompts:\n- Shop Terminal (Soon)\n- Loadout Bench (Soon)\n- Camp Gate / Shared Maze Gate\nKeyboard: Hold LeftShift to sprint'
 
-local playerStateLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 72), Theme.Warning, 16, false)
-playerStateLabel.Text = 'Health: --\nStamina: --\nState: --'
+local playerStateLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 86), Theme.Warning, 16, false)
+playerStateLabel.Text = 'Health: --\nStamina: --\nState: --\nControls: --'
 
 local rosterLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 90), Theme.SubtleText, 16, false)
 rosterLabel.Text = ''
@@ -326,7 +326,7 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
         singlePlayerButton.Active = true
         singlePlayerButton.AutoButtonColor = true
         singlePlayerButton.Text = 'Single Player'
-        playerStateLabel.Text = 'Health: --\nStamina: --\nState: --'
+        playerStateLabel.Text = 'Health: --\nStamina: --\nState: --\nControls: --'
         return
     end
 
@@ -346,13 +346,15 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
     objectiveLabel.Text = string.format('Objective: %s', snapshot.Objective)
 
     local playerState = snapshot.PlayerState or {}
+    local controlState = snapshot.ControlState or {}
     playerStateLabel.Text = string.format(
-        'Health: %d/%d pips\nStamina: %d/%d\nState: %s',
+        'Health: %d/%d pips\nStamina: %d/%d\nState: %s\nControls: %s | Crouch: Deferred',
         playerState.HealthPips or 0,
         playerState.MaxHealthPips or 0,
         math.floor((playerState.CurrentStamina or 0) + 0.5),
         math.floor((playerState.MaxStamina or 0) + 0.5),
-        playerState.IsDead and 'Dead' or 'Alive'
+        playerState.IsDead and 'Dead' or 'Alive',
+        controlState.Mode or 'Walk'
     )
 
     local rosterLines = {}

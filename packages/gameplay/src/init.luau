@@ -1,4 +1,5 @@
 return {
+    ControlState = require(script.ControlState),
     Config = require(script.Config),
     Inventory = require(script.Inventory),
     Monsters = require(script.Monsters),

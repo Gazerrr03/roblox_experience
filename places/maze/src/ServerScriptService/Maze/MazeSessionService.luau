@@ -10,6 +10,8 @@ local CAMP_SESSION_LOCK_WAIT_SECONDS = 0.05
 local SNAPSHOT_INTERVAL_SECONDS = 0.25
 local CORPSE_COLOR = Color3.fromRGB(92, 92, 92)
 local CORPSE_MATERIAL = Enum.Material.Slate
+local DEFAULT_WALK_SPEED = 16
+local DEFAULT_SPRINT_WALK_SPEED = 24
 
 local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
@@ -22,6 +24,7 @@ local Remotes = Shared.Network.Remotes.ensure()
 local InventoryService =
     require(SharedPackage:WaitForChild('Runtime'):WaitForChild('InventoryService'))
 local MonsterService = require(SharedPackage:WaitForChild('Runtime'):WaitForChild('MonsterService'))
+local ControlStateService = Shared.Runtime.ControlStateService
 local PlayerStateService = Shared.Runtime.PlayerStateService
 
 local MazeWorldBuilder = require(script.Parent.MazeWorldBuilder)
@@ -79,6 +82,7 @@ local function bindCharacterTeleport(self, player)
         end
 
         character:PivotTo(targetCFrame)
+        self:_applyMovementMode(player)
     end)
 end
 
@@ -120,6 +124,7 @@ function MazeSessionService.new()
     self.CampSessionLock = false
     self.RunTracker = Gameplay.Session.MazeRunTracker.new()
     self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
+    self.ControlStateService = ControlStateService.new()
     self.PlayerStateService = PlayerStateService.new()
     self.MonsterService = MonsterService.new(Gameplay.Config.Monsters[1], function()
         return self.RunTracker:getState() == 'Expedition'
@@ -198,13 +203,52 @@ function MazeSessionService:_addPlayerState(player)
     end
 
     self.InventoryService:addPlayer(player)
+    self.ControlStateService:addPlayer(player)
     self.PlayerStateService:addPlayer(player)
 end
 
 function MazeSessionService:_removePlayerState(player)
     self.RunTracker:removePlayer(player.UserId)
     self.InventoryService:removePlayer(player)
+    self.ControlStateService:removePlayer(player)
     self.PlayerStateService:removePlayer(player)
+end
+
+function MazeSessionService:_getMovementSpeedFor(player)
+    local playerState = self.PlayerStateService:getSummary(player)
+    local controlState = self.ControlStateService:getSummary(player)
+    if playerState.IsDead then
+        return 0
+    end
+
+    if controlState.Mode == Gameplay.ControlState.Mode.Sprint then
+        return DEFAULT_SPRINT_WALK_SPEED
+    end
+
+    return DEFAULT_WALK_SPEED
+end
+
+function MazeSessionService:_applyMovementMode(player)
+    local character = player.Character
+    local humanoid = character and character:FindFirstChildOfClass('Humanoid')
+    if not humanoid then
+        return
+    end
+
+    humanoid.WalkSpeed = self:_getMovementSpeedFor(player)
+end
+
+function MazeSessionService:_syncPlayerControls(player)
+    local playerState = self.PlayerStateService:getSummary(player)
+    local ok, controlState = self.ControlStateService:syncPlayerState(player, playerState)
+    if ok and controlState then
+        self.PlayerStateService:setSprinting(
+            player,
+            controlState.Mode == Gameplay.ControlState.Mode.Sprint
+        )
+    end
+
+    self:_applyMovementMode(player)
 end
 
 function MazeSessionService:_getMazeStatus()
@@ -287,6 +331,7 @@ function MazeSessionService:_broadcastSnapshot()
             Objective = self:_getObjectiveFor(),
             State = self.RunTracker:getState(),
             Inventory = self.InventoryService:getSummary(player),
+            ControlState = self.ControlStateService:getSummary(player),
             PlayerState = self.PlayerStateService:getSummary(player),
             Roster = roster,
             SessionId = self.CampSession.SessionId,
@@ -446,12 +491,25 @@ function MazeSessionService:_setPlayerSprinting(player, isSprinting)
         return
     end
 
-    local success, result = self.PlayerStateService:setSprinting(player, isSprinting)
-    if success or result ~= 'StaminaDepleted' then
+    local playerState = self.PlayerStateService:getSummary(player)
+    local success, result
+    if isSprinting then
+        success, result = self.ControlStateService:requestSprintStart(player, playerState)
+    else
+        success, result = self.ControlStateService:requestSprintStop(player)
+    end
+
+    if not success then
+        if result == 'StaminaDepleted' then
+            self:_setStatus(string.format('%s is too exhausted to sprint.', player.DisplayName))
+        elseif result == 'Dead' then
+            self:_setStatus(string.format('%s cannot sprint while dead.', player.DisplayName))
+        end
+        self:_syncPlayerControls(player)
         return
     end
 
-    self:_setStatus(string.format('%s is too exhausted to sprint.', player.DisplayName))
+    self:_syncPlayerControls(player)
 end
 
 function MazeSessionService:_spawnCorpseForPlayer(player)
@@ -477,6 +535,7 @@ end
 
 function MazeSessionService:_handlePlayerDeath(player, damageKind)
     self:_spawnCorpseForPlayer(player)
+    self:_syncPlayerControls(player)
 
     local summary = self:_buildSummaryFor(player, 'death', false)
     local recorded = self.RunTracker:recordReturn(summary)
@@ -515,6 +574,8 @@ function MazeSessionService:_applyPlayerDamage(player, damageKind)
         self:_handlePlayerDeath(player, damageKind)
         return
     end
+
+    self:_syncPlayerControls(player)
 
     self:_setStatus(
         string.format(
@@ -723,6 +784,11 @@ function MazeSessionService:_startSnapshotLoop()
                 local currentTick = os.clock()
                 self.PlayerStateService:step(currentTick - previousTick)
                 previousTick = currentTick
+
+                for _, player in ipairs(Players:GetPlayers()) do
+                    self:_syncPlayerControls(player)
+                end
+
                 self:_broadcastSnapshot()
             else
                 previousTick = os.clock()

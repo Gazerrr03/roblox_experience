@@ -82,8 +82,8 @@ end
 local inventoryLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 44), Theme.Warning, 16, false)
 inventoryLabel.Text = 'Inventory: --'
 
-local playerStateLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 72), Theme.Warning, 16, false)
-playerStateLabel.Text = 'Health: --\nStamina: --\nState: --'
+local playerStateLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 86), Theme.Warning, 16, false)
+playerStateLabel.Text = 'Health: --\nStamina: --\nState: --\nControls: --'
 
 local rosterLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 94), Theme.SubtleText, 16, false)
 rosterLabel.Text = ''
@@ -172,13 +172,15 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
     )
 
     local playerState = snapshot.PlayerState or {}
+    local controlState = snapshot.ControlState or {}
     playerStateLabel.Text = string.format(
-        'Health: %d/%d pips\nStamina: %d/%d\nState: %s',
+        'Health: %d/%d pips\nStamina: %d/%d\nState: %s\nControls: %s | Crouch: Deferred',
         playerState.HealthPips or 0,
         playerState.MaxHealthPips or 0,
         math.floor((playerState.CurrentStamina or 0) + 0.5),
         math.floor((playerState.MaxStamina or 0) + 0.5),
-        playerState.IsDead and 'Dead' or 'Alive'
+        playerState.IsDead and 'Dead' or 'Alive',
+        controlState.Mode or 'Walk'
     )
 
     local rosterLines = { 'Crew:' }
