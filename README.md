@@ -31,6 +31,8 @@ Roblox game skeleton for a two-place experience:
 Project-specific guardrails for AI and human contributors live in `AGENTS.md`.
 Use that file as the default playbook for architecture boundaries, networking
 contracts, validation, and integration hygiene.
+Contributor-facing setup, validation, and CI/platform notes live in
+`CONTRIBUTING.md`.
 
 Pull requests should follow the repository PR template so Roblox-specific
 integration checks stay attached to every change.
