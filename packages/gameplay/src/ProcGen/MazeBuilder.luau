@@ -778,8 +778,6 @@ function MazeBuilder.build(seed, config)
             )
         end
     end
-
-    error('MazeBuilder exhausted generation attempts unexpectedly', 0)
 end
 
 return MazeBuilder
