@@ -69,7 +69,14 @@ return function()
         'Six-door hub rooms should stay low frequency'
     )
 
-    for prefabTypeId, expectedCount in pairs(EXPECTED_PREFAB_COUNTS_20) do
+    local prefabTypeIds = {}
+    for prefabTypeId in pairs(EXPECTED_PREFAB_COUNTS_20) do
+        table.insert(prefabTypeIds, prefabTypeId)
+    end
+    table.sort(prefabTypeIds)
+
+    for _, prefabTypeId in ipairs(prefabTypeIds) do
+        local expectedCount = EXPECTED_PREFAB_COUNTS_20[prefabTypeId]
         local actualCount = prefabCounts[prefabTypeId] or 0
         assert(
             actualCount == expectedCount,
