@@ -6,7 +6,7 @@
 
 ## Roblox Integration Checklist
 
-- [ ] The change updates the active runtime source under `src-packages/**`, or I explained why `packages/**` had to change.
+- [ ] The change updates the active runtime source under `packages/**`, or I explained why another source path had to change.
 - [ ] If Studio tree structure changed, I updated the relevant `default.project.json` in the same PR.
 - [ ] If I changed Remote names, replicated schema, or visibility behavior, I updated all linked producers/consumers/tests in the same PR.
 - [ ] If I changed non-trivial shared/gameplay behavior, I added or updated deterministic coverage under `tests/src/Shared`, or I explained why no test change was needed.
