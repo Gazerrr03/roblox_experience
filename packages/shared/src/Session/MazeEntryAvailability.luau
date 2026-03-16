@@ -8,6 +8,7 @@ MazeEntryAvailability.Mode = {
 
 MazeEntryAvailability.ReasonCode = {
     TeleportReady = 'TeleportReady',
+    LocalDebugFallbackEnabled = 'LocalDebugFallbackEnabled',
     MazePlaceIdMissing = 'MazePlaceIdMissing',
     StudioLocalFileTeleportBlocked = 'StudioLocalFileTeleportBlocked',
 }
@@ -18,8 +19,17 @@ function MazeEntryAvailability.evaluate(params)
     local isStudio = params.IsStudio == true
     local placeId = type(params.PlaceId) == 'number' and params.PlaceId or 0
     local gameId = type(params.GameId) == 'number' and params.GameId or 0
+    local debugLocalMazeHandoff = params.DebugLocalMazeHandoff == true
 
     if isStudio and (placeId <= 0 or gameId <= 0) then
+        if debugLocalMazeHandoff then
+            return {
+                Mode = MazeEntryAvailability.Mode.LocalDebugFallback,
+                ReasonCode = MazeEntryAvailability.ReasonCode.LocalDebugFallbackEnabled,
+                Reason = 'Studio local debug fallback is enabled. Maze entry stays in the current place for MVP testing.',
+            }
+        end
+
         return {
             Mode = MazeEntryAvailability.Mode.Blocked,
             ReasonCode = MazeEntryAvailability.ReasonCode.StudioLocalFileTeleportBlocked,
