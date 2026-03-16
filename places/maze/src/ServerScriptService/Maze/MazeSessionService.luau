@@ -402,6 +402,62 @@ function MazeSessionService:_deployCrew(player)
     self:_setStatus(string.format('%s deployed the crew into the maze.', player.DisplayName))
 end
 
+function MazeSessionService:_canManageInventory(player)
+    if not self.RunTracker:isPlayerActive(player.UserId) then
+        self:_setStatus(
+            string.format(
+                '%s already returned and cannot change inventory state.',
+                player.DisplayName
+            )
+        )
+        return false
+    end
+
+    return true
+end
+
+function MazeSessionService:_equipItem(player, itemInstanceId)
+    if not self:_canManageInventory(player) then
+        return
+    end
+
+    local success, result = self.InventoryService:equip(player, itemInstanceId)
+    if not success then
+        self:_setStatus(
+            string.format(
+                '%s could not equip that item (%s).',
+                player.DisplayName,
+                tostring(result)
+            )
+        )
+        return
+    end
+
+    self:_setStatus(string.format('%s equipped %s.', player.DisplayName, result.Name))
+end
+
+function MazeSessionService:_unequipItem(player)
+    if not self:_canManageInventory(player) then
+        return
+    end
+
+    local success, result = self.InventoryService:unequip(player)
+    if not success then
+        self:_setStatus(
+            string.format(
+                '%s could not unequip the held item (%s).',
+                player.DisplayName,
+                tostring(result)
+            )
+        )
+        return
+    end
+
+    self:_setStatus(
+        string.format('%s stowed %s back into the backpack.', player.DisplayName, result.Name)
+    )
+end
+
 function MazeSessionService:_pickupLoot(player, roomId)
     if self.RunTracker:getState() ~= 'Expedition' then
         self:_setStatus('Loot can only be collected during the expedition phase.')
@@ -629,6 +685,18 @@ function MazeSessionService:start()
     Players.PlayerRemoving:Connect(function(player)
         self:_removePlayerState(player)
         self:_broadcastSnapshot()
+    end)
+
+    self.Remotes.RunAction.OnServerEvent:Connect(function(player, payload)
+        if type(payload) ~= 'table' then
+            return
+        end
+
+        if payload.Type == 'RequestEquipItem' then
+            self:_equipItem(player, payload.ItemInstanceId)
+        elseif payload.Type == 'RequestUnequipItem' then
+            self:_unequipItem(player)
+        end
     end)
 
     self:_launchMaze()

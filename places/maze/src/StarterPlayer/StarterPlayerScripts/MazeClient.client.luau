@@ -1,5 +1,6 @@
 local Players = game:GetService('Players')
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local UserInputService = game:GetService('UserInputService')
 
 local localPlayer = Players.LocalPlayer
 local playerGui = localPlayer:WaitForChild('PlayerGui')
@@ -12,6 +13,9 @@ local Remotes = Shared.Network.Remotes.ensure()
 local Theme = UI.Hud.Theme
 
 Shared.Client.FirstPersonController.start(localPlayer)
+
+local visibleBackpackItems = {}
+local inventoryInputConnection
 
 local screenGui = Instance.new('ScreenGui')
 screenGui.Name = 'MazeHud'
@@ -37,7 +41,7 @@ local panel = Instance.new('Frame')
 panel.Name = 'MazePanel'
 panel.AnchorPoint = Vector2.new(0, 0)
 panel.Position = UDim2.fromScale(0.03, 0.05)
-panel.Size = UDim2.fromOffset(420, 430)
+panel.Size = UDim2.fromOffset(440, 560)
 panel.BackgroundColor3 = Theme.Background
 panel.BorderSizePixel = 0
 panel.Parent = screenGui
@@ -73,11 +77,54 @@ promptLabel.Text =
 local inventoryLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 44), Theme.Warning, 16, false)
 inventoryLabel.Text = 'Inventory: --'
 
+local inventoryDetailLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 126), Theme.Text, 15, false)
+inventoryDetailLabel.Text = ''
+
 local rosterLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 94), Theme.SubtleText, 16, false)
 rosterLabel.Text = ''
 
 local returnedLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 104), Theme.SubtleText, 16, false)
 returnedLabel.Text = ''
+
+inventoryInputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+    if gameProcessedEvent or input.UserInputType ~= Enum.UserInputType.Keyboard then
+        return
+    end
+
+    if input.KeyCode == Enum.KeyCode.X then
+        Remotes.RunAction:FireServer({
+            Type = 'RequestUnequipItem',
+        })
+        return
+    end
+
+    local slotIndexByKeyCode = {
+        [Enum.KeyCode.One] = 1,
+        [Enum.KeyCode.Two] = 2,
+        [Enum.KeyCode.Three] = 3,
+    }
+    local slotIndex = slotIndexByKeyCode[input.KeyCode]
+    if slotIndex == nil then
+        return
+    end
+
+    local itemEntry = visibleBackpackItems[slotIndex]
+    if not itemEntry then
+        return
+    end
+
+    Remotes.RunAction:FireServer({
+        Type = 'RequestEquipItem',
+        ItemInstanceId = itemEntry.InstanceId,
+    })
+end)
+
+script.Destroying:Connect(function()
+    if inventoryInputConnection then
+        inventoryInputConnection:Disconnect()
+        inventoryInputConnection = nil
+    end
+end)
 
 Remotes.PrivateState.OnClientEvent:Connect(function()
     -- The first maze HUD does not surface per-player private state yet.
@@ -100,12 +147,49 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
     objectiveLabel.Text = string.format('Objective: %s', snapshot.Objective or '--')
 
     local inventory = snapshot.Inventory or {}
+    visibleBackpackItems = inventory.BackpackItems or {}
     inventoryLabel.Text = string.format(
-        'Inventory: %d items | %d weight | %d value',
+        'Inventory: %d total | %d backpack | %d held | %d/%d KG | %d value',
         inventory.Count or 0,
+        inventory.BackpackCount or 0,
+        inventory.HeldCount or 0,
         inventory.Weight or 0,
+        inventory.Capacity or 0,
         inventory.Value or 0
     )
+
+    local heldItem = inventory.HeldItem
+    local detailLines = {
+        heldItem and string.format(
+            'Held: %s | %d KG | %d value',
+            heldItem.Name,
+            heldItem.Weight or 0,
+            heldItem.Value or 0
+        ) or 'Held: Empty hands',
+        'Backpack:',
+    }
+
+    if #visibleBackpackItems == 0 then
+        table.insert(detailLines, '- Empty')
+    else
+        for itemIndex = 1, math.min(#visibleBackpackItems, 3) do
+            local itemEntry = visibleBackpackItems[itemIndex]
+            table.insert(
+                detailLines,
+                string.format(
+                    '- [%d] %s | %d KG | %d value',
+                    itemIndex,
+                    itemEntry.Name,
+                    itemEntry.Weight or 0,
+                    itemEntry.Value or 0
+                )
+            )
+        end
+    end
+
+    table.insert(detailLines, '')
+    table.insert(detailLines, 'Keys: 1-3 equip listed item | X unequip held item')
+    inventoryDetailLabel.Text = table.concat(detailLines, '\n')
 
     local rosterLines = { 'Crew:' }
     for _, rosterEntry in ipairs(snapshot.Roster or {}) do
