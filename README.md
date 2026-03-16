@@ -9,16 +9,133 @@ Roblox game skeleton for a two-place experience:
 - `packages/ui`: lightweight UI helpers for the first vertical slice
 - `DevPackages`: Wally-generated third-party dependencies, kept separate from repo-owned source
 
-## Local Workflow
+## Local Setup And Startup
 
-1. Install toolchain with `aftman install`.
-2. Install Wally dependencies with `wally install`.
-3. Check formatting with `stylua --check .`.
-4. Check lint rules with `selene .`.
-5. Run logic tests with `rojo build tests/default.project.json -o /tmp/roblox_experience-tests.rbxlx && run-in-roblox --place /tmp/roblox_experience-tests.rbxlx --script tests/run-in-roblox.lua`.
-6. Serve the run place from repo root with `rojo serve`.
-7. Serve the lobby place with `cd places/lobby && rojo serve`.
-8. Serve the run place directly with `cd places/run && rojo serve`.
+### One-Click Windows Start
+
+For the fastest local startup on Windows, use the helper entrypoint from the
+repository root:
+
+```powershell
+.\start-run.cmd
+```
+
+That script will:
+
+- install the repo toolchain with `aftman install` if the local Rojo/Wally
+  binaries are missing
+- run `wally install` if `DevPackages/` is empty or missing
+- start `rojo serve` for the `run` place on port `34872`
+
+You still need these installed once on your machine before using the one-click
+entrypoint:
+
+- Roblox Studio
+- the Rojo Studio plugin
+- `aftman`
+
+If you want a different place or port, use the PowerShell helper directly:
+
+```powershell
+.\scripts\dev.ps1 -Place lobby
+.\scripts\dev.ps1 -Place maze -Port 34873
+.\scripts\dev.ps1 -Place run -RefreshDeps
+```
+
+### Prerequisites
+
+- Install Roblox Studio.
+- Install the Rojo Studio plugin.
+- Install `aftman` on your machine.
+
+### First-Time Toolchain Setup
+
+Run these commands from the repository root:
+
+```powershell
+aftman self-install
+```
+
+Restart your terminal after `aftman self-install` so `~/.aftman/bin` is added to
+`PATH`.
+
+Then install the repo-managed tools and dependencies:
+
+```powershell
+aftman install
+wally install
+```
+
+You can verify the local toolchain with:
+
+```powershell
+rojo --version
+wally --version
+stylua --version
+selene --version
+```
+
+### Start A Place Locally
+
+Run one of these commands from the repository root, depending on which place you
+want to work on:
+
+```powershell
+rojo serve
+```
+
+Serves the root project, which is currently wired to the run place.
+
+```powershell
+rojo serve places/lobby/default.project.json
+```
+
+Serves the lobby place.
+
+```powershell
+rojo serve places/run/default.project.json
+```
+
+Serves the run place directly.
+
+```powershell
+rojo serve places/maze/default.project.json
+```
+
+Serves the maze place directly.
+
+If you need to run more than one Rojo server at the same time, give each one a
+different port, for example:
+
+```powershell
+rojo serve places/lobby/default.project.json --port 34873
+```
+
+### Connect Roblox Studio
+
+1. Start the desired `rojo serve` command and keep that terminal open.
+2. Open Roblox Studio.
+3. Open the Rojo plugin.
+4. Connect to `localhost` on the port printed by Rojo, usually `34872`.
+5. Sync the project into Studio from the plugin.
+
+### Validation Commands
+
+Run these from the repository root when you need local validation:
+
+```powershell
+stylua --check .
+selene .
+```
+
+For logic tests on Windows, write the built place into a local temp file instead
+of `/tmp`:
+
+```powershell
+New-Item -ItemType Directory -Force .\tmp | Out-Null
+rojo build tests/default.project.json -o .\tmp\roblox_experience-tests.rbxlx
+run-in-roblox --place .\tmp\roblox_experience-tests.rbxlx --script tests/run-in-roblox.lua
+```
 
 ## Source vs Dependency Directories
 
