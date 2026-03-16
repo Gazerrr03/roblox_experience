@@ -57,8 +57,32 @@ Pure logic tests live under `tests/` for:
 non-trivial shared/gameplay behavior change should update or add deterministic
 tests there.
 
-CI currently gates formatting and linting only. Automated Roblox test execution
-now runs through `run-in-roblox`, which opens the data model built from
-`tests/default.project.json` and reports pass/fail from Studio. The CI test job
-requires the repository secret `ROBLOSECURITY` so GitHub Actions can install
-Roblox Studio on Windows runners.
+CI always gates formatting and linting. When the repository secret
+`ROBLOSECURITY` is configured, the `roblox-tests` job also runs
+`run-in-roblox` against the data model built from `tests/default.project.json`
+and reports pass/fail from Studio on a Windows runner.
+
+### Roblox Studio CI Enablement
+
+- The `roblox-tests` job depends on the repository secret `ROBLOSECURITY`.
+- Without that secret, the workflow stays green but skips every Studio-backed step.
+- With that secret present, the workflow path is: install Aftman -> install Roblox Studio -> build `tests/default.project.json` -> run `tests/run-in-roblox.lua`.
+
+### Roblox Studio CI Triage
+
+- `ROBLOSECURITY` missing:
+  The workflow summary will classify this as a configuration issue. Add the repository secret before treating `roblox-tests` as a real end-to-end signal.
+- `Install Roblox Studio` fails:
+  Treat it as a Studio installation or authentication problem first. Inspect that step before looking at gameplay code.
+- `Build test place` fails:
+  Treat it as a Rojo mapping or source/build problem. Re-run `rojo build tests/default.project.json -o /tmp/roblox_experience-tests.rbxlx` locally if possible.
+- `Run Roblox logic tests` fails:
+  Inspect that step first. If Studio never boots, treat it as a runner or Studio startup problem. If Studio boots and the test output reports failures, treat it as a test logic problem.
+
+### Local Approximation Of The CI Path
+
+- If your machine can run Roblox Studio, the closest local reproduction path is:
+  `aftman install`
+  `rojo build tests/default.project.json -o /tmp/roblox_experience-tests.rbxlx`
+  `run-in-roblox --place /tmp/roblox_experience-tests.rbxlx --script tests/run-in-roblox.lua`
+- If your machine cannot run Studio locally, rely on `stylua --check .`, `selene .`, and the GitHub Actions `roblox-tests` logs as the authoritative signal.
