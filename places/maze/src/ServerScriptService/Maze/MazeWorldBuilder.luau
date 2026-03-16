@@ -15,6 +15,7 @@ local DOORWAY_WIDTH = 8
 local DOOR_LEAF_THICKNESS = 1
 local DOOR_CLEARANCE = 0
 local ROOM_DETECTION_BUFFER = 6
+local HEX_CIRCUMRADIUS_MULTIPLIER = 1 / math.cos(math.pi / 6)
 
 local WALL_MATERIAL = Enum.Material.Concrete
 local WALL_COLOR = Color3.fromRGB(188, 188, 188)
@@ -208,7 +209,7 @@ local function buildRoom(parent, room, roomCenter, roomRadius)
     roomFolder.Name = room.Id
     roomFolder.Parent = parent
 
-    local floorDiameter = roomRadius * 2
+    local floorDiameter = roomRadius * HEX_CIRCUMRADIUS_MULTIPLIER * 2
     createPart({
         Name = 'Floor',
         Size = Vector3.new(floorDiameter, 1, floorDiameter),
@@ -383,7 +384,8 @@ function MazeWorldBuilder.build(seed, config, options)
         local nearestDistance = math.huge
         local flatPosition = Vector3.new(position.X, 0, position.Z)
 
-        for roomId, room in pairs(layout.Rooms) do
+        for _, roomId in ipairs(roomIds) do
+            local room = roomById[roomId]
             local roomCenter = roomCenters[roomId]
             local flatCenter = Vector3.new(roomCenter.X, 0, roomCenter.Z)
             local distance = (flatCenter - flatPosition).Magnitude

@@ -12,6 +12,8 @@ local HEX_DIRECTIONS = {
 local BRANCH_DIRECTIONS = { 2, 3, 5, 6 }
 local DEFAULT_DOOR_LEAF_CHANCE = 0.6
 local DEFAULT_TARGET_AVG_DEGREE = 2.4
+local PROB_AVOID_SIX_DOOR_HUB = 0.85
+local PROB_ADD_CANDIDATE_EDGE = 0.7
 
 local function oppositeDirection(directionIndex)
     return ((directionIndex + 2) % 6) + 1
@@ -108,6 +110,7 @@ function MazeBuilder.build(seed, config)
     local roomsByAxialKey = {}
     local mainPath = {}
     local edgesByKey = {}
+    local edgeCount = 0
     local roomIds = {}
     local branchCount = 0
 
@@ -121,14 +124,14 @@ function MazeBuilder.build(seed, config)
         local roomA = rooms[roomIdA]
         local roomB = rooms[roomIdB]
         if not roomA or not roomB then
-            return
+            return false
         end
 
         local directionFromB = oppositeDirection(directionFromA)
         local edgeKey = roomIdA < roomIdB and string.format('%s|%s', roomIdA, roomIdB)
             or string.format('%s|%s', roomIdB, roomIdA)
         if edgesByKey[edgeKey] then
-            return
+            return false
         end
 
         setDoorDirection(roomA, directionFromA, roomIdB)
@@ -140,6 +143,8 @@ function MazeBuilder.build(seed, config)
             DirectionFromA = directionFromA,
             DirectionFromB = directionFromB,
         }
+        edgeCount += 1
+        return true
     end
 
     for index = 0, mainPathRooms do
@@ -220,11 +225,6 @@ function MazeBuilder.build(seed, config)
     shuffleInPlace(candidateEdges, random)
 
     local function currentAverageDegree()
-        local edgeCount = 0
-        for _ in pairs(edgesByKey) do
-            edgeCount += 1
-        end
-
         return (#roomIds > 0) and ((2 * edgeCount) / #roomIds) or 0
     end
 
@@ -251,14 +251,14 @@ function MazeBuilder.build(seed, config)
             continue
         end
 
-        if roomA.DoorCount >= 5 and random:NextNumber() < 0.85 then
+        if roomA.DoorCount >= 5 and random:NextNumber() < PROB_AVOID_SIX_DOOR_HUB then
             continue
         end
-        if roomB.DoorCount >= 5 and random:NextNumber() < 0.85 then
+        if roomB.DoorCount >= 5 and random:NextNumber() < PROB_AVOID_SIX_DOOR_HUB then
             continue
         end
 
-        if random:NextNumber() <= 0.7 then
+        if random:NextNumber() <= PROB_ADD_CANDIDATE_EDGE then
             addEdge(candidate.RoomA, candidate.DirectionFromA, candidate.RoomB)
         end
     end
