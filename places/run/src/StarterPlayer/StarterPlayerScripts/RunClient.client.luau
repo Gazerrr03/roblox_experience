@@ -1,5 +1,6 @@
 local Players = game:GetService('Players')
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local UserInputService = game:GetService('UserInputService')
 
 local localPlayer = Players.LocalPlayer
 local playerGui = localPlayer:WaitForChild('PlayerGui')
@@ -16,6 +17,23 @@ local ensureFirstPersonLock
 ensureFirstPersonLock = function()
     disconnectFirstPersonLock = Shared.Client.FirstPersonController.start(localPlayer)
     ensureFirstPersonLock = function() end
+end
+
+local function releaseFirstPersonLockForMenu()
+    if disconnectFirstPersonLock ~= nil then
+        disconnectFirstPersonLock()
+        disconnectFirstPersonLock = nil
+        ensureFirstPersonLock = function()
+            disconnectFirstPersonLock = Shared.Client.FirstPersonController.start(localPlayer)
+            ensureFirstPersonLock = function() end
+        end
+    end
+
+    localPlayer.CameraMode = Enum.CameraMode.Classic
+    localPlayer.CameraMinZoomDistance = 0.5
+    localPlayer.CameraMaxZoomDistance = 12
+    UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+    UserInputService.MouseIconEnabled = true
 end
 
 script.Destroying:Connect(function()
@@ -176,6 +194,8 @@ rosterLabel.Text = ''
 local mazeLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 96), Theme.SubtleText, 16, false)
 mazeLabel.Text = ''
 
+releaseFirstPersonLockForMenu()
+
 singlePlayerButton.MouseButton1Click:Connect(function()
     singlePlayerButton.AutoButtonColor = false
     singlePlayerButton.Active = false
@@ -197,6 +217,7 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
     panel.Visible = hasLaunched
 
     if not hasLaunched then
+        releaseFirstPersonLockForMenu()
         menuStatusLabel.Text = snapshot.Status
         singlePlayerButton.Active = true
         singlePlayerButton.AutoButtonColor = true
