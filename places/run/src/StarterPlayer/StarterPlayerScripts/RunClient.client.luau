@@ -160,7 +160,7 @@ singlePlayerButton.BackgroundColor3 = Theme.Accent
 singlePlayerButton.TextColor3 = Theme.Background
 singlePlayerButton.Font = Enum.Font.GothamBold
 singlePlayerButton.TextSize = 20
-singlePlayerButton.Text = 'Single Player'
+singlePlayerButton.Text = 'Enter Camp'
 singlePlayerButton.Parent = menuPanel
 
 local singlePlayerCorner = Instance.new('UICorner')
@@ -293,7 +293,7 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
             string.format('%s\nMaze Entry: %s', snapshot.Status, buildMazeEntryText(snapshot))
         singlePlayerButton.Active = true
         singlePlayerButton.AutoButtonColor = true
-        singlePlayerButton.Text = 'Single Player'
+        singlePlayerButton.Text = 'Enter Camp'
         return
     end
 

@@ -40,6 +40,26 @@ local function sortSummaries(summaries)
     end)
 end
 
+local function isPlaceholderSession(session)
+    return session.SessionId == 'local-debug-camp'
+        and session.CampAccessCode == 'local-debug-camp'
+        and #session.PlayersInMaze == 0
+        and #session.ReturnedPlayerSummaries == 0
+end
+
+local function updateMazeStatus(nextSession)
+    if nextSession.MazeStatus == MAZE_STATUS.Completed then
+        return
+    end
+
+    if nextSession.MazeAccessCode then
+        nextSession.MazeStatus = MAZE_STATUS.Active
+        return
+    end
+
+    nextSession.MazeStatus = MAZE_STATUS.Idle
+end
+
 function CampMazeSessionContract.normalizeCampSession(session)
     local normalized = {
         SessionId = session and session.SessionId or 'local-debug-camp',
@@ -59,6 +79,47 @@ end
 
 function CampMazeSessionContract.newCampSession(params)
     return CampMazeSessionContract.normalizeCampSession(params)
+end
+
+function CampMazeSessionContract.isPlayerInMaze(session, userId)
+    local normalized = CampMazeSessionContract.normalizeCampSession(session)
+
+    for _, entry in ipairs(normalized.PlayersInMaze) do
+        if entry.UserId == userId then
+            return true
+        end
+    end
+
+    return false
+end
+
+function CampMazeSessionContract.hasReturnedSummary(session, userId)
+    local normalized = CampMazeSessionContract.normalizeCampSession(session)
+
+    for _, entry in ipairs(normalized.ReturnedPlayerSummaries) do
+        if entry.UserId == userId then
+            return true
+        end
+    end
+
+    return false
+end
+
+function CampMazeSessionContract.reconcileIncomingCampSession(currentSession, incomingSession)
+    local normalizedCurrent = CampMazeSessionContract.normalizeCampSession(currentSession)
+    local normalizedIncoming = CampMazeSessionContract.normalizeCampSession(incomingSession)
+
+    if isPlaceholderSession(normalizedCurrent) then
+        return normalizedIncoming, true
+    end
+
+    local sameSession = normalizedCurrent.SessionId == normalizedIncoming.SessionId
+        and normalizedCurrent.CampAccessCode == normalizedIncoming.CampAccessCode
+    if sameSession then
+        return normalizedIncoming, true
+    end
+
+    return normalizedCurrent, false
 end
 
 function CampMazeSessionContract.buildReturnSummary(params)
@@ -105,6 +166,35 @@ function CampMazeSessionContract.markPlayerEntered(session, player)
     return nextSession
 end
 
+function CampMazeSessionContract.prunePlayer(session, userId, options)
+    local nextSession = CampMazeSessionContract.normalizeCampSession(session)
+    local preserveMazeEntry = options and options.PreserveMazeEntry == true or false
+    local preserveReturnSummary = options and options.PreserveReturnSummary == true or false
+    local nextPlayers = {}
+
+    for _, entry in ipairs(nextSession.PlayersInMaze) do
+        if entry.UserId ~= userId or preserveMazeEntry then
+            table.insert(nextPlayers, entry)
+        end
+    end
+
+    nextSession.PlayersInMaze = nextPlayers
+
+    local nextSummaries = {}
+    for _, entry in ipairs(nextSession.ReturnedPlayerSummaries) do
+        if entry.UserId ~= userId or preserveReturnSummary then
+            table.insert(nextSummaries, entry)
+        end
+    end
+
+    sortPlayers(nextPlayers)
+    sortSummaries(nextSummaries)
+    nextSession.ReturnedPlayerSummaries = nextSummaries
+    updateMazeStatus(nextSession)
+
+    return nextSession
+end
+
 function CampMazeSessionContract.applyReturn(session, summary, mazeCompleted)
     local nextSession = CampMazeSessionContract.normalizeCampSession(session)
     local nextPlayers = {}
@@ -132,10 +222,8 @@ function CampMazeSessionContract.applyReturn(session, summary, mazeCompleted)
     if mazeCompleted then
         nextSession.MazeStatus = MAZE_STATUS.Completed
         nextSession.PlayersInMaze = {}
-    elseif nextSession.MazeAccessCode then
-        nextSession.MazeStatus = MAZE_STATUS.Active
     else
-        nextSession.MazeStatus = MAZE_STATUS.Idle
+        updateMazeStatus(nextSession)
     end
 
     return nextSession

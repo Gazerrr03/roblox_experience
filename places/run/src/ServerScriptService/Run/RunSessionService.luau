@@ -104,7 +104,7 @@ function RunSessionService.new()
         InventoryCapacity = SessionConfig.InventoryCapacity,
     }
     self.CampSession = CampMazeSessionContract.newCampSession({})
-    self.Status = 'Select Single Player to enter the camp.'
+    self.Status = 'Select Enter Camp to enter the camp.'
     self.IsLaunched = false
     self.ShouldAutoLaunch = false
     self.GateOpen = false
@@ -128,6 +128,25 @@ function RunSessionService:_readTeleportData(player)
     return joinData and joinData.TeleportData
 end
 
+function RunSessionService:_applySessionConfig(incoming)
+    if type(incoming) ~= 'table' then
+        return
+    end
+
+    if type(incoming.Seed) == 'number' then
+        self.SessionData.Seed = incoming.Seed
+    end
+    if type(incoming.Quota) == 'number' then
+        self.SessionData.Quota = incoming.Quota
+    end
+    if type(incoming.RunDurationSeconds) == 'number' then
+        self.SessionData.RunDurationSeconds = incoming.RunDurationSeconds
+    end
+    if type(incoming.InventoryCapacity) == 'number' then
+        self.SessionData.InventoryCapacity = incoming.InventoryCapacity
+    end
+end
+
 function RunSessionService:_syncCampSession()
     self.CampSession = CampMazeSessionContract.normalizeCampSession(self.CampSession)
     self.CampSession.GateOpen = self.GateOpen
@@ -135,19 +154,25 @@ end
 
 function RunSessionService:_applyIncomingCampSession(teleportData)
     if type(teleportData) ~= 'table' then
-        return nil
+        return nil, false
     end
 
     local incomingSession = teleportData.CampSession
     if type(incomingSession) ~= 'table' then
-        return nil
+        return nil, false
     end
 
-    self.CampSession = CampMazeSessionContract.normalizeCampSession(incomingSession)
+    local nextSession, accepted =
+        CampMazeSessionContract.reconcileIncomingCampSession(self.CampSession, incomingSession)
+    if not accepted then
+        return nil, false
+    end
+
+    self.CampSession = nextSession
     self.GateOpen = self.CampSession.GateOpen
     self.ShouldAutoLaunch = true
 
-    return teleportData
+    return teleportData, true
 end
 
 function RunSessionService:_loadSessionDataFromJoin()
@@ -156,38 +181,44 @@ function RunSessionService:_loadSessionDataFromJoin()
         return
     end
 
-    local teleportData = self:_readTeleportData(players[1])
-    local incoming = teleportData and teleportData.SessionConfig
-
-    if type(incoming) == 'table' then
-        if type(incoming.Seed) == 'number' then
-            self.SessionData.Seed = incoming.Seed
-        end
-        if type(incoming.Quota) == 'number' then
-            self.SessionData.Quota = incoming.Quota
-        end
-        if type(incoming.RunDurationSeconds) == 'number' then
-            self.SessionData.RunDurationSeconds = incoming.RunDurationSeconds
-        end
-        if type(incoming.InventoryCapacity) == 'number' then
-            self.SessionData.InventoryCapacity = incoming.InventoryCapacity
+    local acceptedTeleportData = nil
+    for _, player in ipairs(players) do
+        local teleportData = self:_readTeleportData(player)
+        local _, accepted = self:_applyIncomingCampSession(teleportData)
+        if accepted then
+            self:_applySessionConfig(teleportData.SessionConfig)
+            acceptedTeleportData = teleportData
+            break
         end
     end
 
-    teleportData = self:_applyIncomingCampSession(teleportData)
-    if not teleportData then
+    if not acceptedTeleportData then
         return
     end
 
-    local returnSummary = CampMazeSessionContract.findReturnSummary(teleportData, players[1].UserId)
-    if returnSummary then
-        self.PendingSpawnByUserId[players[1].UserId] = true
+    local returnedPlayers = {}
+    for _, player in ipairs(players) do
+        local teleportData = self:_readTeleportData(player) or acceptedTeleportData
+        local returnSummary = CampMazeSessionContract.findReturnSummary(teleportData, player.UserId)
+        if returnSummary then
+            self.PendingSpawnByUserId[player.UserId] = true
+            table.insert(returnedPlayers, {
+                Player = player,
+                Summary = returnSummary,
+            })
+        end
+    end
+
+    if #returnedPlayers == 1 then
+        local returnedPlayer = returnedPlayers[1]
         self.Status = string.format(
             '%s returned from the maze with %d value (%s).',
-            players[1].DisplayName,
-            returnSummary.Value or 0,
-            returnSummary.ReturnReason or 'unknown'
+            returnedPlayer.Player.DisplayName,
+            returnedPlayer.Summary.Value or 0,
+            returnedPlayer.Summary.ReturnReason or 'unknown'
         )
+    elseif #returnedPlayers > 1 then
+        self.Status = 'The crew returned from the maze. Review the camp summaries together.'
     else
         self.Status = 'Camp is ready. Gather inside, then head outside when the group is ready.'
     end
@@ -651,7 +682,7 @@ function RunSessionService:_launchRun(_player)
     end
 
     self:_startSnapshotLoop()
-    if self.Status == 'Select Single Player to enter the camp.' then
+    if self.Status == 'Select Enter Camp to enter the camp.' then
         self:_setStatus(
             'Camp is ready. Gather inside, then open the gate when you want to head out.'
         )
@@ -682,32 +713,38 @@ function RunSessionService:_handlePlayerTeleportData(player)
         return
     end
 
-    local incomingSession = teleportData.CampSession
-    if type(incomingSession) == 'table' then
-        self.CampSession = CampMazeSessionContract.normalizeCampSession(incomingSession)
-        self.GateOpen = self.CampSession.GateOpen
-        self.PendingSpawnByUserId[player.UserId] = self.World and self.World.ReturnCFrame or true
-
-        local summary = CampMazeSessionContract.findReturnSummary(teleportData, player.UserId)
-        if summary then
-            if teleportData.MazeReturn and teleportData.MazeReturn.MazeCompleted == true then
-                self.Status = string.format(
-                    '%s returned from the completed maze run with %d value.',
-                    player.DisplayName,
-                    summary.Value or 0
-                )
-            else
-                self.Status = string.format(
-                    '%s returned from the maze with %d value (%s).',
-                    player.DisplayName,
-                    summary.Value or 0,
-                    summary.ReturnReason or 'unknown'
-                )
-            end
-        else
-            self.Status = string.format('%s joined the camp session.', player.DisplayName)
-        end
+    local _, accepted = self:_applyIncomingCampSession(teleportData)
+    if not accepted then
+        return
     end
+
+    self:_applySessionConfig(teleportData.SessionConfig)
+
+    local summary = CampMazeSessionContract.findReturnSummary(teleportData, player.UserId)
+    if summary then
+        self.PendingSpawnByUserId[player.UserId] = self.World and self.World.ReturnCFrame or true
+        if teleportData.MazeReturn and teleportData.MazeReturn.MazeCompleted == true then
+            self.Status = string.format(
+                '%s returned from the completed maze run with %d value.',
+                player.DisplayName,
+                summary.Value or 0
+            )
+        else
+            self.Status = string.format(
+                '%s returned from the maze with %d value (%s).',
+                player.DisplayName,
+                summary.Value or 0,
+                summary.ReturnReason or 'unknown'
+            )
+        end
+        return
+    end
+
+    self.CampSession = CampMazeSessionContract.prunePlayer(self.CampSession, player.UserId, {
+        PreserveMazeEntry = CampMazeSessionContract.isPlayerInMaze(self.CampSession, player.UserId),
+    })
+    self.GateOpen = self.CampSession.GateOpen
+    self.Status = string.format('%s joined the camp session.', player.DisplayName)
 end
 
 function RunSessionService:start()
@@ -735,7 +772,15 @@ function RunSessionService:start()
 
     Players.PlayerRemoving:Connect(function(player)
         self.LastMazeEntryRequestAtByUserId[player.UserId] = nil
+        self.PendingSpawnByUserId[player.UserId] = nil
         self.PendingLocalMazeSpawnByUserId[player.UserId] = nil
+        self.CampSession = CampMazeSessionContract.prunePlayer(self.CampSession, player.UserId, {
+            PreserveMazeEntry = CampMazeSessionContract.isPlayerInMaze(
+                self.CampSession,
+                player.UserId
+            ),
+        })
+        self.GateOpen = self.CampSession.GateOpen
         self:_broadcastSnapshot()
     end)
 
