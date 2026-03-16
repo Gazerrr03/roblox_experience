@@ -180,8 +180,8 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
                     '- [%d] %s | %d KG | %d value',
                     itemIndex,
                     itemEntry.Name,
-                    itemEntry.Weight or 0,
-                    itemEntry.Value or 0
+                    itemEntry.Weight,
+                    itemEntry.Value
                 )
             )
         end
