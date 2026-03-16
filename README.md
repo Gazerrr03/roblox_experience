@@ -1,9 +1,12 @@
 # roblox_experience
 
-Roblox game skeleton for a two-place experience:
+[English](./README.md) | [简体中文](./README.zh-CN.md)
 
-- `places/lobby`: team assembly and launch flow
-- `places/run`: camp, expedition, extraction, and settlement loop
+Roblox game skeleton for a multi-place experience:
+
+- `places/lobby`: team assembly, ready checks, and run launch
+- `places/run`: camp, wilderness, maze entry, and settlement handoff
+- `places/maze`: maze expedition, loot, extraction, and return to camp
 - `packages/shared`: shared enums, networking, schema helpers, and utilities
 - `packages/gameplay`: pure gameplay data and stateful domain modules
 - `packages/ui`: lightweight UI helpers for the first vertical slice
@@ -119,6 +122,14 @@ rojo serve places/lobby/default.project.json --port 34873
 4. Connect to `localhost` on the port printed by Rojo, usually `34872`.
 5. Sync the project into Studio from the plugin.
 
+### Local Startup vs Published Teleports
+
+- `start-run.cmd`, `scripts/dev.ps1`, and `rojo serve` only start local source sync and place composition.
+- They do **not** turn a local `.rbxl` or Studio session into a published Roblox place.
+- In a local Studio session, `game.PlaceId` and `game.GameId` may still be `0`, so cross-place maze teleports can remain blocked even when Rojo is connected.
+- To test the real maze teleport flow, use published `Lobby` / `Run` / `Maze` place ids.
+- To stay fully local in Studio, enable `SessionDebugLocalMazeHandoff` so run enters the in-place local debug maze fallback instead of cross-place teleporting.
+
 ### Validation Commands
 
 Run these from the repository root when you need local validation:
@@ -154,12 +165,29 @@ Contributor-facing setup, validation, and CI/platform notes live in
 Pull requests should follow the repository PR template so Roblox-specific
 integration checks stay attached to every change.
 
+## Place Flow And Runtime Routing
+
+### Published Runtime Path
+
+- `Lobby -> Run -> Maze -> Run`
+- `LobbyService` starts the experience by reserving a private `Run` server and teleporting the ready crew there.
+- `RunSessionService` owns the camp session, opens wilderness access, and teleports players into the shared `Maze` server when the maze gate is used.
+- `MazeSessionService` owns the maze-side expedition and teleports players back to `Run` when they return early or when settlement completes.
+
+### Local Studio Path
+
+- `rojo serve` only syncs source into Studio; it does not assign real Roblox `PlaceId` or `GameId` values.
+- If a local Studio session has `PlaceId == 0` or `GameId == 0`, the formal maze teleport path is treated as unavailable.
+- When `SessionDebugLocalMazeHandoff = true`, `Run` uses the local debug maze fallback and keeps the player inside the same place instead of teleporting cross-place.
+- When that flag is not enabled, the maze gate stays blocked and reports the reason back through the run HUD/status text.
+
 ## Runtime Assumptions
 
 - Teleport flow needs real place IDs for `Lobby`, `Run`, and `Maze`.
 - You can configure place IDs in either of these ways:
   - source-controlled defaults in `packages/shared/src/Config/SessionConfig.luau`
   - Studio attributes on `game` or `ReplicatedStorage`: `SessionPlaceIdLobby`, `SessionPlaceIdRun`, `SessionPlaceIdMaze`
+- You can enable the local in-place maze debug route with `SessionDebugLocalMazeHandoff` on `game` or `ReplicatedStorage`.
 - The run loop is intentionally simple: camp, expedition, loot, extract, settle, reset.
 - Hidden-role gameplay is deferred, but visibility and permission interfaces are already present.
 
