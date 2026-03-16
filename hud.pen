@@ -2041,6 +2041,364 @@
             "mode": "fill"
           },
           "layout": "none"
+        },
+        {
+          "type": "frame",
+          "id": "PfAH1",
+          "x": 7720,
+          "y": 70,
+          "name": "Inventory HUD V1",
+          "clip": true,
+          "width": 1440,
+          "height": 900,
+          "fill": "#09090B",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "#27272A"
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "frame",
+              "id": "lGhrW",
+              "x": 32,
+              "y": 32,
+              "name": "inventory-summary",
+              "width": 360,
+              "fill": "#18181B",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 20,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "jtZu1",
+                  "name": "summaryTitle",
+                  "fill": "#FCD34D",
+                  "content": "INVENTORY SUMMARY",
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "gSZK7",
+                  "name": "summaryBody",
+                  "fill": "#FAFAFA",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "6 items total // 12 KG carried // $412 salvage // capacity 15 KG",
+                  "lineHeight": 1.4,
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "XnD3W",
+              "x": 610,
+              "y": 32,
+              "name": "held-slot",
+              "width": 220,
+              "fill": "#18181B",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "vertical",
+              "gap": 8,
+              "padding": 20,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "skJlI",
+                  "name": "heldTitle",
+                  "fill": "#A1A1AA",
+                  "content": "HELD SLOT",
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "1uwNn",
+                  "name": "heldName",
+                  "fill": "#FCD34D",
+                  "content": "Signal Core",
+                  "fontFamily": "Inter",
+                  "fontSize": 24,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "Y09R4",
+                  "name": "heldMeta",
+                  "fill": "#FAFAFA",
+                  "content": "2 KG // $18",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "KgtN6",
+              "x": 32,
+              "y": 120,
+              "name": "backpack-list",
+              "width": 548,
+              "height": 356,
+              "fill": "#111114",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 20,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "kcJrD",
+                  "name": "backpackTitle",
+                  "fill": "#A1A1AA",
+                  "content": "BACKPACK LIST",
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "00WMW",
+                  "name": "backpackBody",
+                  "fill": "#FAFAFA",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "1 // Signal Core       2 KG // $18\n2 // Scrap Bolt        1 KG // $8\n3 // Reactor Shell     4 KG // $42",
+                  "lineHeight": 1.6,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "wPz0l",
+              "x": 1096,
+              "y": 32,
+              "name": "action-hints",
+              "width": 312,
+              "fill": "#18181B",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 20,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "R7jWF",
+                  "name": "actionsTitle",
+                  "fill": "#FAFAFA",
+                  "content": "ACTION HINTS",
+                  "fontFamily": "Inter",
+                  "fontSize": 18,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "2XAD6",
+                  "name": "actionsBody",
+                  "fill": "#FCD34D",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "1-3  Equip listed backpack items\nX    Unequip current held item\nAUTO Pickup always lands in backpack",
+                  "lineHeight": 1.6,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "lA5fo",
+              "x": 1118,
+              "y": 328,
+              "name": "state-feedback",
+              "width": 290,
+              "fill": "#27140A",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#7C2D12"
+              },
+              "layout": "vertical",
+              "gap": 8,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "wNfrU",
+                  "name": "feedbackTitle",
+                  "fill": "#FDBA74",
+                  "content": "STATE FEEDBACK",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "IkEq9",
+                  "name": "feedbackBody",
+                  "fill": "#FED7AA",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Over-capacity, missing item, and empty-hand states surface here without opening a separate menu.",
+                  "lineHeight": 1.4,
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "yPMGK",
+              "x": 32,
+              "y": 808,
+              "name": "inventory-metrics",
+              "width": 360,
+              "fill": "#18181B",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "vertical",
+              "gap": 8,
+              "padding": [
+                16,
+                20
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "1iGzH",
+                  "name": "metricsBody",
+                  "fill": "#FAFAFA",
+                  "content": "ITEMS 6    HELD 1    CAP 12 / 15 KG",
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 18,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Yg0ue",
+              "x": 464,
+              "y": 828,
+              "name": "equip-bar",
+              "width": 470,
+              "height": 44,
+              "fill": "#FCD34D",
+              "cornerRadius": 8,
+              "padding": [
+                0,
+                16
+              ],
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ejfeZ",
+                  "name": "equipKeys",
+                  "fill": "#18181B",
+                  "content": "1-3",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "QecNp",
+                  "name": "equipHint",
+                  "fill": "#18181B",
+                  "content": "EQUIP BACKPACK ITEM // X UNEQUIP HELD ITEM",
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "33i8d",
+              "x": 1034,
+              "y": 786,
+              "name": "quick-select",
+              "width": 374,
+              "fill": "#18181B",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 12,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "vfRn0",
+                  "name": "quickTitle",
+                  "fill": "#A1A1AA",
+                  "content": "QUICK SELECT",
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "wegqw",
+                  "name": "quickBody",
+                  "fill": "#FAFAFA",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "1 // Signal Core\n2 // Scrap Bolt\n3 // Reactor Shell",
+                  "lineHeight": 1.6,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
         }
       ]
     }
