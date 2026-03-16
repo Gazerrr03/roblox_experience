@@ -530,24 +530,20 @@ local function buildAttempt(seed, config)
         roomA.Neighbors[directionFromA] = roomB.Id
         roomB.Neighbors[directionFromB] = roomA.Id
 
-        local edgeKey
-        if roomA.Id < roomB.Id then
-            edgeKey = string.format('%s|%s', roomA.Id, roomB.Id)
-            edgesByKey[edgeKey] = {
-                RoomA = roomA.Id,
-                RoomB = roomB.Id,
-                DirectionFromA = directionFromA,
-                DirectionFromB = directionFromB,
-            }
-        else
-            edgeKey = string.format('%s|%s', roomB.Id, roomA.Id)
-            edgesByKey[edgeKey] = {
-                RoomA = roomB.Id,
-                RoomB = roomA.Id,
-                DirectionFromA = directionFromB,
-                DirectionFromB = directionFromA,
-            }
+        local edgeRoomA, edgeRoomB = roomA, roomB
+        local edgeDirectionFromA, edgeDirectionFromB = directionFromA, directionFromB
+        if roomA.Id > roomB.Id then
+            edgeRoomA, edgeRoomB = roomB, roomA
+            edgeDirectionFromA, edgeDirectionFromB = directionFromB, directionFromA
         end
+
+        local edgeKey = string.format('%s|%s', edgeRoomA.Id, edgeRoomB.Id)
+        edgesByKey[edgeKey] = {
+            RoomA = edgeRoomA.Id,
+            RoomB = edgeRoomB.Id,
+            DirectionFromA = edgeDirectionFromA,
+            DirectionFromB = edgeDirectionFromB,
+        }
 
         removeFrontier(frontier, frontierIndexByKey, roomA.Id, directionFromA)
         removeFrontier(frontier, frontierIndexByKey, roomB.Id, directionFromB)
