@@ -382,8 +382,6 @@ function MazeSessionService:_teleportToCamp(players, summaries, mazeCompleted)
                 CampMazeSessionContract.applyReturn(nextCampSession, summary, mazeCompleted)
         end
 
-        self.CampSession = nextCampSession
-
         if not self:_canReturnToCamp() then
             self:_setStatus(
                 'Camp return is unavailable in direct boot. Set SessionConfig.PlaceIds.Run and enter from camp.'
@@ -413,6 +411,7 @@ function MazeSessionService:_teleportToCamp(players, summaries, mazeCompleted)
             return false
         end
 
+        self.CampSession = nextCampSession
         return true
     end)
 end
