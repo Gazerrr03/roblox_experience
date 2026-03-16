@@ -58,12 +58,12 @@ return function()
     })
 
     assert(
-        blockedStudioLocalFile.Mode == availability.Mode.Blocked,
-        'Studio local-file mode should block teleport when debug fallback is disabled'
+        blockedStudioLocalFile.Mode == availability.Mode.LocalDebugFallback,
+        'Studio local-file mode should auto-enable local debug fallback when debug flag is disabled'
     )
     assert(
-        blockedStudioLocalFile.ReasonCode == availability.ReasonCode.StudioLocalFileTeleportBlocked,
-        'Studio local-file block should expose the expected reason code'
+        blockedStudioLocalFile.ReasonCode == availability.ReasonCode.StudioLocalFileAutoFallback,
+        'Studio local-file auto fallback should expose the expected reason code'
     )
 
     local blockedMissingPlaceId = availability.evaluate({

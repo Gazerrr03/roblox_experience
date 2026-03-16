@@ -10,7 +10,7 @@ MazeEntryAvailability.ReasonCode = {
     TeleportReady = 'TeleportReady',
     MazePlaceIdMissing = 'MazePlaceIdMissing',
     StudioLocalFileDebugFallback = 'StudioLocalFileDebugFallback',
-    StudioLocalFileTeleportBlocked = 'StudioLocalFileTeleportBlocked',
+    StudioLocalFileAutoFallback = 'StudioLocalFileAutoFallback',
 }
 
 function MazeEntryAvailability.evaluate(params)
@@ -31,9 +31,9 @@ function MazeEntryAvailability.evaluate(params)
         end
 
         return {
-            Mode = MazeEntryAvailability.Mode.Blocked,
-            ReasonCode = MazeEntryAvailability.ReasonCode.StudioLocalFileTeleportBlocked,
-            Reason = 'Maze teleport is unavailable in this Studio local-file session. Set SessionDebugLocalMazeHandoff=true or test with published place ids.',
+            Mode = MazeEntryAvailability.Mode.LocalDebugFallback,
+            ReasonCode = MazeEntryAvailability.ReasonCode.StudioLocalFileAutoFallback,
+            Reason = 'Using local maze fallback because this Studio session is running from a local file (placeId/gameId are not published).',
         }
     end
 
