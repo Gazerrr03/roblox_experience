@@ -6,6 +6,10 @@ return function()
     assert(type(config.PlaceIds.Lobby) == 'number', 'Lobby place id should always be numeric')
     assert(type(config.PlaceIds.Maze) == 'number', 'Maze place id should always be numeric')
     assert(type(config.PlaceIds.Run) == 'number', 'Run place id should always be numeric')
+    assert(
+        type(config.DebugLocalMazeHandoff) == 'boolean',
+        'DebugLocalMazeHandoff should always be boolean'
+    )
 
     assert(config.MinPlayers >= 1, 'MinPlayers should never drop below one')
     assert(config.MaxPlayers >= config.MinPlayers, 'MaxPlayers should stay above MinPlayers')

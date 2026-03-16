@@ -5,6 +5,7 @@ local DEFAULT_PLACE_IDS = {
     Maze = 0,
     Run = 0,
 }
+local DEFAULT_DEBUG_LOCAL_MAZE_HANDOFF = false
 
 local PLACE_ID_KEYS = { 'Lobby', 'Maze', 'Run' }
 
@@ -36,8 +37,25 @@ local function resolvePlaceIds()
     return resolved
 end
 
+local function resolveBooleanAttribute(attributeName, defaultValue)
+    local candidates = { game, ReplicatedStorage }
+
+    for _, container in ipairs(candidates) do
+        local value = container:GetAttribute(attributeName)
+        if type(value) == 'boolean' then
+            return value
+        end
+    end
+
+    return defaultValue
+end
+
 local SessionConfig = {
     PlaceIds = resolvePlaceIds(),
+    DebugLocalMazeHandoff = resolveBooleanAttribute(
+        'SessionDebugLocalMazeHandoff',
+        DEFAULT_DEBUG_LOCAL_MAZE_HANDOFF
+    ),
     MinPlayers = 1,
     MaxPlayers = 4,
     DefaultSeed = 12345,

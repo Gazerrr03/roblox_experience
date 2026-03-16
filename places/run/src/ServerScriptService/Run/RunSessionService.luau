@@ -1,5 +1,6 @@
 local Players = game:GetService('Players')
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local RunService = game:GetService('RunService')
 local TeleportService = game:GetService('TeleportService')
 local Workspace = game:GetService('Workspace')
 
@@ -9,6 +10,7 @@ local Shared = require(Packages:WaitForChild('Shared'))
 local SessionConfig = Shared.Config.SessionConfig
 local Remotes = Shared.Network.Remotes.ensure()
 local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
+local MazeEntryAvailability = Shared.Session.MazeEntryAvailability
 
 local RunWorldBuilder = require(script.Parent.RunWorldBuilder)
 
@@ -89,6 +91,9 @@ function RunSessionService.new()
     self.PendingSpawnByUserId = {}
     self.CampSessionLock = false
     self.LastMazeEntryRequestAtByUserId = {}
+    self.MazeEntryMode = MazeEntryAvailability.Mode.Blocked
+    self.MazeEntryReason =
+        'Set SessionConfig.PlaceIds.Maze or SessionPlaceIdMaze before using the maze gate.'
 
     return self
 end
@@ -218,7 +223,9 @@ function RunSessionService:_bindWorldInteractions()
     end)
 
     self.World.MazePrompt.Triggered:Connect(function(player)
-        self:_requestMazeEntry(player, false)
+        if self:_canProcessMazeEntryRequest(player) then
+            self:_requestMazeEntry(player, false)
+        end
     end)
 end
 
@@ -288,10 +295,26 @@ function RunSessionService:_setStatus(status)
     self:_broadcastSnapshot()
 end
 
+function RunSessionService:_resolveMazeEntryAvailability()
+    local availability = MazeEntryAvailability.evaluate({
+        PlaceIds = SessionConfig.PlaceIds,
+        PlaceId = game.PlaceId,
+        GameId = game.GameId,
+        IsStudio = RunService:IsStudio(),
+        DebugLocalMazeHandoff = SessionConfig.DebugLocalMazeHandoff,
+    })
+
+    self.MazeEntryMode = availability.Mode
+    self.MazeEntryReason = availability.Reason
+
+    return availability
+end
+
 function RunSessionService:_broadcastSnapshot()
     local roster = self:_buildRoster()
     local activeMazeRoster = cloneArray(self.CampSession.PlayersInMaze)
     local returnedSummaries = cloneArray(self.CampSession.ReturnedPlayerSummaries)
+    local mazeEntryAvailability = self:_resolveMazeEntryAvailability()
 
     for _, player in ipairs(Players:GetPlayers()) do
         self.Remotes.RunSnapshot:FireClient(player, {
@@ -305,6 +328,8 @@ function RunSessionService:_broadcastSnapshot()
             MazeStatus = self.CampSession.MazeStatus,
             PlayersInMaze = activeMazeRoster,
             ReturnedPlayerSummaries = returnedSummaries,
+            MazeEntryMode = mazeEntryAvailability.Mode,
+            MazeEntryReason = mazeEntryAvailability.Reason,
         })
 
         self.Remotes.PrivateState:FireClient(player, nil)
@@ -397,6 +422,30 @@ function RunSessionService:_enterMaze(player)
     end)
 end
 
+function RunSessionService:_enterMazeLocalDebug(player)
+    runWithCampSessionLock(self, function()
+        if self.CampSession.MazeStatus == CampMazeSessionContract.MazeStatus.Completed then
+            self:_setStatus('The maze session is already complete for this camp.')
+            return
+        end
+
+        local nextSession = CampMazeSessionContract.markPlayerEntered(self.CampSession, {
+            UserId = player.UserId,
+            Name = player.DisplayName,
+        })
+        nextSession.GateOpen = self.GateOpen
+        nextSession.MazeAccessCode = nextSession.MazeAccessCode or 'local-debug-maze'
+
+        self.CampSession = nextSession
+        self:_setStatus(
+            string.format(
+                '%s entered local maze debug handoff (no cross-place teleport).',
+                player.DisplayName
+            )
+        )
+    end)
+end
+
 function RunSessionService:_isPlayerNearMazePrompt(player)
     if not self.World or not self.World.MazePrompt then
         return false
@@ -436,7 +485,20 @@ function RunSessionService:_requestMazeEntry(player, requireDistanceCheck)
         return
     end
 
-    self:_enterMaze(player)
+    local availability = self:_resolveMazeEntryAvailability()
+    if availability.Mode == MazeEntryAvailability.Mode.Teleport then
+        self:_enterMaze(player)
+        return
+    end
+
+    if availability.Mode == MazeEntryAvailability.Mode.LocalDebugFallback then
+        self:_enterMazeLocalDebug(player)
+        return
+    end
+
+    self:_setStatus(
+        string.format('%s could not enter the maze: %s', player.DisplayName, availability.Reason)
+    )
 end
 
 function RunSessionService:_canProcessMazeEntryRequest(player)

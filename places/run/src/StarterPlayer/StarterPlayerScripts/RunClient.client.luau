@@ -103,6 +103,16 @@ local function makeTextLabel(parent, size, color, textSize, bold)
     return label
 end
 
+local function buildMazeEntryText(snapshot)
+    local mode = snapshot.MazeEntryMode or 'Blocked'
+    local reason = snapshot.MazeEntryReason
+    if type(reason) == 'string' and reason ~= '' then
+        return string.format('%s (%s)', mode, reason)
+    end
+
+    return mode
+end
+
 local menuBackdrop = Instance.new('Frame')
 menuBackdrop.Name = 'StartMenu'
 menuBackdrop.Size = UDim2.fromScale(1, 1)
@@ -278,7 +288,8 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
         releaseFirstPersonLockForMenu()
         bindMenuMouseUnlock()
         canRequestMazeEntry = false
-        menuStatusLabel.Text = snapshot.Status
+        menuStatusLabel.Text =
+            string.format('%s\nMaze Entry: %s', snapshot.Status, buildMazeEntryText(snapshot))
         singlePlayerButton.Active = true
         singlePlayerButton.AutoButtonColor = true
         singlePlayerButton.Text = 'Single Player'
@@ -290,11 +301,12 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
     canRequestMazeEntry = snapshot.GateOpen == true
 
     statusLabel.Text = string.format(
-        '%s\nArea: %s | Gate: %s | Maze: %s',
+        '%s\nArea: %s | Gate: %s | Maze: %s\nEntry: %s',
         snapshot.Status,
         snapshot.Area,
         snapshot.GateOpen and 'Open' or 'Closed',
-        snapshot.MazeStatus or 'idle'
+        snapshot.MazeStatus or 'idle',
+        buildMazeEntryText(snapshot)
     )
 
     objectiveLabel.Text = string.format('Objective: %s', snapshot.Objective)
