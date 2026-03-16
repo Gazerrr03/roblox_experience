@@ -28,7 +28,14 @@ return function()
         T8 = { 0 },
     }
 
-    for typeId, openDirections in pairs(expectedDefinitions) do
+    local typeIds = {}
+    for typeId in pairs(expectedDefinitions) do
+        table.insert(typeIds, typeId)
+    end
+    table.sort(typeIds)
+
+    for _, typeId in ipairs(typeIds) do
+        local openDirections = expectedDefinitions[typeId]
         local definition = prefabs.getDefinition(typeId)
         assert(definition ~= nil, string.format('%s should be a known prefab type', typeId))
         assert(

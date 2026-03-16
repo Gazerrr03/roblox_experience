@@ -1,5 +1,7 @@
 local Players = game:GetService('Players')
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local RunService = game:GetService('RunService')
+local UserInputService = game:GetService('UserInputService')
 
 local localPlayer = Players.LocalPlayer
 local playerGui = localPlayer:WaitForChild('PlayerGui')
@@ -12,6 +14,9 @@ local Remotes = Shared.Network.Remotes.ensure()
 local Theme = UI.Hud.Theme
 
 Shared.Client.FirstPersonController.start(localPlayer)
+
+local actionInputConnection
+local sprintInputEndedConnection
 
 local screenGui = Instance.new('ScreenGui')
 screenGui.Name = 'MazeHud'
@@ -37,7 +42,7 @@ local panel = Instance.new('Frame')
 panel.Name = 'MazePanel'
 panel.AnchorPoint = Vector2.new(0, 0)
 panel.Position = UDim2.fromScale(0.03, 0.05)
-panel.Size = UDim2.fromOffset(420, 430)
+panel.Size = UDim2.fromOffset(420, 500)
 panel.BackgroundColor3 = Theme.Background
 panel.BorderSizePixel = 0
 panel.Parent = screenGui
@@ -68,16 +73,75 @@ objectiveLabel.Text = 'Objective: --'
 
 local promptLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 66), Theme.Text, 16, false)
 promptLabel.Text =
-    'In-world prompts:\n- Expedition Console\n- Loot pickups\n- Return To Camp\n- Settlement Pad'
+    'In-world prompts:\n- Expedition Console\n- Loot pickups\n- Return To Camp\n- Settlement Pad\nKeyboard: Hold LeftShift to sprint'
+
+if RunService:IsStudio() then
+    promptLabel.Text ..= '\nStudio debug: H light damage | J heavy damage'
+end
 
 local inventoryLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 44), Theme.Warning, 16, false)
 inventoryLabel.Text = 'Inventory: --'
+
+local playerStateLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 72), Theme.Warning, 16, false)
+playerStateLabel.Text = 'Health: --\nStamina: --\nState: --'
 
 local rosterLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 94), Theme.SubtleText, 16, false)
 rosterLabel.Text = ''
 
 local returnedLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 104), Theme.SubtleText, 16, false)
 returnedLabel.Text = ''
+
+actionInputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+    if gameProcessedEvent or input.UserInputType ~= Enum.UserInputType.Keyboard then
+        return
+    end
+
+    if input.KeyCode == Enum.KeyCode.LeftShift then
+        Remotes.RunAction:FireServer({
+            Type = 'RequestSprintStart',
+        })
+        return
+    end
+
+    if RunService:IsStudio() and input.KeyCode == Enum.KeyCode.H then
+        Remotes.RunAction:FireServer({
+            Type = 'RequestDebugLightDamage',
+        })
+        return
+    end
+
+    if RunService:IsStudio() and input.KeyCode == Enum.KeyCode.J then
+        Remotes.RunAction:FireServer({
+            Type = 'RequestDebugHeavyDamage',
+        })
+    end
+end)
+
+sprintInputEndedConnection = UserInputService.InputEnded:Connect(function(input, gameProcessedEvent)
+    if gameProcessedEvent or input.UserInputType ~= Enum.UserInputType.Keyboard then
+        return
+    end
+
+    if input.KeyCode ~= Enum.KeyCode.LeftShift then
+        return
+    end
+
+    Remotes.RunAction:FireServer({
+        Type = 'RequestSprintStop',
+    })
+end)
+
+script.Destroying:Connect(function()
+    if actionInputConnection then
+        actionInputConnection:Disconnect()
+        actionInputConnection = nil
+    end
+
+    if sprintInputEndedConnection then
+        sprintInputEndedConnection:Disconnect()
+        sprintInputEndedConnection = nil
+    end
+end)
 
 Remotes.PrivateState.OnClientEvent:Connect(function()
     -- The first maze HUD does not surface per-player private state yet.
@@ -105,6 +169,16 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
         inventory.Count or 0,
         inventory.Weight or 0,
         inventory.Value or 0
+    )
+
+    local playerState = snapshot.PlayerState or {}
+    playerStateLabel.Text = string.format(
+        'Health: %d/%d pips\nStamina: %d/%d\nState: %s',
+        playerState.HealthPips or 0,
+        playerState.MaxHealthPips or 0,
+        math.floor((playerState.CurrentStamina or 0) + 0.5),
+        math.floor((playerState.MaxStamina or 0) + 0.5),
+        playerState.IsDead and 'Dead' or 'Alive'
     )
 
     local rosterLines = { 'Crew:' }

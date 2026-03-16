@@ -60,6 +60,13 @@ return function()
                 string.format('Door symmetry should hold between %s and %s', roomId, neighborRoomId)
             )
         end
+
+        if room.DoorCount ~= 5 then
+            assert(
+                type(room.PrefabTypeId) == 'string' and string.sub(room.PrefabTypeId, 1, 1) == 'T',
+                string.format('Room %s should map to T-prefab classification', roomId)
+            )
+        end
     end
 
     assert(roomCount == config.RoomCount, 'Maze should honor configured room count')
