@@ -92,9 +92,7 @@ function CampMazeSessionContract.isPlayerInMaze(session, userId)
 end
 
 function CampMazeSessionContract.hasReturnedSummary(session, userId)
-    local normalized = CampMazeSessionContract.normalizeCampSession(session)
-
-    for _, entry in ipairs(normalized.ReturnedPlayerSummaries) do
+    for _, entry in ipairs(session and session.ReturnedPlayerSummaries or {}) do
         if entry.UserId == userId then
             return true
         end
