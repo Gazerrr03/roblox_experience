@@ -1,11 +1,15 @@
 local Players = game:GetService('Players')
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local RunService = game:GetService('RunService')
 local TeleportService = game:GetService('TeleportService')
 local Workspace = game:GetService('Workspace')
 
 local DEFAULT_WORKSPACE_SHELL_NAMES = { 'Baseplate', 'SpawnLocation' }
 local EXTRACTION_DELAY_SECONDS = 2
 local CAMP_SESSION_LOCK_WAIT_SECONDS = 0.05
+local SNAPSHOT_INTERVAL_SECONDS = 0.25
+local CORPSE_COLOR = Color3.fromRGB(92, 92, 92)
+local CORPSE_MATERIAL = Enum.Material.Slate
 
 local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
@@ -18,11 +22,40 @@ local Remotes = Shared.Network.Remotes.ensure()
 local InventoryService =
     require(SharedPackage:WaitForChild('Runtime'):WaitForChild('InventoryService'))
 local MonsterService = require(SharedPackage:WaitForChild('Runtime'):WaitForChild('MonsterService'))
+local PlayerStateService = Shared.Runtime.PlayerStateService
 
 local MazeWorldBuilder = require(script.Parent.MazeWorldBuilder)
 
+local DEBUG_DAMAGE_BY_ACTION = {
+    RequestDebugLightDamage = Gameplay.PlayerState.DamageKind.Light,
+    RequestDebugHeavyDamage = Gameplay.PlayerState.DamageKind.Heavy,
+}
+
 local MazeSessionService = {}
 MazeSessionService.__index = MazeSessionService
+
+local function mergeSummaries(existingSummaries, nextSummaries)
+    local summariesByUserId = {}
+
+    for _, summary in ipairs(existingSummaries or {}) do
+        summariesByUserId[summary.UserId] = table.clone(summary)
+    end
+
+    for _, summary in ipairs(nextSummaries or {}) do
+        summariesByUserId[summary.UserId] = table.clone(summary)
+    end
+
+    local merged = {}
+    for _, summary in pairs(summariesByUserId) do
+        table.insert(merged, summary)
+    end
+
+    table.sort(merged, function(left, right)
+        return left.UserId < right.UserId
+    end)
+
+    return merged
+end
 
 local function clearDefaultWorkspaceShell()
     for _, instanceName in ipairs(DEFAULT_WORKSPACE_SHELL_NAMES) do
@@ -87,6 +120,7 @@ function MazeSessionService.new()
     self.CampSessionLock = false
     self.RunTracker = Gameplay.Session.MazeRunTracker.new()
     self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
+    self.PlayerStateService = PlayerStateService.new()
     self.MonsterService = MonsterService.new(Gameplay.Config.Monsters[1], function()
         return self.RunTracker:getState() == 'Expedition'
     end, function(player)
@@ -98,6 +132,7 @@ function MazeSessionService.new()
 
         return self.World.CanTraverseBetweenPositions(fromPosition, toPosition)
     end)
+    self.CorpsesByUserId = {}
 
     return self
 end
@@ -163,11 +198,13 @@ function MazeSessionService:_addPlayerState(player)
     end
 
     self.InventoryService:addPlayer(player)
+    self.PlayerStateService:addPlayer(player)
 end
 
 function MazeSessionService:_removePlayerState(player)
     self.RunTracker:removePlayer(player.UserId)
     self.InventoryService:removePlayer(player)
+    self.PlayerStateService:removePlayer(player)
 end
 
 function MazeSessionService:_getMazeStatus()
@@ -250,6 +287,7 @@ function MazeSessionService:_broadcastSnapshot()
             Objective = self:_getObjectiveFor(),
             State = self.RunTracker:getState(),
             Inventory = self.InventoryService:getSummary(player),
+            PlayerState = self.PlayerStateService:getSummary(player),
             Roster = roster,
             SessionId = self.CampSession.SessionId,
             MazeAccessCode = self.CampSession.MazeAccessCode,
@@ -351,8 +389,9 @@ function MazeSessionService:_teleportToCamp(players, summaries, mazeCompleted)
         end
 
         -- Teleports yield, so keep the camp-side handoff serialized per maze server.
+        local mergedSummaries = mergeSummaries(self.RunTracker:getReturnedSummaries(), summaries)
         local nextCampSession = self.CampSession
-        for _, summary in ipairs(summaries) do
+        for _, summary in ipairs(mergedSummaries) do
             nextCampSession =
                 CampMazeSessionContract.applyReturn(nextCampSession, summary, mazeCompleted)
         end
@@ -360,7 +399,7 @@ function MazeSessionService:_teleportToCamp(players, summaries, mazeCompleted)
         local teleportData = CampMazeSessionContract.buildMazeToCampTeleportData({
             SessionConfig = self.SessionData,
             CampSession = nextCampSession,
-            Summaries = summaries,
+            Summaries = mergedSummaries,
             MazeCompleted = mazeCompleted,
         })
 
@@ -400,6 +439,92 @@ function MazeSessionService:_deployCrew(player)
 
     self.MonsterService:spawn(self.World.PatrolPoints)
     self:_setStatus(string.format('%s deployed the crew into the maze.', player.DisplayName))
+end
+
+function MazeSessionService:_setPlayerSprinting(player, isSprinting)
+    if not self.RunTracker:isPlayerActive(player.UserId) then
+        return
+    end
+
+    local success, result = self.PlayerStateService:setSprinting(player, isSprinting)
+    if success or result ~= 'StaminaDepleted' then
+        return
+    end
+
+    self:_setStatus(string.format('%s is too exhausted to sprint.', player.DisplayName))
+end
+
+function MazeSessionService:_spawnCorpseForPlayer(player)
+    if self.CorpsesByUserId[player.UserId] or not self.World or not self.World.Root then
+        return
+    end
+
+    local character = player.Character
+    local rootPart = character and character:FindFirstChild('HumanoidRootPart')
+    local corpsePosition = rootPart and rootPart.Position or self.World.ReturnHoldCFrame.Position
+
+    local corpse = Instance.new('Part')
+    corpse.Name = string.format('Corpse_%d', player.UserId)
+    corpse.Anchored = true
+    corpse.Size = Vector3.new(4, 1.2, 2)
+    corpse.CFrame = CFrame.new(corpsePosition + Vector3.new(0, -2.4, 0))
+    corpse.Color = CORPSE_COLOR
+    corpse.Material = CORPSE_MATERIAL
+    corpse.Parent = self.World.Root
+
+    self.CorpsesByUserId[player.UserId] = corpse
+end
+
+function MazeSessionService:_handlePlayerDeath(player, damageKind)
+    self:_spawnCorpseForPlayer(player)
+
+    local summary = self:_buildSummaryFor(player, 'death', false)
+    local recorded = self.RunTracker:recordReturn(summary)
+    if not recorded then
+        return
+    end
+
+    local character = player.Character
+    if character and character.Parent and self.World then
+        character:PivotTo(self.World.ReturnHoldCFrame)
+    end
+
+    self:_setStatus(
+        string.format(
+            '%s took %s damage and died, leaving a corpse behind.',
+            player.DisplayName,
+            string.lower(damageKind)
+        )
+    )
+end
+
+function MazeSessionService:_applyPlayerDamage(player, damageKind)
+    if not self.RunTracker:isPlayerActive(player.UserId) then
+        return
+    end
+
+    local success, summary = self.PlayerStateService:applyDamage(player, damageKind)
+    if not success then
+        self:_setStatus(
+            string.format('%s could not take damage (%s).', player.DisplayName, tostring(summary))
+        )
+        return
+    end
+
+    if summary.IsDead then
+        self:_handlePlayerDeath(player, damageKind)
+        return
+    end
+
+    self:_setStatus(
+        string.format(
+            '%s took %s damage and now has %d/%d health pips.',
+            player.DisplayName,
+            string.lower(damageKind),
+            summary.HealthPips,
+            summary.MaxHealthPips
+        )
+    )
 end
 
 function MazeSessionService:_pickupLoot(player, roomId)
@@ -589,11 +714,18 @@ function MazeSessionService:_startSnapshotLoop()
     end
 
     self.SnapshotThread = task.spawn(function()
+        local previousTick = os.clock()
+
         while true do
-            task.wait(1)
+            task.wait(SNAPSHOT_INTERVAL_SECONDS)
 
             if self.IsLaunched then
+                local currentTick = os.clock()
+                self.PlayerStateService:step(currentTick - previousTick)
+                previousTick = currentTick
                 self:_broadcastSnapshot()
+            else
+                previousTick = os.clock()
             end
         end
     end)
@@ -629,6 +761,20 @@ function MazeSessionService:start()
     Players.PlayerRemoving:Connect(function(player)
         self:_removePlayerState(player)
         self:_broadcastSnapshot()
+    end)
+
+    self.Remotes.RunAction.OnServerEvent:Connect(function(player, payload)
+        if type(payload) ~= 'table' then
+            return
+        end
+
+        if payload.Type == 'RequestSprintStart' then
+            self:_setPlayerSprinting(player, true)
+        elseif payload.Type == 'RequestSprintStop' then
+            self:_setPlayerSprinting(player, false)
+        elseif RunService:IsStudio() and DEBUG_DAMAGE_BY_ACTION[payload.Type] then
+            self:_applyPlayerDamage(player, DEBUG_DAMAGE_BY_ACTION[payload.Type])
+        end
     end)
 
     self:_launchMaze()
