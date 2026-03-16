@@ -58,6 +58,24 @@ return function()
         'Exhausted sprint requests should return StaminaDepleted'
     )
 
+    local exhaustedIntentState = ControlState.new()
+    local latchedSprintStart, latchedReason =
+        exhaustedIntentState:requestSprintStart(exhaustedPlayerState)
+    assert(latchedSprintStart == false, 'Exhausted sprint starts should still fail')
+    assert(latchedReason == 'StaminaDepleted', 'Exhausted starts should expose StaminaDepleted')
+
+    local latchedSummary = exhaustedIntentState:getSummary()
+    assert(
+        latchedSummary.SprintRequested == true,
+        'Exhausted sprint starts should preserve sprint intent while input is held'
+    )
+
+    local recoveredLatchedSummary = exhaustedIntentState:syncPlayerState(healthyPlayerState)
+    assert(
+        recoveredLatchedSummary.Mode == ControlState.Mode.Sprint,
+        'Recovered stamina should auto-resume sprint for latched requests'
+    )
+
     local deadSprintStart, deadReason = state:requestSprintStart(deadPlayerState)
     assert(deadSprintStart == false, 'Dead players should not start sprinting')
     assert(deadReason == 'Dead', 'Dead sprint requests should expose Dead')
