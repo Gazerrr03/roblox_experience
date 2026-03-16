@@ -82,9 +82,7 @@ function CampMazeSessionContract.newCampSession(params)
 end
 
 function CampMazeSessionContract.isPlayerInMaze(session, userId)
-    local normalized = CampMazeSessionContract.normalizeCampSession(session)
-
-    for _, entry in ipairs(normalized.PlayersInMaze) do
+    for _, entry in ipairs(session and session.PlayersInMaze or {}) do
         if entry.UserId == userId then
             return true
         end
