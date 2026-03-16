@@ -1,5 +1,6 @@
 local Players = game:GetService('Players')
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local RunService = game:GetService('RunService')
 local UserInputService = game:GetService('UserInputService')
 
 local localPlayer = Players.LocalPlayer
@@ -14,8 +15,9 @@ local Theme = UI.Hud.Theme
 
 Shared.Client.FirstPersonController.start(localPlayer)
 
+local actionInputConnection
+local sprintInputEndedConnection
 local visibleBackpackItems = {}
-local inventoryInputConnection
 
 local screenGui = Instance.new('ScreenGui')
 screenGui.Name = 'MazeHud'
@@ -72,7 +74,11 @@ objectiveLabel.Text = 'Objective: --'
 
 local promptLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 66), Theme.Text, 16, false)
 promptLabel.Text =
-    'In-world prompts:\n- Expedition Console\n- Loot pickups\n- Return To Camp\n- Settlement Pad'
+    'In-world prompts:\n- Expedition Console\n- Loot pickups\n- Return To Camp\n- Settlement Pad\nKeyboard: Hold LeftShift to sprint'
+
+if RunService:IsStudio() then
+    promptLabel.Text ..= '\nStudio debug: H light damage | J heavy damage'
+end
 
 local inventoryLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 44), Theme.Warning, 16, false)
 inventoryLabel.Text = 'Inventory: --'
@@ -80,14 +86,38 @@ inventoryLabel.Text = 'Inventory: --'
 local inventoryDetailLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 126), Theme.Text, 15, false)
 inventoryDetailLabel.Text = ''
 
+local playerStateLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 72), Theme.Warning, 16, false)
+playerStateLabel.Text = 'Health: --\nStamina: --\nState: --'
+
 local rosterLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 94), Theme.SubtleText, 16, false)
 rosterLabel.Text = ''
 
 local returnedLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 104), Theme.SubtleText, 16, false)
 returnedLabel.Text = ''
 
-inventoryInputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+actionInputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
     if gameProcessedEvent or input.UserInputType ~= Enum.UserInputType.Keyboard then
+        return
+    end
+
+    if input.KeyCode == Enum.KeyCode.LeftShift then
+        Remotes.RunAction:FireServer({
+            Type = 'RequestSprintStart',
+        })
+        return
+    end
+
+    if RunService:IsStudio() and input.KeyCode == Enum.KeyCode.H then
+        Remotes.RunAction:FireServer({
+            Type = 'RequestDebugLightDamage',
+        })
+        return
+    end
+
+    if RunService:IsStudio() and input.KeyCode == Enum.KeyCode.J then
+        Remotes.RunAction:FireServer({
+            Type = 'RequestDebugHeavyDamage',
+        })
         return
     end
 
@@ -119,10 +149,29 @@ inventoryInputConnection = UserInputService.InputBegan:Connect(function(input, g
     })
 end)
 
+sprintInputEndedConnection = UserInputService.InputEnded:Connect(function(input, gameProcessedEvent)
+    if gameProcessedEvent or input.UserInputType ~= Enum.UserInputType.Keyboard then
+        return
+    end
+
+    if input.KeyCode ~= Enum.KeyCode.LeftShift then
+        return
+    end
+
+    Remotes.RunAction:FireServer({
+        Type = 'RequestSprintStop',
+    })
+end)
+
 script.Destroying:Connect(function()
-    if inventoryInputConnection then
-        inventoryInputConnection:Disconnect()
-        inventoryInputConnection = nil
+    if actionInputConnection then
+        actionInputConnection:Disconnect()
+        actionInputConnection = nil
+    end
+
+    if sprintInputEndedConnection then
+        sprintInputEndedConnection:Disconnect()
+        sprintInputEndedConnection = nil
     end
 end)
 
@@ -190,6 +239,16 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
     table.insert(detailLines, '')
     table.insert(detailLines, 'Keys: 1-3 equip listed item | X unequip held item')
     inventoryDetailLabel.Text = table.concat(detailLines, '\n')
+
+    local playerState = snapshot.PlayerState or {}
+    playerStateLabel.Text = string.format(
+        'Health: %d/%d pips\nStamina: %d/%d\nState: %s',
+        playerState.HealthPips or 0,
+        playerState.MaxHealthPips or 0,
+        math.floor((playerState.CurrentStamina or 0) + 0.5),
+        math.floor((playerState.MaxStamina or 0) + 0.5),
+        playerState.IsDead and 'Dead' or 'Alive'
+    )
 
     local rosterLines = { 'Crew:' }
     for _, rosterEntry in ipairs(snapshot.Roster or {}) do
