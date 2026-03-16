@@ -28,20 +28,13 @@ jobs:
         run: stylua --check .
 
   roblox-tests:
+    if: ${{ secrets.ROBLOSECURITY != '' }}
     runs-on: windows-latest
     timeout-minutes: 20
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
-
-      - name: Verify Roblox Studio install secret
-        shell: bash
-        run: |
-          if [ -z "${{ secrets.ROBLOSECURITY }}" ]; then
-            echo "ROBLOSECURITY secret is required to install Roblox Studio for CI tests."
-            exit 1
-          fi
 
       - name: Install Aftman toolchain
         uses: ok-nick/setup-aftman@v0.4.2
