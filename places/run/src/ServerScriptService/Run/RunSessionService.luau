@@ -6,11 +6,13 @@ local Workspace = game:GetService('Workspace')
 
 local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
+local Gameplay = require(Packages:WaitForChild('Gameplay'))
 
 local SessionConfig = Shared.Config.SessionConfig
 local Remotes = Shared.Network.Remotes.ensure()
 local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
 local MazeEntryAvailability = Shared.Session.MazeEntryAvailability
+local ControlStateService = Shared.Runtime.ControlStateService
 local PlayerStateService = Shared.Runtime.PlayerStateService
 
 local LocalDebugMazeWorldBuilder = require(script.Parent.LocalDebugMazeWorldBuilder)
@@ -26,6 +28,8 @@ local MAZE_ENTRY_DISTANCE_BUFFER = 2
 local LOCAL_DEBUG_ROOM_DETECTION_RADIUS = 56
 local LOCAL_DEBUG_MAZE_RETURN_REASON = 'local_debug_return'
 local SNAPSHOT_INTERVAL_SECONDS = 0.25
+local DEFAULT_WALK_SPEED = 16
+local DEFAULT_SPRINT_WALK_SPEED = 24
 
 local TELEPORT_FAILURE_CODE = {
     ReserveServerFailed = 'ReserveServerFailed',
@@ -46,6 +50,7 @@ local function bindCharacterTeleport(self, player)
         if self.PendingLocalMazeSpawnByUserId[player.UserId] and self.LocalDebugMazeWorld then
             self.PendingLocalMazeSpawnByUserId[player.UserId] = nil
             character:PivotTo(self.LocalDebugMazeWorld.SpawnCFrame)
+            self:_applyMovementMode(player)
             return
         end
 
@@ -57,6 +62,7 @@ local function bindCharacterTeleport(self, player)
             or self.World.SpawnCFrame
         self.PendingSpawnByUserId[player.UserId] = nil
         character:PivotTo(targetCFrame)
+        self:_applyMovementMode(player)
     end)
 end
 
@@ -121,17 +127,57 @@ function RunSessionService.new()
         'Set SessionConfig.PlaceIds.Maze or SessionPlaceIdMaze before using the maze gate.'
     self.MazeEntryReasonCode = MazeEntryAvailability.ReasonCode.MazePlaceIdMissing
     self.LocalDebugMazeWorld = nil
+    self.ControlStateService = ControlStateService.new()
     self.PlayerStateService = PlayerStateService.new()
 
     return self
 end
 
 function RunSessionService:_addPlayerState(player)
+    self.ControlStateService:addPlayer(player)
     self.PlayerStateService:addPlayer(player)
 end
 
 function RunSessionService:_removePlayerState(player)
+    self.ControlStateService:removePlayer(player)
     self.PlayerStateService:removePlayer(player)
+end
+
+function RunSessionService:_getMovementSpeedFor(player)
+    local playerState = self.PlayerStateService:getSummary(player)
+    local controlState = self.ControlStateService:getSummary(player)
+    if playerState.IsDead then
+        return 0
+    end
+
+    if controlState.Mode == Gameplay.ControlState.Mode.Sprint then
+        return DEFAULT_SPRINT_WALK_SPEED
+    end
+
+    return DEFAULT_WALK_SPEED
+end
+
+function RunSessionService:_applyMovementMode(player)
+    local character = player.Character
+    local humanoid = character and character:FindFirstChildOfClass('Humanoid')
+    if not humanoid then
+        return
+    end
+
+    humanoid.WalkSpeed = self:_getMovementSpeedFor(player)
+end
+
+function RunSessionService:_syncPlayerControls(player)
+    local playerState = self.PlayerStateService:getSummary(player)
+    local ok, controlState = self.ControlStateService:syncPlayerState(player, playerState)
+    if ok and controlState then
+        self.PlayerStateService:setSprinting(
+            player,
+            controlState.Mode == Gameplay.ControlState.Mode.Sprint
+        )
+    end
+
+    self:_applyMovementMode(player)
 end
 
 function RunSessionService:_readTeleportData(player)
@@ -248,6 +294,7 @@ function RunSessionService:_teleportCharactersToSpawn()
                 or self.World.SpawnCFrame
             self.PendingSpawnByUserId[player.UserId] = nil
             character:PivotTo(targetCFrame)
+            self:_applyMovementMode(player)
         end
     end
 end
@@ -416,6 +463,7 @@ function RunSessionService:_broadcastSnapshot()
             MazeEntryMode = mazeEntryAvailability.Mode,
             MazeEntryReason = mazeEntryAvailability.Reason,
             MazeEntryReasonCode = mazeEntryAvailability.ReasonCode,
+            ControlState = self.ControlStateService:getSummary(player),
             PlayerState = self.PlayerStateService:getSummary(player),
         })
 
@@ -730,6 +778,11 @@ function RunSessionService:_startSnapshotLoop()
                 local currentTick = os.clock()
                 self.PlayerStateService:step(currentTick - previousTick)
                 previousTick = currentTick
+
+                for _, player in ipairs(Players:GetPlayers()) do
+                    self:_syncPlayerControls(player)
+                end
+
                 self:_broadcastSnapshot()
             else
                 previousTick = os.clock()
@@ -743,12 +796,25 @@ function RunSessionService:_setPlayerSprinting(player, isSprinting)
         return
     end
 
-    local success, result = self.PlayerStateService:setSprinting(player, isSprinting)
-    if success or result ~= 'StaminaDepleted' then
+    local playerState = self.PlayerStateService:getSummary(player)
+    local success, result
+    if isSprinting then
+        success, result = self.ControlStateService:requestSprintStart(player, playerState)
+    else
+        success, result = self.ControlStateService:requestSprintStop(player)
+    end
+
+    if not success then
+        if result == 'StaminaDepleted' then
+            self:_setStatus(string.format('%s is too exhausted to sprint.', player.DisplayName))
+        elseif result == 'Dead' then
+            self:_setStatus(string.format('%s cannot sprint while dead.', player.DisplayName))
+        end
+        self:_syncPlayerControls(player)
         return
     end
 
-    self:_setStatus(string.format('%s is too exhausted to sprint.', player.DisplayName))
+    self:_syncPlayerControls(player)
 end
 
 function RunSessionService:_handlePlayerTeleportData(player)
