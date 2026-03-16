@@ -16,6 +16,8 @@ local Theme = UI.Hud.Theme
 local disconnectFirstPersonLock
 local ensureFirstPersonLock
 local canRequestMazeEntry = false
+local isRunLaunched = false
+local isCampPanelVisible = true
 local actionInputConnection
 local sprintInputEndedConnection
 local isMenuMouseUnlockBound = false
@@ -243,7 +245,7 @@ objectiveLabel.Text = 'Objective: --'
 
 local guideLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 60), Theme.Text, 16, false)
 guideLabel.Text =
-    'In-world prompts:\n- Shop Terminal (Soon)\n- Loadout Bench (Soon)\n- Camp Gate / Shared Maze Gate\nKeyboard: Hold LeftShift to sprint'
+    'In-world prompts:\n- Shop Terminal (Soon)\n- Loadout Bench (Soon)\n- Camp Gate / Shared Maze Gate\nKeyboard: Hold LeftShift to sprint, tap C to toggle Camp Status'
 
 local playerStateLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 86), Theme.Warning, 16, false)
 playerStateLabel.Text = 'Health: --\nStamina: --\nState: --\nControls: --'
@@ -253,6 +255,10 @@ rosterLabel.Text = ''
 
 local mazeLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 96), Theme.SubtleText, 16, false)
 mazeLabel.Text = ''
+
+local function syncCampPanelVisibility()
+    panel.Visible = isRunLaunched and isCampPanelVisible
+end
 
 releaseFirstPersonLockForMenu()
 bindMenuMouseUnlock()
@@ -266,7 +272,7 @@ actionInputConnection = UserInputService.InputBegan:Connect(function(input, game
     end
 
     if input.KeyCode == Enum.KeyCode.LeftShift then
-        if panel.Visible then
+        if isRunLaunched then
             Remotes.RunAction:FireServer({
                 Type = 'RequestSprintStart',
             })
@@ -274,7 +280,15 @@ actionInputConnection = UserInputService.InputBegan:Connect(function(input, game
         return
     end
 
-    if input.KeyCode ~= Enum.KeyCode.E or not canRequestMazeEntry then
+    if input.KeyCode == Enum.KeyCode.C then
+        if isRunLaunched then
+            isCampPanelVisible = not isCampPanelVisible
+            syncCampPanelVisibility()
+        end
+        return
+    end
+
+    if input.KeyCode ~= Enum.KeyCode.E or not isRunLaunched or not canRequestMazeEntry then
         return
     end
 
@@ -288,7 +302,7 @@ sprintInputEndedConnection = UserInputService.InputEnded:Connect(function(input,
         return
     end
 
-    if input.KeyCode ~= Enum.KeyCode.LeftShift or not panel.Visible then
+    if input.KeyCode ~= Enum.KeyCode.LeftShift or not isRunLaunched then
         return
     end
 
@@ -313,9 +327,13 @@ end)
 
 Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
     local hasLaunched = snapshot.IsLaunched == true
+    isRunLaunched = hasLaunched
+    if not hasLaunched then
+        isCampPanelVisible = true
+    end
 
     menuBackdrop.Visible = not hasLaunched
-    panel.Visible = hasLaunched
+    syncCampPanelVisibility()
 
     if not hasLaunched then
         releaseFirstPersonLockForMenu()
