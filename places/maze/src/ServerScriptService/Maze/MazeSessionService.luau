@@ -10,6 +10,8 @@ local CAMP_SESSION_LOCK_WAIT_SECONDS = 0.05
 local SNAPSHOT_INTERVAL_SECONDS = 0.25
 local CORPSE_COLOR = Color3.fromRGB(92, 92, 92)
 local CORPSE_MATERIAL = Enum.Material.Slate
+local CORPSE_SIZE = Vector3.new(4, 1.2, 2)
+local CORPSE_VERTICAL_OFFSET = -2.4
 
 local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
@@ -466,8 +468,8 @@ function MazeSessionService:_spawnCorpseForPlayer(player)
     local corpse = Instance.new('Part')
     corpse.Name = string.format('Corpse_%d', player.UserId)
     corpse.Anchored = true
-    corpse.Size = Vector3.new(4, 1.2, 2)
-    corpse.CFrame = CFrame.new(corpsePosition + Vector3.new(0, -2.4, 0))
+    corpse.Size = CORPSE_SIZE
+    corpse.CFrame = CFrame.new(corpsePosition + Vector3.new(0, CORPSE_VERTICAL_OFFSET, 0))
     corpse.Color = CORPSE_COLOR
     corpse.Material = CORPSE_MATERIAL
     corpse.Parent = self.World.Root
