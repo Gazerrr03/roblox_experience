@@ -21,5 +21,50 @@ jobs:
       - name: Install Aftman toolchain
         uses: ok-nick/setup-aftman@v0.4.2
 
+      - name: Lint Luau
+        run: selene .
+
       - name: Check formatting
         run: stylua --check .
+
+  roblox-tests:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Detect Roblox Studio install secret
+        id: roblosecurity
+        shell: bash
+        env:
+          ROBLOSECURITY: ${{ secrets.ROBLOSECURITY }}
+        run: |
+          if [ -z "$ROBLOSECURITY" ]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "ROBLOSECURITY is not configured; skipping roblox-tests job steps."
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Aftman toolchain
+        if: steps.roblosecurity.outputs.available == 'true'
+        uses: ok-nick/setup-aftman@v0.4.2
+
+      - name: Install Roblox Studio
+        if: steps.roblosecurity.outputs.available == 'true'
+        uses: OrbitalOwen/roblox-win-installer-action@1.1
+        with:
+          cookie: ${{ secrets.ROBLOSECURITY }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build test place
+        if: steps.roblosecurity.outputs.available == 'true'
+        shell: bash
+        run: rojo build tests/default.project.json -o "$RUNNER_TEMP/roblox_experience-tests.rbxlx"
+
+      - name: Run Roblox logic tests
+        if: steps.roblosecurity.outputs.available == 'true'
+        shell: bash
+        run: run-in-roblox --place "$RUNNER_TEMP/roblox_experience-tests.rbxlx" --script tests/run-in-roblox.lua
