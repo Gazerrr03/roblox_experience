@@ -91,6 +91,12 @@ function MazeSessionService.new()
         return self.RunTracker:getState() == 'Expedition'
     end, function(player)
         return self.RunTracker:isPlayerActive(player.UserId)
+    end, function(fromPosition, toPosition)
+        if not self.World or not self.World.CanTraverseBetweenPositions then
+            return true
+        end
+
+        return self.World.CanTraverseBetweenPositions(fromPosition, toPosition)
     end)
 
     return self
@@ -285,6 +291,33 @@ function MazeSessionService:_bindWorldInteractions()
         lootEntry.Prompt.Triggered:Connect(function(player)
             self:_pickupLoot(player, roomId)
         end)
+    end
+
+    for doorwayId, doorway in pairs(self.World.Doorways or {}) do
+        if doorway.Prompt then
+            doorway.Prompt.Triggered:Connect(function(player)
+                self:_toggleDoor(player, doorwayId)
+            end)
+        end
+    end
+end
+
+function MazeSessionService:_toggleDoor(player, doorwayId)
+    if not self.World or not self.World.ToggleDoor then
+        return
+    end
+
+    local toggled = self.World.ToggleDoor(doorwayId)
+    if not toggled then
+        return
+    end
+
+    local doorway = self.World.Doorways and self.World.Doorways[doorwayId]
+    if doorway then
+        local stateText = doorway.IsOpen and 'opened' or 'closed'
+        self:_setStatus(
+            string.format('%s %s a concrete double door.', player.DisplayName, stateText)
+        )
     end
 end
 
