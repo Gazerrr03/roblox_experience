@@ -82,7 +82,14 @@ return function()
 
     assert(roomCount == config.RoomCount, 'Scaled generation should honor custom room count')
 
-    for typeId, expectedCount in pairs(expectedCounts) do
+    local typeIds = {}
+    for typeId in pairs(expectedCounts) do
+        table.insert(typeIds, typeId)
+    end
+    table.sort(typeIds)
+
+    for _, typeId in ipairs(typeIds) do
+        local expectedCount = expectedCounts[typeId]
         local actualCount = actualCounts[typeId] or 0
         assert(
             actualCount == expectedCount,
