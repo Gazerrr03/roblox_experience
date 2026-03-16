@@ -22,6 +22,7 @@ local DEFAULT_WORKSPACE_SHELL_NAMES = { 'Baseplate', 'SpawnLocation' }
 local CAMP_SESSION_LOCK_WAIT_SECONDS = 0.05
 local MAZE_ENTRY_REQUEST_COOLDOWN_SECONDS = 0.35
 local MAZE_ENTRY_DISTANCE_BUFFER = 2
+local LOCAL_DEBUG_ROOM_DETECTION_RADIUS = 20
 local LOCAL_DEBUG_MAZE_RETURN_REASON = 'local_debug_return'
 
 local TELEPORT_FAILURE_CODE = {
@@ -265,8 +266,8 @@ function RunSessionService:_getPlayerArea(player)
     end
 
     if self.LocalDebugMazeWorld then
-        local room = self.LocalDebugMazeWorld.FindRoomByPosition(rootPart.Position)
-        if room and (room.Position - rootPart.Position).Magnitude <= 40 then
+        local room, distance = self.LocalDebugMazeWorld.FindRoomByPosition(rootPart.Position)
+        if room and distance <= LOCAL_DEBUG_ROOM_DETECTION_RADIUS then
             return 'Local Maze Debug'
         end
     end

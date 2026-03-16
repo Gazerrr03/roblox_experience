@@ -8,6 +8,7 @@ local MazeBuilder = Gameplay.ProcGen.MazeBuilder
 
 local LocalDebugMazeWorldBuilder = {}
 
+local LOCAL_DEBUG_MAZE_WORLD_NAME = 'LocalDebugMazeWorld'
 local DEFAULT_ORIGIN_OFFSET = Vector3.new(0, 0, 420)
 
 local ROOM_KIND_COLORS = {
@@ -53,7 +54,7 @@ local function createPromptPart(config, parent)
 end
 
 function LocalDebugMazeWorldBuilder.build(seed, config, originOffset)
-    local existing = Workspace:FindFirstChild('LocalDebugMazeWorld')
+    local existing = Workspace:FindFirstChild(LOCAL_DEBUG_MAZE_WORLD_NAME)
     if existing then
         existing:Destroy()
     end
@@ -63,7 +64,7 @@ function LocalDebugMazeWorldBuilder.build(seed, config, originOffset)
     local roomSize = config.RoomSize or Vector3.new(28, 16, 28)
 
     local worldFolder = Instance.new('Folder')
-    worldFolder.Name = 'LocalDebugMazeWorld'
+    worldFolder.Name = LOCAL_DEBUG_MAZE_WORLD_NAME
     worldFolder.Parent = Workspace
 
     local campRoom = layout.Rooms[layout.CampRoomId]
@@ -123,7 +124,7 @@ function LocalDebugMazeWorldBuilder.build(seed, config, originOffset)
                 end
             end
 
-            return nearestRoom
+            return nearestRoom, nearestDistance
         end,
     }
 end
