@@ -17,6 +17,8 @@ RunSessionService.__index = RunSessionService
 
 local DEFAULT_WORKSPACE_SHELL_NAMES = { 'Baseplate', 'SpawnLocation' }
 local CAMP_SESSION_LOCK_WAIT_SECONDS = 0.05
+local MAZE_ENTRY_REQUEST_COOLDOWN_SECONDS = 0.35
+local MAZE_ENTRY_DISTANCE_BUFFER = 2
 
 local function bindCharacterTeleport(self, player)
     player.CharacterAdded:Connect(function(character)
@@ -86,6 +88,7 @@ function RunSessionService.new()
     self.SnapshotThread = nil
     self.PendingSpawnByUserId = {}
     self.CampSessionLock = false
+    self.LastMazeEntryRequestAtByUserId = {}
 
     return self
 end
@@ -215,7 +218,7 @@ function RunSessionService:_bindWorldInteractions()
     end)
 
     self.World.MazePrompt.Triggered:Connect(function(player)
-        self:_enterMaze(player)
+        self:_requestMazeEntry(player, false)
     end)
 end
 
@@ -394,6 +397,59 @@ function RunSessionService:_enterMaze(player)
     end)
 end
 
+function RunSessionService:_isPlayerNearMazePrompt(player)
+    if not self.World or not self.World.MazePrompt then
+        return false
+    end
+
+    local promptPart = self.World.MazePrompt.Parent
+    if not promptPart or not promptPart:IsA('BasePart') then
+        return false
+    end
+
+    local character = player.Character
+    local rootPart = character and character:FindFirstChild('HumanoidRootPart')
+    if not rootPart or not rootPart:IsA('BasePart') then
+        return false
+    end
+
+    local maxDistance = self.World.MazePrompt.MaxActivationDistance + MAZE_ENTRY_DISTANCE_BUFFER
+    return (rootPart.Position - promptPart.Position).Magnitude <= maxDistance
+end
+
+function RunSessionService:_requestMazeEntry(player, requireDistanceCheck)
+    if not self.IsLaunched or not self.World then
+        return
+    end
+
+    if not self.GateOpen then
+        self:_setStatus(
+            string.format(
+                '%s checked the maze gate, but the camp gate is still closed.',
+                player.DisplayName
+            )
+        )
+        return
+    end
+
+    if requireDistanceCheck and not self:_isPlayerNearMazePrompt(player) then
+        return
+    end
+
+    self:_enterMaze(player)
+end
+
+function RunSessionService:_canProcessMazeEntryRequest(player)
+    local now = os.clock()
+    local previous = self.LastMazeEntryRequestAtByUserId[player.UserId]
+    if previous and now - previous < MAZE_ENTRY_REQUEST_COOLDOWN_SECONDS then
+        return false
+    end
+
+    self.LastMazeEntryRequestAtByUserId[player.UserId] = now
+    return true
+end
+
 function RunSessionService:_launchRun(_player)
     if self.IsLaunched then
         return
@@ -493,7 +549,8 @@ function RunSessionService:start()
         self:_broadcastSnapshot()
     end)
 
-    Players.PlayerRemoving:Connect(function()
+    Players.PlayerRemoving:Connect(function(player)
+        self.LastMazeEntryRequestAtByUserId[player.UserId] = nil
         self:_broadcastSnapshot()
     end)
 
@@ -504,6 +561,10 @@ function RunSessionService:start()
 
         if payload.Type == 'RequestLaunchRun' then
             self:_launchRun(player)
+        elseif payload.Type == 'RequestEnterMaze' then
+            if self:_canProcessMazeEntryRequest(player) then
+                self:_requestMazeEntry(player, true)
+            end
         elseif payload.Type == 'RequestStartExpedition' then
             self:_setStatus(
                 string.format(

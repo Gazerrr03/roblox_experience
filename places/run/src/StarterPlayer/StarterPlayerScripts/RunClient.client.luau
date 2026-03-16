@@ -15,6 +15,8 @@ local Theme = UI.Hud.Theme
 
 local disconnectFirstPersonLock
 local ensureFirstPersonLock
+local canRequestMazeEntry = false
+local mazeEntryInputConnection
 local isMenuMouseUnlockBound = false
 local MENU_MOUSE_UNLOCK_STEP = 'RunMenuMouseUnlock'
 ensureFirstPersonLock = function()
@@ -71,6 +73,11 @@ script.Destroying:Connect(function()
     if disconnectFirstPersonLock ~= nil then
         disconnectFirstPersonLock()
         disconnectFirstPersonLock = nil
+    end
+
+    if mazeEntryInputConnection ~= nil then
+        mazeEntryInputConnection:Disconnect()
+        mazeEntryInputConnection = nil
     end
 
     unbindMenuMouseUnlock()
@@ -229,6 +236,23 @@ mazeLabel.Text = ''
 
 releaseFirstPersonLockForMenu()
 bindMenuMouseUnlock()
+mazeEntryInputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+    if not canRequestMazeEntry or gameProcessedEvent then
+        return
+    end
+
+    if input.UserInputType ~= Enum.UserInputType.Keyboard then
+        return
+    end
+
+    if input.KeyCode ~= Enum.KeyCode.E then
+        return
+    end
+
+    Remotes.RunAction:FireServer({
+        Type = 'RequestEnterMaze',
+    })
+end)
 
 singlePlayerButton.MouseButton1Click:Connect(function()
     singlePlayerButton.AutoButtonColor = false
@@ -253,6 +277,7 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
     if not hasLaunched then
         releaseFirstPersonLockForMenu()
         bindMenuMouseUnlock()
+        canRequestMazeEntry = false
         menuStatusLabel.Text = snapshot.Status
         singlePlayerButton.Active = true
         singlePlayerButton.AutoButtonColor = true
@@ -262,6 +287,7 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
 
     unbindMenuMouseUnlock()
     ensureFirstPersonLock()
+    canRequestMazeEntry = snapshot.GateOpen == true
 
     statusLabel.Text = string.format(
         '%s\nArea: %s | Gate: %s | Maze: %s',

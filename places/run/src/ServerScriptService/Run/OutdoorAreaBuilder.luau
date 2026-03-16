@@ -111,6 +111,8 @@ function OutdoorAreaBuilder.build(worldFolder, createPart, createPromptPart)
         ActionText = 'Enter',
         ObjectText = 'Shared Maze Gate',
         MaxActivationDistance = 12,
+        KeyboardKeyCode = Enum.KeyCode.E,
+        RequiresLineOfSight = false,
     }, outdoorFolder)
 
     return {

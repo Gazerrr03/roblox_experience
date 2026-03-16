@@ -38,6 +38,12 @@ local function createPromptPart(config, parent)
     prompt.ObjectText = config.ObjectText
     prompt.HoldDuration = 0
     prompt.MaxActivationDistance = config.MaxActivationDistance or 10
+    if config.KeyboardKeyCode ~= nil then
+        prompt.KeyboardKeyCode = config.KeyboardKeyCode
+    end
+    if config.RequiresLineOfSight ~= nil then
+        prompt.RequiresLineOfSight = config.RequiresLineOfSight
+    end
     prompt.Parent = part
 
     return part, prompt
