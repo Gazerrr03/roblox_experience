@@ -10,6 +10,8 @@ local CAMP_SESSION_LOCK_WAIT_SECONDS = 0.05
 local SNAPSHOT_INTERVAL_SECONDS = 0.25
 local CORPSE_COLOR = Color3.fromRGB(92, 92, 92)
 local CORPSE_MATERIAL = Enum.Material.Slate
+local CORPSE_SIZE = Vector3.new(4, 1.2, 2)
+local CORPSE_VERTICAL_OFFSET = -2.4
 local DEFAULT_WALK_SPEED = 16
 local DEFAULT_SPRINT_WALK_SPEED = 24
 
@@ -149,7 +151,18 @@ end
 
 function MazeSessionService:_mergeTeleportData(teleportData, resetInventoryService)
     if type(teleportData) ~= 'table' then
-        return
+        return false
+    end
+
+    local incomingSession = teleportData.CampSession
+    if type(incomingSession) ~= 'table' then
+        return false
+    end
+
+    local nextSession, accepted =
+        CampMazeSessionContract.reconcileIncomingCampSession(self.CampSession, incomingSession)
+    if not accepted then
+        return false
     end
 
     local incoming = teleportData.SessionConfig
@@ -168,15 +181,15 @@ function MazeSessionService:_mergeTeleportData(teleportData, resetInventoryServi
         end
     end
 
-    if type(teleportData.CampSession) == 'table' then
-        self.CampSession = CampMazeSessionContract.normalizeCampSession(teleportData.CampSession)
-        self.IsDirectBoot = false
-        self.Status = 'Maze session is ready. Use the expedition console to deploy the crew.'
-    end
+    self.CampSession = nextSession
+    self.IsDirectBoot = false
+    self.Status = 'Maze session is ready. Use the expedition console to deploy the crew.'
 
     if resetInventoryService == true then
         self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
     end
+
+    return true
 end
 
 function MazeSessionService:_loadSessionDataFromJoin()
@@ -185,7 +198,12 @@ function MazeSessionService:_loadSessionDataFromJoin()
         return
     end
 
-    self:_mergeTeleportData(self:_readTeleportData(players[1]), true)
+    for _, player in ipairs(players) do
+        local merged = self:_mergeTeleportData(self:_readTeleportData(player), true)
+        if merged then
+            return
+        end
+    end
 end
 
 function MazeSessionService:_handlePlayerTeleportData(player)
@@ -203,6 +221,10 @@ function MazeSessionService:_addPlayerState(player)
     end
 
     self.InventoryService:addPlayer(player)
+    self.CampSession = CampMazeSessionContract.markPlayerEntered(self.CampSession, {
+        UserId = player.UserId,
+        Name = player.DisplayName,
+    })
     self.ControlStateService:addPlayer(player)
     self.PlayerStateService:addPlayer(player)
 end
@@ -210,6 +232,9 @@ end
 function MazeSessionService:_removePlayerState(player)
     self.RunTracker:removePlayer(player.UserId)
     self.InventoryService:removePlayer(player)
+    self.CampSession = CampMazeSessionContract.prunePlayer(self.CampSession, player.UserId, {
+        PreserveReturnSummary = true,
+    })
     self.ControlStateService:removePlayer(player)
     self.PlayerStateService:removePlayer(player)
 end
@@ -320,7 +345,10 @@ function MazeSessionService:_broadcastSnapshot()
     end
 
     local roster = self:_buildRoster()
-    local returnedSummaries = self.RunTracker:getReturnedSummaries()
+    local returnedSummaries = mergeSummaries(
+        self.CampSession.ReturnedPlayerSummaries,
+        self.RunTracker:getReturnedSummaries()
+    )
     local mazeStatus = self:_getMazeStatus()
 
     for _, player in ipairs(Players:GetPlayers()) do
@@ -440,7 +468,6 @@ function MazeSessionService:_teleportToCamp(players, summaries, mazeCompleted)
             nextCampSession =
                 CampMazeSessionContract.applyReturn(nextCampSession, summary, mazeCompleted)
         end
-
         local teleportData = CampMazeSessionContract.buildMazeToCampTeleportData({
             SessionConfig = self.SessionData,
             CampSession = nextCampSession,
@@ -486,6 +513,20 @@ function MazeSessionService:_deployCrew(player)
     self:_setStatus(string.format('%s deployed the crew into the maze.', player.DisplayName))
 end
 
+function MazeSessionService:_canManageInventory(player)
+    if not self.RunTracker:isPlayerActive(player.UserId) then
+        self:_setStatus(
+            string.format(
+                '%s already returned and cannot change inventory state.',
+                player.DisplayName
+            )
+        )
+        return false
+    end
+
+    return true
+end
+
 function MazeSessionService:_setPlayerSprinting(player, isSprinting)
     if not self.RunTracker:isPlayerActive(player.UserId) then
         return
@@ -512,6 +553,48 @@ function MazeSessionService:_setPlayerSprinting(player, isSprinting)
     self:_syncPlayerControls(player)
 end
 
+function MazeSessionService:_equipItem(player, itemInstanceId)
+    if not self:_canManageInventory(player) then
+        return
+    end
+
+    local success, result = self.InventoryService:equip(player, itemInstanceId)
+    if not success then
+        self:_setStatus(
+            string.format(
+                '%s could not equip that item (%s).',
+                player.DisplayName,
+                tostring(result)
+            )
+        )
+        return
+    end
+
+    self:_setStatus(string.format('%s equipped %s.', player.DisplayName, result.Name))
+end
+
+function MazeSessionService:_unequipItem(player)
+    if not self:_canManageInventory(player) then
+        return
+    end
+
+    local success, result = self.InventoryService:unequip(player)
+    if not success then
+        self:_setStatus(
+            string.format(
+                '%s could not unequip the held item (%s).',
+                player.DisplayName,
+                tostring(result)
+            )
+        )
+        return
+    end
+
+    self:_setStatus(
+        string.format('%s stowed %s back into the backpack.', player.DisplayName, result.Name)
+    )
+end
+
 function MazeSessionService:_spawnCorpseForPlayer(player)
     if self.CorpsesByUserId[player.UserId] or not self.World or not self.World.Root then
         return
@@ -524,8 +607,8 @@ function MazeSessionService:_spawnCorpseForPlayer(player)
     local corpse = Instance.new('Part')
     corpse.Name = string.format('Corpse_%d', player.UserId)
     corpse.Anchored = true
-    corpse.Size = Vector3.new(4, 1.2, 2)
-    corpse.CFrame = CFrame.new(corpsePosition + Vector3.new(0, -2.4, 0))
+    corpse.Size = CORPSE_SIZE
+    corpse.CFrame = CFrame.new(corpsePosition + Vector3.new(0, CORPSE_VERTICAL_OFFSET, 0))
     corpse.Color = CORPSE_COLOR
     corpse.Material = CORPSE_MATERIAL
     corpse.Parent = self.World.Root
@@ -834,7 +917,11 @@ function MazeSessionService:start()
             return
         end
 
-        if payload.Type == 'RequestSprintStart' then
+        if payload.Type == 'RequestEquipItem' then
+            self:_equipItem(player, payload.ItemInstanceId)
+        elseif payload.Type == 'RequestUnequipItem' then
+            self:_unequipItem(player)
+        elseif payload.Type == 'RequestSprintStart' then
             self:_setPlayerSprinting(player, true)
         elseif payload.Type == 'RequestSprintStop' then
             self:_setPlayerSprinting(player, false)

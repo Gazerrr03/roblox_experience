@@ -166,7 +166,7 @@ singlePlayerButton.BackgroundColor3 = Theme.Accent
 singlePlayerButton.TextColor3 = Theme.Background
 singlePlayerButton.Font = Enum.Font.GothamBold
 singlePlayerButton.TextSize = 20
-singlePlayerButton.Text = 'Single Player'
+singlePlayerButton.Text = 'Enter Camp'
 singlePlayerButton.Parent = menuPanel
 
 local singlePlayerCorner = Instance.new('UICorner')

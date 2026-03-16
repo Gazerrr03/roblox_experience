@@ -17,11 +17,22 @@ return function()
     assert(config.SettlementDurationSeconds > 0, 'Settlement duration should stay positive')
     assert(config.InventoryCapacity > 0, 'Inventory capacity should stay positive')
 
-    assert(config.ProcGen.MainPathRooms > 0, 'ProcGen should require at least one main-path room')
-    assert(config.ProcGen.MaxBranches >= 0, 'ProcGen max branches should not be negative')
+    assert(config.ProcGen.RoomCount > 0, 'ProcGen room count should stay positive')
+    assert(config.ProcGen.ExitMin >= 0, 'ProcGen exit minimum should not be negative')
+    assert(
+        config.ProcGen.ExitMax >= config.ProcGen.ExitMin,
+        'ProcGen exit maximum should stay above minimum'
+    )
+    assert(
+        config.ProcGen.MaxGenerationAttempts > 0,
+        'ProcGen max generation attempts should stay positive'
+    )
     assert(config.ProcGen.RoomSpacing > 0, 'ProcGen room spacing should stay positive')
+    assert(config.ProcGen.RoomApothem > 0, 'ProcGen room apothem should stay positive')
     assert(typeof(config.ProcGen.RoomSize) == 'Vector3', 'ProcGen room size should stay a Vector3')
     assert(config.ProcGen.RoomSize.X > 0, 'ProcGen room size X should stay positive')
     assert(config.ProcGen.RoomSize.Y > 0, 'ProcGen room size Y should stay positive')
     assert(config.ProcGen.RoomSize.Z > 0, 'ProcGen room size Z should stay positive')
+    assert(config.ProcGen.DoorLeafChance >= 0, 'Door leaf chance should be >= 0')
+    assert(config.ProcGen.DoorLeafChance <= 1, 'Door leaf chance should be <= 1')
 end

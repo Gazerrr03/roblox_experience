@@ -71,6 +71,45 @@ return function()
         resumed.ReturnedPlayerSummaries[1].Value == 18,
         'Return summaries should preserve collected value'
     )
+    assert(
+        contract.hasReturnedSummary(resumed, 42) == true,
+        'Returned players should remain discoverable through the summary helper'
+    )
+
+    local reentered = contract.markPlayerEntered(resumed, {
+        UserId = 42,
+        Name = 'Scout',
+    })
+    assert(
+        contract.hasReturnedSummary(reentered, 42) == false,
+        "Re-entering the maze should clear that player's stale return summary"
+    )
+    assert(
+        contract.isPlayerInMaze(reentered, 42) == true,
+        'Re-entering the maze should put the player back into the active maze roster'
+    )
+
+    local preservedMazeEntry = contract.prunePlayer(entered, 42, {
+        PreserveMazeEntry = true,
+    })
+    assert(
+        contract.isPlayerInMaze(preservedMazeEntry, 42) == true,
+        'Camp-side disconnect cleanup should preserve active maze entries'
+    )
+
+    local prunedReturn = contract.prunePlayer(resumed, 42)
+    assert(
+        contract.hasReturnedSummary(prunedReturn, 42) == false,
+        'Disconnect cleanup should clear stale returned summaries by default'
+    )
+
+    local preservedReturn = contract.prunePlayer(resumed, 42, {
+        PreserveReturnSummary = true,
+    })
+    assert(
+        contract.hasReturnedSummary(preservedReturn, 42) == true,
+        'Maze-side cleanup should be able to keep a recorded return summary'
+    )
 
     local settled = contract.buildReturnSummary({
         UserId = 7,
@@ -122,5 +161,43 @@ return function()
     assert(
         returnedLead.WasSettled == true,
         'Maze return payload should preserve settlement summaries'
+    )
+
+    local reconciledPlaceholder, placeholderAccepted = contract.reconcileIncomingCampSession(
+        contract.newCampSession({}),
+        contract.newCampSession({
+            SessionId = 'camp-session-2',
+            CampAccessCode = 'camp-access-code-2',
+            MazeAccessCode = 'maze-access-code-2',
+        })
+    )
+    assert(
+        placeholderAccepted == true and reconciledPlaceholder.SessionId == 'camp-session-2',
+        'Placeholder camp sessions should accept the first real incoming session'
+    )
+
+    local reconciledSameSession, sameSessionAccepted = contract.reconcileIncomingCampSession(
+        entered,
+        contract.newCampSession({
+            SessionId = 'camp-session-1',
+            CampAccessCode = 'camp-access-code',
+            MazeAccessCode = 'maze-access-code',
+        })
+    )
+    assert(
+        sameSessionAccepted == true and reconciledSameSession.CampAccessCode == 'camp-access-code',
+        'Matching incoming session payloads should be accepted'
+    )
+
+    local rejectedSession, mismatchedAccepted = contract.reconcileIncomingCampSession(
+        entered,
+        contract.newCampSession({
+            SessionId = 'camp-session-other',
+            CampAccessCode = 'camp-access-code-other',
+        })
+    )
+    assert(
+        mismatchedAccepted == false and rejectedSession.SessionId == entered.SessionId,
+        'Mismatched incoming sessions should not overwrite the current authority'
     )
 end
