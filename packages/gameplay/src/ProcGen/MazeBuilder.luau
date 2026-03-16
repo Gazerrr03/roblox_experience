@@ -454,6 +454,55 @@ local function addExitDirection(room, directionIndex)
     table.sort(room.ExitDirections)
 end
 
+local function validateRoomConnections(rooms)
+    for roomId, room in pairs(rooms) do
+        local exitDirectionSet = {}
+        for _, directionIndex in ipairs(room.ExitDirections or {}) do
+            exitDirectionSet[directionIndex] = true
+        end
+
+        for directionIndex, neighborRoomId in pairs(room.Neighbors) do
+            if room.OpenDirectionSet[directionIndex] ~= true then
+                return false, string.format('NeighborOnClosedEdge(%s:%d)', roomId, directionIndex)
+            end
+
+            local neighbor = rooms[neighborRoomId]
+            if not neighbor then
+                return false,
+                    string.format('MissingNeighborRoom(%s:%s)', roomId, tostring(neighborRoomId))
+            end
+
+            local opposite = oppositeDirection(directionIndex)
+            if neighbor.Neighbors[opposite] ~= roomId then
+                return false, string.format('NonMirrorNeighbor(%s:%s)', roomId, neighborRoomId)
+            end
+            if neighbor.OpenDirectionSet[opposite] ~= true then
+                return false,
+                    string.format('NeighborClosedMirrorEdge(%s:%s)', roomId, neighborRoomId)
+            end
+        end
+
+        for _, directionIndex in ipairs(room.OpenDirections) do
+            local neighborRoomId = room.Neighbors[directionIndex]
+            if neighborRoomId == nil and exitDirectionSet[directionIndex] ~= true then
+                return false, string.format('UnclassifiedOpenEdge(%s:%d)', roomId, directionIndex)
+            end
+        end
+
+        for directionIndex in pairs(exitDirectionSet) do
+            if room.Neighbors[directionIndex] ~= nil then
+                return false,
+                    string.format('ExitCollidesWithNeighbor(%s:%d)', roomId, directionIndex)
+            end
+            if room.OpenDirectionSet[directionIndex] ~= true then
+                return false, string.format('ExitOnClosedEdge(%s:%d)', roomId, directionIndex)
+            end
+        end
+    end
+
+    return true, nil
+end
+
 local function buildAttempt(seed, config)
     local roomCount = math.max(3, config.RoomCount or DEFAULT_ROOM_COUNT)
     local roomSpacing = config.RoomSpacing or 40
@@ -702,6 +751,11 @@ local function buildAttempt(seed, config)
         end
         return left.Direction < right.Direction
     end)
+
+    local valid, reason = validateRoomConnections(rooms)
+    if not valid then
+        return nil, reason
+    end
 
     return {
         Seed = seed,

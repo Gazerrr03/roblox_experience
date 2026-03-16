@@ -22,7 +22,7 @@ local DEFAULT_WORKSPACE_SHELL_NAMES = { 'Baseplate', 'SpawnLocation' }
 local CAMP_SESSION_LOCK_WAIT_SECONDS = 0.05
 local MAZE_ENTRY_REQUEST_COOLDOWN_SECONDS = 0.35
 local MAZE_ENTRY_DISTANCE_BUFFER = 2
-local LOCAL_DEBUG_ROOM_DETECTION_RADIUS = 20
+local LOCAL_DEBUG_ROOM_DETECTION_RADIUS = 56
 local LOCAL_DEBUG_MAZE_RETURN_REASON = 'local_debug_return'
 
 local TELEPORT_FAILURE_CODE = {
@@ -270,6 +270,12 @@ function RunSessionService:_getPlayerArea(player)
         if room and distance <= LOCAL_DEBUG_ROOM_DETECTION_RADIUS then
             return 'Local Maze Debug'
         end
+
+        for _, entry in ipairs(self.CampSession.PlayersInMaze or {}) do
+            if entry.UserId == player.UserId then
+                return 'Local Maze Debug'
+            end
+        end
     end
 
     if rootPart.Position.Z >= self.World.OutdoorThresholdZ then
@@ -459,8 +465,14 @@ function RunSessionService:_enterLocalDebugMaze(player)
     nextSession.GateOpen = self.GateOpen
     self.CampSession = nextSession
 
-    self.PendingLocalMazeSpawnByUserId[player.UserId] = true
-    player:LoadCharacter()
+    local character = player.Character
+    if character and character.Parent then
+        character:PivotTo(self.LocalDebugMazeWorld.SpawnCFrame)
+        self.PendingLocalMazeSpawnByUserId[player.UserId] = nil
+    else
+        self.PendingLocalMazeSpawnByUserId[player.UserId] = true
+        player:LoadCharacter()
+    end
 
     self.MazeEntryMode = MazeEntryAvailability.Mode.LocalDebugFallback
     self.MazeEntryReasonCode = MazeEntryAvailability.ReasonCode.LocalDebugFallbackEnabled
