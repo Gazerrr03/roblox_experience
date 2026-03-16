@@ -301,8 +301,10 @@ function MazeSessionService:_broadcastSnapshot()
     end
 
     local roster = self:_buildRoster()
-    local returnedSummaries =
-        mergeSummaries(self.CampSession.ReturnedPlayerSummaries, self.RunTracker:getReturnedSummaries())
+    local returnedSummaries = mergeSummaries(
+        self.CampSession.ReturnedPlayerSummaries,
+        self.RunTracker:getReturnedSummaries()
+    )
     local mazeStatus = self:_getMazeStatus()
 
     for _, player in ipairs(Players:GetPlayers()) do
