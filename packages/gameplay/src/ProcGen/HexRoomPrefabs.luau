@@ -20,7 +20,7 @@ local ORDERED_DEFINITIONS = {
         TypeId = 'T2',
         PrefabId = 'Hex_T2_Straight',
         OpenDirections = { HexRoomPrefabs.Directions.B, HexRoomPrefabs.Directions.E },
-        RotationSteps = { 0, 1, 2, 3, 4, 5 },
+        RotationSteps = { 0, 1, 2 },
     },
     {
         TypeId = 'T3',
@@ -42,7 +42,7 @@ local ORDERED_DEFINITIONS = {
             HexRoomPrefabs.Directions.D,
             HexRoomPrefabs.Directions.F,
         },
-        RotationSteps = { 0, 1, 2, 3, 4, 5 },
+        RotationSteps = { 0, 1 },
     },
     {
         TypeId = 'T6',
@@ -63,7 +63,7 @@ local ORDERED_DEFINITIONS = {
             HexRoomPrefabs.Directions.D,
             HexRoomPrefabs.Directions.E,
         },
-        RotationSteps = { 0, 1, 2, 3, 4, 5 },
+        RotationSteps = { 0, 1, 2 },
     },
     {
         TypeId = 'T8',
