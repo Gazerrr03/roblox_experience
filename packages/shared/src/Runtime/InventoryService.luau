@@ -36,6 +36,24 @@ function InventoryService:pickup(player, itemDef)
     return inventory:add(itemDef)
 end
 
+function InventoryService:equip(player, itemInstanceId)
+    local inventory = self:get(player)
+    if not inventory then
+        return false, 'MissingInventory'
+    end
+
+    return inventory:equip(itemInstanceId)
+end
+
+function InventoryService:unequip(player)
+    local inventory = self:get(player)
+    if not inventory then
+        return false, 'MissingInventory'
+    end
+
+    return inventory:unequip()
+end
+
 function InventoryService:deposit(player)
     local inventory = self:get(player)
     if not inventory then
@@ -51,17 +69,18 @@ function InventoryService:getSummary(player)
     local inventory = self:get(player)
     if not inventory then
         return {
+            Capacity = self.Capacity,
             Weight = 0,
             Count = 0,
+            BackpackCount = 0,
+            HeldCount = 0,
             Value = 0,
+            BackpackItems = {},
+            HeldItem = nil,
         }
     end
 
-    return {
-        Weight = inventory.Weight,
-        Count = #inventory.Order,
-        Value = inventory:getTotalValue(),
-    }
+    return inventory:getSummary()
 end
 
 return InventoryService
