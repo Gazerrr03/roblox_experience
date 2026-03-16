@@ -11,11 +11,19 @@ local MonsterLogic = Gameplay.Monsters.MonsterLogic
 local MonsterService = {}
 MonsterService.__index = MonsterService
 
-function MonsterService.new(monsterDefinition, isExpeditionActiveCallback, canTargetPlayerCallback)
+function MonsterService.new(
+    monsterDefinition,
+    isExpeditionActiveCallback,
+    canTargetPlayerCallback,
+    canTraverseCallback
+)
     return setmetatable({
         Definition = monsterDefinition,
         IsExpeditionActive = isExpeditionActiveCallback,
         CanTargetPlayer = canTargetPlayerCallback or function()
+            return true
+        end,
+        CanTraverse = canTraverseCallback or function()
             return true
         end,
         PatrolPoints = {},
@@ -103,7 +111,7 @@ function MonsterService:update(dt)
         end
     end
 
-    if nextPosition then
+    if nextPosition and self.CanTraverse(currentPosition, nextPosition) then
         self.MonsterPart.CFrame = CFrame.new(nextPosition)
     end
 end
