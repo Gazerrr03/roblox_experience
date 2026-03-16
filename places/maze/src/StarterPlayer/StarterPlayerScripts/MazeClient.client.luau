@@ -163,8 +163,8 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
         heldItem and string.format(
             'Held: %s | %d KG | %d value',
             heldItem.Name,
-            heldItem.Weight or 0,
-            heldItem.Value or 0
+            heldItem.Weight,
+            heldItem.Value
         ) or 'Held: Empty hands',
         'Backpack:',
     }
