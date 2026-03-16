@@ -76,7 +76,7 @@ and reports pass/fail from Studio on a Windows runner.
 - `Install Roblox Studio` fails:
   Treat it as a Studio installation or authentication problem first. Inspect that step before looking at gameplay code.
 - `Build test place` fails:
-  Treat it as a Rojo mapping or source/build problem. Re-run `rojo build tests/default.project.json -o <output.rbxlx>` locally if possible.
+  Treat it as a Rojo mapping or source/build problem. Re-run `rojo build tests/default.project.json -o /tmp/roblox_experience-tests.rbxlx` locally if possible.
 - `Run Roblox logic tests` fails:
   Inspect that step first. If Studio never boots, treat it as a runner or Studio startup problem. If Studio boots and the test output reports failures, treat it as a test logic problem.
 
