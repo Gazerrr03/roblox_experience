@@ -9,21 +9,26 @@ local MazeBuilder = Gameplay.ProcGen.MazeBuilder
 
 local MazeWorldBuilder = {}
 
-local WALL_HEIGHT = 16
-local WALL_THICKNESS = 1.4
-local DOORWAY_WIDTH = 8
-local DOOR_LEAF_THICKNESS = 1
+local ROOM_CLEAR_HEIGHT = 14
+local ROOM_APOTHEM_DEFAULT = 20
+local SLAB_THICKNESS = 1
+local WALL_HEIGHT = ROOM_CLEAR_HEIGHT
+local WALL_THICKNESS = 2
+local DOORWAY_WIDTH = 6
+local DOORWAY_HEIGHT = 10
+local DOOR_LEAF_THICKNESS = 0.5
 local DOOR_CLEARANCE = 0
-local ROOM_DETECTION_BUFFER = 6
+local ROOM_DETECTION_BUFFER = 18
 local HEX_CIRCUMRADIUS_MULTIPLIER = 1 / math.cos(math.pi / 6)
+local SIDE_ANGLE_OFFSET_DEGREES = 30
 
 local WALL_MATERIAL = Enum.Material.Concrete
-local WALL_COLOR = Color3.fromRGB(188, 188, 188)
+local WALL_COLOR = Color3.fromRGB(116, 114, 110)
 local FLOOR_MATERIAL = Enum.Material.Concrete
-local FLOOR_COLOR = Color3.fromRGB(168, 168, 168)
-local CEILING_COLOR = Color3.fromRGB(176, 176, 176)
+local FLOOR_COLOR = Color3.fromRGB(98, 96, 92)
+local CEILING_COLOR = Color3.fromRGB(88, 86, 82)
 local DOOR_MATERIAL = Enum.Material.Concrete
-local DOOR_COLOR = Color3.fromRGB(124, 124, 124)
+local DOOR_COLOR = Color3.fromRGB(74, 72, 68)
 
 local ROOM_KIND_COLORS = {
     Camp = Color3.fromRGB(83, 126, 78),
@@ -78,7 +83,7 @@ local function edgeKey(roomIdA, roomIdB)
 end
 
 local function sideVectors(directionIndex)
-    local angle = math.rad((directionIndex - 1) * 60)
+    local angle = math.rad(((directionIndex - 1) * 60) + SIDE_ANGLE_OFFSET_DEGREES)
     local normal = Vector3.new(math.cos(angle), 0, math.sin(angle))
     local tangent = Vector3.new(-normal.Z, 0, normal.X)
     return normal, tangent
@@ -108,6 +113,17 @@ local function createHexSideWall(parent, center, directionIndex, apothem, sideLe
             Name = string.format('Wall_%d_Segment', directionIndex),
             Size = Vector3.new(segmentLength, WALL_HEIGHT, WALL_THICKNESS),
             CFrame = wallForward + (tangent * (segmentOffset * sign)),
+            Color = WALL_COLOR,
+            Material = WALL_MATERIAL,
+        }, parent)
+    end
+
+    local lintelHeight = WALL_HEIGHT - DOORWAY_HEIGHT
+    if lintelHeight > 0 then
+        createPart({
+            Name = string.format('Wall_%d_Lintel', directionIndex),
+            Size = Vector3.new(DOORWAY_WIDTH, lintelHeight, WALL_THICKNESS),
+            CFrame = wallForward + Vector3.new(0, DOORWAY_HEIGHT + (lintelHeight / 2), 0),
             Color = WALL_COLOR,
             Material = WALL_MATERIAL,
         }, parent)
@@ -152,16 +168,18 @@ local function createDoorwayInstance(
     local leafWidth = (DOORWAY_WIDTH - (DOOR_CLEARANCE * 3)) / 2
     local closedLeftCenter = openingCenter
         - tangent * ((leafWidth / 2) + (DOOR_CLEARANCE / 2))
-        + Vector3.new(0, WALL_HEIGHT / 2, 0)
+        + Vector3.new(0, DOORWAY_HEIGHT / 2, 0)
     local closedRightCenter = openingCenter
         + tangent * ((leafWidth / 2) + (DOOR_CLEARANCE / 2))
-        + Vector3.new(0, WALL_HEIGHT / 2, 0)
+        + Vector3.new(0, DOORWAY_HEIGHT / 2, 0)
 
     local openOffset = (DOORWAY_WIDTH / 2) + (leafWidth / 2) + DOOR_CLEARANCE
-    local openLeftCenter = openingCenter - tangent * openOffset + Vector3.new(0, WALL_HEIGHT / 2, 0)
+    local openLeftCenter = openingCenter
+        - tangent * openOffset
+        + Vector3.new(0, DOORWAY_HEIGHT / 2, 0)
     local openRightCenter = openingCenter
         + tangent * openOffset
-        + Vector3.new(0, WALL_HEIGHT / 2, 0)
+        + Vector3.new(0, DOORWAY_HEIGHT / 2, 0)
 
     local leafOrientation = CFrame.lookAt(Vector3.zero, normal)
     doorway.ClosedLeftCFrame = CFrame.new(closedLeftCenter) * leafOrientation
@@ -171,7 +189,7 @@ local function createDoorwayInstance(
 
     doorway.LeftLeaf = createPart({
         Name = string.format('Door_%s_Left', doorwayId),
-        Size = Vector3.new(leafWidth, WALL_HEIGHT, DOOR_LEAF_THICKNESS),
+        Size = Vector3.new(leafWidth, DOORWAY_HEIGHT, DOOR_LEAF_THICKNESS),
         CFrame = doorway.ClosedLeftCFrame,
         Color = DOOR_COLOR,
         Material = DOOR_MATERIAL,
@@ -179,7 +197,7 @@ local function createDoorwayInstance(
 
     doorway.RightLeaf = createPart({
         Name = string.format('Door_%s_Right', doorwayId),
-        Size = Vector3.new(leafWidth, WALL_HEIGHT, DOOR_LEAF_THICKNESS),
+        Size = Vector3.new(leafWidth, DOORWAY_HEIGHT, DOOR_LEAF_THICKNESS),
         CFrame = doorway.ClosedRightCFrame,
         Color = DOOR_COLOR,
         Material = DOOR_MATERIAL,
@@ -212,16 +230,18 @@ local function buildRoom(parent, room, roomCenter, roomRadius)
     local floorDiameter = roomRadius * HEX_CIRCUMRADIUS_MULTIPLIER * 2
     createPart({
         Name = 'Floor',
-        Size = Vector3.new(floorDiameter, 1, floorDiameter),
-        CFrame = CFrame.new(roomCenter + Vector3.new(0, -0.5, 0)),
+        Size = Vector3.new(floorDiameter, SLAB_THICKNESS, floorDiameter),
+        CFrame = CFrame.new(roomCenter + Vector3.new(0, -(SLAB_THICKNESS / 2), 0)),
         Color = FLOOR_COLOR,
         Material = FLOOR_MATERIAL,
     }, roomFolder)
 
     createPart({
         Name = 'Ceiling',
-        Size = Vector3.new(floorDiameter, 1, floorDiameter),
-        CFrame = CFrame.new(roomCenter + Vector3.new(0, WALL_HEIGHT + 0.5, 0)),
+        Size = Vector3.new(floorDiameter, SLAB_THICKNESS, floorDiameter),
+        CFrame = CFrame.new(
+            roomCenter + Vector3.new(0, ROOM_CLEAR_HEIGHT + (SLAB_THICKNESS / 2), 0)
+        ),
         Color = CEILING_COLOR,
         Material = FLOOR_MATERIAL,
     }, roomFolder)
@@ -257,9 +277,8 @@ function MazeWorldBuilder.build(seed, config, options)
     end
 
     local layout = MazeBuilder.build(seed, config)
-    local roomSize = config.RoomSize or Vector3.new(28, 16, 28)
     local originOffset = (options and options.OriginOffset) or Vector3.zero
-    local roomRadius = math.max(8, math.min(roomSize.X, roomSize.Z) / 2)
+    local roomRadius = math.max(8, config.RoomApothem or ROOM_APOTHEM_DEFAULT)
     local roomCenters = {}
     local roomIds = {}
     local roomById = {}

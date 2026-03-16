@@ -67,7 +67,9 @@ local SessionConfig = {
         MainPathRooms = 4,
         MaxBranches = 2,
         RoomSpacing = 40,
+        RoomApothem = 20,
         RoomSize = Vector3.new(28, 16, 28),
+        DoorLeafChance = 0.6,
     },
 }
 
