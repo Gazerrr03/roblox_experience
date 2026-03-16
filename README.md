@@ -84,6 +84,6 @@ and reports pass/fail from Studio on a Windows runner.
 
 - If your machine can run Roblox Studio, the closest local reproduction path is:
   `aftman install`
-  `rojo build tests/default.project.json -o <output.rbxlx>`
-  `run-in-roblox --place <output.rbxlx> --script tests/run-in-roblox.lua`
+  `rojo build tests/default.project.json -o /tmp/roblox_experience-tests.rbxlx`
+  `run-in-roblox --place /tmp/roblox_experience-tests.rbxlx --script tests/run-in-roblox.lua`
 - If your machine cannot run Studio locally, rely on `stylua --check .`, `selene .`, and the GitHub Actions `roblox-tests` logs as the authoritative signal.
