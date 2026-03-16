@@ -146,7 +146,18 @@ end
 
 function MazeSessionService:_mergeTeleportData(teleportData, resetInventoryService)
     if type(teleportData) ~= 'table' then
-        return
+        return false
+    end
+
+    local incomingSession = teleportData.CampSession
+    if type(incomingSession) ~= 'table' then
+        return false
+    end
+
+    local nextSession, accepted =
+        CampMazeSessionContract.reconcileIncomingCampSession(self.CampSession, incomingSession)
+    if not accepted then
+        return false
     end
 
     local incoming = teleportData.SessionConfig
@@ -165,15 +176,15 @@ function MazeSessionService:_mergeTeleportData(teleportData, resetInventoryServi
         end
     end
 
-    if type(teleportData.CampSession) == 'table' then
-        self.CampSession = CampMazeSessionContract.normalizeCampSession(teleportData.CampSession)
-        self.IsDirectBoot = false
-        self.Status = 'Maze session is ready. Use the expedition console to deploy the crew.'
-    end
+    self.CampSession = nextSession
+    self.IsDirectBoot = false
+    self.Status = 'Maze session is ready. Use the expedition console to deploy the crew.'
 
     if resetInventoryService == true then
         self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
     end
+
+    return true
 end
 
 function MazeSessionService:_loadSessionDataFromJoin()
@@ -182,7 +193,12 @@ function MazeSessionService:_loadSessionDataFromJoin()
         return
     end
 
-    self:_mergeTeleportData(self:_readTeleportData(players[1]), true)
+    for _, player in ipairs(players) do
+        local merged = self:_mergeTeleportData(self:_readTeleportData(player), true)
+        if merged then
+            return
+        end
+    end
 end
 
 function MazeSessionService:_handlePlayerTeleportData(player)
@@ -200,12 +216,19 @@ function MazeSessionService:_addPlayerState(player)
     end
 
     self.InventoryService:addPlayer(player)
+    self.CampSession = CampMazeSessionContract.markPlayerEntered(self.CampSession, {
+        UserId = player.UserId,
+        Name = player.DisplayName,
+    })
     self.PlayerStateService:addPlayer(player)
 end
 
 function MazeSessionService:_removePlayerState(player)
     self.RunTracker:removePlayer(player.UserId)
     self.InventoryService:removePlayer(player)
+    self.CampSession = CampMazeSessionContract.prunePlayer(self.CampSession, player.UserId, {
+        PreserveReturnSummary = true,
+    })
     self.PlayerStateService:removePlayer(player)
 end
 
@@ -278,7 +301,10 @@ function MazeSessionService:_broadcastSnapshot()
     end
 
     local roster = self:_buildRoster()
-    local returnedSummaries = self.RunTracker:getReturnedSummaries()
+    local returnedSummaries = mergeSummaries(
+        self.CampSession.ReturnedPlayerSummaries,
+        self.RunTracker:getReturnedSummaries()
+    )
     local mazeStatus = self:_getMazeStatus()
 
     for _, player in ipairs(Players:GetPlayers()) do
@@ -397,7 +423,6 @@ function MazeSessionService:_teleportToCamp(players, summaries, mazeCompleted)
             nextCampSession =
                 CampMazeSessionContract.applyReturn(nextCampSession, summary, mazeCompleted)
         end
-
         local teleportData = CampMazeSessionContract.buildMazeToCampTeleportData({
             SessionConfig = self.SessionData,
             CampSession = nextCampSession,
