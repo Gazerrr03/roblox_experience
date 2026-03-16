@@ -64,11 +64,11 @@ function Invoke-External {
 function Test-DirectoryHasContent {
     param([string]$Path)
 
-    if (-not (Test-Path $Path)) {
+    if (-not (Test-Path $Path -PathType Container)) {
         return $false
     }
 
-    return (Get-ChildItem -Force $Path | Measure-Object).Count -gt 0
+    return [bool](Get-ChildItem -Path $Path -Force | Select-Object -First 1)
 }
 
 $aftman = Resolve-Executable 'aftman' @(
