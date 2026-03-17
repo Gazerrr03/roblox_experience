@@ -9,6 +9,7 @@ local Shared = require(Packages:WaitForChild('Shared'))
 local SessionConfig = Shared.Config.SessionConfig
 local Remotes = Shared.Network.Remotes.ensure()
 local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
+local TeleportDiagnostics = Shared.Util.TeleportDiagnostics
 
 local LobbyService = {}
 LobbyService.__index = LobbyService
@@ -89,7 +90,21 @@ function LobbyService:_teleportToRun()
 
     self.Seed = Random.new():NextInteger(100000, 999999)
 
-    local campAccessCode = TeleportService:ReserveServer(SessionConfig.PlaceIds.Run)
+    local runTeleportSnapshot = TeleportDiagnostics.captureSnapshot({
+        TargetKey = 'Run',
+        TargetPlaceId = SessionConfig.PlaceIds.Run,
+    })
+    local reserved, reserveResult = pcall(function()
+        return TeleportService:ReserveServer(SessionConfig.PlaceIds.Run)
+    end)
+    if not reserved then
+        self.Status =
+            TeleportDiagnostics.formatFailure('ReserveServer', reserveResult, runTeleportSnapshot)
+        self:_broadcast()
+        return
+    end
+
+    local campAccessCode = reserveResult
     local sessionId = HttpService:GenerateGUID(false)
     local teleportData = CampMazeSessionContract.buildLobbyToCampTeleportData({
         SessionId = sessionId,
@@ -116,7 +131,11 @@ function LobbyService:_teleportToRun()
     end)
 
     if not success then
-        self.Status = string.format('Teleport failed: %s', tostring(message))
+        self.Status = TeleportDiagnostics.formatFailure(
+            'TeleportToPrivateServer',
+            message,
+            runTeleportSnapshot
+        )
         self:_broadcast()
     end
 end

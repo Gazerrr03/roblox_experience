@@ -14,6 +14,7 @@ local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
 local MazeEntryAvailability = Shared.Session.MazeEntryAvailability
 local ControlStateService = Shared.Runtime.ControlStateService
 local PlayerStateService = Shared.Runtime.PlayerStateService
+local TeleportDiagnostics = Shared.Util.TeleportDiagnostics
 
 local LocalDebugMazeWorldBuilder = require(script.Parent.LocalDebugMazeWorldBuilder)
 local RunWorldBuilder = require(script.Parent.RunWorldBuilder)
@@ -36,8 +37,8 @@ local TELEPORT_FAILURE_CODE = {
     TeleportToPrivateServerFailed = 'TeleportToPrivateServerFailed',
 }
 
-local function formatTeleportFailureReason(step, message)
-    return string.format('%s failed: %s', step, tostring(message))
+local function formatTeleportFailureReason(step, message, snapshot)
+    return TeleportDiagnostics.formatFailure(step, message, snapshot)
 end
 
 local function bindCharacterTeleport(self, player)
@@ -594,13 +595,21 @@ function RunSessionService:_enterMaze(player)
         -- Teleports yield, so keep the camp session mutation serialized per server.
         local previousSession = CampMazeSessionContract.normalizeCampSession(self.CampSession)
         local mazeAccessCode = previousSession.MazeAccessCode
+        local mazeTeleportSnapshot = TeleportDiagnostics.captureSnapshot({
+            TargetKey = 'Maze',
+            TargetPlaceId = SessionConfig.PlaceIds.Maze,
+        })
         if mazeAccessCode == nil then
             local reserved, reserveResult = pcall(function()
                 return TeleportService:ReserveServer(SessionConfig.PlaceIds.Maze)
             end)
 
             if not reserved then
-                local reason = formatTeleportFailureReason('ReserveServer', reserveResult)
+                local reason = formatTeleportFailureReason(
+                    'ReserveServer',
+                    reserveResult,
+                    mazeTeleportSnapshot
+                )
                 self.MazeEntryMode = MazeEntryAvailability.Mode.Blocked
                 self.MazeEntryReasonCode = TELEPORT_FAILURE_CODE.ReserveServerFailed
                 self.MazeEntryReason = reason
@@ -645,7 +654,11 @@ function RunSessionService:_enterMaze(player)
 
         if not success then
             self.CampSession = previousSession
-            local reason = formatTeleportFailureReason('TeleportToPrivateServer', message)
+            local reason = formatTeleportFailureReason(
+                'TeleportToPrivateServer',
+                message,
+                mazeTeleportSnapshot
+            )
             self.MazeEntryMode = MazeEntryAvailability.Mode.Blocked
             self.MazeEntryReasonCode = TELEPORT_FAILURE_CODE.TeleportToPrivateServerFailed
             self.MazeEntryReason = reason
