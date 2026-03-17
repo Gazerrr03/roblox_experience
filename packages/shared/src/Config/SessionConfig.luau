@@ -1,9 +1,9 @@
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
 
 local DEFAULT_PLACE_IDS = {
-    Lobby = 0,
-    Maze = 0,
-    Run = 0,
+    Lobby = 99207062749924,
+    Maze = 114148445477110,
+    Run = 137478567439901,
 }
 local DEFAULT_DEBUG_LOCAL_MAZE_HANDOFF = false
 
