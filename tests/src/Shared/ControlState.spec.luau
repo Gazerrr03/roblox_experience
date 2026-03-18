@@ -36,14 +36,14 @@ return function()
         'Exhaustion should downgrade the mode back to walk'
     )
     assert(
-        syncWhileExhausted.SprintRequested == true,
-        'Held sprint intent should survive temporary exhaustion'
+        syncWhileExhausted.SprintRequested == false,
+        'Exhaustion should clear sprint intent until the player presses sprint again'
     )
 
     local syncAfterRecovery = state:syncPlayerState(healthyPlayerState)
     assert(
-        syncAfterRecovery.Mode == ControlState.Mode.Sprint,
-        'Recovered stamina should restore sprint while the key is still held'
+        syncAfterRecovery.Mode == ControlState.Mode.Walk,
+        'Recovered stamina should stay in walk mode until sprint is requested again'
     )
 
     local sprintStopped, stopSummary = state:requestSprintStop()
@@ -66,14 +66,22 @@ return function()
 
     local latchedSummary = exhaustedIntentState:getSummary()
     assert(
-        latchedSummary.SprintRequested == true,
-        'Exhausted sprint starts should preserve sprint intent while input is held'
+        latchedSummary.SprintRequested == false,
+        'Exhausted sprint starts should not preserve sprint intent'
     )
 
     local recoveredLatchedSummary = exhaustedIntentState:syncPlayerState(healthyPlayerState)
     assert(
-        recoveredLatchedSummary.Mode == ControlState.Mode.Sprint,
-        'Recovered stamina should auto-resume sprint for latched requests'
+        recoveredLatchedSummary.Mode == ControlState.Mode.Walk,
+        'Recovered stamina should remain in walk mode until sprint is requested again'
+    )
+
+    local resumedSprintOk, resumedSprintSummary =
+        exhaustedIntentState:requestSprintStart(healthyPlayerState)
+    assert(resumedSprintOk == true, 'Recovered players should be able to request sprint again')
+    assert(
+        resumedSprintSummary.Mode == ControlState.Mode.Sprint,
+        'Explicit re-press after recovery should re-enter sprint mode'
     )
 
     local deadSprintStart, deadReason = state:requestSprintStart(deadPlayerState)

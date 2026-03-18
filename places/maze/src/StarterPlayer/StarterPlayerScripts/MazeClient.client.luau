@@ -87,13 +87,25 @@ local inventoryDetailLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 126), Theme
 inventoryDetailLabel.Text = ''
 
 local playerStateLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 86), Theme.Warning, 16, false)
-playerStateLabel.Text = 'Health: --\nStamina: --\nState: --\nControls: --'
+playerStateLabel.Text = 'Health: --\nStamina: --\nState: --\nMovement: --'
 
 local rosterLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 94), Theme.SubtleText, 16, false)
 rosterLabel.Text = ''
 
 local returnedLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 104), Theme.SubtleText, 16, false)
 returnedLabel.Text = ''
+
+local function formatMovementStatus(playerState, movement)
+    if playerState.IsDead then
+        return 'Disabled'
+    end
+
+    if movement.CanSprint then
+        return 'Ready'
+    end
+
+    return 'Recovering'
+end
 
 actionInputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
     if gameProcessedEvent or input.UserInputType ~= Enum.UserInputType.Keyboard then
@@ -241,15 +253,16 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
     inventoryDetailLabel.Text = table.concat(detailLines, '\n')
 
     local playerState = snapshot.PlayerState or {}
-    local controlState = snapshot.ControlState or {}
+    local movement = snapshot.Movement or {}
     playerStateLabel.Text = string.format(
-        'Health: %d/%d pips\nStamina: %d/%d\nState: %s\nControls: %s | Crouch: Deferred',
+        'Health: %d/%d pips\nStamina: %d/%d\nState: %s\nMovement: %s | Sprint: %s',
         playerState.HealthPips or 0,
         playerState.MaxHealthPips or 0,
         math.floor((playerState.CurrentStamina or 0) + 0.5),
         math.floor((playerState.MaxStamina or 0) + 0.5),
         playerState.IsDead and 'Dead' or 'Alive',
-        controlState.Mode or 'Walk'
+        movement.Mode or 'Walk',
+        formatMovementStatus(playerState, movement)
     )
 
     local rosterLines = { 'Crew:' }

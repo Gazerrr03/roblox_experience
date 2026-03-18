@@ -248,7 +248,7 @@ guideLabel.Text =
     'In-world prompts:\n- Shop Terminal (Soon)\n- Loadout Bench (Soon)\n- Camp Gate / Shared Maze Gate\nKeyboard: Hold LeftShift to sprint, tap C to toggle Camp Status'
 
 local playerStateLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 86), Theme.Warning, 16, false)
-playerStateLabel.Text = 'Health: --\nStamina: --\nState: --\nControls: --'
+playerStateLabel.Text = 'Health: --\nStamina: --\nState: --\nMovement: --'
 
 local rosterLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 90), Theme.SubtleText, 16, false)
 rosterLabel.Text = ''
@@ -258,6 +258,18 @@ mazeLabel.Text = ''
 
 local function syncCampPanelVisibility()
     panel.Visible = isRunLaunched and isCampPanelVisible
+end
+
+local function formatMovementStatus(playerState, movement)
+    if playerState.IsDead then
+        return 'Disabled'
+    end
+
+    if movement.CanSprint then
+        return 'Ready'
+    end
+
+    return 'Recovering'
 end
 
 releaseFirstPersonLockForMenu()
@@ -344,7 +356,7 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
         singlePlayerButton.Active = true
         singlePlayerButton.AutoButtonColor = true
         singlePlayerButton.Text = 'Single Player'
-        playerStateLabel.Text = 'Health: --\nStamina: --\nState: --\nControls: --'
+        playerStateLabel.Text = 'Health: --\nStamina: --\nState: --\nMovement: --'
         return
     end
 
@@ -364,15 +376,16 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
     objectiveLabel.Text = string.format('Objective: %s', snapshot.Objective)
 
     local playerState = snapshot.PlayerState or {}
-    local controlState = snapshot.ControlState or {}
+    local movement = snapshot.Movement or {}
     playerStateLabel.Text = string.format(
-        'Health: %d/%d pips\nStamina: %d/%d\nState: %s\nControls: %s | Crouch: Deferred',
+        'Health: %d/%d pips\nStamina: %d/%d\nState: %s\nMovement: %s | Sprint: %s',
         playerState.HealthPips or 0,
         playerState.MaxHealthPips or 0,
         math.floor((playerState.CurrentStamina or 0) + 0.5),
         math.floor((playerState.MaxStamina or 0) + 0.5),
         playerState.IsDead and 'Dead' or 'Alive',
-        controlState.Mode or 'Walk'
+        movement.Mode or 'Walk',
+        formatMovementStatus(playerState, movement)
     )
 
     local rosterLines = {}
