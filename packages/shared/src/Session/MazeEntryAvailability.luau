@@ -9,6 +9,7 @@ MazeEntryAvailability.Mode = {
 MazeEntryAvailability.ReasonCode = {
     TeleportReady = 'TeleportReady',
     LocalDebugFallbackEnabled = 'LocalDebugFallbackEnabled',
+    StudioLocalFileAutoFallback = 'StudioLocalFileAutoFallback',
     MazePlaceIdMissing = 'MazePlaceIdMissing',
     StudioLocalFileTeleportBlocked = 'StudioLocalFileTeleportBlocked',
 }
@@ -21,19 +22,23 @@ function MazeEntryAvailability.evaluate(params)
     local gameId = type(params.GameId) == 'number' and params.GameId or 0
     local debugLocalMazeHandoff = params.DebugLocalMazeHandoff == true
 
-    if isStudio and (placeId <= 0 or gameId <= 0) then
-        if debugLocalMazeHandoff then
-            return {
-                Mode = MazeEntryAvailability.Mode.LocalDebugFallback,
-                ReasonCode = MazeEntryAvailability.ReasonCode.LocalDebugFallbackEnabled,
-                Reason = 'Studio local debug fallback is enabled. Maze entry stays in the current place for MVP testing.',
-            }
-        end
-
+    -- In Studio we sometimes want to iterate on the maze flow without relying on
+    -- cross-place teleports (which can fail when place IDs are misconfigured,
+    -- unpublished, or in a different universe). This flag forces the in-place
+    -- fallback even when the current place has real PlaceId/GameId.
+    if isStudio and debugLocalMazeHandoff then
         return {
-            Mode = MazeEntryAvailability.Mode.Blocked,
-            ReasonCode = MazeEntryAvailability.ReasonCode.StudioLocalFileTeleportBlocked,
-            Reason = 'Maze teleport requires a published run place session (placeId and gameId must be non-zero).',
+            Mode = MazeEntryAvailability.Mode.LocalDebugFallback,
+            ReasonCode = MazeEntryAvailability.ReasonCode.LocalDebugFallbackEnabled,
+            Reason = 'Studio local debug fallback is enabled. Maze entry stays in the current place for MVP testing.',
+        }
+    end
+
+    if isStudio and (placeId <= 0 or gameId <= 0) then
+        return {
+            Mode = MazeEntryAvailability.Mode.LocalDebugFallback,
+            ReasonCode = MazeEntryAvailability.ReasonCode.StudioLocalFileAutoFallback,
+            Reason = 'Studio local-file sessions automatically use the in-place maze fallback because teleport targets are unpublished.',
         }
     end
 

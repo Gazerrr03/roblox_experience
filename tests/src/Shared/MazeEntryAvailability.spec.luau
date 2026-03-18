@@ -45,7 +45,45 @@ return function()
         'Local debug fallback should expose the expected reason code'
     )
 
-    local blockedStudioLocalFile = availability.evaluate({
+    local studioPublishedFallback = availability.evaluate({
+        PlaceIds = {
+            Lobby = 1,
+            Run = 2,
+            Maze = 3,
+        },
+        PlaceId = 2,
+        GameId = 99,
+        IsStudio = true,
+        DebugLocalMazeHandoff = true,
+    })
+
+    assert(
+        studioPublishedFallback.Mode == availability.Mode.LocalDebugFallback,
+        'Studio should allow local debug fallback even when PlaceId/GameId are set'
+    )
+    assert(
+        studioPublishedFallback.ReasonCode == availability.ReasonCode.LocalDebugFallbackEnabled,
+        'Studio local debug fallback should expose the expected reason code'
+    )
+
+    local studioPublishedFallbackWithoutMazePlaceId = availability.evaluate({
+        PlaceIds = {
+            Lobby = 1,
+            Run = 2,
+            Maze = 0,
+        },
+        PlaceId = 2,
+        GameId = 99,
+        IsStudio = true,
+        DebugLocalMazeHandoff = true,
+    })
+
+    assert(
+        studioPublishedFallbackWithoutMazePlaceId.Mode == availability.Mode.LocalDebugFallback,
+        'Studio debug fallback should not require a maze place id'
+    )
+
+    local autoFallbackStudioLocalFile = availability.evaluate({
         PlaceIds = {
             Lobby = 1,
             Run = 2,
@@ -58,12 +96,13 @@ return function()
     })
 
     assert(
-        blockedStudioLocalFile.Mode == availability.Mode.Blocked,
-        'Studio local-file mode should block teleport when debug flag is disabled'
+        autoFallbackStudioLocalFile.Mode == availability.Mode.LocalDebugFallback,
+        'Studio local-file mode should auto-fallback when teleport targets are unpublished'
     )
     assert(
-        blockedStudioLocalFile.ReasonCode == availability.ReasonCode.StudioLocalFileTeleportBlocked,
-        'Studio local-file block should expose the expected reason code'
+        autoFallbackStudioLocalFile.ReasonCode
+            == availability.ReasonCode.StudioLocalFileAutoFallback,
+        'Studio local-file auto-fallback should expose the expected reason code'
     )
 
     local blockedMissingPlaceId = availability.evaluate({

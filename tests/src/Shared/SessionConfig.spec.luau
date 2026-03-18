@@ -6,6 +6,8 @@ return function()
     assert(type(config.PlaceIds.Lobby) == 'number', 'Lobby place id should always be numeric')
     assert(type(config.PlaceIds.Maze) == 'number', 'Maze place id should always be numeric')
     assert(type(config.PlaceIds.Run) == 'number', 'Run place id should always be numeric')
+    assert(config.PlaceIds.Maze > 0, 'Maze place id default should point at the live maze place')
+    assert(config.PlaceIds.Run > 0, 'Run place id default should point at the live run place')
     assert(
         type(config.DebugLocalMazeHandoff) == 'boolean',
         'DebugLocalMazeHandoff should always be boolean'

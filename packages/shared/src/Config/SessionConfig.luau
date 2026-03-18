@@ -2,8 +2,10 @@ local ReplicatedStorage = game:GetService('ReplicatedStorage')
 
 local DEFAULT_PLACE_IDS = {
     Lobby = 0,
-    Maze = 0,
-    Run = 0,
+    -- Production defaults for this universe. Can be overridden via attributes
+    -- on `game` or `ReplicatedStorage` (SessionPlaceId*).
+    Maze = 114148445477110,
+    Run = 86424182464617,
 }
 local DEFAULT_DEBUG_LOCAL_MAZE_HANDOFF = false
 
