@@ -5,7 +5,6 @@ local TeleportService = game:GetService('TeleportService')
 local Workspace = game:GetService('Workspace')
 
 local DEFAULT_WORKSPACE_SHELL_NAMES = { 'Baseplate', 'SpawnLocation' }
-local EXTRACTION_DELAY_SECONDS = 2
 local CAMP_SESSION_LOCK_WAIT_SECONDS = 0.05
 local SNAPSHOT_INTERVAL_SECONDS = 0.25
 local CORPSE_COLOR = Color3.fromRGB(92, 92, 92)
@@ -118,7 +117,7 @@ function MazeSessionService.new()
         MazeAccessCode = 'local-debug-maze',
         MazeStatus = CampMazeSessionContract.MazeStatus.Active,
     })
-    self.Status = 'Direct boot: use the expedition console to begin the maze run.'
+    self.Status = 'Direct boot: maze session is live. Explore, loot, and find an extraction point.'
     self.World = nil
     self.IsDirectBoot = true
     self.IsLaunched = false
@@ -183,7 +182,7 @@ function MazeSessionService:_mergeTeleportData(teleportData, resetInventoryServi
 
     self.CampSession = nextSession
     self.IsDirectBoot = false
-    self.Status = 'Maze session is ready. Use the expedition console to deploy the crew.'
+    self.Status = 'Maze session is live. Explore, loot, and find an extraction point.'
 
     if resetInventoryService == true then
         self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
@@ -322,21 +321,11 @@ function MazeSessionService:_getPlayerArea(player)
 end
 
 function MazeSessionService:_getObjectiveFor()
-    local state = self.RunTracker:getState()
-
-    if state == 'Camp' then
-        return 'Use the expedition console to deploy, or use the return marker to leave early later.'
+    if self.RunTracker.IsCompleted then
+        return 'The maze run is complete. Review the returned summaries back in camp.'
     end
 
-    if state == 'Expedition' then
-        return 'Collect loot, avoid the monster, and reach the settlement pad.'
-    end
-
-    if state == 'Extraction' then
-        return 'Settlement is underway. Hold position until the camp return begins.'
-    end
-
-    return 'Settlement is complete. Review the return summaries or head back to camp.'
+    return 'Collect loot, avoid the monster, and reach a maze exit to return to camp.'
 end
 
 function MazeSessionService:_broadcastSnapshot()
@@ -386,19 +375,13 @@ function MazeSessionService:_rebuildWorld()
 end
 
 function MazeSessionService:_bindWorldInteractions()
-    self.World.DeployPrompt.Triggered:Connect(function(player)
-        self:_deployCrew(player)
-    end)
+    for extractionNodeId, extractionNode in pairs(self.World.ExtractionNodes or {}) do
+        extractionNode.Prompt.Triggered:Connect(function(player)
+            self:_extractPlayer(player, extractionNodeId)
+        end)
+    end
 
-    self.World.ReturnPrompt.Triggered:Connect(function(player)
-        self:_returnPlayer(player)
-    end)
-
-    self.World.ExtractionPrompt.Triggered:Connect(function(player)
-        self:_startExtraction(player)
-    end)
-
-    for roomId, lootEntry in pairs(self.World.LootPrompts) do
+    for roomId, lootEntry in pairs(self.World.LootNodes or {}) do
         lootEntry.Prompt.Triggered:Connect(function(player)
             self:_pickupLoot(player, roomId)
         end)
@@ -495,22 +478,17 @@ function MazeSessionService:_teleportToCamp(players, summaries, mazeCompleted)
     end)
 end
 
-function MazeSessionService:_deployCrew(player)
+function MazeSessionService:_beginFormalExpedition()
     local started, reason = self.RunTracker:beginExpedition()
     if not started then
-        if reason == 'InvalidState' then
-            self:_setStatus(
-                string.format(
-                    '%s checked the expedition console, but the maze run is already active.',
-                    player.DisplayName
-                )
-            )
+        if reason ~= 'InvalidState' then
+            self:_setStatus(string.format('Maze session could not start: %s', tostring(reason)))
         end
         return
     end
 
     self.MonsterService:spawn(self.World.PatrolPoints)
-    self:_setStatus(string.format('%s deployed the crew into the maze.', player.DisplayName))
+    self:_setStatus('Maze session is live. Explore, loot, and find an extraction point.')
 end
 
 function MazeSessionService:_canManageInventory(player)
@@ -626,6 +604,23 @@ function MazeSessionService:_handlePlayerDeath(player, damageKind)
         return
     end
 
+    local mazeCompleted = self.RunTracker:getActiveCount() == 0
+    if mazeCompleted then
+        self.RunTracker.IsCompleted = true
+        self.MonsterService:destroy()
+    end
+
+    if self:_teleportToCamp({ player }, { summary }, mazeCompleted) then
+        self:_setStatus(
+            string.format(
+                '%s took %s damage and was returned to camp.',
+                player.DisplayName,
+                string.lower(damageKind)
+            )
+        )
+        return
+    end
+
     local character = player.Character
     if character and character.Parent and self.World then
         character:PivotTo(self.World.ReturnHoldCFrame)
@@ -687,7 +682,7 @@ function MazeSessionService:_pickupLoot(player, roomId)
         return
     end
 
-    local lootEntry = self.World.LootPrompts[roomId]
+    local lootEntry = self.World.LootNodes[roomId]
     if not lootEntry or lootEntry.Collected then
         return
     end
@@ -722,19 +717,19 @@ function MazeSessionService:_pickupLoot(player, roomId)
     )
 end
 
-function MazeSessionService:_returnPlayer(player)
-    local currentState = self.RunTracker:getState()
-    if currentState == 'Camp' then
-        self:_setStatus('Return is available after the expedition begins.')
+function MazeSessionService:_extractPlayer(player, _extractionNodeId)
+    if self.RunTracker:getState() ~= 'Expedition' then
+        self:_setStatus('Extraction is only available during the expedition phase.')
         return
     end
 
-    if currentState == 'Settlement' then
-        self:_setStatus('Settlement is already complete.')
+    if not self.RunTracker:isPlayerActive(player.UserId) then
+        self:_setStatus(string.format('%s already returned to camp.', player.DisplayName))
         return
     end
 
-    local summary = self:_buildSummaryFor(player, 'early_return', false)
+    local mazeCompleted = self.RunTracker:getActiveCount() == 1
+    local summary = self:_buildSummaryFor(player, 'extracted', false)
     local recorded, reason = self.RunTracker:recordReturn(summary)
     if not recorded then
         if reason == 'MissingActivePlayer' then
@@ -743,13 +738,14 @@ function MazeSessionService:_returnPlayer(player)
         return
     end
 
-    if self:_teleportToCamp({ player }, { summary }, false) then
+    if mazeCompleted then
+        self.RunTracker.IsCompleted = true
+        self.MonsterService:destroy()
+    end
+
+    if self:_teleportToCamp({ player }, { summary }, mazeCompleted) then
         self:_setStatus(
-            string.format(
-                '%s is returning to camp with %d value.',
-                player.DisplayName,
-                summary.Value
-            )
+            string.format('%s extracted with %d value.', player.DisplayName, summary.Value)
         )
         return
     end
@@ -760,78 +756,8 @@ function MazeSessionService:_returnPlayer(player)
     end
 
     self:_setStatus(
-        string.format('%s returned early with %d value.', player.DisplayName, summary.Value)
+        string.format('%s reached the maze exit with %d value.', player.DisplayName, summary.Value)
     )
-end
-
-function MazeSessionService:_completeSettlement(player)
-    if self.RunTracker:getState() ~= 'Extraction' then
-        return
-    end
-
-    local summaries = {}
-    for _, currentPlayer in ipairs(Players:GetPlayers()) do
-        if self.RunTracker:isPlayerActive(currentPlayer.UserId) then
-            table.insert(summaries, self:_buildSummaryFor(currentPlayer, 'settled', true))
-        end
-    end
-
-    local completed, reason = self.RunTracker:completeSettlement(summaries)
-    if not completed then
-        self:_setStatus(string.format('Settlement failed: %s', tostring(reason)))
-        return
-    end
-
-    self.MonsterService:destroy()
-
-    if self:_teleportToCamp(Players:GetPlayers(), summaries, true) then
-        self:_setStatus(
-            string.format(
-                '%s completed settlement. Returning the crew to camp.',
-                player.DisplayName
-            )
-        )
-        return
-    end
-
-    for _, currentPlayer in ipairs(Players:GetPlayers()) do
-        if currentPlayer.Character and currentPlayer.Character.Parent then
-            currentPlayer.Character:PivotTo(self.World.ReturnHoldCFrame)
-        end
-    end
-
-    self:_setStatus(
-        string.format(
-            '%s completed settlement. Maze results are ready for camp handoff.',
-            player.DisplayName
-        )
-    )
-end
-
-function MazeSessionService:_startExtraction(player)
-    if self.RunTracker:getState() ~= 'Expedition' then
-        self:_setStatus('The settlement pad is only available during the expedition phase.')
-        return
-    end
-
-    if not self.RunTracker:isPlayerActive(player.UserId) then
-        self:_setStatus(string.format('%s already returned to camp.', player.DisplayName))
-        return
-    end
-
-    local started, reason = self.RunTracker:beginExtraction()
-    if not started then
-        self:_setStatus(string.format('Extraction could not start: %s', tostring(reason)))
-        return
-    end
-
-    self:_setStatus(
-        string.format('%s activated the settlement pad. Hold tight.', player.DisplayName)
-    )
-
-    task.delay(EXTRACTION_DELAY_SECONDS, function()
-        self:_completeSettlement(player)
-    end)
 end
 
 function MazeSessionService:_launchMaze()
@@ -848,6 +774,7 @@ function MazeSessionService:_launchMaze()
         player:LoadCharacter()
     end
 
+    self:_beginFormalExpedition()
     self:_startSnapshotLoop()
     self:_broadcastSnapshot()
 end
