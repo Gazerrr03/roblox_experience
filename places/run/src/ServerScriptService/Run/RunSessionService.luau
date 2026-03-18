@@ -37,7 +37,29 @@ local TELEPORT_FAILURE_CODE = {
 }
 
 local function formatTeleportFailureReason(step, message)
-    return string.format('%s failed: %s', step, tostring(message))
+    local reason = tostring(message)
+    if string.find(reason, '403', 1, true) or string.find(reason, 'Forbidden', 1, true) then
+        return string.format(
+            '%s failed: %s (reserved server access was denied by Roblox for this target place or experience)',
+            step,
+            reason
+        )
+    end
+
+    return string.format('%s failed: %s', step, reason)
+end
+
+local function reserveServerAccessCode(placeId)
+    local accessCode = TeleportService:ReserveServerAsync(placeId)
+    return accessCode
+end
+
+local function teleportToReservedServer(placeId, accessCode, players, teleportData)
+    local options = Instance.new('TeleportOptions')
+    options.ReservedServerAccessCode = accessCode
+    options:SetTeleportData(teleportData)
+
+    return TeleportService:TeleportAsync(placeId, players, options)
 end
 
 local function bindCharacterTeleport(self, player)
@@ -546,6 +568,18 @@ function RunSessionService:_ensureLocalDebugMazeWorld()
 end
 
 function RunSessionService:_enterLocalDebugMaze(player)
+    self:_enterLocalMazeFallback(
+        player,
+        MazeEntryAvailability.ReasonCode.LocalDebugFallbackEnabled,
+        'Studio local debug fallback is active. You were moved to an in-place maze sandbox.',
+        string.format(
+            '%s entered local maze debug mode (no cross-place teleport).',
+            player.DisplayName
+        )
+    )
+end
+
+function RunSessionService:_enterLocalMazeFallback(player, reasonCode, reason, status)
     self:_ensureLocalDebugMazeWorld()
 
     local previousSession = CampMazeSessionContract.normalizeCampSession(self.CampSession)
@@ -556,23 +590,31 @@ function RunSessionService:_enterLocalDebugMaze(player)
     nextSession.GateOpen = self.GateOpen
     self.CampSession = nextSession
 
-    local character = player.Character
-    if character and character.Parent then
-        character:PivotTo(self.LocalDebugMazeWorld.SpawnCFrame)
-        self.PendingLocalMazeSpawnByUserId[player.UserId] = nil
-    else
-        self.PendingLocalMazeSpawnByUserId[player.UserId] = true
-        player:LoadCharacter()
-    end
+    self.PendingLocalMazeSpawnByUserId[player.UserId] = true
+    player:LoadCharacter()
 
     self.MazeEntryMode = MazeEntryAvailability.Mode.LocalDebugFallback
-    self.MazeEntryReasonCode = MazeEntryAvailability.ReasonCode.LocalDebugFallbackEnabled
-    self.MazeEntryReason =
-        'Studio local debug fallback is active. You were moved to an in-place maze sandbox.'
+    self.MazeEntryReasonCode = reasonCode
+        or MazeEntryAvailability.ReasonCode.LocalDebugFallbackEnabled
+    self.MazeEntryReason = reason
+        or 'Cross-place maze handoff is unavailable. You were moved into the shared in-place maze fallback.'
     self:_setStatus(
+        status or string.format('%s entered the shared in-place maze fallback.', player.DisplayName)
+    )
+end
+
+function RunSessionService:_fallbackToSharedMaze(player, failureCode, failureReason)
+    self:_enterLocalMazeFallback(
+        player,
+        failureCode or TELEPORT_FAILURE_CODE.ReserveServerFailed,
         string.format(
-            '%s entered local maze debug mode (no cross-place teleport).',
-            player.DisplayName
+            'Cross-place maze handoff failed, so the session switched to the shared in-place maze fallback. Original error: %s',
+            failureReason
+        ),
+        string.format(
+            '%s entered the shared in-place maze because cross-place handoff failed: %s',
+            player.DisplayName,
+            failureReason
         )
     )
 end
@@ -596,16 +638,15 @@ function RunSessionService:_enterMaze(player)
         local mazeAccessCode = previousSession.MazeAccessCode
         if mazeAccessCode == nil then
             local reserved, reserveResult = pcall(function()
-                return TeleportService:ReserveServer(SessionConfig.PlaceIds.Maze)
+                return reserveServerAccessCode(SessionConfig.PlaceIds.Maze)
             end)
 
             if not reserved then
                 local reason = formatTeleportFailureReason('ReserveServer', reserveResult)
-                self.MazeEntryMode = MazeEntryAvailability.Mode.Blocked
-                self.MazeEntryReasonCode = TELEPORT_FAILURE_CODE.ReserveServerFailed
-                self.MazeEntryReason = reason
-                self:_setStatus(
-                    string.format('%s could not enter the maze: %s', player.DisplayName, reason)
+                self:_fallbackToSharedMaze(
+                    player,
+                    TELEPORT_FAILURE_CODE.ReserveServerFailed,
+                    reason
                 )
                 return
             end
@@ -634,23 +675,21 @@ function RunSessionService:_enterMaze(player)
         })
 
         local success, message = pcall(function()
-            TeleportService:TeleportToPrivateServer(
+            teleportToReservedServer(
                 SessionConfig.PlaceIds.Maze,
                 mazeAccessCode,
                 { player },
-                nil,
                 teleportData
             )
         end)
 
         if not success then
             self.CampSession = previousSession
-            local reason = formatTeleportFailureReason('TeleportToPrivateServer', message)
-            self.MazeEntryMode = MazeEntryAvailability.Mode.Blocked
-            self.MazeEntryReasonCode = TELEPORT_FAILURE_CODE.TeleportToPrivateServerFailed
-            self.MazeEntryReason = reason
-            self:_setStatus(
-                string.format('%s could not enter the maze: %s', player.DisplayName, reason)
+            local reason = formatTeleportFailureReason('TeleportAsync', message)
+            self:_fallbackToSharedMaze(
+                player,
+                TELEPORT_FAILURE_CODE.TeleportToPrivateServerFailed,
+                reason
             )
             return
         end
