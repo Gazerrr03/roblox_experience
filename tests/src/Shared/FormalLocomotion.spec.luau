@@ -59,4 +59,30 @@ return function()
     )
     assert(deadSummary.WalkSpeed == 0, 'Dead players should not be able to move')
     assert(deadSummary.CanSprint == false, 'Dead players should not be able to sprint')
+
+    local humanoid = Instance.new('Humanoid')
+    locomotion.applyToHumanoid(humanoid, walkSummary)
+    assert(
+        humanoid.WalkSpeed == locomotion.WalkSpeed,
+        'Walk movement should apply the formal walk speed to the humanoid'
+    )
+
+    locomotion.applyToHumanoid(humanoid, sprintSummary)
+    assert(
+        humanoid.WalkSpeed == locomotion.SprintWalkSpeed,
+        'Sprint movement should apply the formal sprint speed to the humanoid'
+    )
+
+    locomotion.applyToHumanoid(humanoid, deadSummary)
+    assert(humanoid.WalkSpeed == 0, 'Dead movement should stop humanoid movement')
+
+    humanoid.WalkSpeed = 123
+    locomotion.applyToHumanoid(humanoid, nil)
+    assert(
+        humanoid.WalkSpeed == locomotion.WalkSpeed,
+        'Missing movement summaries should fall back to the formal walk speed'
+    )
+
+    locomotion.applyToHumanoid(nil, sprintSummary)
+    humanoid:Destroy()
 end
