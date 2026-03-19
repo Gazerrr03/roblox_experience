@@ -6,7 +6,7 @@
 
 - `places/lobby`: 组队、准备状态和启动 run
 - `places/run`: 营地、野外、迷宫入口和结算承接
-- `places/maze`: 迷宫探索、拾取、撤离和返回营地
+- `places/maze`: 迷宫探索、拾取、撤离和返回 Run
 - `packages/shared`: 共享枚举、网络定义、schema 辅助和通用工具
 - `packages/gameplay`: 纯玩法数据和有状态的领域模块
 - `packages/ui`: 首个垂直切片使用的轻量 UI 辅助
