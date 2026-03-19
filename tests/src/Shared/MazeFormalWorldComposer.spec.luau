@@ -29,12 +29,16 @@ return function()
     assert(next(world.LootNodes or {}) ~= nil, 'Formal world should create loot nodes')
     assert(next(world.ExtractionNodes or {}) ~= nil, 'Formal world should create extraction nodes')
     assert(
-        world.Root:FindFirstChild('ExpeditionConsole', true) == nil,
-        'Formal world should not recreate the expedition console'
+        world.Root:FindFirstChild('DeployConsole', true) == nil,
+        'Formal world should not recreate the legacy deploy console'
     )
     assert(
-        world.Root:FindFirstChild('SettlementPad', true) == nil,
-        'Formal world should not recreate settlement pads inside the maze'
+        world.Root:FindFirstChild('ReturnMarker', true) == nil,
+        'Formal world should not recreate the legacy return marker'
+    )
+    assert(
+        world.Root:FindFirstChild('ExtractionPad', true) == nil,
+        'Formal world should not recreate the legacy extraction pad'
     )
 
     local extractionCount = 0

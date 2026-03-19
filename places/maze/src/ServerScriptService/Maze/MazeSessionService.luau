@@ -606,7 +606,12 @@ function MazeSessionService:_handlePlayerDeath(player, damageKind)
 
     local mazeCompleted = self.RunTracker:getActiveCount() == 0
     if mazeCompleted then
-        self.RunTracker.IsCompleted = true
+        local completed, reason = self.RunTracker:completeExpedition()
+        if not completed then
+            self:_setStatus(string.format('Maze completion failed: %s', tostring(reason)))
+            return
+        end
+
         self.MonsterService:destroy()
     end
 
@@ -728,7 +733,6 @@ function MazeSessionService:_extractPlayer(player, _extractionNodeId)
         return
     end
 
-    local mazeCompleted = self.RunTracker:getActiveCount() == 1
     local summary = self:_buildSummaryFor(player, 'extracted', false)
     local recorded, reason = self.RunTracker:recordReturn(summary)
     if not recorded then
@@ -738,8 +742,14 @@ function MazeSessionService:_extractPlayer(player, _extractionNodeId)
         return
     end
 
+    local mazeCompleted = self.RunTracker:getActiveCount() == 0
     if mazeCompleted then
-        self.RunTracker.IsCompleted = true
+        local completed, completionReason = self.RunTracker:completeExpedition()
+        if not completed then
+            self:_setStatus(string.format('Maze completion failed: %s', tostring(completionReason)))
+            return
+        end
+
         self.MonsterService:destroy()
     end
 
