@@ -11,8 +11,6 @@ local CORPSE_COLOR = Color3.fromRGB(92, 92, 92)
 local CORPSE_MATERIAL = Enum.Material.Slate
 local CORPSE_SIZE = Vector3.new(4, 1.2, 2)
 local CORPSE_VERTICAL_OFFSET = -2.4
-local DEFAULT_WALK_SPEED = 16
-local DEFAULT_SPRINT_WALK_SPEED = 24
 
 local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
@@ -26,6 +24,7 @@ local InventoryService =
     require(SharedPackage:WaitForChild('Runtime'):WaitForChild('InventoryService'))
 local MonsterService = require(SharedPackage:WaitForChild('Runtime'):WaitForChild('MonsterService'))
 local ControlStateService = Shared.Runtime.ControlStateService
+local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local PlayerStateService = Shared.Runtime.PlayerStateService
 
 local MazeWorldBuilder = require(script.Parent.MazeWorldBuilder)
@@ -238,18 +237,10 @@ function MazeSessionService:_removePlayerState(player)
     self.PlayerStateService:removePlayer(player)
 end
 
-function MazeSessionService:_getMovementSpeedFor(player)
+function MazeSessionService:_getMovementSummaryFor(player)
     local playerState = self.PlayerStateService:getSummary(player)
     local controlState = self.ControlStateService:getSummary(player)
-    if playerState.IsDead then
-        return 0
-    end
-
-    if controlState.Mode == Gameplay.ControlState.Mode.Sprint then
-        return DEFAULT_SPRINT_WALK_SPEED
-    end
-
-    return DEFAULT_WALK_SPEED
+    return FormalLocomotion.summarize(playerState, controlState)
 end
 
 function MazeSessionService:_applyMovementMode(player)
@@ -259,19 +250,25 @@ function MazeSessionService:_applyMovementMode(player)
         return
     end
 
-    humanoid.WalkSpeed = self:_getMovementSpeedFor(player)
+    FormalLocomotion.applyToHumanoid(humanoid, self:_getMovementSummaryFor(player))
 end
 
-function MazeSessionService:_syncPlayerControls(player)
+function MazeSessionService:_syncPlayerMovement(player)
     local playerState = self.PlayerStateService:getSummary(player)
     local ok, controlState = self.ControlStateService:syncPlayerState(player, playerState)
     if ok and controlState then
         self.PlayerStateService:setSprinting(
             player,
-            controlState.Mode == Gameplay.ControlState.Mode.Sprint
+            controlState.Mode == FormalLocomotion.Mode.Sprint
         )
     end
 
+    self:_applyMovementMode(player)
+end
+
+function MazeSessionService:_clearPlayerMovement(player)
+    self.ControlStateService:requestSprintStop(player)
+    self.PlayerStateService:setSprinting(player, false)
     self:_applyMovementMode(player)
 end
 
@@ -348,6 +345,7 @@ function MazeSessionService:_broadcastSnapshot()
             Objective = self:_getObjectiveFor(),
             State = self.RunTracker:getState(),
             Inventory = self.InventoryService:getSummary(player),
+            Movement = self:_getMovementSummaryFor(player),
             ControlState = self.ControlStateService:getSummary(player),
             PlayerState = self.PlayerStateService:getSummary(player),
             Roster = roster,
@@ -524,11 +522,11 @@ function MazeSessionService:_setPlayerSprinting(player, isSprinting)
         elseif result == 'Dead' then
             self:_setStatus(string.format('%s cannot sprint while dead.', player.DisplayName))
         end
-        self:_syncPlayerControls(player)
+        self:_syncPlayerMovement(player)
         return
     end
 
-    self:_syncPlayerControls(player)
+    self:_syncPlayerMovement(player)
 end
 
 function MazeSessionService:_equipItem(player, itemInstanceId)
@@ -596,7 +594,7 @@ end
 
 function MazeSessionService:_handlePlayerDeath(player, damageKind)
     self:_spawnCorpseForPlayer(player)
-    self:_syncPlayerControls(player)
+    self:_syncPlayerMovement(player)
 
     local summary = self:_buildSummaryFor(player, 'death', false)
     local recorded = self.RunTracker:recordReturn(summary)
@@ -658,7 +656,7 @@ function MazeSessionService:_applyPlayerDamage(player, damageKind)
         return
     end
 
-    self:_syncPlayerControls(player)
+    self:_syncPlayerMovement(player)
 
     self:_setStatus(
         string.format(
@@ -753,6 +751,8 @@ function MazeSessionService:_extractPlayer(player, _extractionNodeId)
         self.MonsterService:destroy()
     end
 
+    self:_clearPlayerMovement(player)
+
     if self:_teleportToCamp({ player }, { summary }, mazeCompleted) then
         self:_setStatus(
             string.format('%s extracted with %d value.', player.DisplayName, summary.Value)
@@ -806,7 +806,7 @@ function MazeSessionService:_startSnapshotLoop()
                 previousTick = currentTick
 
                 for _, player in ipairs(Players:GetPlayers()) do
-                    self:_syncPlayerControls(player)
+                    self:_syncPlayerMovement(player)
                 end
 
                 self:_broadcastSnapshot()

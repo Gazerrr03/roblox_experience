@@ -6,13 +6,13 @@ local Workspace = game:GetService('Workspace')
 
 local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
-local Gameplay = require(Packages:WaitForChild('Gameplay'))
 
 local SessionConfig = Shared.Config.SessionConfig
 local Remotes = Shared.Network.Remotes.ensure()
 local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
 local MazeEntryAvailability = Shared.Session.MazeEntryAvailability
 local ControlStateService = Shared.Runtime.ControlStateService
+local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local PlayerStateService = Shared.Runtime.PlayerStateService
 local TeleportDiagnostics = Shared.Util.TeleportDiagnostics
 
@@ -29,8 +29,6 @@ local MAZE_ENTRY_DISTANCE_BUFFER = 2
 local LOCAL_DEBUG_ROOM_DETECTION_RADIUS = 56
 local LOCAL_DEBUG_MAZE_RETURN_REASON = 'local_debug_return'
 local SNAPSHOT_INTERVAL_SECONDS = 0.25
-local DEFAULT_WALK_SPEED = 16
-local DEFAULT_SPRINT_WALK_SPEED = 24
 
 local TELEPORT_FAILURE_CODE = {
     ReserveServerFailed = 'ReserveServerFailed',
@@ -144,18 +142,10 @@ function RunSessionService:_removePlayerState(player)
     self.PlayerStateService:removePlayer(player)
 end
 
-function RunSessionService:_getMovementSpeedFor(player)
+function RunSessionService:_getMovementSummaryFor(player)
     local playerState = self.PlayerStateService:getSummary(player)
     local controlState = self.ControlStateService:getSummary(player)
-    if playerState.IsDead then
-        return 0
-    end
-
-    if controlState.Mode == Gameplay.ControlState.Mode.Sprint then
-        return DEFAULT_SPRINT_WALK_SPEED
-    end
-
-    return DEFAULT_WALK_SPEED
+    return FormalLocomotion.summarize(playerState, controlState)
 end
 
 function RunSessionService:_applyMovementMode(player)
@@ -165,16 +155,16 @@ function RunSessionService:_applyMovementMode(player)
         return
     end
 
-    humanoid.WalkSpeed = self:_getMovementSpeedFor(player)
+    FormalLocomotion.applyToHumanoid(humanoid, self:_getMovementSummaryFor(player))
 end
 
-function RunSessionService:_syncPlayerControls(player)
+function RunSessionService:_syncPlayerMovement(player)
     local playerState = self.PlayerStateService:getSummary(player)
     local ok, controlState = self.ControlStateService:syncPlayerState(player, playerState)
     if ok and controlState then
         self.PlayerStateService:setSprinting(
             player,
-            controlState.Mode == Gameplay.ControlState.Mode.Sprint
+            controlState.Mode == FormalLocomotion.Mode.Sprint
         )
     end
 
@@ -464,6 +454,7 @@ function RunSessionService:_broadcastSnapshot()
             MazeEntryMode = mazeEntryAvailability.Mode,
             MazeEntryReason = mazeEntryAvailability.Reason,
             MazeEntryReasonCode = mazeEntryAvailability.ReasonCode,
+            Movement = self:_getMovementSummaryFor(player),
             ControlState = self.ControlStateService:getSummary(player),
             PlayerState = self.PlayerStateService:getSummary(player),
         })
@@ -793,7 +784,7 @@ function RunSessionService:_startSnapshotLoop()
                 previousTick = currentTick
 
                 for _, player in ipairs(Players:GetPlayers()) do
-                    self:_syncPlayerControls(player)
+                    self:_syncPlayerMovement(player)
                 end
 
                 self:_broadcastSnapshot()
@@ -823,11 +814,11 @@ function RunSessionService:_setPlayerSprinting(player, isSprinting)
         elseif result == 'Dead' then
             self:_setStatus(string.format('%s cannot sprint while dead.', player.DisplayName))
         end
-        self:_syncPlayerControls(player)
+        self:_syncPlayerMovement(player)
         return
     end
 
-    self:_syncPlayerControls(player)
+    self:_syncPlayerMovement(player)
 end
 
 function RunSessionService:_handlePlayerTeleportData(player)

@@ -1,5 +1,6 @@
 return {
     ControlStateService = require(script.ControlStateService),
+    FormalLocomotion = require(script.FormalLocomotion),
     HexMazeWorldRenderer = require(script.HexMazeWorldRenderer),
     InventoryService = require(script.InventoryService),
     MazeDebugWorldComposer = require(script.MazeDebugWorldComposer),
