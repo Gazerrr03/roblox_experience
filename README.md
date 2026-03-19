@@ -6,7 +6,7 @@ Roblox game skeleton for a multi-place experience:
 
 - `places/lobby`: team assembly, ready checks, and run launch
 - `places/run`: camp, wilderness, maze entry, and settlement handoff
-- `places/maze`: maze expedition, loot, extraction, and return to camp
+- `places/maze`: maze expedition, loot, extraction, and return to the Run place
 - `packages/shared`: shared enums, networking, schema helpers, and utilities
 - `packages/gameplay`: pure gameplay data and stateful domain modules
 - `packages/ui`: lightweight UI helpers for the first vertical slice
