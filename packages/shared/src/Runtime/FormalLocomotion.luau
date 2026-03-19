@@ -36,6 +36,21 @@ function FormalLocomotion.summarize(playerStateSummary, controlStateSummary)
     }
 end
 
+function FormalLocomotion.formatStatus(playerStateSummary, movementSummary)
+    local playerState = playerStateSummary or {}
+    local movement = movementSummary or {}
+
+    if playerState.IsDead then
+        return 'Disabled'
+    end
+
+    if movement.CanSprint then
+        return 'Ready'
+    end
+
+    return 'Recovering'
+end
+
 function FormalLocomotion.applyToHumanoid(humanoid, movementSummary)
     if not humanoid then
         return

@@ -11,6 +11,7 @@ local Shared = require(Packages:WaitForChild('Shared'))
 local UI = require(Packages:WaitForChild('UI'))
 
 local Remotes = Shared.Network.Remotes.ensure()
+local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local Theme = UI.Hud.Theme
 
 local disconnectFirstPersonLock
@@ -260,18 +261,6 @@ local function syncCampPanelVisibility()
     panel.Visible = isRunLaunched and isCampPanelVisible
 end
 
-local function formatMovementStatus(playerState, movement)
-    if playerState.IsDead then
-        return 'Disabled'
-    end
-
-    if movement.CanSprint then
-        return 'Ready'
-    end
-
-    return 'Recovering'
-end
-
 releaseFirstPersonLockForMenu()
 bindMenuMouseUnlock()
 actionInputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
@@ -385,7 +374,7 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
         math.floor((playerState.MaxStamina or 0) + 0.5),
         playerState.IsDead and 'Dead' or 'Alive',
         movement.Mode or 'Walk',
-        formatMovementStatus(playerState, movement)
+        FormalLocomotion.formatStatus(playerState, movement)
     )
 
     local rosterLines = {}

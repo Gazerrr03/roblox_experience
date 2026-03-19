@@ -11,6 +11,7 @@ local Shared = require(Packages:WaitForChild('Shared'))
 local UI = require(Packages:WaitForChild('UI'))
 
 local Remotes = Shared.Network.Remotes.ensure()
+local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local Theme = UI.Hud.Theme
 
 Shared.Client.FirstPersonController.start(localPlayer)
@@ -94,18 +95,6 @@ rosterLabel.Text = ''
 
 local returnedLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 104), Theme.SubtleText, 16, false)
 returnedLabel.Text = ''
-
-local function formatMovementStatus(playerState, movement)
-    if playerState.IsDead then
-        return 'Disabled'
-    end
-
-    if movement.CanSprint then
-        return 'Ready'
-    end
-
-    return 'Recovering'
-end
 
 actionInputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
     if gameProcessedEvent or input.UserInputType ~= Enum.UserInputType.Keyboard then
@@ -262,7 +251,7 @@ Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
         math.floor((playerState.MaxStamina or 0) + 0.5),
         playerState.IsDead and 'Dead' or 'Alive',
         movement.Mode or 'Walk',
-        formatMovementStatus(playerState, movement)
+        FormalLocomotion.formatStatus(playerState, movement)
     )
 
     local rosterLines = { 'Crew:' }
