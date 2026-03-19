@@ -1,5 +1,9 @@
 local MazeInteractionPartFactory = {}
 
+local DEFAULT_PROMPT_PART_SIZE = Vector3.new(4, 4, 4)
+local DEFAULT_PROMPT_PART_MATERIAL = Enum.Material.Metal
+local DEFAULT_PROMPT_MAX_ACTIVATION_DISTANCE = 10
+
 function MazeInteractionPartFactory.createPart(config, parent)
     local part = Instance.new('Part')
     part.Name = config.Name
@@ -20,10 +24,10 @@ end
 function MazeInteractionPartFactory.createPromptPart(config, parent)
     local part = MazeInteractionPartFactory.createPart({
         Name = config.Name,
-        Size = config.Size or Vector3.new(4, 4, 4),
+        Size = config.Size or DEFAULT_PROMPT_PART_SIZE,
         CFrame = config.CFrame,
         Color = config.Color,
-        Material = config.Material or Enum.Material.Metal,
+        Material = config.Material or DEFAULT_PROMPT_PART_MATERIAL,
         Transparency = config.Transparency or 0,
         CanCollide = config.CanCollide,
         Shape = config.Shape,
@@ -33,7 +37,8 @@ function MazeInteractionPartFactory.createPromptPart(config, parent)
     prompt.ActionText = config.ActionText
     prompt.ObjectText = config.ObjectText
     prompt.HoldDuration = 0
-    prompt.MaxActivationDistance = config.MaxActivationDistance or 10
+    prompt.MaxActivationDistance = config.MaxActivationDistance
+        or DEFAULT_PROMPT_MAX_ACTIVATION_DISTANCE
     prompt.RequiresLineOfSight = false
     prompt.Parent = part
 
