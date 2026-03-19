@@ -98,6 +98,21 @@ function MazeRunTracker:recordReturn(summary)
     return true
 end
 
+function MazeRunTracker:completeExpedition()
+    if self.StateMachine.Current ~= 'Expedition' then
+        return false, 'InvalidState'
+    end
+
+    if self:getActiveCount() ~= 0 then
+        return false, 'ActivePlayersRemaining'
+    end
+
+    self.StateMachine:transition('Settlement')
+    self.IsCompleted = true
+
+    return true
+end
+
 function MazeRunTracker:completeSettlement(summaries)
     if self.StateMachine.Current ~= 'Extraction' then
         return false, 'InvalidState'

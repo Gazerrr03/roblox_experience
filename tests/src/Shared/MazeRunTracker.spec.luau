@@ -3,6 +3,18 @@ return function()
     local shared = require(ReplicatedStorage:WaitForChild('Packages'):WaitForChild('Shared'))
     local gameplay = require(ReplicatedStorage:WaitForChild('Packages'):WaitForChild('Gameplay'))
     local tracker = gameplay.Session.MazeRunTracker.new()
+    local incompleteTracker = gameplay.Session.MazeRunTracker.new()
+
+    local completedBeforeExpedition, completedBeforeExpeditionReason =
+        incompleteTracker:completeExpedition()
+    assert(
+        completedBeforeExpedition == false,
+        'Direct completion should fail before the expedition starts'
+    )
+    assert(
+        completedBeforeExpeditionReason == 'InvalidState',
+        'Direct completion should expose InvalidState before expedition'
+    )
 
     assert(tracker:addPlayer({ UserId = 10, Name = 'Alpha' }) == true, 'First player should join')
     assert(tracker:addPlayer({ UserId = 20, Name = 'Bravo' }) == true, 'Second player should join')
@@ -31,6 +43,60 @@ return function()
     assert(
         tracker:getState() == shared.Enums.RunState.Expedition,
         'Early return should not force settlement'
+    )
+
+    local completedWithActivePlayers, completedWithActivePlayersReason =
+        tracker:completeExpedition()
+    assert(
+        completedWithActivePlayers == false,
+        'Direct completion should fail while active players remain'
+    )
+    assert(
+        completedWithActivePlayersReason == 'ActivePlayersRemaining',
+        'Direct completion should explain that active players still remain'
+    )
+
+    local directCompletionTracker = gameplay.Session.MazeRunTracker.new()
+    assert(
+        directCompletionTracker:addPlayer({ UserId = 30, Name = 'Charlie' }) == true,
+        'Direct completion tracker should accept a player'
+    )
+    assert(
+        directCompletionTracker:beginExpedition() == true,
+        'Direct completion tracker should enter expedition'
+    )
+
+    local directReturnRecorded, directReturnReason = directCompletionTracker:recordReturn({
+        UserId = 30,
+        Name = 'Charlie',
+        ReturnReason = 'extracted',
+        Value = 21,
+        ItemCount = 1,
+        Weight = 3,
+        WasExtracted = true,
+    })
+    assert(
+        directReturnRecorded == true,
+        directReturnReason or 'Final player return should be recorded for direct completion'
+    )
+    assert(
+        directCompletionTracker:getActiveCount() == 0,
+        'Direct completion tracker should have no active players left'
+    )
+
+    local expeditionCompleted, expeditionCompletedReason =
+        directCompletionTracker:completeExpedition()
+    assert(
+        expeditionCompleted == true,
+        expeditionCompletedReason or 'Direct expedition completion should succeed'
+    )
+    assert(
+        directCompletionTracker.IsCompleted == true,
+        'Direct completion should mark the tracker complete'
+    )
+    assert(
+        directCompletionTracker:getState() == shared.Enums.RunState.Settlement,
+        'Direct completion should end in settlement'
     )
 
     local extractionStarted, extractionReason = tracker:beginExtraction()
