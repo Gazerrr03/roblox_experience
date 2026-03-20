@@ -1,7 +1,6 @@
 local Players = game:GetService('Players')
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
 local RunService = game:GetService('RunService')
-local TeleportService = game:GetService('TeleportService')
 local Workspace = game:GetService('Workspace')
 
 local DEFAULT_WORKSPACE_SHELL_NAMES = { 'Baseplate', 'SpawnLocation' }
@@ -19,7 +18,7 @@ local SharedPackage = Packages:WaitForChild('Shared')
 
 local SessionConfig = Shared.Config.SessionConfig
 local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
-local Remotes = Shared.Network.Remotes.ensure()
+local Remotes = Shared.Network.Remotes.ensureScope(Shared.Network.Remotes.Scope.Maze)
 local InventoryService =
     require(SharedPackage:WaitForChild('Runtime'):WaitForChild('InventoryService'))
 local MonsterService = require(SharedPackage:WaitForChild('Runtime'):WaitForChild('MonsterService'))
@@ -27,6 +26,7 @@ local ControlStateService = Shared.Runtime.ControlStateService
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local PlayerStateService = Shared.Runtime.PlayerStateService
 
+local MazeRunPortal = require(script.Parent.MazeRunPortal)
 local MazeWorldBuilder = require(script.Parent.MazeWorldBuilder)
 
 local DEBUG_DAMAGE_BY_ACTION = {
@@ -338,7 +338,7 @@ function MazeSessionService:_broadcastSnapshot()
     local mazeStatus = self:_getMazeStatus()
 
     for _, player in ipairs(Players:GetPlayers()) do
-        self.Remotes.RunSnapshot:FireClient(player, {
+        self.Remotes.MazeState:FireClient(player, {
             IsLaunched = true,
             Status = self.Status,
             Area = self:_getPlayerArea(player),
@@ -356,7 +356,7 @@ function MazeSessionService:_broadcastSnapshot()
             IsDirectBoot = self.IsDirectBoot,
         })
 
-        self.Remotes.PrivateState:FireClient(player, nil)
+        self.Remotes.MazePrivateState:FireClient(player, nil)
     end
 end
 
@@ -444,34 +444,19 @@ function MazeSessionService:_teleportToCamp(players, summaries, mazeCompleted)
 
         -- Teleports yield, so keep the camp-side handoff serialized per maze server.
         local mergedSummaries = mergeSummaries(self.RunTracker:getReturnedSummaries(), summaries)
-        local nextCampSession = self.CampSession
-        for _, summary in ipairs(mergedSummaries) do
-            nextCampSession =
-                CampMazeSessionContract.applyReturn(nextCampSession, summary, mazeCompleted)
-        end
-        local teleportData = CampMazeSessionContract.buildMazeToCampTeleportData({
+        local result = MazeRunPortal.returnPlayers({
+            Players = players,
             SessionConfig = self.SessionData,
-            CampSession = nextCampSession,
+            CampSession = self.CampSession,
             Summaries = mergedSummaries,
             MazeCompleted = mazeCompleted,
         })
-
-        local success, message = pcall(function()
-            TeleportService:TeleportToPrivateServer(
-                SessionConfig.PlaceIds.Run,
-                nextCampSession.CampAccessCode,
-                players,
-                nil,
-                teleportData
-            )
-        end)
-
-        if not success then
-            self:_setStatus(string.format('Camp return failed: %s', tostring(message)))
+        if not result.Ok then
+            self:_setStatus(string.format('Camp return failed: %s', tostring(result.Reason)))
             return false
         end
 
-        self.CampSession = nextCampSession
+        self.CampSession = result.NextCampSession
         return true
     end)
 end
@@ -849,7 +834,7 @@ function MazeSessionService:start()
         self:_broadcastSnapshot()
     end)
 
-    self.Remotes.RunAction.OnServerEvent:Connect(function(player, payload)
+    self.Remotes.MazeAction.OnServerEvent:Connect(function(player, payload)
         if type(payload) ~= 'table' then
             return
         end

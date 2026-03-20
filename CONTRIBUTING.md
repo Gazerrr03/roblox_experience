@@ -44,6 +44,23 @@ The current Rojo project files point at `packages/**`, including:
 If a document or comment disagrees with those project files, trust the project
 files first.
 
+## Parallel Place Workflow
+
+Use these long-lived delivery lines for multi-place work:
+
+- `lobby`
+- `run`
+- `maze`
+- `contract`
+
+The `contract` line owns cross-place teleport payloads, shared remote names,
+session handoff records, and the deterministic tests that lock those contracts.
+Place lines should stay focused on their own `places/<name>/**` content plus
+their local portal adapter.
+
+For the full ownership and worktree layout, see
+`references/place-parallel-development.md`.
+
 ## Local Validation
 
 These checks are the default local baseline:

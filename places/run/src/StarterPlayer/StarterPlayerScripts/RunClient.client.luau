@@ -10,7 +10,7 @@ local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
 local UI = require(Packages:WaitForChild('UI'))
 
-local Remotes = Shared.Network.Remotes.ensure()
+local Remotes = Shared.Network.Remotes.ensureScope(Shared.Network.Remotes.Scope.Run)
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local Theme = UI.Hud.Theme
 
@@ -322,11 +322,11 @@ singlePlayerButton.MouseButton1Click:Connect(function()
     })
 end)
 
-Remotes.PrivateState.OnClientEvent:Connect(function()
+Remotes.RunPrivateState.OnClientEvent:Connect(function()
     -- Private role data is intentionally unused in the camp staging run.
 end)
 
-Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
+Remotes.RunState.OnClientEvent:Connect(function(snapshot)
     local hasLaunched = snapshot.IsLaunched == true
     isRunLaunched = hasLaunched
     if not hasLaunched then

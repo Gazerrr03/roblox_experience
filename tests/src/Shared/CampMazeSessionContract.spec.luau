@@ -25,7 +25,19 @@ return function()
     )
     assert(#entered.PlayersInMaze == 1, 'Entering should track the player inside the maze')
 
-    local campToMaze = contract.buildCampToMazeTeleportData({
+    local lobbyToRun = contract.buildLobbyToRunTeleportData({
+        SessionId = 'camp-session-1',
+        CampAccessCode = 'camp-access-code',
+        SessionConfig = {
+            Seed = 12345,
+        },
+    })
+    assert(
+        lobbyToRun.Entry.Kind == 'LobbyLaunch',
+        'Lobby -> run teleport payload should mark the handoff entry kind'
+    )
+
+    local campToMaze = contract.buildRunToMazeTeleportData({
         SessionConfig = {
             Seed = 12345,
             Quota = 120,
@@ -139,7 +151,7 @@ return function()
         'Completed maze sessions should not retain active maze players'
     )
 
-    local mazeToCamp = contract.buildMazeToCampTeleportData({
+    local mazeToCamp = contract.buildMazeToRunTeleportData({
         SessionConfig = {
             Seed = 12345,
             Quota = 120,

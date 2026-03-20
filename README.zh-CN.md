@@ -12,6 +12,19 @@
 - `packages/ui`: 首个垂直切片使用的轻量 UI 辅助
 - `DevPackages`: 由 Wally 生成的第三方依赖，与仓库自有源码分离
 
+## Place 开发线
+
+多 place 并行开发固定使用 4 条长期线：
+
+- `lobby`
+- `run`
+- `maze`
+- `contract`
+
+建议每条线使用一个独立 worktree，这样关卡内容和跨 place handoff 契约可以分开演进。
+具体 ownership、worktree 命令、合并顺序和验证规则见
+`references/place-parallel-development.md`。
+
 ## 本地启动与开发
 
 ### Windows 一键启动

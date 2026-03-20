@@ -1,15 +1,13 @@
 local Players = game:GetService('Players')
-local HttpService = game:GetService('HttpService')
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
-local TeleportService = game:GetService('TeleportService')
 
 local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
 
 local SessionConfig = Shared.Config.SessionConfig
-local Remotes = Shared.Network.Remotes.ensure()
-local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
-local TeleportDiagnostics = Shared.Util.TeleportDiagnostics
+local Remotes = Shared.Network.Remotes.ensureScope(Shared.Network.Remotes.Scope.Lobby)
+
+local LobbyRunPortal = require(script.Parent.LobbyRunPortal)
 
 local LobbyService = {}
 LobbyService.__index = LobbyService
@@ -90,25 +88,8 @@ function LobbyService:_teleportToRun()
 
     self.Seed = Random.new():NextInteger(100000, 999999)
 
-    local runTeleportSnapshot = TeleportDiagnostics.captureSnapshot({
-        TargetKey = 'Run',
-        TargetPlaceId = SessionConfig.PlaceIds.Run,
-    })
-    local reserved, reserveResult = pcall(function()
-        return TeleportService:ReserveServer(SessionConfig.PlaceIds.Run)
-    end)
-    if not reserved then
-        self.Status =
-            TeleportDiagnostics.formatFailure('ReserveServer', reserveResult, runTeleportSnapshot)
-        self:_broadcast()
-        return
-    end
-
-    local campAccessCode = reserveResult
-    local sessionId = HttpService:GenerateGUID(false)
-    local teleportData = CampMazeSessionContract.buildLobbyToCampTeleportData({
-        SessionId = sessionId,
-        CampAccessCode = campAccessCode,
+    local result = LobbyRunPortal.launch({
+        Players = players,
         SessionConfig = {
             Seed = self.Seed,
             Quota = SessionConfig.DefaultQuota,
@@ -116,28 +97,14 @@ function LobbyService:_teleportToRun()
             InventoryCapacity = SessionConfig.InventoryCapacity,
         },
     })
-
-    self.Status = 'Teleporting crew to run instance...'
-    self:_broadcast()
-
-    local success, message = pcall(function()
-        TeleportService:TeleportToPrivateServer(
-            SessionConfig.PlaceIds.Run,
-            campAccessCode,
-            players,
-            nil,
-            teleportData
-        )
-    end)
-
-    if not success then
-        self.Status = TeleportDiagnostics.formatFailure(
-            'TeleportToPrivateServer',
-            message,
-            runTeleportSnapshot
-        )
+    if not result.Ok then
+        self.Status = result.Reason
         self:_broadcast()
+        return
     end
+
+    self.Status = result.Status
+    self:_broadcast()
 end
 
 function LobbyService:start()
