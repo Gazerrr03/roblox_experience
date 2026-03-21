@@ -44,22 +44,31 @@ The current Rojo project files point at `packages/**`, including:
 If a document or comment disagrees with those project files, trust the project
 files first.
 
-## Parallel Place Workflow
+## Choose The Right Vibe First
 
-Use these long-lived delivery lines for multi-place work:
+This repository uses code-domain vibes to keep multi-place work reviewable.
+Before you start editing, identify the owning domain:
 
-- `lobby`
-- `run`
-- `maze`
-- `contract`
+- `places/lobby` for lobby launch flow
+- `places/run` for camp orchestration and maze entry
+- `places/maze` for expedition runtime and maze return
+- `packages/shared` for the `contract` workstream that defines shared handoff
+  shape
 
-The `contract` line owns cross-place teleport payloads, shared remote names,
-session handoff records, and the deterministic tests that lock those contracts.
-Place lines should stay focused on their own `places/<name>/**` content plus
-their local portal adapter.
+Use these docs in that order:
 
-For the full ownership and worktree layout, see
-`references/place-parallel-development.md`.
+1. `references/place-parallel-development.md`
+2. local `VIBE.md`
+3. local `NOW.md`
+
+If the change alters teleport payload shape, shared remote meaning, return
+summary shape, or place configuration that multiple places must agree on, stage
+the `contract` change first and then update the place-local consumers.
+
+For multi-place work, the long-lived delivery lines are `lobby`, `run`, `maze`,
+and `contract`. The `contract` line owns the shared handoff surface and the
+deterministic tests that lock it down. Place lines should stay focused on their
+own `places/<name>/**` content plus any local portal adapter or consumer logic.
 
 ## Local Validation
 
