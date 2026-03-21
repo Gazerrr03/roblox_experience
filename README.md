@@ -159,11 +159,30 @@ run-in-roblox --place .\tmp\roblox_experience-tests.rbxlx --script tests/run-in-
 Project-specific guardrails for AI and human contributors live in `AGENTS.md`.
 Use that file as the default playbook for architecture boundaries, networking
 contracts, validation, and integration hygiene.
+The repo-wide vibe index lives in `references/place-parallel-development.md`.
+Each long-lived code domain also keeps local `VIBE.md` and `NOW.md` files next
+to the owned code so humans and agents can load the right context without
+scanning the full repository.
 Contributor-facing setup, validation, and CI/platform notes live in
 `CONTRIBUTING.md`.
 
 Pull requests should follow the repository PR template so Roblox-specific
 integration checks stay attached to every change.
+
+## Vibe Map
+
+The repository currently treats these as first-class vibes:
+
+- `places/lobby` -> lobby launch and ready flow
+- `places/run` -> camp orchestration and maze entry
+- `places/maze` -> expedition runtime and maze return
+- `packages/shared` -> the `contract` workstream for shared handoff definitions
+
+Use the local files when you enter one of those domains:
+
+- `VIBE.md` for the stable handbook
+- `NOW.md` for current pressure points and short-lived notes
+- local `AGENTS.md` / `CLAUDE.md` as thin agent adapters
 
 ## Place Flow And Runtime Routing
 
