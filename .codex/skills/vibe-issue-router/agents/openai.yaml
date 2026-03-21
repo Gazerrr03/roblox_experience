@@ -1,0 +1,4 @@
+interface:
+  display_name: "Vibe Issue Router"
+  short_description: "Route repo issues to the right vibe and worktree."
+  default_prompt: "Use $vibe-issue-router to route issue #34 and explain the owning vibe, branch, and contract impact."
