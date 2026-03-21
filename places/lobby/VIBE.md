@@ -4,24 +4,27 @@
 
 ### Gameplay Template
 
-- `lobby` 是正式流程 `Lobby -> Run` 的组队和出发空间。
-- 玩家在这里的体验应该非常直接：进入队伍、切换 ready、确认全员准备完毕、一起进入私有 `Run` server。
-- 这个 place 应该像一个轻量出发房间，而不是 `run` 的前置复制品。
+- `lobby` is the crew assembly and launch space for the published flow
+  `Lobby -> Run`.
+- The player experience here should stay simple: join the roster, toggle ready,
+  confirm the crew is prepared, and enter a private `Run` server together.
+- This place should feel like a thin staging room, not a pre-copy of `run`.
 
 ### Mental Model
 
-- Server authority 在 `LobbyService`。
-- Client presentation 在 `LobbyClient.client.luau`。
-- `lobby` 拥有 ready 状态、队伍可见性、以及第一次 teleport 触发。
-- `lobby` 不拥有 run 玩法、maze 玩法、也不拥有共享 handoff schema。
+- Server authority lives in `LobbyService`.
+- Client presentation lives in `LobbyClient.client.luau`.
+- `lobby` owns ready state, roster visibility, and the initial teleport trigger.
+- `lobby` does not own run gameplay, maze gameplay, or the shared handoff
+  schema.
 
 ### Key State Flow
 
-1. 玩家进入队伍。
-2. 玩家通过 `LobbyAction` 切换 ready。
-3. `LobbyService` 组装 snapshot 并广播 `LobbyState`。
-4. 当队伍满足条件后，`LobbyService` 预留私有 `Run` server。
-5. teleport data 通过 `CampMazeSessionContract` 构造并发送到 run。
+1. Players enter the roster.
+2. Players toggle ready through `LobbyAction`.
+3. `LobbyService` builds a snapshot and broadcasts `LobbyState`.
+4. Once the crew is valid, `LobbyService` reserves a private `Run` server.
+5. Teleport data is built through `CampMazeSessionContract` and sent to run.
 
 ## Agent First
 
@@ -63,9 +66,10 @@ Boundary interfaces:
 
 ### When To Start In Contract Instead
 
-- 如果 `lobby -> run` 的 teleport payload shape 要变
-- 如果 `LobbyAction` 或 `LobbyState` 的名称、语义、用途要变
-- 如果 run 需要消费新的 handoff data，而这些数据还不在共享 contract 中
+- If the `lobby -> run` teleport payload shape changes
+- If the name, meaning, or purpose of `LobbyAction` or `LobbyState` changes
+- If run needs new handoff data that does not already exist in the shared
+  contract
 
 ### Validation
 
@@ -75,6 +79,7 @@ Boundary interfaces:
 
 ## Notes
 
-- 保持 bootstrap 足够薄。新增规则应进入 `LobbyService` 或其支撑模块。
-- 如果 lobby 需要更复杂的 runtime state，不要先发明 ad-hoc replicated state。
-  一旦其他 place 或 tests 也要依赖，就应先定义共享 shape。
+- Keep bootstrap thin. New rules should live in `LobbyService` or a supporting
+  module.
+- If lobby needs richer runtime state, avoid inventing ad-hoc replicated state.
+  If other places or tests will rely on it, define the shared shape first.

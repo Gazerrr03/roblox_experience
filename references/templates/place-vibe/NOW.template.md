@@ -2,8 +2,8 @@
 
 ## Current Focus
 
-- 当前主线：
-- 当前压力点：
+- Active workstream:
+- Current pressure point:
 
 ## Open Questions
 
@@ -11,7 +11,8 @@
 
 ## Temporary Exceptions
 
-- 当前无。如果你放宽了规则，请记录原因、影响范围、以及后续怎么收口。
+- None currently. If you relax a rule, record why, what it affects, and how it
+  will be cleaned up.
 
 ## Near-Term Cleanup
 

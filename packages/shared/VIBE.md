@@ -4,22 +4,28 @@
 
 ### Gameplay Template
 
-- `contract` 不是玩家可见的 place，它是防止 `lobby`、`run`、`maze` 各自发明不兼容含义的 handoff layer。
-- 它的职责是给 remotes、session shape、teleport payload、共享 place-routing config 提供稳定的跨 place 语言。
-- 如果一个改动让你直觉上觉得“多边都得先达成共识”，那它大概率应该先落这里。
+- `contract` is not a player-facing place. It is the handoff layer that keeps
+  `lobby`, `run`, and `maze` from inventing incompatible meanings.
+- Its job is to provide stable cross-place language for remotes, session shape,
+  teleport payloads, and shared place-routing config.
+- If a change feels like "multiple sides need to agree on this first," it
+  probably belongs here before it lands elsewhere.
 
 ### Mental Model
 
-- contract 线今天落在 `packages/shared` 下，是因为共享 handoff definitions 当前就 source-controlled 在这里。
-- 这个 vibe 并不拥有所有 shared helper。它主要拥有的是 cross-place handoff surface，以及锁定这些行为的 deterministic tests。
-- `contract` 应保持显式、deterministic、且容易 review diff。
+- The contract line currently lives under `packages/shared` because that is
+  where the shared handoff definitions are source-controlled today.
+- This vibe does not own every shared helper. It primarily owns the cross-place
+  handoff surface plus the deterministic tests that lock it down.
+- `contract` should stay explicit, deterministic, and easy to review in diff
+  form.
 
 ### Key State Flow
 
-1. 某个 place 提出新的 cross-place requirement。
-2. `contract` 先更新共享定义。
-3. deterministic tests 描述新的 handshake behavior。
-4. place-local vibes 再 rebase 到这个基线并改各自 consumer。
+1. A place proposes a new cross-place requirement.
+2. `contract` updates the shared definition first.
+3. Deterministic tests describe the new handshake behavior.
+4. Place-local vibes rebase onto that baseline and update their consumers.
 
 ## Agent First
 
@@ -75,9 +81,11 @@ Boundary interfaces:
 
 ### When Contract Should Not Expand
 
-- 不要把只属于某个 place 的 world-building concern 搬进 `contract`。
-- 不要让 `contract` 变成只为单个 place 服务的 convenience helper 垃圾场。
-- 如果一个 shape 并不会跨 place boundary，也不会被 deterministic tests 锁定，就让它留在拥有它的本地 vibe。
+- Do not move place-only world-building concerns into `contract`.
+- Do not let `contract` become a dumping ground for convenience helpers needed
+  by only one place.
+- If a shape does not cross a place boundary and is not locked by deterministic
+  tests, keep it local to the owning vibe.
 
 ### Validation
 
@@ -88,5 +96,7 @@ Boundary interfaces:
 
 ## Notes
 
-- 最干净的 `contract` 改动应该足够小、由行为驱动、并且立刻体现在 deterministic tests 中。
-- 如果某个 place 需要新的 seam，优先给出狭窄而显式的 contract，而不是把副作用偷偷塞进某个 service。
+- The cleanest `contract` change is small, behavior-driven, and immediately
+  reflected in deterministic tests.
+- If a place needs a new seam, prefer a narrow explicit contract over hiding
+  side effects inside one service.

@@ -4,25 +4,29 @@
 
 ### Gameplay Template
 
-- `run` 是正式流程 `Lobby -> Run -> Maze -> Run` 的营地与 expedition hub。
-- 玩家在这里的主循环是：到达营地、启动 run、探索 outdoor shell、进入 maze、接回返程玩家、结算、重置。
-- 这个 place 是当前 vertical slice 的 orchestration center。
+- `run` is the camp and expedition hub of the published flow
+  `Lobby -> Run -> Maze -> Run`.
+- The player loop here is: arrive at camp, start the run, explore the outdoor
+  shell, enter maze, receive returning players, settle, and reset.
+- This place is the orchestration center of the current vertical slice.
 
 ### Mental Model
 
-- Server authority 在 `RunSessionService` 及其支撑 builders/services。
-- Client presentation 和 input 在 `RunClient.client.luau`。
-- `run` 拥有 camp session orchestration、world shell 组装、本地 debug maze fallback、以及面向玩家的 run snapshot。
-- `run` 不拥有 maze 侧 expedition logic，也不拥有共享 handoff schema。
+- Server authority lives in `RunSessionService` and its supporting
+  builders/services.
+- Client presentation and input live in `RunClient.client.luau`.
+- `run` owns camp session orchestration, world shell assembly, the local debug
+  maze fallback, and the player-facing run snapshot.
+- `run` does not own maze-side expedition logic or the shared handoff schema.
 
 ### Key State Flow
 
-1. 玩家带着来自 lobby 或 maze 的可选 teleport data 进入。
-2. `RunSessionService` 协调 incoming session state。
-3. place 启动或恢复 camp session，并广播 snapshots。
-4. 玩家通过 run gate 请求进入 maze。
-5. run 要么把玩家 teleport 到 maze，要么走本地 debug fallback。
-6. 回传 summary 被应用后，run 继续推进到 settlement。
+1. Players arrive with optional teleport data from lobby or maze.
+2. `RunSessionService` reconciles the incoming session state.
+3. The place starts or resumes the camp session and broadcasts snapshots.
+4. Players request maze entry through the run gate.
+5. Run either teleports players to maze or uses the local debug fallback.
+6. Returned summaries are applied and run progresses toward settlement.
 
 ## Agent First
 
@@ -77,11 +81,11 @@ Boundary interfaces:
 
 ### When To Start In Contract Instead
 
-- 如果 run 需要新的 teleport payload fields
-- 如果 run 和 maze 不该再继续共享当前这组 `RunAction` / `RunSnapshot` /
-  `PrivateState` remotes
-- 如果 return summary 或 camp-session reconciliation 规则变化
-- 如果 place-id 或 debug handoff config 在多 place 之间的含义变化
+- If run needs new teleport payload fields
+- If run and maze should stop sharing the current
+  `RunAction` / `RunSnapshot` / `PrivateState` remotes
+- If return summaries or camp-session reconciliation rules change
+- If the meaning of place-id or debug handoff config changes across places
 
 ### Validation
 
@@ -93,5 +97,8 @@ Boundary interfaces:
 
 ## Notes
 
-- `run` 最容易不小心长成 god object。优先抽本地模块或 contract-first seam，不要把无关职责继续堆进 `RunSessionService`。
-- 本地 debug maze path 是 run 自己的 fallback，不是正式 maze contract。
+- `run` is the easiest place to accidentally turn into a god object. Prefer
+  extracting local modules or contract-first seams over piling unrelated duties
+  into `RunSessionService`.
+- The local debug maze path is a run-owned fallback, not the formal maze
+  contract.

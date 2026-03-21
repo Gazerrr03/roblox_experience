@@ -1,19 +1,21 @@
 # Place Vibe Template
 
-当一个新 place 或长期 workstream 升级为一等 `vibe` 时，从这里起步。
+Start here when a new place or long-lived workstream becomes a first-class
+`vibe`.
 
-必备文件：
+Required files:
 
-- `VIBE.template.md` -> 复制成 `VIBE.md`
-- `NOW.template.md` -> 复制成 `NOW.md`
-- `AGENTS.template.md` -> 复制成 `AGENTS.md`
-- `CLAUDE.template.md` -> 复制成 `CLAUDE.md`
+- `VIBE.template.md` -> copy to `VIBE.md`
+- `NOW.template.md` -> copy to `NOW.md`
+- `AGENTS.template.md` -> copy to `AGENTS.md`
+- `CLAUDE.template.md` -> copy to `CLAUDE.md`
 
-在这个新 place 被视为“可协作、可并行开发”之前，至少要补完：
+Before the new place is considered ready for collaboration and parallel
+development, fill in at least:
 
-- 面向玩家的玩法目标和心智模型
-- server/client 入口文件
-- allowed change graph
-- contract interface 和 no-touch zone
-- 本 place 的验证命令
-- `NOW.md` 中的当前风险或待收敛问题
+- the player-facing fantasy and mental model
+- the server and client entry files
+- the allowed change graph
+- the contract interfaces and no-touch zone
+- the validation commands for the place
+- the active risks or cleanup notes in `NOW.md`
