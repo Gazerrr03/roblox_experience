@@ -1,22 +1,21 @@
 local Players = game:GetService('Players')
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
 local RunService = game:GetService('RunService')
-local TeleportService = game:GetService('TeleportService')
 local Workspace = game:GetService('Workspace')
 
 local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
 
 local SessionConfig = Shared.Config.SessionConfig
-local Remotes = Shared.Network.Remotes.ensure()
+local Remotes = Shared.Network.Remotes.ensureScope(Shared.Network.Remotes.Scope.Run)
 local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
 local MazeEntryAvailability = Shared.Session.MazeEntryAvailability
 local ControlStateService = Shared.Runtime.ControlStateService
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local PlayerStateService = Shared.Runtime.PlayerStateService
-local TeleportDiagnostics = Shared.Util.TeleportDiagnostics
 
 local LocalDebugMazeWorldBuilder = require(script.Parent.LocalDebugMazeWorldBuilder)
+local RunMazePortal = require(script.Parent.RunMazePortal)
 local RunWorldBuilder = require(script.Parent.RunWorldBuilder)
 
 local RunSessionService = {}
@@ -29,15 +28,6 @@ local MAZE_ENTRY_DISTANCE_BUFFER = 2
 local LOCAL_DEBUG_ROOM_DETECTION_RADIUS = 56
 local LOCAL_DEBUG_MAZE_RETURN_REASON = 'local_debug_return'
 local SNAPSHOT_INTERVAL_SECONDS = 0.25
-
-local TELEPORT_FAILURE_CODE = {
-    ReserveServerFailed = 'ReserveServerFailed',
-    TeleportToPrivateServerFailed = 'TeleportToPrivateServerFailed',
-}
-
-local function formatTeleportFailureReason(step, message, snapshot)
-    return TeleportDiagnostics.formatFailure(step, message, snapshot)
-end
 
 local function bindCharacterTeleport(self, player)
     player.CharacterAdded:Connect(function(character)
@@ -440,7 +430,7 @@ function RunSessionService:_broadcastSnapshot()
     local mazeEntryAvailability = self:_resolveMazeEntryAvailability()
 
     for _, player in ipairs(Players:GetPlayers()) do
-        self.Remotes.RunSnapshot:FireClient(player, {
+        self.Remotes.RunState:FireClient(player, {
             IsLaunched = self.IsLaunched,
             Status = self.Status,
             Area = self:_getPlayerArea(player),
@@ -459,7 +449,7 @@ function RunSessionService:_broadcastSnapshot()
             PlayerState = self.PlayerStateService:getSummary(player),
         })
 
-        self.Remotes.PrivateState:FireClient(player, nil)
+        self.Remotes.RunPrivateState:FireClient(player, nil)
     end
 end
 
@@ -583,86 +573,32 @@ function RunSessionService:_enterMaze(player)
             return
         end
 
-        -- Teleports yield, so keep the camp session mutation serialized per server.
-        local previousSession = CampMazeSessionContract.normalizeCampSession(self.CampSession)
-        local mazeAccessCode = previousSession.MazeAccessCode
-        local mazeTeleportSnapshot = TeleportDiagnostics.captureSnapshot({
-            TargetKey = 'Maze',
-            TargetPlaceId = SessionConfig.PlaceIds.Maze,
-        })
-        if mazeAccessCode == nil then
-            local reserved, reserveResult = pcall(function()
-                return TeleportService:ReserveServer(SessionConfig.PlaceIds.Maze)
-            end)
-
-            if not reserved then
-                local reason = formatTeleportFailureReason(
-                    'ReserveServer',
-                    reserveResult,
-                    mazeTeleportSnapshot
-                )
-                self.MazeEntryMode = MazeEntryAvailability.Mode.Blocked
-                self.MazeEntryReasonCode = TELEPORT_FAILURE_CODE.ReserveServerFailed
-                self.MazeEntryReason = reason
-                self:_setStatus(
-                    string.format('%s could not enter the maze: %s', player.DisplayName, reason)
-                )
-                return
-            end
-
-            mazeAccessCode = reserveResult
-        end
-
-        previousSession.MazeAccessCode = mazeAccessCode
-        previousSession.GateOpen = self.GateOpen
-
-        local nextSession = CampMazeSessionContract.markPlayerEntered(previousSession, {
-            UserId = player.UserId,
-            Name = player.DisplayName,
-        })
-        nextSession.MazeAccessCode = mazeAccessCode
-        nextSession.GateOpen = self.GateOpen
-
-        local teleportData = CampMazeSessionContract.buildCampToMazeTeleportData({
+        local result = RunMazePortal.enter({
+            Player = player,
+            CampSession = self.CampSession,
+            GateOpen = self.GateOpen,
             SessionConfig = self.SessionData,
-            CampSession = nextSession,
             EnteringPlayer = {
                 UserId = player.UserId,
                 Name = player.DisplayName,
             },
             EntryReason = 'maze_gate',
         })
-
-        local success, message = pcall(function()
-            TeleportService:TeleportToPrivateServer(
-                SessionConfig.PlaceIds.Maze,
-                mazeAccessCode,
-                { player },
-                nil,
-                teleportData
-            )
-        end)
-
-        if not success then
-            self.CampSession = previousSession
-            local reason = formatTeleportFailureReason(
-                'TeleportToPrivateServer',
-                message,
-                mazeTeleportSnapshot
-            )
+        if not result.Ok then
+            self.CampSession = result.CurrentSession or self.CampSession
             self.MazeEntryMode = MazeEntryAvailability.Mode.Blocked
-            self.MazeEntryReasonCode = TELEPORT_FAILURE_CODE.TeleportToPrivateServerFailed
-            self.MazeEntryReason = reason
+            self.MazeEntryReasonCode = result.ReasonCode or result.FailureCode
+            self.MazeEntryReason = result.Reason
             self:_setStatus(
-                string.format('%s could not enter the maze: %s', player.DisplayName, reason)
+                string.format('%s could not enter the maze: %s', player.DisplayName, result.Reason)
             )
             return
         end
 
         self.MazeEntryMode = MazeEntryAvailability.Mode.Teleport
-        self.MazeEntryReasonCode = MazeEntryAvailability.ReasonCode.TeleportReady
-        self.MazeEntryReason = 'Maze teleport target is ready.'
-        self.CampSession = nextSession
+        self.MazeEntryReasonCode = result.ReasonCode
+        self.MazeEntryReason = result.Reason
+        self.CampSession = result.NextSession
         self:_setStatus(string.format('%s is entering the shared maze run.', player.DisplayName))
     end)
 end

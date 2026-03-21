@@ -225,7 +225,7 @@ function CampMazeSessionContract.applyReturn(session, summary, mazeCompleted)
     return nextSession
 end
 
-function CampMazeSessionContract.buildLobbyToCampTeleportData(params)
+function CampMazeSessionContract.buildLobbyToRunTeleportData(params)
     return {
         SessionConfig = cloneTable(params.SessionConfig),
         CampSession = CampMazeSessionContract.newCampSession({
@@ -243,7 +243,11 @@ function CampMazeSessionContract.buildLobbyToCampTeleportData(params)
     }
 end
 
-function CampMazeSessionContract.buildCampToMazeTeleportData(params)
+function CampMazeSessionContract.buildLobbyToCampTeleportData(params)
+    return CampMazeSessionContract.buildLobbyToRunTeleportData(params)
+end
+
+function CampMazeSessionContract.buildRunToMazeTeleportData(params)
     return {
         SessionConfig = cloneTable(params.SessionConfig),
         CampSession = CampMazeSessionContract.normalizeCampSession(params.CampSession),
@@ -257,7 +261,11 @@ function CampMazeSessionContract.buildCampToMazeTeleportData(params)
     }
 end
 
-function CampMazeSessionContract.buildMazeToCampTeleportData(params)
+function CampMazeSessionContract.buildCampToMazeTeleportData(params)
+    return CampMazeSessionContract.buildRunToMazeTeleportData(params)
+end
+
+function CampMazeSessionContract.buildMazeToRunTeleportData(params)
     return {
         SessionConfig = cloneTable(params.SessionConfig),
         CampSession = CampMazeSessionContract.normalizeCampSession(params.CampSession),
@@ -266,6 +274,10 @@ function CampMazeSessionContract.buildMazeToCampTeleportData(params)
             Summaries = cloneArray(params.Summaries),
         },
     }
+end
+
+function CampMazeSessionContract.buildMazeToCampTeleportData(params)
+    return CampMazeSessionContract.buildMazeToRunTeleportData(params)
 end
 
 function CampMazeSessionContract.findReturnSummary(teleportData, userId)

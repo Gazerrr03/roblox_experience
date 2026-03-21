@@ -83,6 +83,14 @@ data contract explicit first.
   relevant `default.project.json` file in the same change.
 - Keep cross-place reuse in `packages/**`; do not copy logic between
   `places/lobby` and `places/run`.
+- Treat place delivery as four lines: `lobby`, `run`, `maze`, and `contract`.
+  The `contract` line owns cross-place handoffs, shared remote definitions, and
+  deterministic tests.
+- Keep cross-place teleports inside place-local portal adapter modules. Do not
+  inline new teleport payload shaping or `TeleportService` orchestration in the
+  main service flow when a portal adapter can own it.
+- Use place-scoped remotes for place-local HUD/runtime state. Do not reuse a
+  run-only or maze-only state channel in another place.
 - Do not commit placeholder production behavior silently. If a change depends on
   real place ids, call out `SessionConfig.PlaceIds` requirements in the PR or
   task note.
