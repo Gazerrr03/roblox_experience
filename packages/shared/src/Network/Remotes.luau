@@ -1,14 +1,40 @@
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
 
-local REMOTE_NAMES = {
+local Remotes = {}
+
+Remotes.Scope = table.freeze({
+    Lobby = 'Lobby',
+    Run = 'Run',
+    Maze = 'Maze',
+})
+
+local REMOTE_NAMES_BY_SCOPE = table.freeze({
+    [Remotes.Scope.Lobby] = {
+        'LobbyAction',
+        'LobbyState',
+    },
+    [Remotes.Scope.Run] = {
+        'RunAction',
+        'RunState',
+        'RunPrivateState',
+    },
+    [Remotes.Scope.Maze] = {
+        'MazeAction',
+        'MazeState',
+        'MazePrivateState',
+    },
+})
+
+local ALL_REMOTE_NAMES = {
     'LobbyAction',
     'LobbyState',
-    'PrivateState',
     'RunAction',
-    'RunSnapshot',
+    'RunState',
+    'RunPrivateState',
+    'MazeAction',
+    'MazeState',
+    'MazePrivateState',
 }
-
-local Remotes = {}
 
 local function ensureContainer()
     local container = ReplicatedStorage:FindFirstChild('Remotes')
@@ -38,7 +64,23 @@ function Remotes.ensure()
     local container = ensureContainer()
     local resolved = {}
 
-    for _, name in ipairs(REMOTE_NAMES) do
+    for _, name in ipairs(ALL_REMOTE_NAMES) do
+        resolved[name] = ensureRemote(container, name)
+    end
+
+    return resolved
+end
+
+function Remotes.ensureScope(scope)
+    local remoteNames = REMOTE_NAMES_BY_SCOPE[scope]
+    if remoteNames == nil then
+        error(string.format('Unknown remote scope %q', tostring(scope)), 0)
+    end
+
+    local container = ensureContainer()
+    local resolved = {}
+
+    for _, name in ipairs(remoteNames) do
         resolved[name] = ensureRemote(container, name)
     end
 

@@ -10,7 +10,7 @@ local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
 local UI = require(Packages:WaitForChild('UI'))
 
-local Remotes = Shared.Network.Remotes.ensure()
+local Remotes = Shared.Network.Remotes.ensureScope(Shared.Network.Remotes.Scope.Maze)
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local Theme = UI.Hud.Theme
 
@@ -102,28 +102,28 @@ actionInputConnection = UserInputService.InputBegan:Connect(function(input, game
     end
 
     if input.KeyCode == Enum.KeyCode.LeftShift then
-        Remotes.RunAction:FireServer({
+        Remotes.MazeAction:FireServer({
             Type = 'RequestSprintStart',
         })
         return
     end
 
     if RunService:IsStudio() and input.KeyCode == Enum.KeyCode.H then
-        Remotes.RunAction:FireServer({
+        Remotes.MazeAction:FireServer({
             Type = 'RequestDebugLightDamage',
         })
         return
     end
 
     if RunService:IsStudio() and input.KeyCode == Enum.KeyCode.J then
-        Remotes.RunAction:FireServer({
+        Remotes.MazeAction:FireServer({
             Type = 'RequestDebugHeavyDamage',
         })
         return
     end
 
     if input.KeyCode == Enum.KeyCode.X then
-        Remotes.RunAction:FireServer({
+        Remotes.MazeAction:FireServer({
             Type = 'RequestUnequipItem',
         })
         return
@@ -144,7 +144,7 @@ actionInputConnection = UserInputService.InputBegan:Connect(function(input, game
         return
     end
 
-    Remotes.RunAction:FireServer({
+    Remotes.MazeAction:FireServer({
         Type = 'RequestEquipItem',
         ItemInstanceId = itemEntry.InstanceId,
     })
@@ -159,7 +159,7 @@ sprintInputEndedConnection = UserInputService.InputEnded:Connect(function(input,
         return
     end
 
-    Remotes.RunAction:FireServer({
+    Remotes.MazeAction:FireServer({
         Type = 'RequestSprintStop',
     })
 end)
@@ -176,11 +176,11 @@ script.Destroying:Connect(function()
     end
 end)
 
-Remotes.PrivateState.OnClientEvent:Connect(function()
+Remotes.MazePrivateState.OnClientEvent:Connect(function()
     -- The first maze HUD does not surface per-player private state yet.
 end)
 
-Remotes.RunSnapshot.OnClientEvent:Connect(function(snapshot)
+Remotes.MazeState.OnClientEvent:Connect(function(snapshot)
     if snapshot.IsLaunched ~= true then
         return
     end

@@ -12,6 +12,20 @@ Roblox game skeleton for a multi-place experience:
 - `packages/ui`: lightweight UI helpers for the first vertical slice
 - `DevPackages`: Wally-generated third-party dependencies, kept separate from repo-owned source
 
+## Place Delivery Lines
+
+Parallel work on the experience is split into four long-lived lines:
+
+- `lobby`
+- `run`
+- `maze`
+- `contract`
+
+Use one worktree per line so place content stays isolated and cross-place
+handoff changes stay on the `contract` line. See
+`references/place-parallel-development.md` for ownership, worktree commands,
+merge order, and validation rules.
+
 ## Local Setup And Startup
 
 ### One-Click Windows Start

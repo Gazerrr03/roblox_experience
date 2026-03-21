@@ -15,9 +15,12 @@ return function()
     local expectedNames = {
         'LobbyAction',
         'LobbyState',
-        'PrivateState',
         'RunAction',
-        'RunSnapshot',
+        'RunState',
+        'RunPrivateState',
+        'MazeAction',
+        'MazeState',
+        'MazePrivateState',
     }
 
     for _, name in ipairs(expectedNames) do
@@ -32,11 +35,19 @@ return function()
 
     local repeatedEnsure = shared.Network.Remotes.ensure()
     assert(
-        repeatedEnsure.RunSnapshot == remotes.RunSnapshot,
+        repeatedEnsure.RunState == remotes.RunState,
         'ensure should be idempotent for existing remotes'
     )
     assert(
         #container:GetChildren() == #expectedNames,
         'ensure should not duplicate remotes on repeated calls'
+    )
+
+    local mazeScoped = shared.Network.Remotes.ensureScope(shared.Network.Remotes.Scope.Maze)
+    assert(mazeScoped.MazeAction == remotes.MazeAction, 'Maze scope should reuse MazeAction')
+    assert(mazeScoped.MazeState == remotes.MazeState, 'Maze scope should reuse MazeState')
+    assert(
+        mazeScoped.MazePrivateState == remotes.MazePrivateState,
+        'Maze scope should reuse MazePrivateState'
     )
 end

@@ -61,9 +61,14 @@ Use these docs in that order:
 2. local `VIBE.md`
 3. local `NOW.md`
 
-If the change alters teleport payload shape, shared remote meaning, or place
-configuration that multiple places must agree on, stage the `contract` change
-first and then update the place-local consumers.
+If the change alters teleport payload shape, shared remote meaning, return
+summary shape, or place configuration that multiple places must agree on, stage
+the `contract` change first and then update the place-local consumers.
+
+For multi-place work, the long-lived delivery lines are `lobby`, `run`, `maze`,
+and `contract`. The `contract` line owns the shared handoff surface and the
+deterministic tests that lock it down. Place lines should stay focused on their
+own `places/<name>/**` content plus any local portal adapter or consumer logic.
 
 ## Local Validation
 
