@@ -173,11 +173,72 @@ run-in-roblox --place .\tmp\roblox_experience-tests.rbxlx --script tests/run-in-
 Project-specific guardrails for AI and human contributors live in `AGENTS.md`.
 Use that file as the default playbook for architecture boundaries, networking
 contracts, validation, and integration hygiene.
+The repo-wide vibe index lives in `references/place-parallel-development.md`.
+Each long-lived code domain also keeps local `VIBE.md` and `NOW.md` files next
+to the owned code so humans and agents can load the right context without
+scanning the full repository.
 Contributor-facing setup, validation, and CI/platform notes live in
 `CONTRIBUTING.md`.
 
 Pull requests should follow the repository PR template so Roblox-specific
 integration checks stay attached to every change.
+
+## Vibe Map
+
+The repository currently treats these as first-class vibes:
+
+- `places/lobby` -> lobby launch and ready flow
+- `places/run` -> camp orchestration and maze entry
+- `places/maze` -> expedition runtime and maze return
+- `packages/shared` -> the `contract` workstream for shared handoff definitions
+
+Use the local files when you enter one of those domains:
+
+- `VIBE.md` for the stable handbook
+- `NOW.md` for current pressure points and short-lived notes
+- local `AGENTS.md` / `CLAUDE.md` as thin agent adapters
+
+### Why This Exists
+
+If you do not come from a CS background, you can think of the vibe system as a
+"working map" for the project.
+
+Without it, a change that looks local can easily spill into shared handoff
+rules, another place's runtime flow, or cross-place teleport behavior. That
+creates confusion about:
+
+- who owns the change
+- where to start reading
+- which files are safe to edit
+- when a task must be split into a shared `contract` change first
+
+The vibe system exists to make those boundaries visible before work starts. It
+helps humans and AI collaborators avoid mixing place content, shared contracts,
+and integration work in the same blurry patch.
+
+### What The System Contains
+
+Each vibe has a small set of files with different jobs:
+
+- `references/place-parallel-development.md`
+  The repo-wide map. It explains how `lobby`, `run`, `maze`, and `contract`
+  relate to each other.
+- local `VIBE.md`
+  The stable handbook for one code domain. It explains the purpose, mental
+  model, entry files, allowed change graph, and validation path.
+- local `NOW.md`
+  The loose-leaf page. It records today's pressure points, temporary
+  exceptions, and cleanup notes without polluting the stable handbook.
+- local `AGENTS.md` / `CLAUDE.md`
+  Thin adapters that tell an agent where to look. They should not become a
+  second source of truth.
+
+In practice, the normal reading order is:
+
+1. Read the repo-wide map once.
+2. Enter the code domain you need.
+3. Read that domain's `VIBE.md`.
+4. Read `NOW.md` only if you need the current edge cases or temporary context.
 
 ## Place Flow And Runtime Routing
 
