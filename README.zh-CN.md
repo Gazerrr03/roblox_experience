@@ -163,9 +163,59 @@ run-in-roblox --place .\tmp\roblox_experience-tests.rbxlx --script tests/run-in-
 ## 开发规则
 
 项目特有的架构边界、网络契约、验证要求和集成规范，默认都以 `AGENTS.md` 为准。
+仓库级的 vibe 索引位于 `references/place-parallel-development.md`。
+每个长期代码域也会在所属目录附近维护本地 `VIBE.md` 和 `NOW.md`，让人类和 AI 都能在不先扫描整个仓库的情况下加载正确上下文。
 贡献者面向的环境搭建、验证流程和 CI / 平台说明见 `CONTRIBUTING.md`。
 
 所有 PR 都应遵循仓库 PR 模板，确保 Roblox 相关的集成检查不会丢失。
+
+## Vibe 地图
+
+当前仓库把这些目录视为一等 vibe：
+
+- `places/lobby` -> lobby 启动与 ready 流程
+- `places/run` -> 营地编排与迷宫入口
+- `places/maze` -> expedition runtime 与迷宫返回
+- `packages/shared` -> 作为 `contract` workstream 的共享 handoff 定义层
+
+当你进入这些代码域时，优先看本地文件：
+
+- `VIBE.md`：稳定 handbook
+- `NOW.md`：当前压力点与短期说明
+- 本地 `AGENTS.md` / `CLAUDE.md`：薄适配层入口
+
+### 为什么要有这套系统
+
+如果你没有 CS 背景，可以把 vibe system 理解成这个项目的“工作地图”。
+
+没有这套地图时，看起来只是一个本地小改动的需求，很容易一路扩散到共享 handoff 规则、别的 place 的运行流程，或者跨 place teleport 行为。最后大家会一起困惑：
+
+- 这次改动到底归谁管
+- 应该从哪里开始读代码
+- 哪些文件可以放心改
+- 什么时候必须先拆成共享 `contract` 改动
+
+vibe system 的作用，就是在开始动手之前先把这些边界讲清楚。它帮助人类和 AI 协作者不要把 place 内容、shared contract、集成问题混进同一个模糊 patch 里。
+
+### 这套系统由什么组成
+
+每个 vibe 都由一小组文件组成，而且各自分工不同：
+
+- `references/place-parallel-development.md`
+  仓库级总地图，说明 `lobby`、`run`、`maze`、`contract` 四条长期线怎么协作。
+- 本地 `VIBE.md`
+  单个代码域的稳定 handbook，说明它的目标、心智模型、入口文件、允许改动图谱、验证路径。
+- 本地 `NOW.md`
+  活页层，记录当前压力点、临时例外、待收敛问题，不污染稳定 handbook。
+- 本地 `AGENTS.md` / `CLAUDE.md`
+  薄适配层，只负责告诉 agent 应该去看哪里，不应该变成第二套事实来源。
+
+实际使用时，推荐阅读顺序是：
+
+1. 先读一次仓库级总地图。
+2. 再进入你要改的代码域。
+3. 读那个目录下的 `VIBE.md`。
+4. 只有在需要看当前边角情况或临时上下文时，再读 `NOW.md`。
 
 ## Place 流程与运行时路由
 
