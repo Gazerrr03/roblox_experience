@@ -7,6 +7,11 @@ description: Route a GitHub issue or feature request in this Roblox repo to the 
 
 Route an issue before code is written. Prefer a planning pass first when the environment supports a dedicated plan mode or planning subagent.
 
+Read references only as needed:
+
+- Read `references/routing-playbook.md` when you need the full decision tree or the exact output format.
+- Read `references/issue-34-case.md` when the user wants an onboarding example or a concrete cross-vibe case.
+
 ## Load The Right Context
 
 Read these files before making a routing call:
@@ -47,17 +52,7 @@ Classify the issue into one of three buckets:
 
 ## Output Contract
 
-Produce a short routing brief with exactly these fields:
-
-- `Issue`
-- `Owner vibe`
-- `Affected vibes`
-- `Recommended worktree`
-- `Base branch`
-- `Landing branch`
-- `Delivery mode`
-- `Why this is not <other vibe>`
-- `Review surface`
+Produce the routing brief defined in `references/routing-playbook.md`.
 
 ## Special Cases
 

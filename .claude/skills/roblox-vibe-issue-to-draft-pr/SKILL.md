@@ -7,6 +7,11 @@ argument-hint: "[issue-number-or-url]"
 
 Implement issue $ARGUMENTS in this repository and stop at a draft PR.
 
+Read references only as needed:
+
+- `references/execution-checklist.md` for the full execution order
+- `references/issue-34-case.md` for the onboarding example based on issue `#34` and PR `#95`
+
 ## Start here
 
 Read:
@@ -34,12 +39,7 @@ Run the checks that match the touched area:
 
 ## Draft PR requirements
 
-Include:
-
-- behavior summary
-- owner vibe and affected vibes
-- validation that actually ran
-- risks and follow-up
+Use the PR structure in `references/execution-checklist.md`.
 
 End the PR body with `Closes #<issue-number>`.
 

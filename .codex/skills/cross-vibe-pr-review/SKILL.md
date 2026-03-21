@@ -7,6 +7,11 @@ description: Review a pull request in this Roblox repo with a cross-vibe mindset
 
 Review with findings first. Prefer a planning pass first when the environment supports a dedicated plan mode or planning subagent.
 
+Read references only as needed:
+
+- Read `references/review-checklist.md` when you need the full cross-vibe review checklist and merge-story rules.
+- Read `references/pr-95-case.md` when the user wants a concrete onboarding example based on issue `#34` and PR `#95`.
+
 ## Resolve Scope
 
 Start by collecting:
@@ -46,13 +51,7 @@ Always produce:
 2. `Open Questions / Assumptions`
 3. `Summary`
 
-Rules:
-
-- Put findings first and order them by severity.
-- Use file references when possible.
-- If there are no blocking findings, say exactly `No blocking findings.`
-- Separate code issues from merge-process notes.
-- State clearly whether the PR lands on `main` and only later syncs back into the long-lived vibe branches.
+Follow the detailed output and review rules in `references/review-checklist.md`.
 
 ## Merge Readiness Language
 

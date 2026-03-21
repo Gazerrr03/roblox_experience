@@ -10,6 +10,11 @@ allowed-tools: Read, Grep, Glob, Bash(gh *), Bash(git *), Bash(rg *)
 
 Review PR $ARGUMENTS with findings first.
 
+Read references only as needed:
+
+- `references/review-checklist.md` for the full review checklist and merge-story rules
+- `references/pr-95-case.md` for the onboarding example based on issue `#34` and PR `#95`
+
 ## Gather context
 
 Collect:
@@ -40,6 +45,6 @@ Return:
 2. Open Questions / Assumptions
 3. Summary
 
-If there are no blocking findings, say exactly `No blocking findings.`
+Follow the detailed output and merge-story rules in `references/review-checklist.md`.
 
-Separate code issues from merge-process notes, and state clearly whether the PR lands on `main` and only later syncs back into the long-lived vibe branches.
+If there are no blocking findings, say exactly `No blocking findings.`

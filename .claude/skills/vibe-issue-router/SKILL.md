@@ -10,6 +10,11 @@ allowed-tools: Read, Grep, Glob, Bash(gh *), Bash(git *), Bash(rg *)
 
 Route issue $ARGUMENTS for this repository.
 
+Read references only as needed:
+
+- `references/routing-playbook.md` for the full decision tree and output format
+- `references/issue-34-case.md` for the onboarding example based on issue `#34`
+
 ## Required context
 
 Read:
@@ -36,16 +41,6 @@ Mark the issue `contract-first` if it changes teleport payloads, remote meaning,
 
 ## Deliverable
 
-Return a routing brief with:
-
-- Issue
-- Owner vibe
-- Affected vibes
-- Recommended worktree
-- Base branch
-- Landing branch
-- Delivery mode
-- Why this is not another vibe
-- Review surface
+Return the routing brief defined in `references/routing-playbook.md`.
 
 If routing is ambiguous, stop after the brief and say what needs confirmation.

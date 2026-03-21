@@ -7,6 +7,11 @@ description: Implement a GitHub issue in this Roblox repo using the vibe workflo
 
 Implement one issue cleanly, validate it, and stop at a draft PR. Do not merge.
 
+Read references only as needed:
+
+- Read `references/execution-checklist.md` when you need the full end-to-end execution order.
+- Read `references/issue-34-case.md` when the user wants a concrete baseline for a cross-vibe issue-to-draft-PR flow.
+
 ## Start With Routing
 
 Before editing code:
@@ -49,10 +54,7 @@ Call out validation gaps honestly if a runtime or multi-place flow could not be 
 
 Create a draft PR that includes:
 
-- a concise summary of the behavior change
-- why the issue belongs to the owning vibe or why it became cross-vibe
-- the validation commands that actually ran
-- the main risks or follow-up items
+Use the structure in `references/execution-checklist.md`.
 
 End the PR body with `Closes #<issue-number>`.
 
