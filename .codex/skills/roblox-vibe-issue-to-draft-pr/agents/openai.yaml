@@ -1,0 +1,4 @@
+interface:
+  display_name: "Vibe Issue To Draft PR"
+  short_description: "Implement a repo issue and open a draft PR to main."
+  default_prompt: "Use $roblox-vibe-issue-to-draft-pr to implement issue #34 and open a draft PR."
