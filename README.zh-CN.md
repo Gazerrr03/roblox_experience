@@ -150,9 +150,26 @@ run-in-roblox --place .\tmp\roblox_experience-tests.rbxlx --script tests/run-in-
 ## 开发规则
 
 项目特有的架构边界、网络契约、验证要求和集成规范，默认都以 `AGENTS.md` 为准。
+仓库级的 vibe 索引位于 `references/place-parallel-development.md`。
+每个长期代码域也会在所属目录附近维护本地 `VIBE.md` 和 `NOW.md`，让人类和 AI 都能在不先扫描整个仓库的情况下加载正确上下文。
 贡献者面向的环境搭建、验证流程和 CI / 平台说明见 `CONTRIBUTING.md`。
 
 所有 PR 都应遵循仓库 PR 模板，确保 Roblox 相关的集成检查不会丢失。
+
+## Vibe 地图
+
+当前仓库把这些目录视为一等 vibe：
+
+- `places/lobby` -> lobby 启动与 ready 流程
+- `places/run` -> 营地编排与迷宫入口
+- `places/maze` -> expedition runtime 与迷宫返回
+- `packages/shared` -> 作为 `contract` workstream 的共享 handoff 定义层
+
+当你进入这些代码域时，优先看本地文件：
+
+- `VIBE.md`：稳定 handbook
+- `NOW.md`：当前压力点与短期说明
+- 本地 `AGENTS.md` / `CLAUDE.md`：薄适配层入口
 
 ## Place 流程与运行时路由
 

@@ -44,6 +44,27 @@ The current Rojo project files point at `packages/**`, including:
 If a document or comment disagrees with those project files, trust the project
 files first.
 
+## Choose The Right Vibe First
+
+This repository uses code-domain vibes to keep multi-place work reviewable.
+Before you start editing, identify the owning domain:
+
+- `places/lobby` for lobby launch flow
+- `places/run` for camp orchestration and maze entry
+- `places/maze` for expedition runtime and maze return
+- `packages/shared` for the `contract` workstream that defines shared handoff
+  shape
+
+Use these docs in that order:
+
+1. `references/place-parallel-development.md`
+2. local `VIBE.md`
+3. local `NOW.md`
+
+If the change alters teleport payload shape, shared remote meaning, or place
+configuration that multiple places must agree on, stage the `contract` change
+first and then update the place-local consumers.
+
 ## Local Validation
 
 These checks are the default local baseline:
