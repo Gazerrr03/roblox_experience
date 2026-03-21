@@ -63,6 +63,7 @@ function RunMazePortal.enter(params)
         CampSession = nextSession,
         EnteringPlayer = params.EnteringPlayer,
         EntryReason = params.EntryReason or 'maze_gate',
+        PlayerInventory = params.PlayerInventory,
     })
 
     local teleportOptions = buildReservedServerTeleportOptions(mazeAccessCode, teleportData)

@@ -65,6 +65,15 @@ function InventoryService:deposit(player)
     return totalValue
 end
 
+function InventoryService:loadSummary(player, summary)
+    local inventory = self:get(player)
+    if not inventory then
+        return false, 'MissingInventory'
+    end
+
+    return inventory:loadSummary(summary)
+end
+
 function InventoryService:getSummary(player)
     local inventory = self:get(player)
     if not inventory then

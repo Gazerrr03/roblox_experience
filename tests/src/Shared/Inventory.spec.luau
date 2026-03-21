@@ -9,6 +9,13 @@ return function()
     local fakePlayer = {
         UserId = 101,
     }
+    local overweightItem = {
+        Id = 'overweight-canister',
+        Name = 'Overweight Canister',
+        Weight = 5,
+        Value = 99,
+        Color = Color3.fromRGB(255, 140, 140),
+    }
 
     local success, firstEntry = inventory:add(items[2])
     assert(success == true, 'Inventory should accept a low-weight item')
@@ -74,7 +81,7 @@ return function()
     assert(missingHeldSuccess == false, 'Inventory should reject unequip without a held item')
     assert(missingHeldReason == 'NothingHeld', 'Unequip should expose NothingHeld when empty')
 
-    local thirdSuccess = inventory:add(items[3])
+    local thirdSuccess = inventory:add(overweightItem)
     assert(thirdSuccess == false, 'Inventory should reject items that exceed remaining capacity')
 
     local depositedValue = inventory:getTotalValue()
@@ -91,7 +98,7 @@ return function()
     )
 
     inventoryService:addPlayer(fakePlayer)
-    local servicePickupSuccess, serviceEntry = inventoryService:pickup(fakePlayer, items[2])
+    local servicePickupSuccess, serviceEntry = inventoryService:pickup(fakePlayer, items[4])
     assert(servicePickupSuccess == true, 'Runtime inventory should pick up items for the player')
 
     local serviceEquipSuccess = inventoryService:equip(fakePlayer, serviceEntry.InstanceId)
@@ -102,10 +109,29 @@ return function()
         serviceSummary.HeldItem.InstanceId == serviceEntry.InstanceId,
         'Runtime inventory summary should expose the held item'
     )
+    assert(
+        serviceSummary.HeldItem.Light ~= nil,
+        'Runtime inventory should preserve held item effect data'
+    )
+
+    local restoredInventory = gameplay.Inventory.new(7)
+    local restored = restoredInventory:loadSummary(serviceSummary)
+    assert(
+        restored == true,
+        'Inventory should restore a carried summary from teleport payload data'
+    )
+    assert(
+        restoredInventory:getSummary().HeldItem.InstanceId == serviceEntry.InstanceId,
+        'Restored inventory should preserve the held item'
+    )
+    assert(
+        restoredInventory:getSummary().HeldItem.Light ~= nil,
+        'Restored inventory should preserve held item light metadata'
+    )
 
     local serviceDepositValue = inventoryService:deposit(fakePlayer)
     assert(
-        serviceDepositValue == items[2].Value,
+        serviceDepositValue == items[4].Value,
         'Depositing should include the currently held item value'
     )
 
