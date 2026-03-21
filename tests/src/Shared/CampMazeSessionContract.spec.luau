@@ -50,6 +50,28 @@ return function()
             Name = 'Scout',
         },
         EntryReason = 'maze_gate',
+        PlayerInventory = {
+            Capacity = 5,
+            Weight = 1,
+            Count = 1,
+            BackpackCount = 0,
+            HeldCount = 1,
+            Value = 24,
+            BackpackItems = {},
+            HeldItem = {
+                InstanceId = 4,
+                Id = 'glow-orb',
+                Name = 'Glow Orb',
+                Weight = 1,
+                Value = 24,
+                Color = Color3.fromRGB(142, 236, 255),
+                Light = {
+                    Brightness = 2.5,
+                    Range = 18,
+                    Color = Color3.fromRGB(170, 240, 255),
+                },
+            },
+        },
     })
 
     assert(
@@ -59,6 +81,15 @@ return function()
     assert(
         campToMaze.CampSession.SessionId == 'camp-session-1',
         'Camp session id should survive camp -> maze teleport shaping'
+    )
+    local enteringInventory = contract.findPlayerInventory(campToMaze, 42)
+    assert(
+        enteringInventory ~= nil,
+        'Run -> maze payload should carry the entering player inventory'
+    )
+    assert(
+        enteringInventory.HeldItem.Id == 'glow-orb',
+        'Run -> maze inventory payload should preserve the held glow orb'
     )
 
     local earlyReturn = contract.buildReturnSummary({
@@ -161,6 +192,33 @@ return function()
         CampSession = completed,
         Summaries = completed.ReturnedPlayerSummaries,
         MazeCompleted = true,
+        PlayerInventories = {
+            {
+                UserId = 42,
+                Inventory = {
+                    Capacity = 5,
+                    Weight = 1,
+                    Count = 1,
+                    BackpackCount = 0,
+                    HeldCount = 1,
+                    Value = 24,
+                    BackpackItems = {},
+                    HeldItem = {
+                        InstanceId = 4,
+                        Id = 'glow-orb',
+                        Name = 'Glow Orb',
+                        Weight = 1,
+                        Value = 24,
+                        Color = Color3.fromRGB(142, 236, 255),
+                        Light = {
+                            Brightness = 2.5,
+                            Range = 18,
+                            Color = Color3.fromRGB(170, 240, 255),
+                        },
+                    },
+                },
+            },
+        },
     })
 
     local returnedScout = contract.findReturnSummary(mazeToCamp, 42)
@@ -173,6 +231,15 @@ return function()
     assert(
         returnedLead.WasSettled == true,
         'Maze return payload should preserve settlement summaries'
+    )
+    local returnedInventory = contract.findPlayerInventory(mazeToCamp, 42)
+    assert(
+        returnedInventory ~= nil,
+        'Maze -> run payload should carry the returning player inventory'
+    )
+    assert(
+        returnedInventory.HeldItem.Light ~= nil,
+        'Maze -> run payload should preserve held item light metadata'
     )
 
     local reconciledPlaceholder, placeholderAccepted = contract.reconcileIncomingCampSession(

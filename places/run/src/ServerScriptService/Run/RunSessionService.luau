@@ -12,6 +12,7 @@ local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
 local MazeEntryAvailability = Shared.Session.MazeEntryAvailability
 local ControlStateService = Shared.Runtime.ControlStateService
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
+local InventoryService = Shared.Runtime.InventoryService
 local PlayerStateService = Shared.Runtime.PlayerStateService
 
 local LocalDebugMazeWorldBuilder = require(script.Parent.LocalDebugMazeWorldBuilder)
@@ -116,6 +117,7 @@ function RunSessionService.new()
         'Set SessionConfig.PlaceIds.Maze or SessionPlaceIdMaze before using the maze gate.'
     self.MazeEntryReasonCode = MazeEntryAvailability.ReasonCode.MazePlaceIdMissing
     self.LocalDebugMazeWorld = nil
+    self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
     self.ControlStateService = ControlStateService.new()
     self.PlayerStateService = PlayerStateService.new()
 
@@ -123,11 +125,13 @@ function RunSessionService.new()
 end
 
 function RunSessionService:_addPlayerState(player)
+    self.InventoryService:addPlayer(player)
     self.ControlStateService:addPlayer(player)
     self.PlayerStateService:addPlayer(player)
 end
 
 function RunSessionService:_removePlayerState(player)
+    self.InventoryService:removePlayer(player)
     self.ControlStateService:removePlayer(player)
     self.PlayerStateService:removePlayer(player)
 end
@@ -182,7 +186,19 @@ function RunSessionService:_applySessionConfig(incoming)
     end
     if type(incoming.InventoryCapacity) == 'number' then
         self.SessionData.InventoryCapacity = incoming.InventoryCapacity
+        self.InventoryService.Capacity = incoming.InventoryCapacity
     end
+end
+
+function RunSessionService:_hydratePlayerInventory(player, teleportData)
+    local inventorySummary =
+        CampMazeSessionContract.findPlayerInventory(teleportData, player.UserId)
+    if inventorySummary == nil then
+        return false
+    end
+
+    local loaded = self.InventoryService:loadSummary(player, inventorySummary)
+    return loaded == true
 end
 
 function RunSessionService:_syncCampSession()
@@ -444,6 +460,7 @@ function RunSessionService:_broadcastSnapshot()
             MazeEntryMode = mazeEntryAvailability.Mode,
             MazeEntryReason = mazeEntryAvailability.Reason,
             MazeEntryReasonCode = mazeEntryAvailability.ReasonCode,
+            Inventory = self.InventoryService:getSummary(player),
             Movement = self:_getMovementSummaryFor(player),
             ControlState = self.ControlStateService:getSummary(player),
             PlayerState = self.PlayerStateService:getSummary(player),
@@ -451,6 +468,66 @@ function RunSessionService:_broadcastSnapshot()
 
         self.Remotes.RunPrivateState:FireClient(player, nil)
     end
+end
+
+function RunSessionService:_canManageInventory(player)
+    if not self.IsLaunched then
+        return false
+    end
+
+    if CampMazeSessionContract.isPlayerInMaze(self.CampSession, player.UserId) then
+        self:_setStatus(
+            string.format(
+                '%s is already marked inside the maze and cannot change camp inventory.',
+                player.DisplayName
+            )
+        )
+        return false
+    end
+
+    return true
+end
+
+function RunSessionService:_equipItem(player, itemInstanceId)
+    if not self:_canManageInventory(player) then
+        return
+    end
+
+    local success, result = self.InventoryService:equip(player, itemInstanceId)
+    if not success then
+        self:_setStatus(
+            string.format(
+                '%s could not equip that item (%s).',
+                player.DisplayName,
+                tostring(result)
+            )
+        )
+        return
+    end
+
+    self:_setStatus(string.format('%s equipped %s in camp.', player.DisplayName, result.Name))
+end
+
+function RunSessionService:_unequipItem(player)
+    if not self:_canManageInventory(player) then
+        return
+    end
+
+    local success, result = self.InventoryService:unequip(player)
+    if not success then
+        self:_setStatus(
+            string.format(
+                '%s could not stow the held item (%s).',
+                player.DisplayName,
+                tostring(result)
+            )
+        )
+        return
+    end
+
+    self:_setStatus(
+        string.format('%s stowed %s back into the backpack.', player.DisplayName, result.Name)
+    )
 end
 
 function RunSessionService:_openGate(player)
@@ -578,6 +655,7 @@ function RunSessionService:_enterMaze(player)
             CampSession = self.CampSession,
             GateOpen = self.GateOpen,
             SessionConfig = self.SessionData,
+            PlayerInventory = self.InventoryService:getSummary(player),
             EnteringPlayer = {
                 UserId = player.UserId,
                 Name = player.DisplayName,
@@ -769,6 +847,7 @@ function RunSessionService:_handlePlayerTeleportData(player)
     end
 
     self:_applySessionConfig(teleportData.SessionConfig)
+    self:_hydratePlayerInventory(player, teleportData)
 
     local summary = CampMazeSessionContract.findReturnSummary(teleportData, player.UserId)
     if summary then
@@ -804,6 +883,7 @@ function RunSessionService:start()
     for _, player in ipairs(Players:GetPlayers()) do
         bindCharacterTeleport(self, player)
         self:_addPlayerState(player)
+        self:_hydratePlayerInventory(player, self:_readTeleportData(player))
 
         if player.Character then
             player.Character:Destroy()
@@ -848,6 +928,10 @@ function RunSessionService:start()
             if self:_canProcessMazeEntryRequest(player) then
                 self:_requestMazeEntry(player, true)
             end
+        elseif payload.Type == 'RequestEquipItem' then
+            self:_equipItem(player, payload.ItemInstanceId)
+        elseif payload.Type == 'RequestUnequipItem' then
+            self:_unequipItem(player)
         elseif payload.Type == 'RequestSprintStart' then
             self:_setPlayerSprinting(player, true)
         elseif payload.Type == 'RequestSprintStop' then
