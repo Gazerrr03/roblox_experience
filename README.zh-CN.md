@@ -171,6 +171,39 @@ run-in-roblox --place .\tmp\roblox_experience-tests.rbxlx --script tests/run-in-
 - `NOW.md`：当前压力点与短期说明
 - 本地 `AGENTS.md` / `CLAUDE.md`：薄适配层入口
 
+### 为什么要有这套系统
+
+如果你没有 CS 背景，可以把 vibe system 理解成这个项目的“工作地图”。
+
+没有这套地图时，看起来只是一个本地小改动的需求，很容易一路扩散到共享 handoff 规则、别的 place 的运行流程，或者跨 place teleport 行为。最后大家会一起困惑：
+
+- 这次改动到底归谁管
+- 应该从哪里开始读代码
+- 哪些文件可以放心改
+- 什么时候必须先拆成共享 `contract` 改动
+
+vibe system 的作用，就是在开始动手之前先把这些边界讲清楚。它帮助人类和 AI 协作者不要把 place 内容、shared contract、集成问题混进同一个模糊 patch 里。
+
+### 这套系统由什么组成
+
+每个 vibe 都由一小组文件组成，而且各自分工不同：
+
+- `references/place-parallel-development.md`
+  仓库级总地图，说明 `lobby`、`run`、`maze`、`contract` 四条长期线怎么协作。
+- 本地 `VIBE.md`
+  单个代码域的稳定 handbook，说明它的目标、心智模型、入口文件、允许改动图谱、验证路径。
+- 本地 `NOW.md`
+  活页层，记录当前压力点、临时例外、待收敛问题，不污染稳定 handbook。
+- 本地 `AGENTS.md` / `CLAUDE.md`
+  薄适配层，只负责告诉 agent 应该去看哪里，不应该变成第二套事实来源。
+
+实际使用时，推荐阅读顺序是：
+
+1. 先读一次仓库级总地图。
+2. 再进入你要改的代码域。
+3. 读那个目录下的 `VIBE.md`。
+4. 只有在需要看当前边角情况或临时上下文时，再读 `NOW.md`。
+
 ## Place 流程与运行时路由
 
 ### 已发布环境下的正式路径
