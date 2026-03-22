@@ -102,6 +102,23 @@ local function runWithCampSessionLock(self, callback)
     return table.unpack(results, 2, results.n)
 end
 
+local function buildMazeMonsterRuntimeProfile(monsterAuthorProfile)
+    local compiledOk, runtimeProfileOrReason =
+        Gameplay.Monsters.compileMonsterForMaze(monsterAuthorProfile)
+    if not compiledOk then
+        error(
+            string.format(
+                'Failed to compile maze monster %s: %s',
+                tostring(monsterAuthorProfile and monsterAuthorProfile.Id),
+                tostring(runtimeProfileOrReason)
+            ),
+            0
+        )
+    end
+
+    return runtimeProfileOrReason
+end
+
 function MazeSessionService.new()
     local self = setmetatable({}, MazeSessionService)
 
@@ -126,17 +143,22 @@ function MazeSessionService.new()
     self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
     self.ControlStateService = ControlStateService.new()
     self.PlayerStateService = PlayerStateService.new()
-    self.MonsterService = MonsterService.new(Gameplay.Config.Monsters[1], function()
-        return self.RunTracker:getState() == 'Expedition'
-    end, function(player)
-        return self.RunTracker:isPlayerActive(player.UserId)
-    end, function(fromPosition, toPosition)
-        if not self.World or not self.World.CanTraverseBetweenPositions then
-            return true
-        end
+    self.MonsterService = MonsterService.new(
+        buildMazeMonsterRuntimeProfile(Gameplay.Config.Monsters[1]),
+        function()
+            return self.RunTracker:getState() == 'Expedition'
+        end,
+        function(player)
+            return self.RunTracker:isPlayerActive(player.UserId)
+        end,
+        function(fromPosition, toPosition)
+            if not self.World or not self.World.CanTraverseBetweenPositions then
+                return true
+            end
 
-        return self.World.CanTraverseBetweenPositions(fromPosition, toPosition)
-    end)
+            return self.World.CanTraverseBetweenPositions(fromPosition, toPosition)
+        end
+    )
     self.CorpsesByUserId = {}
 
     return self
