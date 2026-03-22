@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cross-Vibe PR Review"
+  short_description: "Review PRs for contract/place seam risks and merge readiness."
+  default_prompt: "Use $cross-vibe-pr-review to review PR #95 for cross-vibe risks and merge readiness."
