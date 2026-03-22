@@ -9,6 +9,7 @@ local MazeModuleAssetContract = require(script.Parent.MazeModuleAssetContract)
 local MazeWorldShellBuilder = require(script.Parent.MazeWorldShellBuilder)
 
 local MazeFormalWorldComposer = {}
+local LOOT_SOCKET_HEIGHT = 1.5
 
 local function validateModuleAssetsIfConfigured(options)
     if options == nil then
@@ -29,6 +30,110 @@ local function validateModuleAssetsIfConfigured(options)
     return nil
 end
 
+local function buildThreatTags(roomKind)
+    return {
+        string.format('RoomKind:%s', roomKind),
+    }
+end
+
+local function cloneSortedNumbers(values)
+    local cloned = table.clone(values or {})
+    table.sort(cloned)
+    return cloned
+end
+
+local function buildSortedNeighborRoomIds(room)
+    local neighborRoomIds = {}
+    for _, neighborRoomId in pairs(room.Neighbors or {}) do
+        table.insert(neighborRoomIds, neighborRoomId)
+    end
+    table.sort(neighborRoomIds)
+    return neighborRoomIds
+end
+
+local function buildRoomAffordance(shell, roomId)
+    local room = shell.RoomById[roomId]
+    local roomCenter = shell.RoomCenters[roomId]
+
+    local affordance = {
+        RoomId = roomId,
+        RoomKind = room.Kind,
+        RoomCenter = roomCenter,
+        SpawnSockets = {
+            {
+                Id = string.format('%s_Spawn_1', roomId),
+                Kind = 'RoomCenter',
+                Position = roomCenter + Vector3.new(0, LOOT_SOCKET_HEIGHT, 0),
+            },
+        },
+        PatrolAnchors = {},
+        SightBreakers = {},
+        DoorControlPoints = {},
+        ThreatTags = buildThreatTags(room.Kind),
+        TraversalMask = {
+            NeighborRoomIds = buildSortedNeighborRoomIds(room),
+            DoorwayIds = {},
+            ExitDirections = cloneSortedNumbers(room.ExitDirections),
+        },
+    }
+
+    if room.Kind == 'Loot' then
+        table.insert(affordance.PatrolAnchors, roomCenter)
+    end
+
+    return affordance
+end
+
+local function appendDoorwayAffordances(roomAffordances, doorwayId, doorway)
+    local roomIds = {
+        doorway.RoomA,
+        doorway.RoomB,
+    }
+    local neighborRoomIds = {
+        [doorway.RoomA] = doorway.RoomB,
+        [doorway.RoomB] = doorway.RoomA,
+    }
+
+    for _, roomId in ipairs(roomIds) do
+        local affordance = roomAffordances[roomId]
+        if affordance then
+            table.insert(affordance.TraversalMask.DoorwayIds, doorwayId)
+
+            if doorway.Prompt then
+                table.insert(affordance.DoorControlPoints, {
+                    DoorwayId = doorwayId,
+                    NeighborRoomId = neighborRoomIds[roomId],
+                    Position = doorway.Prompt.Parent.Position,
+                })
+            end
+        end
+    end
+end
+
+local function finalizeAffordances(roomAffordances)
+    for _, affordance in pairs(roomAffordances) do
+        table.sort(affordance.TraversalMask.DoorwayIds)
+        table.sort(affordance.DoorControlPoints, function(left, right)
+            return left.DoorwayId < right.DoorwayId
+        end)
+    end
+end
+
+local function collectPatrolPointsFromAffordances(roomIds, roomAffordances)
+    local patrolPoints = {}
+
+    for _, roomId in ipairs(roomIds) do
+        local affordance = roomAffordances[roomId]
+        if affordance then
+            for _, patrolAnchor in ipairs(affordance.PatrolAnchors) do
+                table.insert(patrolPoints, patrolAnchor)
+            end
+        end
+    end
+
+    return patrolPoints
+end
+
 function MazeFormalWorldComposer.build(seed, config, options)
     local resolvedOptions = options or {}
     validateModuleAssetsIfConfigured(resolvedOptions)
@@ -43,13 +148,15 @@ function MazeFormalWorldComposer.build(seed, config, options)
         DetectionBuffer = resolvedOptions.DetectionBuffer,
     })
 
-    local patrolPoints = {}
+    local roomAffordances = {}
     local lootNodes = {}
     local itemIndex = 1
 
     for _, roomId in ipairs(shell.RoomIds) do
+        local affordance = buildRoomAffordance(shell, roomId)
         local room = shell.RoomById[roomId]
-        local roomCenter = shell.RoomCenters[roomId]
+        local lootPosition = affordance.SpawnSockets[1].Position
+        roomAffordances[roomId] = affordance
 
         if room.Kind == 'Loot' then
             local itemDef = Items[itemIndex]
@@ -58,7 +165,7 @@ function MazeFormalWorldComposer.build(seed, config, options)
             local _, prompt = MazeInteractionPartFactory.createPromptPart({
                 Name = string.format('Loot_%s', roomId),
                 Size = Vector3.new(3, 3, 3),
-                CFrame = CFrame.new(roomCenter + Vector3.new(0, 1.5, 0)),
+                CFrame = CFrame.new(lootPosition),
                 Color = itemDef.Color,
                 Material = Enum.Material.Neon,
                 ActionText = 'Collect',
@@ -69,10 +176,9 @@ function MazeFormalWorldComposer.build(seed, config, options)
             lootNodes[roomId] = {
                 ItemDef = itemDef,
                 Prompt = prompt,
-                Position = roomCenter,
+                Position = lootPosition,
                 Collected = false,
             }
-            table.insert(patrolPoints, roomCenter)
         end
     end
 
@@ -107,8 +213,21 @@ function MazeFormalWorldComposer.build(seed, config, options)
         },
     }
 
+    local doorwayIds = {}
+    for doorwayId in pairs(shell.Doorways or {}) do
+        table.insert(doorwayIds, doorwayId)
+    end
+    table.sort(doorwayIds)
+
+    for _, doorwayId in ipairs(doorwayIds) do
+        appendDoorwayAffordances(roomAffordances, doorwayId, shell.Doorways[doorwayId])
+    end
+
+    finalizeAffordances(roomAffordances)
+
     shell.LootNodes = lootNodes
-    shell.PatrolPoints = patrolPoints
+    shell.RoomAffordances = roomAffordances
+    shell.PatrolPoints = collectPatrolPointsFromAffordances(shell.RoomIds, roomAffordances)
     shell.ReturnHoldPad = returnHoldPad
     shell.ExtractionNodes = extractionNodes
 
