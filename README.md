@@ -144,6 +144,35 @@ rojo serve places/lobby/default.project.json --port 34873
 - To test the real maze teleport flow, use published `Lobby` / `Run` / `Maze` place ids.
 - To stay fully local in Studio, enable `SessionDebugLocalMazeHandoff` so run enters the in-place local debug maze fallback instead of cross-place teleporting.
 
+### Recommended Development Test Environments
+
+Use these environments as separate layers, not as substitutes for one another:
+
+1. Deterministic logic baseline
+   Run `stylua --check .`, `selene .`, and the `run-in-roblox` test place.
+2. Local `maze` iteration
+   Use `.\scripts\dev.ps1 -Place maze` for the fastest monster and expedition
+   gameplay iteration.
+3. Local `run` handoff validation
+   Use `.\scripts\dev.ps1 -Place run` with `SessionDebugLocalMazeHandoff=true`
+   in Studio to validate the run-owned local maze fallback path.
+4. Staging published smoke
+   Use a separate staging `Lobby / Run / Maze` publish setup for real teleport
+   and multiplayer smoke checks.
+
+Important boundaries:
+
+- Keep the source-controlled `SessionConfig.PlaceIds` aligned with the formal
+  published experience.
+- Use Studio attributes `SessionPlaceIdLobby`, `SessionPlaceIdRun`,
+  `SessionPlaceIdMaze`, and `SessionDebugLocalMazeHandoff` to switch local or
+  staging behavior without rewriting source defaults.
+- A passing local debug fallback is not proof that formal cross-place teleports
+  are healthy.
+
+For the full testing strategy, see
+`references/development-test-environments.md`.
+
 ### Validation Commands
 
 Run these from the repository root when you need local validation:
