@@ -1,0 +1,3 @@
+## 2025-05-15 - [Optimization: Squared Distance in MonsterLogic]
+**Learning:** In Roblox game development, frequently called distance checks (like finding the nearest target) are common bottlenecks. Using `.Magnitude` (which performs a square root) inside loops can be expensive when scaled across many entities and players. Replacing it with a squared distance calculation (dot product or component-wise sum of squares) is a standard, low-risk, and high-reward optimization.
+**Action:** Always prefer squared distance comparisons ($d^2$) when the absolute distance value is not required and only relative comparisons or range checks are needed.
