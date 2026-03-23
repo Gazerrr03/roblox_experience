@@ -4,8 +4,9 @@ return function()
     local packages = ReplicatedStorage:WaitForChild('Packages')
     local gameplay = require(packages:WaitForChild('Gameplay'))
     local sharedPackage = packages:WaitForChild('Shared')
-    local renderer =
-        require(sharedPackage:WaitForChild('Runtime'):WaitForChild('HexMazeWorldRenderer'))
+    local shared = require(sharedPackage)
+    local renderer = shared.Runtime.HexMazeWorldRenderer
+    local lightingProfile = shared.Runtime.MazeLightingProfile
 
     local layout = gameplay.ProcGen.MazeBuilder.build(12345, {
         RoomCount = 12,
@@ -22,6 +23,7 @@ return function()
         Parent = Workspace,
         IncludeRoomMarker = true,
         RoomApothem = 20,
+        SurfacePalette = lightingProfile.SurfacePalette,
     })
 
     local root = rendered.Root
@@ -63,6 +65,20 @@ return function()
             break
         end
     end
+
+    local firstRoomFolder = root:FindFirstChild(rendered.RoomIds[1])
+    local firstFloorTile = firstRoomFolder
+        and firstRoomFolder:FindFirstChild('FloorTiles')
+        and firstRoomFolder.FloorTiles:GetChildren()[1]
+    assert(firstFloorTile ~= nil, 'Renderer should still produce tiled floor geometry')
+    assert(
+        firstFloorTile.Material == lightingProfile.SurfacePalette.FloorMaterial,
+        'Renderer should honor the maze lighting profile floor material'
+    )
+    assert(
+        firstFloorTile.Color == lightingProfile.SurfacePalette.FloorColor,
+        'Renderer should honor the maze lighting profile floor color'
+    )
 
     local leafDoorwayId = nil
     for doorwayId, doorway in pairs(rendered.Doorways) do
