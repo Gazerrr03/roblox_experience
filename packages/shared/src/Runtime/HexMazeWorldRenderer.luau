@@ -1,5 +1,7 @@
 local Workspace = game:GetService('Workspace')
 
+local MazeModuleAssetContract = require(script.Parent.MazeModuleAssetContract)
+
 local HexMazeWorldRenderer = {}
 
 local ROOM_CLEAR_HEIGHT = 14
@@ -35,6 +37,8 @@ local DEFAULT_ROOM_KIND_COLORS = {
     Loot = Color3.fromRGB(88, 92, 112),
     Extraction = Color3.fromRGB(145, 119, 73),
 }
+local CAVE_ROCK_COLOR = Color3.fromRGB(84, 81, 76)
+local CAVE_ROCK_MATERIAL = Enum.Material.Slate
 
 local function resolveSurfacePalette(surfacePalette)
     local resolvedPalette = {}
@@ -90,6 +94,74 @@ local function createPromptPart(config, parent)
     prompt.Parent = part
 
     return part, prompt
+end
+
+local function applyArchetypeShellAsset(roomFolder, roomCenter, room, moduleAssetsRoot)
+    local shellModel =
+        MazeModuleAssetContract.getRoomArchetypeShellModel(moduleAssetsRoot, room.ArchetypeId)
+    if shellModel == nil then
+        return
+    end
+
+    local clone = shellModel:Clone()
+    clone.Name = string.format('AuthoredShell_%s', room.ArchetypeId)
+    clone.Parent = roomFolder
+
+    if clone:IsA('Model') then
+        clone:PivotTo(CFrame.new(roomCenter))
+    elseif clone:IsA('BasePart') then
+        clone.CFrame = CFrame.new(roomCenter)
+    end
+end
+
+local function createAuthoringSockets(roomFolder, roomCenter)
+    local authoringFolder = Instance.new('Folder')
+    authoringFolder.Name = 'AuthoringSockets'
+    authoringFolder.Parent = roomFolder
+
+    createPart({
+        Name = 'ShellModelSocket',
+        Size = Vector3.new(2, 2, 2),
+        CFrame = CFrame.new(roomCenter + Vector3.new(0, 4, 0)),
+        Color = Color3.fromRGB(255, 255, 255),
+        Material = Enum.Material.ForceField,
+        Transparency = 1,
+        CanCollide = false,
+    }, authoringFolder)
+end
+
+local function buildCavePocketDecor(roomFolder, roomCenter, roomApothem)
+    local caveDecorFolder = Instance.new('Folder')
+    caveDecorFolder.Name = 'CavePocketDecor'
+    caveDecorFolder.Parent = roomFolder
+
+    for index, decorConfig in ipairs({
+        {
+            Offset = Vector3.new(-roomApothem * 0.42, 2.4, -roomApothem * 0.12),
+            Size = Vector3.new(8, 5, 7),
+            Shape = Enum.PartType.Ball,
+        },
+        {
+            Offset = Vector3.new(roomApothem * 0.38, 1.8, roomApothem * 0.18),
+            Size = Vector3.new(9, 4, 6),
+            Shape = Enum.PartType.Ball,
+        },
+        {
+            Offset = Vector3.new(0, 11, roomApothem * 0.34),
+            Size = Vector3.new(roomApothem * 0.8, 3, 6),
+            Shape = Enum.PartType.Block,
+        },
+    }) do
+        createPart({
+            Name = string.format('CaveRock_%d', index),
+            Size = decorConfig.Size,
+            CFrame = CFrame.new(roomCenter + decorConfig.Offset),
+            Color = CAVE_ROCK_COLOR,
+            Material = CAVE_ROCK_MATERIAL,
+            Shape = decorConfig.Shape,
+            CanCollide = false,
+        }, caveDecorFolder)
+    end
 end
 
 local function sideVectors(directionIndex)
@@ -353,6 +425,16 @@ local function buildRoom(parent, room, roomCenter, roomApothem, options)
             options.SurfacePalette
         )
     end
+
+    createAuthoringSockets(roomFolder, roomCenter)
+
+    if room.ArchetypeId == 'CavePocket' then
+        buildCavePocketDecor(roomFolder, roomCenter, roomApothem)
+    end
+
+    applyArchetypeShellAsset(roomFolder, roomCenter, room, options.ModuleAssetsRoot)
+
+    return roomFolder
 end
 
 local function buildExitCorridors(parent, room, roomCenter, roomApothem, surfacePalette)
@@ -395,6 +477,7 @@ function HexMazeWorldRenderer.build(params)
     local roomCenters = {}
     local roomById = {}
     local roomIds = {}
+    local roomFolders = {}
     local doorways = {}
 
     for roomId in pairs(layout.Rooms) do
@@ -408,10 +491,11 @@ function HexMazeWorldRenderer.build(params)
         roomCenters[roomId] = roomCenter
         roomById[roomId] = room
 
-        buildRoom(worldFolder, room, roomCenter, roomApothem, {
+        roomFolders[roomId] = buildRoom(worldFolder, room, roomCenter, roomApothem, {
             IncludeRoomMarker = includeRoomMarker,
             RoomMarkerTransparency = params.RoomMarkerTransparency,
             RoomKindColors = params.RoomKindColors,
+            ModuleAssetsRoot = params.ModuleAssetsRoot,
             SurfacePalette = surfacePalette,
         })
         buildExitCorridors(worldFolder, room, roomCenter, roomApothem, surfacePalette)
@@ -504,6 +588,7 @@ function HexMazeWorldRenderer.build(params)
         RoomCenters = roomCenters,
         RoomById = roomById,
         RoomIds = roomIds,
+        RoomFolders = roomFolders,
         Doorways = doorways,
         ToggleDoor = toggleDoor,
         FindRoomByPosition = findRoomByPosition,

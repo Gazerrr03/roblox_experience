@@ -120,7 +120,14 @@ local function buildMazeMonsterRuntimeProfile(monsterAuthorProfile)
 end
 
 local function collectPatrolPointsFromWorld(world)
-    local patrolPoints = {}
+    local patrolPoints = world and world.PatrolPoints or {}
+    local initialPatrolIndex = world and world.InitialMonsterPatrolIndex or nil
+
+    if #patrolPoints > 0 then
+        return patrolPoints, initialPatrolIndex
+    end
+
+    patrolPoints = {}
 
     if world and world.RoomAffordances then
         for _, roomId in ipairs(world.RoomIds or {}) do
@@ -134,10 +141,10 @@ local function collectPatrolPointsFromWorld(world)
     end
 
     if #patrolPoints > 0 then
-        return patrolPoints
+        return patrolPoints, initialPatrolIndex
     end
 
-    return world and world.PatrolPoints or {}
+    return world and world.PatrolPoints or {}, initialPatrolIndex
 end
 
 function MazeSessionService.new()
@@ -365,7 +372,7 @@ function MazeSessionService:_getObjectiveFor()
         return 'The maze run is complete. Review the returned summaries back in camp.'
     end
 
-    return 'Collect loot, avoid the monster, and reach a maze exit to return to camp.'
+    return 'Collect loot, avoid the monster, and use a return marker to head back to the run maze gate.'
 end
 
 function MazeSessionService:_broadcastSnapshot()
@@ -416,9 +423,15 @@ function MazeSessionService:_rebuildWorld()
 end
 
 function MazeSessionService:_bindWorldInteractions()
+    if self.World.ReturnHoldPad and self.World.ReturnHoldPad.Prompt then
+        self.World.ReturnHoldPad.Prompt.Triggered:Connect(function(player)
+            self:_returnPlayerToRunEntrance(player, 'early_return')
+        end)
+    end
+
     for extractionNodeId, extractionNode in pairs(self.World.ExtractionNodes or {}) do
         extractionNode.Prompt.Triggered:Connect(function(player)
-            self:_extractPlayer(player, extractionNodeId)
+            self:_returnPlayerToRunEntrance(player, 'extracted', extractionNodeId)
         end)
     end
 
@@ -513,7 +526,8 @@ function MazeSessionService:_beginFormalExpedition()
         return
     end
 
-    self.MonsterService:spawn(collectPatrolPointsFromWorld(self.World))
+    local patrolPoints, initialPatrolIndex = collectPatrolPointsFromWorld(self.World)
+    self.MonsterService:spawn(patrolPoints, initialPatrolIndex)
     self:_setStatus('Maze session is live. Explore, loot, and find an extraction point.')
 end
 
@@ -748,22 +762,26 @@ function MazeSessionService:_pickupLoot(player, roomId)
     )
 end
 
-function MazeSessionService:_extractPlayer(player, _extractionNodeId)
+function MazeSessionService:_returnPlayerToRunEntrance(player, returnReason, _interactionId)
     if self.RunTracker:getState() ~= 'Expedition' then
-        self:_setStatus('Extraction is only available during the expedition phase.')
+        self:_setStatus('Return markers are only available during the expedition phase.')
         return
     end
 
     if not self.RunTracker:isPlayerActive(player.UserId) then
-        self:_setStatus(string.format('%s already returned to camp.', player.DisplayName))
+        self:_setStatus(
+            string.format('%s already returned to the run maze gate.', player.DisplayName)
+        )
         return
     end
 
-    local summary = self:_buildSummaryFor(player, 'extracted', false)
+    local summary = self:_buildSummaryFor(player, returnReason, false)
     local recorded, reason = self.RunTracker:recordReturn(summary)
     if not recorded then
         if reason == 'MissingActivePlayer' then
-            self:_setStatus(string.format('%s already returned to camp.', player.DisplayName))
+            self:_setStatus(
+                string.format('%s already returned to the run maze gate.', player.DisplayName)
+            )
         end
         return
     end
@@ -783,7 +801,12 @@ function MazeSessionService:_extractPlayer(player, _extractionNodeId)
 
     if self:_teleportToCamp({ player }, { summary }, mazeCompleted) then
         self:_setStatus(
-            string.format('%s extracted with %d value.', player.DisplayName, summary.Value)
+            string.format(
+                '%s returned to the run maze gate with %d value (%s).',
+                player.DisplayName,
+                summary.Value,
+                summary.ReturnReason
+            )
         )
         return
     end
@@ -794,7 +817,11 @@ function MazeSessionService:_extractPlayer(player, _extractionNodeId)
     end
 
     self:_setStatus(
-        string.format('%s reached the maze exit with %d value.', player.DisplayName, summary.Value)
+        string.format(
+            '%s reached a return marker with %d value, but the handoff back to run failed.',
+            player.DisplayName,
+            summary.Value
+        )
     )
 end
 

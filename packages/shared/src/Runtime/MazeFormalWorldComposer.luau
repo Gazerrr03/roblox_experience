@@ -4,6 +4,7 @@ local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Gameplay = require(Packages:WaitForChild('Gameplay'))
 
 local Items = Gameplay.Config.Items
+local MazeMonsterSpawnPolicy = Gameplay.Monsters.MazeMonsterSpawnPolicy
 local MazeInteractionPartFactory = require(script.Parent.MazeInteractionPartFactory)
 local MazeModuleAssetContract = require(script.Parent.MazeModuleAssetContract)
 local MazeWorldShellBuilder = require(script.Parent.MazeWorldShellBuilder)
@@ -143,6 +144,7 @@ function MazeFormalWorldComposer.build(seed, config, options)
         Parent = resolvedOptions.Parent,
         OriginOffset = resolvedOptions.OriginOffset or Vector3.zero,
         SurfacePalette = resolvedOptions.SurfacePalette,
+        ModuleAssetsRoot = resolvedOptions.ModuleAssetsRoot,
         IncludeRoomMarkers = resolvedOptions.IncludeRoomMarkers ~= false,
         RoomMarkerTransparency = resolvedOptions.RoomMarkerTransparency or 0.5,
         RoomKindColors = resolvedOptions.RoomKindColors,
@@ -183,14 +185,18 @@ function MazeFormalWorldComposer.build(seed, config, options)
         end
     end
 
-    local returnHoldPad = MazeInteractionPartFactory.createPart({
+    local returnHoldPadPosition = shell.CampCenter + Vector3.new(0, 0.5, -10)
+    local _, returnHoldPrompt = MazeInteractionPartFactory.createPromptPart({
         Name = 'ReturnHoldPad',
         Size = Vector3.new(8, 1, 8),
-        CFrame = CFrame.new(shell.CampCenter + Vector3.new(0, 0.5, -10)),
+        CFrame = CFrame.new(returnHoldPadPosition),
         Color = Color3.fromRGB(77, 147, 196),
         Material = Enum.Material.Neon,
+        ActionText = 'Return',
+        ObjectText = 'Run Entrance',
         Transparency = 0.2,
         CanCollide = false,
+        MaxActivationDistance = 12,
     }, shell.Root)
 
     local extractionNodeId = 'PrimaryExtraction'
@@ -200,8 +206,8 @@ function MazeFormalWorldComposer.build(seed, config, options)
         CFrame = CFrame.new(shell.ExtractionCenter + Vector3.new(0, 0.5, 0)),
         Color = Color3.fromRGB(214, 170, 94),
         Material = Enum.Material.Neon,
-        ActionText = 'Extract',
-        ObjectText = resolvedOptions.ExtractionObjectText or 'Maze Exit',
+        ActionText = 'Return',
+        ObjectText = resolvedOptions.ExtractionObjectText or 'Run Entrance',
         CanCollide = false,
         MaxActivationDistance = resolvedOptions.ExtractionMaxActivationDistance or 12,
     }, shell.Root)
@@ -226,10 +232,24 @@ function MazeFormalWorldComposer.build(seed, config, options)
 
     finalizeAffordances(roomAffordances)
 
+    local initialMonsterPatrolIndex, initialMonsterSpawnRoomId =
+        MazeMonsterSpawnPolicy.selectInitialPatrolIndex(
+            shell.RoomIds,
+            roomAffordances,
+            shell.RoomById,
+            shell.CampRoomId
+        )
+
     shell.LootNodes = lootNodes
     shell.RoomAffordances = roomAffordances
     shell.PatrolPoints = collectPatrolPointsFromAffordances(shell.RoomIds, roomAffordances)
-    shell.ReturnHoldPad = returnHoldPad
+    shell.InitialMonsterPatrolIndex = initialMonsterPatrolIndex
+        or (#shell.PatrolPoints > 0 and 1 or nil)
+    shell.InitialMonsterSpawnRoomId = initialMonsterSpawnRoomId
+    shell.ReturnHoldPad = {
+        Prompt = returnHoldPrompt,
+        Position = returnHoldPadPosition,
+    }
     shell.ExtractionNodes = extractionNodes
 
     return shell
