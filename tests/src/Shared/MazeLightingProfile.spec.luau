@@ -51,14 +51,7 @@ return function()
     created.Bloom:Destroy()
     created.DepthOfField:Destroy()
 
-    Lighting.Technology = original.Technology
-    Lighting.GlobalShadows = original.GlobalShadows
-    Lighting.Brightness = original.Brightness
-    Lighting.ClockTime = original.ClockTime
-    Lighting.ExposureCompensation = original.ExposureCompensation
-    Lighting.ShadowSoftness = original.ShadowSoftness
-    Lighting.Ambient = original.Ambient
-    Lighting.OutdoorAmbient = original.OutdoorAmbient
-    Lighting.EnvironmentDiffuseScale = original.EnvironmentDiffuseScale
-    Lighting.EnvironmentSpecularScale = original.EnvironmentSpecularScale
+    for property, value in pairs(original) do
+        Lighting[property] = value
+    end
 end
