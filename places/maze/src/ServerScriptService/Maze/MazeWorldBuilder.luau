@@ -18,7 +18,7 @@ function MazeWorldBuilder.build(seed, config, options)
         DetectionBuffer = options and options.DetectionBuffer or nil,
         ModuleAssetsRoot = options and options.ModuleAssetsRoot or nil,
         RequireModuleAssets = options and options.RequireModuleAssets or false,
-        ExtractionObjectText = options and options.ExtractionObjectText or 'Maze Exit',
+        ExtractionObjectText = options and options.ExtractionObjectText or 'Run Entrance',
     })
 end
 
