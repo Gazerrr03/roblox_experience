@@ -48,6 +48,11 @@ return function()
         'Maze lighting profile should provide a darker wall palette for the maze renderer'
     )
 
+    local successExposure = Lighting.ExposureCompensation
+    local successAmbient = Lighting.Ambient
+    local successAtmosphereDensity = created.Atmosphere.Density
+    local successDepthOfFieldNearIntensity = created.DepthOfField.NearIntensity
+
     local simulatedFailureResult = profile.apply(Lighting, {
         ApplyTechnology = function()
             error("The current thread cannot write 'Technology' (lacking capability RobloxScript)")
@@ -80,6 +85,22 @@ return function()
         simulatedFailureResult.DepthOfField ~= nil
             and simulatedFailureResult.DepthOfField.Parent == Lighting,
         'Maze lighting should still create depth of field when Technology write fails'
+    )
+    assert(
+        Lighting.ExposureCompensation > successExposure,
+        'Maze fallback lighting should be brighter than the Future baseline'
+    )
+    assert(
+        Lighting.Ambient.R > successAmbient.R,
+        'Maze fallback lighting should lift ambient visibility when Technology write fails'
+    )
+    assert(
+        simulatedFailureResult.Atmosphere.Density < successAtmosphereDensity,
+        'Maze fallback lighting should reduce atmosphere density to keep the scene readable'
+    )
+    assert(
+        simulatedFailureResult.DepthOfField.NearIntensity < successDepthOfFieldNearIntensity,
+        'Maze fallback lighting should weaken depth of field when Technology write fails'
     )
 
     created.Atmosphere:Destroy()
