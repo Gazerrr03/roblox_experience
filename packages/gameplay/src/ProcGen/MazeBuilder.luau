@@ -12,6 +12,9 @@ local HEX_DIRECTIONS = {
     { Q = 0, R = 1 },
 }
 
+local OPPOSITE_DIRECTIONS = table.freeze({ 4, 5, 6, 1, 2, 3 })
+local DIRECTION_MASKS = table.freeze({ 1, 2, 4, 8, 16, 32 })
+
 local START_TYPE_IDS = { 'T5', 'T6', 'T7' }
 local BASE_RATIO_COUNTS = {
     T1 = 4,
@@ -31,25 +34,32 @@ local DEFAULT_EXIT_MAX = 4
 local DEFAULT_DOOR_LEAF_CHANCE = 0.6
 local DEFAULT_MAX_ATTEMPTS = 200
 
-local function oppositeDirection(directionIndex)
-    return ((directionIndex + 2) % 6) + 1
-end
-
-local function rotateDirection(directionIndex, steps)
-    return ((directionIndex - 1 + steps) % 6) + 1
-end
-
-local function rotateDirections(directions, steps)
-    local rotated = table.create(#directions)
-    for index, directionIndex in ipairs(directions) do
-        rotated[index] = rotateDirection(directionIndex, steps)
+-- Bolt Optimization: Pre-calculate all prefab variants to avoid redundant table rotations/allocations
+local PREFAB_VARIANTS_BY_TYPE = {}
+for _, typeId in ipairs(RATIO_TYPE_ORDER) do
+    local def = HexRoomPrefabs.getDefinition(typeId)
+    local variants = {}
+    for steps = 0, 5 do
+        local rotated = {}
+        local mask = 0
+        for _, dir in ipairs(def.OpenDirections) do
+            local rDir = ((dir - 1 + steps) % 6) + 1
+            table.insert(rotated, rDir)
+            mask = bit32.bor(mask, DIRECTION_MASKS[rDir])
+        end
+        table.sort(rotated)
+        variants[steps] = table.freeze({
+            Steps = steps,
+            Directions = table.freeze(rotated),
+            Mask = mask,
+        })
     end
-    table.sort(rotated)
-    return rotated
+    PREFAB_VARIANTS_BY_TYPE[typeId] = table.freeze(variants)
 end
 
+-- Bolt Optimization: Numeric axial key to avoid string.format allocations
 local function axialKey(q, r)
-    return string.format('%d:%d', q, r)
+    return (q + 1000) * 2000 + (r + 1000)
 end
 
 local function axialToWorld(q, r, roomSpacing)
@@ -59,17 +69,8 @@ local function axialToWorld(q, r, roomSpacing)
     return Vector3.new(x, 0, z)
 end
 
-local function buildDirectionSet(directions)
-    local directionSet = {}
-    for _, directionIndex in ipairs(directions) do
-        directionSet[directionIndex] = true
-    end
-    return directionSet
-end
-
-local function createRoom(roomId, q, r, roomSpacing, typeId, rotationSteps, openDirections)
+local function createRoom(roomId, q, r, roomSpacing, typeId, rotationSteps, variant)
     local definition = HexRoomPrefabs.getDefinition(typeId)
-    local directionSet = buildDirectionSet(openDirections)
 
     return {
         Id = roomId,
@@ -79,11 +80,11 @@ local function createRoom(roomId, q, r, roomSpacing, typeId, rotationSteps, open
             R = r,
         },
         Position = axialToWorld(q, r, roomSpacing),
-        DoorMask = HexRoomPrefabs.computeDoorMask(openDirections),
-        DoorCount = #openDirections,
-        DoorDirections = table.clone(openDirections),
-        OpenDirections = table.clone(openDirections),
-        OpenDirectionSet = directionSet,
+        DoorMask = variant.Mask,
+        DoorCount = #variant.Directions,
+        DoorDirections = table.clone(variant.Directions),
+        OpenDirections = table.clone(variant.Directions),
+        OpenDirectionSet = variant.Mask, -- Bolt Optimization: Use bitmask instead of table set
         Neighbors = {},
         ExitDirections = {},
         PrefabId = definition and definition.PrefabId or string.format('Hex_%s', typeId),
@@ -92,38 +93,32 @@ local function createRoom(roomId, q, r, roomSpacing, typeId, rotationSteps, open
     }
 end
 
-local function makeFrontierKey(roomId, directionIndex)
-    return string.format('%s:%d', roomId, directionIndex)
-end
-
+-- Bolt Optimization: Numeric frontier management
 local function addFrontier(frontier, frontierIndexByKey, roomId, directionIndex)
-    local key = makeFrontierKey(roomId, directionIndex)
+    local key = roomId * 10 + directionIndex
     if frontierIndexByKey[key] then
         return
     end
 
-    table.insert(frontier, {
-        RoomId = roomId,
-        Direction = directionIndex,
-    })
+    table.insert(frontier, key)
     frontierIndexByKey[key] = #frontier
 end
 
 local function removeFrontier(frontier, frontierIndexByKey, roomId, directionIndex)
-    local key = makeFrontierKey(roomId, directionIndex)
+    local key = roomId * 10 + directionIndex
     local index = frontierIndexByKey[key]
     if not index then
         return
     end
 
     local lastIndex = #frontier
-    local swapped = frontier[lastIndex]
-    frontier[index] = swapped
+    local swappedKey = frontier[lastIndex]
+    frontier[index] = swappedKey
     frontier[lastIndex] = nil
     frontierIndexByKey[key] = nil
 
-    if swapped and index <= #frontier then
-        frontierIndexByKey[makeFrontierKey(swapped.RoomId, swapped.Direction)] = index
+    if swappedKey and index <= #frontier then
+        frontierIndexByKey[swappedKey] = index
     end
 end
 
@@ -133,9 +128,9 @@ local function popRandomFrontier(frontier, frontierIndexByKey, random)
     end
 
     local index = random:NextInteger(1, #frontier)
-    local entry = frontier[index]
-    removeFrontier(frontier, frontierIndexByKey, entry.RoomId, entry.Direction)
-    return entry
+    local key = frontier[index]
+    removeFrontier(frontier, frontierIndexByKey, math.floor(key / 10), key % 10)
+    return { RoomId = math.floor(key / 10), Direction = key % 10 }
 end
 
 local function buildPrefabQuotas(roomCount)
@@ -234,13 +229,13 @@ local function pickWeightedType(random, quotas, typeIds)
     return typeIds[#typeIds]
 end
 
-local function canPlaceVariant(rooms, roomsByAxialKey, blockedAxialKeys, q, r, openDirections)
+-- Bolt Optimization: Bitwise mask check instead of table sets
+local function canPlaceVariant(rooms, roomsByAxialKey, blockedAxialKeys, q, r, variantMask)
     local positionKey = axialKey(q, r)
     if roomsByAxialKey[positionKey] or blockedAxialKeys[positionKey] then
         return false
     end
 
-    local openSet = buildDirectionSet(openDirections)
     for directionIndex, direction in ipairs(HEX_DIRECTIONS) do
         local neighborQ = q + direction.Q
         local neighborR = r + direction.R
@@ -250,9 +245,9 @@ local function canPlaceVariant(rooms, roomsByAxialKey, blockedAxialKeys, q, r, o
         end
 
         local neighbor = rooms[neighborRoomId]
-        local opposite = oppositeDirection(directionIndex)
-        local selfHasDoor = openSet[directionIndex] == true
-        local neighborHasDoor = neighbor.OpenDirectionSet[opposite] == true
+        local opposite = OPPOSITE_DIRECTIONS[directionIndex]
+        local selfHasDoor = bit32.band(variantMask, DIRECTION_MASKS[directionIndex]) ~= 0
+        local neighborHasDoor = bit32.band(neighbor.OpenDirectionSet, DIRECTION_MASKS[opposite]) ~= 0
 
         if selfHasDoor ~= neighborHasDoor then
             return false
@@ -277,38 +272,27 @@ local function enumeratePlacementCandidates(
     requiredDirection
 )
     local candidates = {}
+    local reqMask = DIRECTION_MASKS[requiredDirection]
 
     for _, typeId in ipairs(RATIO_TYPE_ORDER) do
-        if (quotas[typeId] or 0) <= 0 then
+        local qCount = quotas[typeId] or 0
+        if qCount <= 0 then
             continue
         end
 
-        local definition = HexRoomPrefabs.getDefinition(typeId)
-        if not definition then
-            continue
-        end
-
+        local variants = PREFAB_VARIANTS_BY_TYPE[typeId]
         for rotationSteps = 0, 5 do
-            local openDirections = rotateDirections(definition.OpenDirections, rotationSteps)
-            if not table.find(openDirections, requiredDirection) then
+            local variant = variants[rotationSteps]
+            if bit32.band(variant.Mask, reqMask) == 0 then
                 continue
             end
 
-            if
-                canPlaceVariant(
-                    rooms,
-                    roomsByAxialKey,
-                    blockedAxialKeys,
-                    targetQ,
-                    targetR,
-                    openDirections
-                )
-            then
+            if canPlaceVariant(rooms, roomsByAxialKey, blockedAxialKeys, targetQ, targetR, variant.Mask) then
                 table.insert(candidates, {
                     TypeId = typeId,
                     RotationSteps = rotationSteps,
-                    OpenDirections = openDirections,
-                    Weight = quotas[typeId],
+                    Variant = variant,
+                    Weight = qCount,
                 })
             end
         end
@@ -383,10 +367,7 @@ local function selectExtractionRoom(rooms, campRoomId)
     local selectedDistance = -1
 
     for roomId, distance in pairs(distances) do
-        if
-            distance > selectedDistance
-            or (distance == selectedDistance and roomId < selectedRoomId)
-        then
+        if distance > selectedDistance or (distance == selectedDistance and roomId < selectedRoomId) then
             selectedDistance = distance
             selectedRoomId = roomId
         end
@@ -465,40 +446,37 @@ local function validateRoomConnections(rooms)
         end
 
         for directionIndex, neighborRoomId in pairs(room.Neighbors) do
-            if room.OpenDirectionSet[directionIndex] ~= true then
-                return false, string.format('NeighborOnClosedEdge(%s:%d)', roomId, directionIndex)
+            if bit32.band(room.OpenDirectionSet, DIRECTION_MASKS[directionIndex]) == 0 then
+                return false, string.format('NeighborOnClosedEdge(%s:%d)', tostring(roomId), directionIndex)
             end
 
             local neighbor = rooms[neighborRoomId]
             if not neighbor then
-                return false,
-                    string.format('MissingNeighborRoom(%s:%s)', roomId, tostring(neighborRoomId))
+                return false, string.format('MissingNeighborRoom(%s:%s)', tostring(roomId), tostring(neighborRoomId))
             end
 
-            local opposite = oppositeDirection(directionIndex)
+            local opposite = OPPOSITE_DIRECTIONS[directionIndex]
             if neighbor.Neighbors[opposite] ~= roomId then
-                return false, string.format('NonMirrorNeighbor(%s:%s)', roomId, neighborRoomId)
+                return false, string.format('NonMirrorNeighbor(%s:%s)', tostring(roomId), tostring(neighborRoomId))
             end
-            if neighbor.OpenDirectionSet[opposite] ~= true then
-                return false,
-                    string.format('NeighborClosedMirrorEdge(%s:%s)', roomId, neighborRoomId)
+            if bit32.band(neighbor.OpenDirectionSet, DIRECTION_MASKS[opposite]) == 0 then
+                return false, string.format('NeighborClosedMirrorEdge(%s:%s)', tostring(roomId), tostring(neighborRoomId))
             end
         end
 
         for _, directionIndex in ipairs(room.OpenDirections) do
             local neighborRoomId = room.Neighbors[directionIndex]
             if neighborRoomId == nil and exitDirectionSet[directionIndex] ~= true then
-                return false, string.format('UnclassifiedOpenEdge(%s:%d)', roomId, directionIndex)
+                return false, string.format('UnclassifiedOpenEdge(%s:%d)', tostring(roomId), directionIndex)
             end
         end
 
         for directionIndex in pairs(exitDirectionSet) do
             if room.Neighbors[directionIndex] ~= nil then
-                return false,
-                    string.format('ExitCollidesWithNeighbor(%s:%d)', roomId, directionIndex)
+                return false, string.format('ExitCollidesWithNeighbor(%s:%d)', tostring(roomId), directionIndex)
             end
-            if room.OpenDirectionSet[directionIndex] ~= true then
-                return false, string.format('ExitOnClosedEdge(%s:%d)', roomId, directionIndex)
+            if bit32.band(room.OpenDirectionSet, DIRECTION_MASKS[directionIndex]) == 0 then
+                return false, string.format('ExitOnClosedEdge(%s:%d)', tostring(roomId), directionIndex)
             end
         end
     end
@@ -517,7 +495,7 @@ local function buildAttempt(seed, config)
     local rooms = {}
     local roomsByAxialKey = {}
     local blockedAxialKeys = {}
-    local roomIds = {}
+    local roomIdsList = {}
     local edgesByKey = {}
     local frontier = {}
     local frontierIndexByKey = {}
@@ -525,33 +503,30 @@ local function buildAttempt(seed, config)
     local function registerRoom(room)
         rooms[room.Id] = room
         roomsByAxialKey[axialKey(room.Grid.Q, room.Grid.R)] = room.Id
-        table.insert(roomIds, room.Id)
+        table.insert(roomIdsList, room.Id)
     end
 
     local function connectRooms(roomA, directionFromA, roomB)
-        local directionFromB = oppositeDirection(directionFromA)
+        local directionFromB = OPPOSITE_DIRECTIONS[directionFromA]
 
-        if
-            roomA.Neighbors[directionFromA] == roomB.Id
-            and roomB.Neighbors[directionFromB] == roomA.Id
-        then
+        if roomA.Neighbors[directionFromA] == roomB.Id and roomB.Neighbors[directionFromB] == roomA.Id then
             return
         end
 
         roomA.Neighbors[directionFromA] = roomB.Id
         roomB.Neighbors[directionFromB] = roomA.Id
 
-        local edgeRoomA, edgeRoomB = roomA, roomB
+        local edgeRoomAId, edgeRoomBId = roomA.Id, roomB.Id
         local edgeDirectionFromA, edgeDirectionFromB = directionFromA, directionFromB
         if roomA.Id > roomB.Id then
-            edgeRoomA, edgeRoomB = roomB, roomA
+            edgeRoomAId, edgeRoomBId = roomB.Id, roomA.Id
             edgeDirectionFromA, edgeDirectionFromB = directionFromB, directionFromA
         end
 
-        local edgeKey = string.format('%s|%s', edgeRoomA.Id, edgeRoomB.Id)
+        local edgeKey = edgeRoomAId * 1000 + edgeRoomBId
         edgesByKey[edgeKey] = {
-            RoomA = edgeRoomA.Id,
-            RoomB = edgeRoomB.Id,
+            RoomAId = edgeRoomAId,
+            RoomBId = edgeRoomBId,
             DirectionFromA = edgeDirectionFromA,
             DirectionFromB = edgeDirectionFromB,
         }
@@ -567,16 +542,14 @@ local function buildAttempt(seed, config)
         error('MazeBuilder failed to pick a start room prefab', 0)
     end
 
-    local startDefinition = HexRoomPrefabs.getDefinition(startTypeId)
     local startRotation = random:NextInteger(0, 5)
-    local startDirections = rotateDirections(startDefinition.OpenDirections, startRotation)
-    local startRoom =
-        createRoom('Room_001', 0, 0, roomSpacing, startTypeId, startRotation, startDirections)
+    local startVariant = PREFAB_VARIANTS_BY_TYPE[startTypeId][startRotation]
+    local startRoom = createRoom(1, 0, 0, roomSpacing, startTypeId, startRotation, startVariant)
     startRoom.Kind = 'Camp'
     registerRoom(startRoom)
     quotas[startTypeId] -= 1
 
-    local startExitDirection = startDirections[random:NextInteger(1, #startDirections)]
+    local startExitDirection = startVariant.Directions[random:NextInteger(1, #startVariant.Directions)]
     startRoom.StartExternalDirection = startExitDirection
 
     do
@@ -584,13 +557,13 @@ local function buildAttempt(seed, config)
         blockedAxialKeys[axialKey(direction.Q, direction.R)] = true
     end
 
-    for _, directionIndex in ipairs(startDirections) do
+    for _, directionIndex in ipairs(startVariant.Directions) do
         if directionIndex ~= startExitDirection then
             addFrontier(frontier, frontierIndexByKey, startRoom.Id, directionIndex)
         end
     end
 
-    while #roomIds < roomCount do
+    while #roomIdsList < roomCount do
         local frontierEntry = popRandomFrontier(frontier, frontierIndexByKey, random)
         if not frontierEntry then
             return nil, 'InsufficientExpansionFrontier'
@@ -609,14 +582,14 @@ local function buildAttempt(seed, config)
         local targetQ = sourceRoom.Grid.Q + direction.Q
         local targetR = sourceRoom.Grid.R + direction.R
         local targetKey = axialKey(targetQ, targetR)
-        local opposite = oppositeDirection(frontierEntry.Direction)
+        local opposite = OPPOSITE_DIRECTIONS[frontierEntry.Direction]
 
         local existingRoomId = roomsByAxialKey[targetKey]
         if existingRoomId then
             local existingRoom = rooms[existingRoomId]
             if
                 existingRoom
-                and existingRoom.OpenDirectionSet[opposite] == true
+                and bit32.band(existingRoom.OpenDirectionSet, DIRECTION_MASKS[opposite]) ~= 0
                 and existingRoom.Neighbors[opposite] == nil
             then
                 connectRooms(sourceRoom, frontierEntry.Direction, existingRoom)
@@ -639,7 +612,7 @@ local function buildAttempt(seed, config)
             continue
         end
 
-        local roomId = string.format('Room_%03d', #roomIds + 1)
+        local roomId = #roomIdsList + 1
         local newRoom = createRoom(
             roomId,
             targetQ,
@@ -647,7 +620,7 @@ local function buildAttempt(seed, config)
             roomSpacing,
             candidate.TypeId,
             candidate.RotationSteps,
-            candidate.OpenDirections
+            candidate.Variant
         )
         registerRoom(newRoom)
         quotas[candidate.TypeId] -= 1
@@ -658,14 +631,15 @@ local function buildAttempt(seed, config)
             local neighborDirection = HEX_DIRECTIONS[directionIndex]
             local neighborQ = newRoom.Grid.Q + neighborDirection.Q
             local neighborR = newRoom.Grid.R + neighborDirection.R
-            local neighborRoomId = roomsByAxialKey[axialKey(neighborQ, neighborR)]
+            local neighborKey = axialKey(neighborQ, neighborR)
+            local neighborRoomId = roomsByAxialKey[neighborKey]
 
             if neighborRoomId then
                 local neighborRoom = rooms[neighborRoomId]
-                local oppositeDirectionIndex = oppositeDirection(directionIndex)
+                local oppositeDirectionIndex = OPPOSITE_DIRECTIONS[directionIndex]
                 if
                     neighborRoom
-                    and neighborRoom.OpenDirectionSet[oppositeDirectionIndex] == true
+                    and bit32.band(neighborRoom.OpenDirectionSet, DIRECTION_MASKS[oppositeDirectionIndex]) ~= 0
                     and neighborRoom.Neighbors[oppositeDirectionIndex] == nil
                     and newRoom.Neighbors[directionIndex] == nil
                 then
@@ -710,61 +684,97 @@ local function buildAttempt(seed, config)
     rooms[extractionRoomId].Kind = 'Extraction'
     assignRoomArchetypes(rooms)
 
-    local doorwayKeys = {}
-    for edgeKey in pairs(edgesByKey) do
-        table.insert(doorwayKeys, edgeKey)
+    -- Bolt Fix: Ensure validation and pathing happens before final translation
+    local valid, reason = validateRoomConnections(rooms)
+    if not valid then
+        return nil, reason
     end
-    table.sort(doorwayKeys)
 
-    local doorways = {}
-    for _, edgeKey in ipairs(doorwayKeys) do
+    local translatedMainPath = {}
+    local originalMainPath = buildMainPath(rooms, campRoomId, extractionRoomId)
+
+    -- Final translation to the expected string-ID based structure
+    local finalRooms = {}
+    local idMap = {}
+    for id, room in pairs(rooms) do
+        local stringId = string.format('Room_%03d', id)
+        idMap[id] = stringId
+        room.Id = stringId
+        finalRooms[stringId] = room
+    end
+
+    for _, room in pairs(finalRooms) do
+        local translatedNeighbors = {}
+        for dir, neighborId in pairs(room.Neighbors) do
+            translatedNeighbors[dir] = idMap[neighborId]
+        end
+        room.Neighbors = translatedNeighbors
+        -- Restore the table set for compatibility with expectations
+        local set = {}
+        for _, d in ipairs(room.OpenDirections) do
+            set[d] = true
+        end
+        room.OpenDirectionSet = set
+    end
+
+    local finalDoorways = {}
+    local sortedEdgeKeys = {}
+    for edgeKey in pairs(edgesByKey) do
+        table.insert(sortedEdgeKeys, edgeKey)
+    end
+    table.sort(sortedEdgeKeys)
+
+    for _, edgeKey in ipairs(sortedEdgeKeys) do
         local edge = edgesByKey[edgeKey]
-        doorways[edgeKey] = {
-            Id = edgeKey,
-            RoomA = edge.RoomA,
-            RoomB = edge.RoomB,
+        local stringIdA = idMap[edge.RoomAId]
+        local stringIdB = idMap[edge.RoomBId]
+        local stringEdgeKey = string.format('%s|%s', stringIdA, stringIdB)
+
+        finalDoorways[stringEdgeKey] = {
+            Id = stringEdgeKey,
+            RoomA = stringIdA,
+            RoomB = stringIdB,
             DirectionFromA = edge.DirectionFromA,
             DirectionFromB = edge.DirectionFromB,
             HasDoorLeaves = random:NextNumber() < doorLeafChance,
         }
     end
 
-    local externalDoorways = {
+    local finalExternalDoorways = {
         {
-            RoomId = campRoomId,
+            RoomId = idMap[campRoomId],
             Direction = startExitDirection,
             Kind = 'Start',
         },
     }
 
     for _, exitStub in ipairs(selectedExitStubs) do
-        table.insert(externalDoorways, {
-            RoomId = exitStub.RoomId,
+        table.insert(finalExternalDoorways, {
+            RoomId = idMap[exitStub.RoomId],
             Direction = exitStub.Direction,
             Kind = 'Exit',
         })
     end
 
-    table.sort(externalDoorways, function(left, right)
+    table.sort(finalExternalDoorways, function(left, right)
         if left.RoomId ~= right.RoomId then
             return left.RoomId < right.RoomId
         end
         return left.Direction < right.Direction
     end)
 
-    local valid, reason = validateRoomConnections(rooms)
-    if not valid then
-        return nil, reason
+    for _, id in ipairs(originalMainPath) do
+        table.insert(translatedMainPath, idMap[id])
     end
 
     return {
         Seed = seed,
-        Rooms = rooms,
-        Doorways = doorways,
-        MainPath = buildMainPath(rooms, campRoomId, extractionRoomId),
-        CampRoomId = campRoomId,
-        ExtractionRoomId = extractionRoomId,
-        ExternalDoorways = externalDoorways,
+        Rooms = finalRooms,
+        Doorways = finalDoorways,
+        MainPath = translatedMainPath,
+        CampRoomId = idMap[campRoomId],
+        ExtractionRoomId = idMap[extractionRoomId],
+        ExternalDoorways = finalExternalDoorways,
     }
 end
 
