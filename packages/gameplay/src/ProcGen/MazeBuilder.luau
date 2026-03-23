@@ -1,6 +1,7 @@
 local MazeBuilder = {}
 
 local HexRoomPrefabs = require(script.Parent.HexRoomPrefabs)
+local MazeRoomArchetypes = require(script.Parent.MazeRoomArchetypes)
 
 local HEX_DIRECTIONS = {
     { Q = 1, R = 0 },
@@ -446,6 +447,16 @@ local function addExitDirection(room, directionIndex)
     table.sort(room.ExitDirections)
 end
 
+local function assignRoomArchetypes(rooms)
+    for _, room in pairs(rooms) do
+        local archetype = MazeRoomArchetypes.classifyRoom(room)
+        room.ArchetypeId = archetype.Id
+        room.AuthoringAssetId = archetype.AuthoringAssetId
+        room.SupportsExternalShellModel = archetype.SupportsExternalShellModel == true
+        room.VisualLanguage = archetype.VisualLanguage
+    end
+end
+
 local function validateRoomConnections(rooms)
     for roomId, room in pairs(rooms) do
         local exitDirectionSet = {}
@@ -697,6 +708,7 @@ local function buildAttempt(seed, config)
     local extractionRoomId = selectExtractionRoom(rooms, campRoomId)
     rooms[campRoomId].Kind = 'Camp'
     rooms[extractionRoomId].Kind = 'Extraction'
+    assignRoomArchetypes(rooms)
 
     local doorwayKeys = {}
     for edgeKey in pairs(edgesByKey) do
