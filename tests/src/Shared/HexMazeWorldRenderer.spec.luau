@@ -16,10 +16,41 @@ return function()
         DoorLeafChance = 0.6,
     })
 
+    local moduleAssetsRoot = Instance.new('Folder')
+    moduleAssetsRoot.Name = 'MazeModuleAssets'
+    moduleAssetsRoot.Parent = Workspace
+
+    local runtime = sharedPackage:WaitForChild('Runtime')
+    local contract = require(runtime:WaitForChild('MazeModuleAssetContract'))
+
+    for _, moduleName in ipairs(contract.RequiredModuleNames) do
+        local child = Instance.new('Folder')
+        child.Name = moduleName
+        child.Parent = moduleAssetsRoot
+    end
+
+    local roomArchetypes = Instance.new('Folder')
+    roomArchetypes.Name = contract.OptionalAuthoringFolderName
+    roomArchetypes.Parent = moduleAssetsRoot
+
+    local cavePocketAssets = Instance.new('Folder')
+    cavePocketAssets.Name = 'CavePocket'
+    cavePocketAssets.Parent = roomArchetypes
+
+    local authoredShell = Instance.new('Model')
+    authoredShell.Name = contract.OptionalShellModelName
+    local authoredShellPart = Instance.new('Part')
+    authoredShellPart.Name = 'ShellPart'
+    authoredShellPart.Size = Vector3.new(2, 2, 2)
+    authoredShellPart.Anchored = true
+    authoredShellPart.Parent = authoredShell
+    authoredShell.Parent = cavePocketAssets
+
     local rendered = renderer.build({
         WorldName = 'RendererSpecMazeWorld',
         Layout = layout,
         Parent = Workspace,
+        ModuleAssetsRoot = moduleAssetsRoot,
         IncludeRoomMarker = true,
         RoomApothem = 20,
     })
@@ -28,6 +59,7 @@ return function()
     assert(root ~= nil and root.Parent == Workspace, 'Renderer should create world root folder')
 
     local checkedRooms = 0
+    local caveRoomFound = false
     for _, roomId in ipairs(rendered.RoomIds) do
         local roomFolder = root:FindFirstChild(roomId)
         assert(roomFolder ~= nil, string.format('Room folder should exist for %s', roomId))
@@ -57,12 +89,33 @@ return function()
             wallPartCount >= 6,
             'Each room should render six wall edges with doorway segmentation'
         )
+        local authoringSockets = roomFolder:FindFirstChild('AuthoringSockets')
+        assert(authoringSockets ~= nil, 'Each room should expose authoring sockets')
+        assert(
+            authoringSockets:FindFirstChild('ShellModelSocket') ~= nil,
+            'Each room should expose an external-shell attachment socket'
+        )
+
+        if layout.Rooms[roomId].ArchetypeId == 'CavePocket' then
+            caveRoomFound = true
+            assert(
+                roomFolder:FindFirstChild('CavePocketDecor') ~= nil,
+                'Cave archetype rooms should render cave-like interior dressing'
+            )
+            assert(
+                roomFolder:FindFirstChild('AuthoredShell_CavePocket') ~= nil,
+                'Cave archetype rooms should accept authored external shell models'
+            )
+        end
 
         checkedRooms += 1
         if checkedRooms >= 2 then
-            break
+            if caveRoomFound then
+                break
+            end
         end
     end
+    assert(caveRoomFound, 'Renderer spec should include at least one cave archetype room')
 
     local leafDoorwayId = nil
     for doorwayId, doorway in pairs(rendered.Doorways) do
@@ -89,4 +142,5 @@ return function()
     )
 
     root:Destroy()
+    moduleAssetsRoot:Destroy()
 end

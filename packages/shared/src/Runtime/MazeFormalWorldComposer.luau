@@ -143,6 +143,7 @@ function MazeFormalWorldComposer.build(seed, config, options)
         WorldName = resolvedOptions.WorldName or 'GeneratedMazeWorld',
         Parent = resolvedOptions.Parent,
         OriginOffset = resolvedOptions.OriginOffset or Vector3.zero,
+        ModuleAssetsRoot = resolvedOptions.ModuleAssetsRoot,
         IncludeRoomMarkers = resolvedOptions.IncludeRoomMarkers ~= false,
         RoomMarkerTransparency = resolvedOptions.RoomMarkerTransparency or 0.5,
         RoomKindColors = resolvedOptions.RoomKindColors,
