@@ -77,8 +77,7 @@ function MazeModuleAssetContract.getRoomArchetypeShellModel(root, archetypeId)
         root:FindFirstChild(MazeModuleAssetContract.OptionalAuthoringFolderName)
     local archetypeFolder = roomArchetypesRoot and roomArchetypesRoot:FindFirstChild(archetypeId)
     return archetypeFolder
-            and archetypeFolder:FindFirstChild(MazeModuleAssetContract.OptionalShellModelName)
-        or nil
+        and archetypeFolder:FindFirstChild(MazeModuleAssetContract.OptionalShellModelName)
 end
 
 return MazeModuleAssetContract
