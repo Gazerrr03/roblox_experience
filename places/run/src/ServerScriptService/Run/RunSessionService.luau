@@ -252,26 +252,57 @@ function RunSessionService:_loadSessionDataFromJoin()
         return
     end
 
+    self:_applyReturnedPlayersFromTeleportData(players, acceptedTeleportData)
+end
+
+function RunSessionService:_getReturnStatusText(playerDisplayName, summary, teleportData)
+    if RUN_MAZE_GATE_RETURN_REASONS[summary.ReturnReason] then
+        return string.format(
+            '%s returned to the maze gate with %d value (%s).',
+            playerDisplayName,
+            summary.Value or 0,
+            summary.ReturnReason or 'unknown'
+        )
+    end
+
+    if teleportData.MazeReturn and teleportData.MazeReturn.MazeCompleted == true then
+        return string.format(
+            '%s returned from the completed maze run with %d value.',
+            playerDisplayName,
+            summary.Value or 0
+        )
+    end
+
+    return string.format(
+        '%s returned from the maze with %d value (%s).',
+        playerDisplayName,
+        summary.Value or 0,
+        summary.ReturnReason or 'unknown'
+    )
+end
+
+function RunSessionService:_applyReturnedPlayersFromTeleportData(players, acceptedTeleportData)
     local returnedPlayers = {}
     for _, player in ipairs(players) do
         local teleportData = self:_readTeleportData(player) or acceptedTeleportData
         local returnSummary = CampMazeSessionContract.findReturnSummary(teleportData, player.UserId)
         if returnSummary then
-            self.PendingSpawnByUserId[player.UserId] = true
+            self.PendingSpawnByUserId[player.UserId] =
+                self:_getReturnSpawnCFrameForSummary(returnSummary)
             table.insert(returnedPlayers, {
                 Player = player,
                 Summary = returnSummary,
+                TeleportData = teleportData,
             })
         end
     end
 
     if #returnedPlayers == 1 then
         local returnedPlayer = returnedPlayers[1]
-        self.Status = string.format(
-            '%s returned from the maze with %d value (%s).',
+        self.Status = self:_getReturnStatusText(
             returnedPlayer.Player.DisplayName,
-            returnedPlayer.Summary.Value or 0,
-            returnedPlayer.Summary.ReturnReason or 'unknown'
+            returnedPlayer.Summary,
+            returnedPlayer.TeleportData
         )
     elseif #returnedPlayers > 1 then
         self.Status = 'The crew returned from the maze. Review the camp summaries together.'
@@ -800,27 +831,7 @@ function RunSessionService:_handlePlayerTeleportData(player)
     local summary = CampMazeSessionContract.findReturnSummary(teleportData, player.UserId)
     if summary then
         self.PendingSpawnByUserId[player.UserId] = self:_getReturnSpawnCFrameForSummary(summary)
-        if RUN_MAZE_GATE_RETURN_REASONS[summary.ReturnReason] then
-            self.Status = string.format(
-                '%s returned to the maze gate with %d value (%s).',
-                player.DisplayName,
-                summary.Value or 0,
-                summary.ReturnReason or 'unknown'
-            )
-        elseif teleportData.MazeReturn and teleportData.MazeReturn.MazeCompleted == true then
-            self.Status = string.format(
-                '%s returned from the completed maze run with %d value.',
-                player.DisplayName,
-                summary.Value or 0
-            )
-        else
-            self.Status = string.format(
-                '%s returned from the maze with %d value (%s).',
-                player.DisplayName,
-                summary.Value or 0,
-                summary.ReturnReason or 'unknown'
-            )
-        end
+        self.Status = self:_getReturnStatusText(player.DisplayName, summary, teleportData)
         return
     end
 
