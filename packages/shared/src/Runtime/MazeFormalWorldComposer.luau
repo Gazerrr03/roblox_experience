@@ -4,6 +4,7 @@ local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Gameplay = require(Packages:WaitForChild('Gameplay'))
 
 local Items = Gameplay.Config.Items
+local MazeMonsterSpawnPolicy = Gameplay.Monsters.MazeMonsterSpawnPolicy
 local MazeInteractionPartFactory = require(script.Parent.MazeInteractionPartFactory)
 local MazeModuleAssetContract = require(script.Parent.MazeModuleAssetContract)
 local MazeWorldShellBuilder = require(script.Parent.MazeWorldShellBuilder)
@@ -225,9 +226,20 @@ function MazeFormalWorldComposer.build(seed, config, options)
 
     finalizeAffordances(roomAffordances)
 
+    local initialMonsterPatrolIndex, initialMonsterSpawnRoomId =
+        MazeMonsterSpawnPolicy.selectInitialPatrolIndex(
+            shell.RoomIds,
+            roomAffordances,
+            shell.RoomById,
+            shell.CampRoomId
+        )
+
     shell.LootNodes = lootNodes
     shell.RoomAffordances = roomAffordances
     shell.PatrolPoints = collectPatrolPointsFromAffordances(shell.RoomIds, roomAffordances)
+    shell.InitialMonsterPatrolIndex = initialMonsterPatrolIndex
+        or (#shell.PatrolPoints > 0 and 1 or nil)
+    shell.InitialMonsterSpawnRoomId = initialMonsterSpawnRoomId
     shell.ReturnHoldPad = returnHoldPad
     shell.ExtractionNodes = extractionNodes
 

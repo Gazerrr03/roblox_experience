@@ -120,7 +120,14 @@ local function buildMazeMonsterRuntimeProfile(monsterAuthorProfile)
 end
 
 local function collectPatrolPointsFromWorld(world)
-    local patrolPoints = {}
+    local patrolPoints = world and world.PatrolPoints or {}
+    local initialPatrolIndex = world and world.InitialMonsterPatrolIndex or nil
+
+    if #patrolPoints > 0 then
+        return patrolPoints, initialPatrolIndex
+    end
+
+    patrolPoints = {}
 
     if world and world.RoomAffordances then
         for _, roomId in ipairs(world.RoomIds or {}) do
@@ -134,10 +141,10 @@ local function collectPatrolPointsFromWorld(world)
     end
 
     if #patrolPoints > 0 then
-        return patrolPoints
+        return patrolPoints, initialPatrolIndex
     end
 
-    return world and world.PatrolPoints or {}
+    return world and world.PatrolPoints or {}, initialPatrolIndex
 end
 
 function MazeSessionService.new()
@@ -513,7 +520,8 @@ function MazeSessionService:_beginFormalExpedition()
         return
     end
 
-    self.MonsterService:spawn(collectPatrolPointsFromWorld(self.World))
+    local patrolPoints, initialPatrolIndex = collectPatrolPointsFromWorld(self.World)
+    self.MonsterService:spawn(patrolPoints, initialPatrolIndex)
     self:_setStatus('Maze session is live. Explore, loot, and find an extraction point.')
 end
 
