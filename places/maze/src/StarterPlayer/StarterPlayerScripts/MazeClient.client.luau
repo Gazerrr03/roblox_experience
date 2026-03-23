@@ -185,13 +185,21 @@ Remotes.MazeState.OnClientEvent:Connect(function(snapshot)
         return
     end
 
+    local diagnosticSeed = snapshot.WorldBuildSeed ~= nil and tostring(snapshot.WorldBuildSeed)
+        or '--'
+    local diagnosticDirect = snapshot.WorldBuildIsDirectBoot == true and 'true' or 'false'
+    local diagnosticSource = snapshot.WorldBuildSource or 'Pending'
+
     statusLabel.Text = string.format(
-        '%s\nArea: %s | Phase: %s | Maze: %s%s',
+        '%s\nArea: %s | Phase: %s | Maze: %s%s\nBuild: %s | Seed: %s | Direct: %s',
         snapshot.Status or 'Maze ready.',
         snapshot.Area or 'Unknown',
         snapshot.State or 'Camp',
         snapshot.MazeStatus or 'active',
-        snapshot.IsDirectBoot and ' | Direct Boot' or ''
+        snapshot.IsDirectBoot and ' | Direct Boot' or '',
+        diagnosticSource,
+        diagnosticSeed,
+        diagnosticDirect
     )
 
     objectiveLabel.Text = string.format('Objective: %s', snapshot.Objective or '--')

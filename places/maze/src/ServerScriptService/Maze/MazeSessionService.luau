@@ -6,10 +6,16 @@ local Workspace = game:GetService('Workspace')
 local DEFAULT_WORKSPACE_SHELL_NAMES = { 'Baseplate', 'SpawnLocation' }
 local CAMP_SESSION_LOCK_WAIT_SECONDS = 0.05
 local SNAPSHOT_INTERVAL_SECONDS = 0.25
+local MAZE_DIAG_PREFIX = '[MazeDiag]'
 local CORPSE_COLOR = Color3.fromRGB(92, 92, 92)
 local CORPSE_MATERIAL = Enum.Material.Slate
 local CORPSE_SIZE = Vector3.new(4, 1.2, 2)
 local CORPSE_VERTICAL_OFFSET = -2.4
+local WORLD_BUILD_SOURCE = table.freeze({
+    DirectBootDefault = 'DirectBootDefault',
+    JoinDataMergedBeforeBuild = 'JoinDataMergedBeforeBuild',
+    JoinDataMergedAfterBuild = 'JoinDataMergedAfterBuild',
+})
 
 local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
@@ -36,6 +42,37 @@ local DEBUG_DAMAGE_BY_ACTION = {
 
 local MazeSessionService = {}
 MazeSessionService.__index = MazeSessionService
+
+local function formatDiagnosticValue(value)
+    if value == nil then
+        return 'nil'
+    end
+
+    return tostring(value)
+end
+
+local function buildDiagnosticFieldString(fields)
+    local keys = {}
+    for key in pairs(fields) do
+        table.insert(keys, key)
+    end
+    table.sort(keys)
+
+    local segments = {}
+    for _, key in ipairs(keys) do
+        table.insert(segments, string.format('%s=%s', key, formatDiagnosticValue(fields[key])))
+    end
+
+    return table.concat(segments, ' | ')
+end
+
+local function getWorldBuildSourceForBuild(hasAcceptedTeleportDataBeforeBuild)
+    if hasAcceptedTeleportDataBeforeBuild then
+        return WORLD_BUILD_SOURCE.JoinDataMergedBeforeBuild
+    end
+
+    return WORLD_BUILD_SOURCE.DirectBootDefault
+end
 
 local function mergeSummaries(existingSummaries, nextSummaries)
     local summariesByUserId = {}
@@ -147,6 +184,78 @@ local function collectPatrolPointsFromWorld(world)
     return world and world.PatrolPoints or {}, initialPatrolIndex
 end
 
+function MazeSessionService:_emitDiagnostic(event, fields)
+    self.DiagnosticSequence += 1
+    local prefix = string.format(
+        '%s #%03d t=%.3f event=%s',
+        MAZE_DIAG_PREFIX,
+        self.DiagnosticSequence,
+        os.clock(),
+        event
+    )
+    local fieldString = buildDiagnosticFieldString(fields or {})
+    if fieldString == '' then
+        print(prefix)
+        return
+    end
+
+    print(string.format('%s | %s', prefix, fieldString))
+end
+
+function MazeSessionService:_getWorldBuildMetadataFields()
+    local metadata = self.WorldBuildMetadata or {}
+    return {
+        WorldBuildIsDirectBoot = metadata.IsDirectBoot,
+        WorldBuildMazeAccessCode = metadata.MazeAccessCode,
+        WorldBuildSeed = metadata.Seed,
+        WorldBuildSessionId = metadata.SessionId,
+        WorldBuildSource = metadata.Source,
+    }
+end
+
+function MazeSessionService:_applyWorldBuildMetadataToRoot()
+    if not (self.World and self.World.Root and self.WorldBuildMetadata) then
+        return
+    end
+
+    self.World.Root:SetAttribute('WorldBuildSeed', self.WorldBuildMetadata.Seed)
+    self.World.Root:SetAttribute('WorldBuildSessionId', self.WorldBuildMetadata.SessionId or 'nil')
+    self.World.Root:SetAttribute(
+        'WorldBuildMazeAccessCode',
+        self.WorldBuildMetadata.MazeAccessCode or 'nil'
+    )
+    self.World.Root:SetAttribute('WorldBuildIsDirectBoot', self.WorldBuildMetadata.IsDirectBoot)
+    self.World.Root:SetAttribute('WorldBuildSource', self.WorldBuildMetadata.Source)
+end
+
+function MazeSessionService:_recordWorldBuildMetadata()
+    self.WorldBuildMetadata = {
+        IsDirectBoot = self.IsDirectBoot == true,
+        MazeAccessCode = self.CampSession and self.CampSession.MazeAccessCode or nil,
+        Seed = self.SessionData.Seed,
+        SessionId = self.CampSession and self.CampSession.SessionId or nil,
+        Source = getWorldBuildSourceForBuild(self.HasAcceptedTeleportDataBeforeBuild == true),
+    }
+    self:_applyWorldBuildMetadataToRoot()
+end
+
+function MazeSessionService:_markAcceptedTeleportData(teleportData)
+    self.HasAcceptedTeleportData = true
+    self.LastAcceptedTeleportData = teleportData
+
+    if self.WorldBuildMetadata then
+        if self.WorldBuildMetadata.Source == WORLD_BUILD_SOURCE.DirectBootDefault then
+            self.WorldBuildMetadata.Source = WORLD_BUILD_SOURCE.JoinDataMergedAfterBuild
+            self:_applyWorldBuildMetadataToRoot()
+            self:_emitDiagnostic('WorldBuildSourcePromoted', self:_getWorldBuildMetadataFields())
+        end
+        return false
+    end
+
+    self.HasAcceptedTeleportDataBeforeBuild = true
+    return true
+end
+
 function MazeSessionService.new()
     local self = setmetatable({}, MazeSessionService)
 
@@ -167,6 +276,11 @@ function MazeSessionService.new()
     self.IsLaunched = false
     self.SnapshotThread = nil
     self.CampSessionLock = false
+    self.DiagnosticSequence = 0
+    self.HasAcceptedTeleportData = false
+    self.HasAcceptedTeleportDataBeforeBuild = false
+    self.LastAcceptedTeleportData = nil
+    self.WorldBuildMetadata = nil
     self.RunTracker = Gameplay.Session.MazeRunTracker.new()
     self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
     self.ControlStateService = ControlStateService.new()
@@ -189,6 +303,13 @@ function MazeSessionService.new()
     )
     self.CorpsesByUserId = {}
 
+    self:_emitDiagnostic('InitDefaultState', {
+        InitialIsDirectBoot = self.IsDirectBoot,
+        InitialMazeAccessCode = self.CampSession.MazeAccessCode,
+        InitialSeed = self.SessionData.Seed,
+        InitialSessionId = self.CampSession.SessionId,
+    })
+
     return self
 end
 
@@ -198,19 +319,46 @@ function MazeSessionService:_readTeleportData(player)
 end
 
 function MazeSessionService:_mergeTeleportData(teleportData, resetInventoryService)
+    local result = {
+        Accepted = false,
+        AcceptedBeforeBuild = false,
+        HadCampSession = false,
+        HadTeleportData = type(teleportData) == 'table',
+        Merged = false,
+        PreviousIsDirectBoot = self.IsDirectBoot,
+        PreviousMazeAccessCode = self.CampSession and self.CampSession.MazeAccessCode or nil,
+        PreviousSeed = self.SessionData.Seed,
+        PreviousSessionId = self.CampSession and self.CampSession.SessionId or nil,
+        ResetInventoryService = resetInventoryService == true,
+    }
+
     if type(teleportData) ~= 'table' then
-        return false
+        result.ResultIsDirectBoot = self.IsDirectBoot
+        result.ResultMazeAccessCode = self.CampSession and self.CampSession.MazeAccessCode or nil
+        result.ResultSeed = self.SessionData.Seed
+        result.ResultSessionId = self.CampSession and self.CampSession.SessionId or nil
+        return result
     end
 
     local incomingSession = teleportData.CampSession
+    result.HadCampSession = type(incomingSession) == 'table'
     if type(incomingSession) ~= 'table' then
-        return false
+        result.ResultIsDirectBoot = self.IsDirectBoot
+        result.ResultMazeAccessCode = self.CampSession and self.CampSession.MazeAccessCode or nil
+        result.ResultSeed = self.SessionData.Seed
+        result.ResultSessionId = self.CampSession and self.CampSession.SessionId or nil
+        return result
     end
 
     local nextSession, accepted =
         CampMazeSessionContract.reconcileIncomingCampSession(self.CampSession, incomingSession)
+    result.Accepted = accepted == true
     if not accepted then
-        return false
+        result.ResultIsDirectBoot = self.IsDirectBoot
+        result.ResultMazeAccessCode = self.CampSession and self.CampSession.MazeAccessCode or nil
+        result.ResultSeed = self.SessionData.Seed
+        result.ResultSessionId = self.CampSession and self.CampSession.SessionId or nil
+        return result
     end
 
     local incoming = teleportData.SessionConfig
@@ -232,30 +380,87 @@ function MazeSessionService:_mergeTeleportData(teleportData, resetInventoryServi
     self.CampSession = nextSession
     self.IsDirectBoot = false
     self.Status = 'Maze session is live. Explore, loot, and find an extraction point.'
+    result.AcceptedBeforeBuild = self:_markAcceptedTeleportData(teleportData)
+    result.Merged = true
 
     if resetInventoryService == true then
         self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
     end
 
-    return true
+    result.ResultIsDirectBoot = self.IsDirectBoot
+    result.ResultMazeAccessCode = self.CampSession and self.CampSession.MazeAccessCode or nil
+    result.ResultSeed = self.SessionData.Seed
+    result.ResultSessionId = self.CampSession and self.CampSession.SessionId or nil
+
+    return result
 end
 
 function MazeSessionService:_loadSessionDataFromJoin()
     local players = Players:GetPlayers()
+    local sawTeleportData = false
+    local sawCampSession = false
+    local acceptedPlayer = nil
+    local mergedResult = nil
+
     if #players == 0 then
+        self:_emitDiagnostic('LoadSessionDataFromJoin', {
+            Merged = false,
+            PlayersFound = 0,
+            SawCampSession = false,
+            SawTeleportData = false,
+        })
         return
     end
 
     for _, player in ipairs(players) do
-        local merged = self:_mergeTeleportData(self:_readTeleportData(player), true)
-        if merged then
-            return
+        local teleportData = self:_readTeleportData(player)
+        if type(teleportData) == 'table' then
+            sawTeleportData = true
+            if type(teleportData.CampSession) == 'table' then
+                sawCampSession = true
+            end
+        end
+
+        local mergeResult = self:_mergeTeleportData(teleportData, true)
+        if mergeResult.Merged then
+            acceptedPlayer = player
+            mergedResult = mergeResult
+            break
         end
     end
+
+    self:_emitDiagnostic('LoadSessionDataFromJoin', {
+        Accepted = mergedResult and mergedResult.Accepted or false,
+        HasAcceptedTeleportDataBeforeBuild = self.HasAcceptedTeleportDataBeforeBuild,
+        Merged = mergedResult ~= nil,
+        PlayersFound = #players,
+        ResultMazeAccessCode = self.CampSession.MazeAccessCode,
+        ResultSeed = self.SessionData.Seed,
+        ResultSessionId = self.CampSession.SessionId,
+        SawCampSession = sawCampSession,
+        SawTeleportData = sawTeleportData,
+        SelectedPlayer = acceptedPlayer and acceptedPlayer.DisplayName or nil,
+    })
 end
 
 function MazeSessionService:_handlePlayerTeleportData(player)
-    self:_mergeTeleportData(self:_readTeleportData(player), false)
+    local mergeResult = self:_mergeTeleportData(self:_readTeleportData(player), false)
+    self:_emitDiagnostic('PlayerAddedTeleportData', {
+        Accepted = mergeResult.Accepted,
+        AcceptedBeforeBuild = mergeResult.AcceptedBeforeBuild,
+        HadCampSession = mergeResult.HadCampSession,
+        HadTeleportData = mergeResult.HadTeleportData,
+        Merged = mergeResult.Merged,
+        Player = player.DisplayName,
+        PreviousIsDirectBoot = mergeResult.PreviousIsDirectBoot,
+        PreviousSeed = mergeResult.PreviousSeed,
+        PreviousSessionId = mergeResult.PreviousSessionId,
+        ResultIsDirectBoot = mergeResult.ResultIsDirectBoot,
+        ResultMazeAccessCode = mergeResult.ResultMazeAccessCode,
+        ResultSeed = mergeResult.ResultSeed,
+        ResultSessionId = mergeResult.ResultSessionId,
+        WorldBuildSource = self.WorldBuildMetadata and self.WorldBuildMetadata.Source or nil,
+    })
 end
 
 function MazeSessionService:_addPlayerState(player)
@@ -404,6 +609,16 @@ function MazeSessionService:_broadcastSnapshot()
             MazeStatus = mazeStatus,
             ReturnedPlayerSummaries = returnedSummaries,
             IsDirectBoot = self.IsDirectBoot,
+            WorldBuildSeed = self.WorldBuildMetadata and self.WorldBuildMetadata.Seed or nil,
+            WorldBuildSessionId = self.WorldBuildMetadata and self.WorldBuildMetadata.SessionId
+                or nil,
+            WorldBuildMazeAccessCode = self.WorldBuildMetadata
+                    and self.WorldBuildMetadata.MazeAccessCode
+                or nil,
+            WorldBuildIsDirectBoot = self.WorldBuildMetadata
+                    and self.WorldBuildMetadata.IsDirectBoot
+                or nil,
+            WorldBuildSource = self.WorldBuildMetadata and self.WorldBuildMetadata.Source or nil,
         })
 
         self.Remotes.MazePrivateState:FireClient(player, nil)
@@ -419,6 +634,7 @@ end
 function MazeSessionService:_rebuildWorld()
     clearDefaultWorkspaceShell()
     self.World = MazeWorldBuilder.build(self.SessionData.Seed, SessionConfig.ProcGen)
+    self:_recordWorldBuildMetadata()
     self:_bindWorldInteractions()
 end
 
@@ -830,10 +1046,20 @@ function MazeSessionService:_launchMaze()
         return
     end
 
+    self:_emitDiagnostic('LaunchMazePreBuild', {
+        HasAcceptedTeleportData = self.HasAcceptedTeleportData,
+        HasAcceptedTeleportDataBeforeBuild = self.HasAcceptedTeleportDataBeforeBuild,
+        IsDirectBoot = self.IsDirectBoot,
+        MazeAccessCode = self.CampSession.MazeAccessCode,
+        Seed = self.SessionData.Seed,
+        SessionId = self.CampSession.SessionId,
+    })
+
     self.IsLaunched = true
     Players.CharacterAutoLoads = true
 
     self:_rebuildWorld()
+    self:_emitDiagnostic('LaunchMazePostBuild', self:_getWorldBuildMetadataFields())
 
     for _, player in ipairs(Players:GetPlayers()) do
         player:LoadCharacter()
