@@ -112,6 +112,7 @@ function RunSessionService.new()
     self.PendingLocalMazeSpawnByUserId = {}
     self.CampSessionLock = false
     self.HasAuthoritativeSessionSeed = false
+    self.SessionSeedRandom = nil
     self.LastMazeEntryRequestAtByUserId = {}
     self.MazeEntryMode = MazeEntryAvailability.Mode.Blocked
     self.MazeEntryReason =
@@ -805,7 +806,7 @@ function RunSessionService:_ensureAuthoritativeSessionSeed()
         CurrentSeed = self.SessionData.Seed,
         DefaultSeed = SessionConfig.DefaultSeed,
         HasAuthoritativeSeed = self.HasAuthoritativeSessionSeed,
-        RandomSource = Random.new(),
+        RandomSource = self.SessionSeedRandom or Random.new(),
     })
 
     self.SessionData.Seed = seed
