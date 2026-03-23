@@ -28,6 +28,22 @@ local MAZE_ENTRY_DISTANCE_BUFFER = 2
 local LOCAL_DEBUG_ROOM_DETECTION_RADIUS = 56
 local LOCAL_DEBUG_MAZE_RETURN_REASON = 'local_debug_return'
 local SNAPSHOT_INTERVAL_SECONDS = 0.25
+local RUN_MAZE_GATE_RETURN_REASONS = table.freeze({
+    early_return = true,
+    extracted = true,
+})
+
+local function resolvePendingSpawnCFrame(self, pendingSpawnValue)
+    if typeof(pendingSpawnValue) == 'CFrame' then
+        return pendingSpawnValue
+    end
+
+    if self.World and self.World.ReturnCFrame then
+        return self.World.ReturnCFrame
+    end
+
+    return RunWorldBuilder.ReturnCFrame
+end
 
 local function bindCharacterTeleport(self, player)
     player.CharacterAdded:Connect(function(character)
@@ -47,7 +63,9 @@ local function bindCharacterTeleport(self, player)
             return
         end
 
-        local targetCFrame = self.PendingSpawnByUserId[player.UserId] and self.World.ReturnCFrame
+        local pendingSpawnValue = self.PendingSpawnByUserId[player.UserId]
+        local targetCFrame = pendingSpawnValue
+                and resolvePendingSpawnCFrame(self, pendingSpawnValue)
             or self.World.SpawnCFrame
         self.PendingSpawnByUserId[player.UserId] = nil
         character:PivotTo(targetCFrame)
@@ -270,14 +288,31 @@ function RunSessionService:_teleportCharactersToSpawn()
     for _, player in ipairs(Players:GetPlayers()) do
         local character = player.Character
         if character and character.Parent then
-            local targetCFrame = self.PendingSpawnByUserId[player.UserId]
-                    and self.World.ReturnCFrame
+            local pendingSpawnValue = self.PendingSpawnByUserId[player.UserId]
+            local targetCFrame = pendingSpawnValue
+                    and resolvePendingSpawnCFrame(self, pendingSpawnValue)
                 or self.World.SpawnCFrame
             self.PendingSpawnByUserId[player.UserId] = nil
             character:PivotTo(targetCFrame)
             self:_applyMovementMode(player)
         end
     end
+end
+
+function RunSessionService:_getReturnSpawnCFrameForSummary(summary)
+    if self.World and RUN_MAZE_GATE_RETURN_REASONS[summary.ReturnReason] then
+        return self.World.MazeReturnCFrame
+    end
+
+    if RUN_MAZE_GATE_RETURN_REASONS[summary.ReturnReason] then
+        return RunWorldBuilder.MazeReturnCFrame
+    end
+
+    if self.World then
+        return self.World.ReturnCFrame
+    end
+
+    return RunWorldBuilder.ReturnCFrame
 end
 
 function RunSessionService:_rebuildWorld()
@@ -772,8 +807,15 @@ function RunSessionService:_handlePlayerTeleportData(player)
 
     local summary = CampMazeSessionContract.findReturnSummary(teleportData, player.UserId)
     if summary then
-        self.PendingSpawnByUserId[player.UserId] = self.World and self.World.ReturnCFrame or true
-        if teleportData.MazeReturn and teleportData.MazeReturn.MazeCompleted == true then
+        self.PendingSpawnByUserId[player.UserId] = self:_getReturnSpawnCFrameForSummary(summary)
+        if RUN_MAZE_GATE_RETURN_REASONS[summary.ReturnReason] then
+            self.Status = string.format(
+                '%s returned to the maze gate with %d value (%s).',
+                player.DisplayName,
+                summary.Value or 0,
+                summary.ReturnReason or 'unknown'
+            )
+        elseif teleportData.MazeReturn and teleportData.MazeReturn.MazeCompleted == true then
             self.Status = string.format(
                 '%s returned from the completed maze run with %d value.',
                 player.DisplayName,
