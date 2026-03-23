@@ -182,10 +182,11 @@ function MazeFormalWorldComposer.build(seed, config, options)
         end
     end
 
+    local returnHoldPadPosition = shell.CampCenter + Vector3.new(0, 0.5, -10)
     local _, returnHoldPrompt = MazeInteractionPartFactory.createPromptPart({
         Name = 'ReturnHoldPad',
         Size = Vector3.new(8, 1, 8),
-        CFrame = CFrame.new(shell.CampCenter + Vector3.new(0, 0.5, -10)),
+        CFrame = CFrame.new(returnHoldPadPosition),
         Color = Color3.fromRGB(77, 147, 196),
         Material = Enum.Material.Neon,
         ActionText = 'Return',
@@ -233,7 +234,7 @@ function MazeFormalWorldComposer.build(seed, config, options)
     shell.PatrolPoints = collectPatrolPointsFromAffordances(shell.RoomIds, roomAffordances)
     shell.ReturnHoldPad = {
         Prompt = returnHoldPrompt,
-        Position = shell.CampCenter + Vector3.new(0, 0.5, -10),
+        Position = returnHoldPadPosition,
     }
     shell.ExtractionNodes = extractionNodes
 
