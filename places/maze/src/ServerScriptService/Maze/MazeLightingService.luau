@@ -12,7 +12,15 @@ function MazeLightingService.new()
 end
 
 function MazeLightingService:start()
-    Shared.Runtime.MazeLightingProfile.apply(Lighting)
+    local result = Shared.Runtime.MazeLightingProfile.apply(Lighting)
+    if result.TechnologyApplied ~= true and result.TechnologyError ~= nil then
+        warn(
+            string.format(
+                '[MazeLightingDiag] Technology write skipped: %s',
+                tostring(result.TechnologyError)
+            )
+        )
+    end
 end
 
 return MazeLightingService

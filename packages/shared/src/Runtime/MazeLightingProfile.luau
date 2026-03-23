@@ -36,8 +36,24 @@ local function ensureEffect(parent, className, name)
     return existing
 end
 
-function MazeLightingProfile.apply(lighting)
-    lighting.Technology = Enum.Technology.Future
+local function applyTechnology(lighting, options)
+    local writer = options and options.ApplyTechnology
+    if writer == nil then
+        writer = function(targetLighting, technology)
+            targetLighting.Technology = technology
+        end
+    end
+
+    local ok, err = pcall(writer, lighting, Enum.Technology.Future)
+    if ok then
+        return true, nil
+    end
+
+    return false, tostring(err)
+end
+
+function MazeLightingProfile.apply(lighting, options)
+    local technologyApplied, technologyError = applyTechnology(lighting, options)
     lighting.GlobalShadows = true
     lighting.Brightness = 2
     lighting.ClockTime = 1.25
@@ -75,6 +91,8 @@ function MazeLightingProfile.apply(lighting)
     depthOfField.NearIntensity = 0.12
 
     return {
+        TechnologyApplied = technologyApplied,
+        TechnologyError = technologyError,
         Atmosphere = atmosphere,
         ColorCorrection = colorCorrection,
         Bloom = bloom,

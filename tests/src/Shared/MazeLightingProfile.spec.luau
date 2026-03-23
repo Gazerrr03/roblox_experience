@@ -19,9 +19,11 @@ return function()
 
     local created = profile.apply(Lighting)
 
+    assert(created.TechnologyApplied == true, 'Maze lighting should report applied technology')
+    assert(created.TechnologyError == nil, 'Maze lighting should not report an error on success')
     assert(
         Lighting.Technology == Enum.Technology.Future,
-        'Maze lighting should use Future technology'
+        'Maze lighting should prefer Future technology'
     )
     assert(Lighting.GlobalShadows == true, 'Maze lighting should keep global shadows enabled')
     assert(Lighting.ExposureCompensation < 0, 'Maze lighting should darken exposure for atmosphere')
@@ -44,6 +46,40 @@ return function()
     assert(
         profile.SurfacePalette.WallMaterial == Enum.Material.Slate,
         'Maze lighting profile should provide a darker wall palette for the maze renderer'
+    )
+
+    local simulatedFailureResult = profile.apply(Lighting, {
+        ApplyTechnology = function()
+            error("The current thread cannot write 'Technology' (lacking capability RobloxScript)")
+        end,
+    })
+
+    assert(
+        simulatedFailureResult.TechnologyApplied == false,
+        'Maze lighting should degrade gracefully when Technology cannot be written'
+    )
+    assert(
+        string.find(simulatedFailureResult.TechnologyError or '', 'cannot write') ~= nil,
+        'Maze lighting should expose the Technology write failure reason'
+    )
+    assert(
+        simulatedFailureResult.Atmosphere ~= nil
+            and simulatedFailureResult.Atmosphere.Parent == Lighting,
+        'Maze lighting should still create atmosphere when Technology write fails'
+    )
+    assert(
+        simulatedFailureResult.ColorCorrection ~= nil
+            and simulatedFailureResult.ColorCorrection.Parent == Lighting,
+        'Maze lighting should still create color correction when Technology write fails'
+    )
+    assert(
+        simulatedFailureResult.Bloom ~= nil and simulatedFailureResult.Bloom.Parent == Lighting,
+        'Maze lighting should still create bloom when Technology write fails'
+    )
+    assert(
+        simulatedFailureResult.DepthOfField ~= nil
+            and simulatedFailureResult.DepthOfField.Parent == Lighting,
+        'Maze lighting should still create depth of field when Technology write fails'
     )
 
     created.Atmosphere:Destroy()
