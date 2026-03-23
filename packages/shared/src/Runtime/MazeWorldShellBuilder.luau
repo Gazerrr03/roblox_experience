@@ -16,6 +16,7 @@ function MazeWorldShellBuilder.build(seed, config, options)
         Layout = layout,
         Parent = resolvedOptions.Parent,
         OriginOffset = resolvedOptions.OriginOffset or Vector3.zero,
+        SurfacePalette = resolvedOptions.SurfacePalette,
         ModuleAssetsRoot = resolvedOptions.ModuleAssetsRoot,
         RoomApothem = config.RoomApothem,
         IncludeRoomMarker = resolvedOptions.IncludeRoomMarkers ~= false,
