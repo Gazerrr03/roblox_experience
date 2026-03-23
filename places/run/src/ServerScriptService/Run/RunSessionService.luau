@@ -300,19 +300,11 @@ function RunSessionService:_teleportCharactersToSpawn()
 end
 
 function RunSessionService:_getReturnSpawnCFrameForSummary(summary)
-    if self.World and RUN_MAZE_GATE_RETURN_REASONS[summary.ReturnReason] then
-        return self.World.MazeReturnCFrame
-    end
-
     if RUN_MAZE_GATE_RETURN_REASONS[summary.ReturnReason] then
-        return RunWorldBuilder.MazeReturnCFrame
+        return self.World and self.World.MazeReturnCFrame or RunWorldBuilder.MazeReturnCFrame
     end
 
-    if self.World then
-        return self.World.ReturnCFrame
-    end
-
-    return RunWorldBuilder.ReturnCFrame
+    return self.World and self.World.ReturnCFrame or RunWorldBuilder.ReturnCFrame
 end
 
 function RunSessionService:_rebuildWorld()
