@@ -247,7 +247,8 @@ local function canPlaceVariant(rooms, roomsByAxialKey, blockedAxialKeys, q, r, v
         local neighbor = rooms[neighborRoomId]
         local opposite = OPPOSITE_DIRECTIONS[directionIndex]
         local selfHasDoor = bit32.band(variantMask, DIRECTION_MASKS[directionIndex]) ~= 0
-        local neighborHasDoor = bit32.band(neighbor.OpenDirectionSet, DIRECTION_MASKS[opposite]) ~= 0
+        local neighborHasDoor = bit32.band(neighbor.OpenDirectionSet, DIRECTION_MASKS[opposite])
+            ~= 0
 
         if selfHasDoor ~= neighborHasDoor then
             return false
@@ -287,7 +288,16 @@ local function enumeratePlacementCandidates(
                 continue
             end
 
-            if canPlaceVariant(rooms, roomsByAxialKey, blockedAxialKeys, targetQ, targetR, variant.Mask) then
+            if
+                canPlaceVariant(
+                    rooms,
+                    roomsByAxialKey,
+                    blockedAxialKeys,
+                    targetQ,
+                    targetR,
+                    variant.Mask
+                )
+            then
                 table.insert(candidates, {
                     TypeId = typeId,
                     RotationSteps = rotationSteps,
@@ -367,7 +377,10 @@ local function selectExtractionRoom(rooms, campRoomId)
     local selectedDistance = -1
 
     for roomId, distance in pairs(distances) do
-        if distance > selectedDistance or (distance == selectedDistance and roomId < selectedRoomId) then
+        if
+            distance > selectedDistance
+            or (distance == selectedDistance and roomId < selectedRoomId)
+        then
             selectedDistance = distance
             selectedRoomId = roomId
         end
@@ -447,36 +460,59 @@ local function validateRoomConnections(rooms)
 
         for directionIndex, neighborRoomId in pairs(room.Neighbors) do
             if bit32.band(room.OpenDirectionSet, DIRECTION_MASKS[directionIndex]) == 0 then
-                return false, string.format('NeighborOnClosedEdge(%s:%d)', tostring(roomId), directionIndex)
+                return false,
+                    string.format('NeighborOnClosedEdge(%s:%d)', tostring(roomId), directionIndex)
             end
 
             local neighbor = rooms[neighborRoomId]
             if not neighbor then
-                return false, string.format('MissingNeighborRoom(%s:%s)', tostring(roomId), tostring(neighborRoomId))
+                return false,
+                    string.format(
+                        'MissingNeighborRoom(%s:%s)',
+                        tostring(roomId),
+                        tostring(neighborRoomId)
+                    )
             end
 
             local opposite = OPPOSITE_DIRECTIONS[directionIndex]
             if neighbor.Neighbors[opposite] ~= roomId then
-                return false, string.format('NonMirrorNeighbor(%s:%s)', tostring(roomId), tostring(neighborRoomId))
+                return false,
+                    string.format(
+                        'NonMirrorNeighbor(%s:%s)',
+                        tostring(roomId),
+                        tostring(neighborRoomId)
+                    )
             end
             if bit32.band(neighbor.OpenDirectionSet, DIRECTION_MASKS[opposite]) == 0 then
-                return false, string.format('NeighborClosedMirrorEdge(%s:%s)', tostring(roomId), tostring(neighborRoomId))
+                return false,
+                    string.format(
+                        'NeighborClosedMirrorEdge(%s:%s)',
+                        tostring(roomId),
+                        tostring(neighborRoomId)
+                    )
             end
         end
 
         for _, directionIndex in ipairs(room.OpenDirections) do
             local neighborRoomId = room.Neighbors[directionIndex]
             if neighborRoomId == nil and exitDirectionSet[directionIndex] ~= true then
-                return false, string.format('UnclassifiedOpenEdge(%s:%d)', tostring(roomId), directionIndex)
+                return false,
+                    string.format('UnclassifiedOpenEdge(%s:%d)', tostring(roomId), directionIndex)
             end
         end
 
         for directionIndex in pairs(exitDirectionSet) do
             if room.Neighbors[directionIndex] ~= nil then
-                return false, string.format('ExitCollidesWithNeighbor(%s:%d)', tostring(roomId), directionIndex)
+                return false,
+                    string.format(
+                        'ExitCollidesWithNeighbor(%s:%d)',
+                        tostring(roomId),
+                        directionIndex
+                    )
             end
             if bit32.band(room.OpenDirectionSet, DIRECTION_MASKS[directionIndex]) == 0 then
-                return false, string.format('ExitOnClosedEdge(%s:%d)', tostring(roomId), directionIndex)
+                return false,
+                    string.format('ExitOnClosedEdge(%s:%d)', tostring(roomId), directionIndex)
             end
         end
     end
@@ -509,7 +545,10 @@ local function buildAttempt(seed, config)
     local function connectRooms(roomA, directionFromA, roomB)
         local directionFromB = OPPOSITE_DIRECTIONS[directionFromA]
 
-        if roomA.Neighbors[directionFromA] == roomB.Id and roomB.Neighbors[directionFromB] == roomA.Id then
+        if
+            roomA.Neighbors[directionFromA] == roomB.Id
+            and roomB.Neighbors[directionFromB] == roomA.Id
+        then
             return
         end
 
@@ -549,7 +588,8 @@ local function buildAttempt(seed, config)
     registerRoom(startRoom)
     quotas[startTypeId] -= 1
 
-    local startExitDirection = startVariant.Directions[random:NextInteger(1, #startVariant.Directions)]
+    local startExitDirection =
+        startVariant.Directions[random:NextInteger(1, #startVariant.Directions)]
     startRoom.StartExternalDirection = startExitDirection
 
     do
@@ -639,7 +679,10 @@ local function buildAttempt(seed, config)
                 local oppositeDirectionIndex = OPPOSITE_DIRECTIONS[directionIndex]
                 if
                     neighborRoom
-                    and bit32.band(neighborRoom.OpenDirectionSet, DIRECTION_MASKS[oppositeDirectionIndex]) ~= 0
+                    and bit32.band(
+                        neighborRoom.OpenDirectionSet,
+                        DIRECTION_MASKS[oppositeDirectionIndex]
+                    ) ~= 0
                     and neighborRoom.Neighbors[oppositeDirectionIndex] == nil
                     and newRoom.Neighbors[directionIndex] == nil
                 then
