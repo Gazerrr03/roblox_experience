@@ -119,6 +119,27 @@ local function buildMazeMonsterRuntimeProfile(monsterAuthorProfile)
     return runtimeProfileOrReason
 end
 
+local function collectPatrolPointsFromWorld(world)
+    local patrolPoints = {}
+
+    if world and world.RoomAffordances then
+        for _, roomId in ipairs(world.RoomIds or {}) do
+            local affordance = world.RoomAffordances[roomId]
+            if affordance then
+                for _, patrolAnchor in ipairs(affordance.PatrolAnchors or {}) do
+                    table.insert(patrolPoints, patrolAnchor)
+                end
+            end
+        end
+    end
+
+    if #patrolPoints > 0 then
+        return patrolPoints
+    end
+
+    return world and world.PatrolPoints or {}
+end
+
 function MazeSessionService.new()
     local self = setmetatable({}, MazeSessionService)
 
@@ -492,7 +513,7 @@ function MazeSessionService:_beginFormalExpedition()
         return
     end
 
-    self.MonsterService:spawn(self.World.PatrolPoints)
+    self.MonsterService:spawn(collectPatrolPointsFromWorld(self.World))
     self:_setStatus('Maze session is live. Explore, loot, and find an extraction point.')
 end
 
