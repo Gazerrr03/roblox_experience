@@ -10,6 +10,7 @@ local SessionConfig = Shared.Config.SessionConfig
 local Remotes = Shared.Network.Remotes.ensureScope(Shared.Network.Remotes.Scope.Run)
 local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
 local MazeEntryAvailability = Shared.Session.MazeEntryAvailability
+local SessionSeedPolicy = Shared.Session.SessionSeedPolicy
 local ControlStateService = Shared.Runtime.ControlStateService
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local PlayerStateService = Shared.Runtime.PlayerStateService
@@ -128,6 +129,8 @@ function RunSessionService.new()
     self.PendingSpawnByUserId = {}
     self.PendingLocalMazeSpawnByUserId = {}
     self.CampSessionLock = false
+    self.HasAuthoritativeSessionSeed = false
+    self.SessionSeedRandom = nil
     self.LastMazeEntryRequestAtByUserId = {}
     self.MazeEntryMode = MazeEntryAvailability.Mode.Blocked
     self.MazeEntryReason =
@@ -191,6 +194,7 @@ function RunSessionService:_applySessionConfig(incoming)
 
     if type(incoming.Seed) == 'number' then
         self.SessionData.Seed = incoming.Seed
+        self.HasAuthoritativeSessionSeed = true
     end
     if type(incoming.Quota) == 'number' then
         self.SessionData.Quota = incoming.Quota
@@ -842,8 +846,23 @@ function RunSessionService:_handlePlayerTeleportData(player)
     self.Status = string.format('%s joined the camp session.', player.DisplayName)
 end
 
+function RunSessionService:_ensureAuthoritativeSessionSeed()
+    local seed, issuedNewSeed = SessionSeedPolicy.ensureAuthoritativeSeed({
+        CurrentSeed = self.SessionData.Seed,
+        DefaultSeed = SessionConfig.DefaultSeed,
+        HasAuthoritativeSeed = self.HasAuthoritativeSessionSeed,
+        RandomSource = self.SessionSeedRandom or Random.new(),
+    })
+
+    self.SessionData.Seed = seed
+    if issuedNewSeed then
+        self.HasAuthoritativeSessionSeed = true
+    end
+end
+
 function RunSessionService:start()
     self:_loadSessionDataFromJoin()
+    self:_ensureAuthoritativeSessionSeed()
     Players.CharacterAutoLoads = false
 
     for _, player in ipairs(Players:GetPlayers()) do
