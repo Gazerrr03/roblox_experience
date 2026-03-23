@@ -15,6 +15,12 @@
         "UI": {
           "$path": "../packages/ui/src"
         }
+      },
+      "PlaceModules": {
+        "$className": "Folder",
+        "Run": {
+          "$path": "../places/run/src/ServerScriptService/Run"
+        }
       }
     },
     "ServerScriptService": {
