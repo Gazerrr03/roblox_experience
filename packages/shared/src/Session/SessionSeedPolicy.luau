@@ -4,16 +4,8 @@ SessionSeedPolicy.SeedMin = 100000
 SessionSeedPolicy.SeedMax = 999999
 SessionSeedPolicy.MaxAttempts = 32
 
-local function getRandomSource(randomSource)
-    if randomSource ~= nil then
-        return randomSource
-    end
-
-    return Random.new()
-end
-
 function SessionSeedPolicy.issueSessionSeed(randomSource, defaultSeed)
-    local source = getRandomSource(randomSource)
+    local source = randomSource or Random.new()
 
     for _ = 1, SessionSeedPolicy.MaxAttempts do
         local seed = source:NextInteger(SessionSeedPolicy.SeedMin, SessionSeedPolicy.SeedMax)
