@@ -19,14 +19,18 @@ local EXIT_CORRIDOR_LENGTH = 6
 local HEX_CIRCUMRADIUS_MULTIPLIER = 1 / math.cos(math.pi / 6)
 local SIDE_ANGLE_OFFSET_DEGREES = 0
 
-local WALL_MATERIAL = Enum.Material.Concrete
-local WALL_COLOR = Color3.fromRGB(116, 114, 110)
-local FLOOR_MATERIAL = Enum.Material.Concrete
-local FLOOR_COLOR = Color3.fromRGB(98, 96, 92)
-local CEILING_COLOR = Color3.fromRGB(88, 86, 82)
-local DOOR_MATERIAL = Enum.Material.Concrete
-local DOOR_COLOR = Color3.fromRGB(74, 72, 68)
-local EXIT_FLOOR_COLOR = Color3.fromRGB(40, 36, 28)
+local DEFAULT_SURFACE_PALETTE = table.freeze({
+    WallMaterial = Enum.Material.Concrete,
+    WallColor = Color3.fromRGB(116, 114, 110),
+    FloorMaterial = Enum.Material.Concrete,
+    FloorColor = Color3.fromRGB(98, 96, 92),
+    CeilingMaterial = Enum.Material.Concrete,
+    CeilingColor = Color3.fromRGB(88, 86, 82),
+    DoorMaterial = Enum.Material.Concrete,
+    DoorColor = Color3.fromRGB(74, 72, 68),
+    ExitFloorMaterial = Enum.Material.Concrete,
+    ExitFloorColor = Color3.fromRGB(40, 36, 28),
+})
 
 local DEFAULT_ROOM_KIND_COLORS = {
     Camp = Color3.fromRGB(83, 126, 78),
@@ -35,6 +39,16 @@ local DEFAULT_ROOM_KIND_COLORS = {
 }
 local CAVE_ROCK_COLOR = Color3.fromRGB(84, 81, 76)
 local CAVE_ROCK_MATERIAL = Enum.Material.Slate
+
+local function resolveSurfacePalette(surfacePalette)
+    local resolvedPalette = {}
+
+    for property, defaultValue in pairs(DEFAULT_SURFACE_PALETTE) do
+        resolvedPalette[property] = surfacePalette and surfacePalette[property] or defaultValue
+    end
+
+    return resolvedPalette
+end
 
 local function edgeKey(roomIdA, roomIdB)
     if roomIdA < roomIdB then
@@ -168,7 +182,7 @@ local function isInsideHex(offset, apothem)
     return true
 end
 
-local function createHexTiledSlab(parent, name, center, apothem, yOffset, color)
+local function createHexTiledSlab(parent, name, center, apothem, yOffset, color, material)
     local slabFolder = Instance.new('Folder')
     slabFolder.Name = name
     slabFolder.Parent = parent
@@ -204,7 +218,7 @@ local function createHexTiledSlab(parent, name, center, apothem, yOffset, color)
                     Size = Vector3.new(FLOOR_TILE_SIZE, SLAB_THICKNESS, FLOOR_TILE_SIZE),
                     CFrame = CFrame.new(center + tileCenterOffset + Vector3.new(0, yOffset, 0)),
                     Color = color,
-                    Material = FLOOR_MATERIAL,
+                    Material = material,
                 }, slabFolder)
             end
         end
@@ -213,7 +227,15 @@ local function createHexTiledSlab(parent, name, center, apothem, yOffset, color)
     return slabFolder
 end
 
-local function createHexSideWall(parent, center, directionIndex, apothem, sideLength, hasDoorway)
+local function createHexSideWall(
+    parent,
+    center,
+    directionIndex,
+    apothem,
+    sideLength,
+    hasDoorway,
+    surfacePalette
+)
     local normal, tangent = sideVectors(directionIndex)
     local wallCenter = center + normal * apothem + Vector3.new(0, WALL_HEIGHT / 2, 0)
     local wallForward = CFrame.lookAt(wallCenter, wallCenter + normal)
@@ -223,8 +245,8 @@ local function createHexSideWall(parent, center, directionIndex, apothem, sideLe
             Name = string.format('Wall_%d', directionIndex),
             Size = Vector3.new(sideLength, WALL_HEIGHT, WALL_THICKNESS),
             CFrame = wallForward,
-            Color = WALL_COLOR,
-            Material = WALL_MATERIAL,
+            Color = surfacePalette.WallColor,
+            Material = surfacePalette.WallMaterial,
         }, parent)
         return
     end
@@ -237,8 +259,8 @@ local function createHexSideWall(parent, center, directionIndex, apothem, sideLe
             Name = string.format('Wall_%d_Segment', directionIndex),
             Size = Vector3.new(segmentLength, WALL_HEIGHT, WALL_THICKNESS),
             CFrame = wallForward + (tangent * (segmentOffset * sign)),
-            Color = WALL_COLOR,
-            Material = WALL_MATERIAL,
+            Color = surfacePalette.WallColor,
+            Material = surfacePalette.WallMaterial,
         }, parent)
     end
 
@@ -248,8 +270,8 @@ local function createHexSideWall(parent, center, directionIndex, apothem, sideLe
             Name = string.format('Wall_%d_Lintel', directionIndex),
             Size = Vector3.new(DOORWAY_WIDTH, lintelHeight, WALL_THICKNESS),
             CFrame = wallForward + Vector3.new(0, DOORWAY_HEIGHT + (lintelHeight / 2), 0),
-            Color = WALL_COLOR,
-            Material = WALL_MATERIAL,
+            Color = surfacePalette.WallColor,
+            Material = surfacePalette.WallMaterial,
         }, parent)
     end
 end
@@ -273,7 +295,8 @@ local function createDoorwayInstance(
     center,
     directionIndex,
     apothem,
-    hasDoorLeaves
+    hasDoorLeaves,
+    surfacePalette
 )
     local normal, tangent = sideVectors(directionIndex)
     local openingCenter = center + normal * (apothem - WALL_THICKNESS * 0.5)
@@ -314,16 +337,16 @@ local function createDoorwayInstance(
         Name = string.format('Door_%s_Left', doorwayId),
         Size = Vector3.new(leafWidth, DOORWAY_HEIGHT, DOOR_LEAF_THICKNESS),
         CFrame = doorway.ClosedLeftCFrame,
-        Color = DOOR_COLOR,
-        Material = DOOR_MATERIAL,
+        Color = surfacePalette.DoorColor,
+        Material = surfacePalette.DoorMaterial,
     }, parent)
 
     doorway.RightLeaf = createPart({
         Name = string.format('Door_%s_Right', doorwayId),
         Size = Vector3.new(leafWidth, DOORWAY_HEIGHT, DOOR_LEAF_THICKNESS),
         CFrame = doorway.ClosedRightCFrame,
-        Color = DOOR_COLOR,
-        Material = DOOR_MATERIAL,
+        Color = surfacePalette.DoorColor,
+        Material = surfacePalette.DoorMaterial,
     }, parent)
 
     local _, prompt = createPromptPart({
@@ -355,7 +378,8 @@ local function buildRoom(parent, room, roomCenter, roomApothem, options)
         roomCenter,
         roomApothem,
         -(SLAB_THICKNESS / 2),
-        FLOOR_COLOR
+        options.SurfacePalette.FloorColor,
+        options.SurfacePalette.FloorMaterial
     )
     createHexTiledSlab(
         roomFolder,
@@ -363,7 +387,8 @@ local function buildRoom(parent, room, roomCenter, roomApothem, options)
         roomCenter,
         roomApothem,
         ROOM_CLEAR_HEIGHT + (SLAB_THICKNESS / 2),
-        CEILING_COLOR
+        options.SurfacePalette.CeilingColor,
+        options.SurfacePalette.CeilingMaterial
     )
 
     if options.IncludeRoomMarker then
@@ -396,7 +421,8 @@ local function buildRoom(parent, room, roomCenter, roomApothem, options)
             directionIndex,
             roomApothem,
             sideLength,
-            doorwayDirections[directionIndex] == true
+            doorwayDirections[directionIndex] == true,
+            options.SurfacePalette
         )
     end
 
@@ -411,7 +437,7 @@ local function buildRoom(parent, room, roomCenter, roomApothem, options)
     return roomFolder
 end
 
-local function buildExitCorridors(parent, room, roomCenter, roomApothem)
+local function buildExitCorridors(parent, room, roomCenter, roomApothem, surfacePalette)
     for _, directionIndex in ipairs(room.ExitDirections or {}) do
         local normal = sideVectors(directionIndex)
         local corridorCenter = roomCenter
@@ -423,8 +449,8 @@ local function buildExitCorridors(parent, room, roomCenter, roomApothem)
             Name = string.format('ExitCorridor_%s_%d', room.Id, directionIndex),
             Size = Vector3.new(DOORWAY_WIDTH, SLAB_THICKNESS, EXIT_CORRIDOR_LENGTH),
             CFrame = corridorForward,
-            Color = EXIT_FLOOR_COLOR,
-            Material = FLOOR_MATERIAL,
+            Color = surfacePalette.ExitFloorColor,
+            Material = surfacePalette.ExitFloorMaterial,
         }, parent)
     end
 end
@@ -437,6 +463,7 @@ function HexMazeWorldRenderer.build(params)
     local includeRoomMarker = params.IncludeRoomMarker ~= false
     local parent = params.Parent or Workspace
     local detectionBuffer = params.DetectionBuffer or ROOM_DETECTION_BUFFER
+    local surfacePalette = resolveSurfacePalette(params.SurfacePalette)
 
     local existing = parent:FindFirstChild(worldName)
     if existing then
@@ -469,8 +496,9 @@ function HexMazeWorldRenderer.build(params)
             RoomMarkerTransparency = params.RoomMarkerTransparency,
             RoomKindColors = params.RoomKindColors,
             ModuleAssetsRoot = params.ModuleAssetsRoot,
+            SurfacePalette = surfacePalette,
         })
-        buildExitCorridors(worldFolder, room, roomCenter, roomApothem)
+        buildExitCorridors(worldFolder, room, roomCenter, roomApothem, surfacePalette)
     end
 
     for doorwayId, doorwayLayout in pairs(layout.Doorways) do
@@ -485,7 +513,8 @@ function HexMazeWorldRenderer.build(params)
             roomCenter,
             doorwayLayout.DirectionFromA,
             roomApothem,
-            doorwayLayout.HasDoorLeaves
+            doorwayLayout.HasDoorLeaves,
+            surfacePalette
         )
         doorway.RoomA = doorwayLayout.RoomA
         doorway.RoomB = doorwayLayout.RoomB
