@@ -1,6 +1,7 @@
 local Players = game:GetService('Players')
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
 local RunService = game:GetService('RunService')
+local TeleportService = game:GetService('TeleportService')
 local Workspace = game:GetService('Workspace')
 
 local Packages = ReplicatedStorage:WaitForChild('Packages')
@@ -13,9 +14,9 @@ local MazeEntryAvailability = Shared.Session.MazeEntryAvailability
 local ControlStateService = Shared.Runtime.ControlStateService
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local PlayerStateService = Shared.Runtime.PlayerStateService
+local TeleportDiagnostics = Shared.Util.TeleportDiagnostics
 
 local LocalDebugMazeWorldBuilder = require(script.Parent.LocalDebugMazeWorldBuilder)
-local RunMazePortal = require(script.Parent.RunMazePortal)
 local RunWorldBuilder = require(script.Parent.RunWorldBuilder)
 
 local RunSessionService = {}
@@ -28,6 +29,63 @@ local MAZE_ENTRY_DISTANCE_BUFFER = 2
 local LOCAL_DEBUG_ROOM_DETECTION_RADIUS = 56
 local LOCAL_DEBUG_MAZE_RETURN_REASON = 'local_debug_return'
 local SNAPSHOT_INTERVAL_SECONDS = 0.25
+local RUN_MAZE_DIAG_PREFIX = '[RunMazeDiag]'
+
+local TELEPORT_FAILURE_CODE = {
+    ReserveServerFailed = 'ReserveServerFailed',
+    TeleportAsyncFailed = 'TeleportAsyncFailed',
+}
+
+local function formatRunMazeDiagnosticValue(value)
+    if value == nil then
+        return 'nil'
+    end
+
+    return tostring(value)
+end
+
+local function emitRunMazeDiagnostic(self, event, fields)
+    self.MazeDiagnosticSequence += 1
+
+    local keys = {}
+    for key in pairs(fields or {}) do
+        table.insert(keys, key)
+    end
+    table.sort(keys)
+
+    local segments = {}
+    for _, key in ipairs(keys) do
+        table.insert(
+            segments,
+            string.format('%s=%s', key, formatRunMazeDiagnosticValue(fields[key]))
+        )
+    end
+
+    local prefix = string.format(
+        '%s #%03d t=%.3f event=%s',
+        RUN_MAZE_DIAG_PREFIX,
+        self.MazeDiagnosticSequence,
+        os.clock(),
+        event
+    )
+    if #segments == 0 then
+        print(prefix)
+        return
+    end
+
+    print(string.format('%s | %s', prefix, table.concat(segments, ' | ')))
+end
+
+local function formatTeleportFailureReason(step, message, snapshot)
+    return TeleportDiagnostics.formatFailure(step, message, snapshot)
+end
+
+local function buildReservedServerTeleportOptions(accessCode, teleportData)
+    local teleportOptions = Instance.new('TeleportOptions')
+    teleportOptions.ReservedServerAccessCode = accessCode
+    teleportOptions:SetTeleportData(teleportData)
+    return teleportOptions
+end
 
 local function bindCharacterTeleport(self, player)
     player.CharacterAdded:Connect(function(character)
@@ -116,6 +174,7 @@ function RunSessionService.new()
         'Set SessionConfig.PlaceIds.Maze or SessionPlaceIdMaze before using the maze gate.'
     self.MazeEntryReasonCode = MazeEntryAvailability.ReasonCode.MazePlaceIdMissing
     self.LocalDebugMazeWorld = nil
+    self.MazeDiagnosticSequence = 0
     self.ControlStateService = ControlStateService.new()
     self.PlayerStateService = PlayerStateService.new()
 
@@ -573,32 +632,126 @@ function RunSessionService:_enterMaze(player)
             return
         end
 
-        local result = RunMazePortal.enter({
-            Player = player,
-            CampSession = self.CampSession,
+        -- Teleports yield, so keep the camp session mutation serialized per server.
+        local previousSession = CampMazeSessionContract.normalizeCampSession(self.CampSession)
+        local mazeAccessCode = previousSession.MazeAccessCode
+        local mazeTeleportSnapshot = TeleportDiagnostics.captureSnapshot({
+            TargetKey = 'Maze',
+            TargetPlaceId = SessionConfig.PlaceIds.Maze,
+        })
+        emitRunMazeDiagnostic(self, 'EnterMazeBegin', {
+            ExistingMazeAccessCode = mazeAccessCode,
             GateOpen = self.GateOpen,
+            MazePlaceId = SessionConfig.PlaceIds.Maze,
+            Player = player.DisplayName,
+            Seed = self.SessionData.Seed,
+            SessionId = previousSession.SessionId,
+        })
+
+        if mazeAccessCode == nil then
+            local reserved, reserveResult = pcall(function()
+                return TeleportService:ReserveServerAsync(SessionConfig.PlaceIds.Maze)
+            end)
+
+            if not reserved then
+                local reason = formatTeleportFailureReason(
+                    'ReserveServerAsync',
+                    reserveResult,
+                    mazeTeleportSnapshot
+                )
+                self.MazeEntryMode = MazeEntryAvailability.Mode.Blocked
+                self.MazeEntryReasonCode = TELEPORT_FAILURE_CODE.ReserveServerFailed
+                self.MazeEntryReason = reason
+                self:_setStatus(
+                    string.format('%s could not enter the maze: %s', player.DisplayName, reason)
+                )
+                return
+            end
+
+            mazeAccessCode = reserveResult
+            emitRunMazeDiagnostic(self, 'ReserveServerResolved', {
+                MazeAccessCode = mazeAccessCode,
+                Player = player.DisplayName,
+                ReusedExistingCode = false,
+                Seed = self.SessionData.Seed,
+                SessionId = previousSession.SessionId,
+            })
+        else
+            emitRunMazeDiagnostic(self, 'ReserveServerResolved', {
+                MazeAccessCode = mazeAccessCode,
+                Player = player.DisplayName,
+                ReusedExistingCode = true,
+                Seed = self.SessionData.Seed,
+                SessionId = previousSession.SessionId,
+            })
+        end
+
+        previousSession.MazeAccessCode = mazeAccessCode
+        previousSession.GateOpen = self.GateOpen
+
+        local nextSession = CampMazeSessionContract.markPlayerEntered(previousSession, {
+            UserId = player.UserId,
+            Name = player.DisplayName,
+        })
+        nextSession.MazeAccessCode = mazeAccessCode
+        nextSession.GateOpen = self.GateOpen
+
+        local teleportData = CampMazeSessionContract.buildCampToMazeTeleportData({
             SessionConfig = self.SessionData,
+            CampSession = nextSession,
             EnteringPlayer = {
                 UserId = player.UserId,
                 Name = player.DisplayName,
             },
             EntryReason = 'maze_gate',
         })
-        if not result.Ok then
-            self.CampSession = result.CurrentSession or self.CampSession
+        emitRunMazeDiagnostic(self, 'TeleportPayloadReady', {
+            MazeAccessCode = nextSession.MazeAccessCode,
+            Player = player.DisplayName,
+            Seed = teleportData.SessionConfig and teleportData.SessionConfig.Seed or nil,
+            SessionId = nextSession.SessionId,
+        })
+
+        local teleportOptions =
+            buildReservedServerTeleportOptions(nextSession.MazeAccessCode, teleportData)
+        local success, message = pcall(function()
+            return TeleportService:TeleportAsync(
+                SessionConfig.PlaceIds.Maze,
+                { player },
+                teleportOptions
+            )
+        end)
+
+        if not success then
+            self.CampSession = previousSession
+            local reason =
+                formatTeleportFailureReason('TeleportAsync', message, mazeTeleportSnapshot)
             self.MazeEntryMode = MazeEntryAvailability.Mode.Blocked
-            self.MazeEntryReasonCode = result.ReasonCode or result.FailureCode
-            self.MazeEntryReason = result.Reason
+            self.MazeEntryReasonCode = TELEPORT_FAILURE_CODE.TeleportAsyncFailed
+            self.MazeEntryReason = reason
+            emitRunMazeDiagnostic(self, 'TeleportAsyncFailed', {
+                MazeAccessCode = nextSession.MazeAccessCode,
+                Player = player.DisplayName,
+                Reason = reason,
+                Seed = self.SessionData.Seed,
+                SessionId = nextSession.SessionId,
+            })
             self:_setStatus(
-                string.format('%s could not enter the maze: %s', player.DisplayName, result.Reason)
+                string.format('%s could not enter the maze: %s', player.DisplayName, reason)
             )
             return
         end
 
         self.MazeEntryMode = MazeEntryAvailability.Mode.Teleport
-        self.MazeEntryReasonCode = result.ReasonCode
-        self.MazeEntryReason = result.Reason
-        self.CampSession = result.NextSession
+        self.MazeEntryReasonCode = MazeEntryAvailability.ReasonCode.TeleportReady
+        self.MazeEntryReason = 'Maze teleport target is ready.'
+        self.CampSession = nextSession
+        emitRunMazeDiagnostic(self, 'TeleportAsyncDispatched', {
+            MazeAccessCode = nextSession.MazeAccessCode,
+            Player = player.DisplayName,
+            Seed = self.SessionData.Seed,
+            SessionId = nextSession.SessionId,
+        })
         self:_setStatus(string.format('%s is entering the shared maze run.', player.DisplayName))
     end)
 end
