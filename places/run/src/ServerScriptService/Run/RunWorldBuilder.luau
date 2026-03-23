@@ -6,6 +6,9 @@ local OutdoorAreaBuilder = require(script.Parent.OutdoorAreaBuilder)
 local RunWorldBuilder = {}
 
 local OUTDOOR_THRESHOLD_Z = 20
+local DEFAULT_SPAWN_CFRAME = CFrame.new(0, 4, -6)
+local DEFAULT_RETURN_CFRAME = CFrame.new(0, 4, -2)
+local MAZE_RETURN_CFRAME = CFrame.new(0, 4, 108)
 
 local function createPart(config, parent)
     local part = Instance.new('Part')
@@ -64,8 +67,9 @@ function RunWorldBuilder.build()
 
     return {
         Root = worldFolder,
-        SpawnCFrame = CFrame.new(0, 4, -6),
-        ReturnCFrame = CFrame.new(0, 4, -2),
+        SpawnCFrame = DEFAULT_SPAWN_CFRAME,
+        ReturnCFrame = DEFAULT_RETURN_CFRAME,
+        MazeReturnCFrame = MAZE_RETURN_CFRAME,
         OutdoorThresholdZ = OUTDOOR_THRESHOLD_Z,
         ShopPrompt = house.ShopPrompt,
         LoadoutPrompt = house.LoadoutPrompt,
@@ -74,5 +78,9 @@ function RunWorldBuilder.build()
         OpenGate = house.OpenGate,
     }
 end
+
+RunWorldBuilder.SpawnCFrame = DEFAULT_SPAWN_CFRAME
+RunWorldBuilder.ReturnCFrame = DEFAULT_RETURN_CFRAME
+RunWorldBuilder.MazeReturnCFrame = MAZE_RETURN_CFRAME
 
 return RunWorldBuilder
