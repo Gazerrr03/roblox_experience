@@ -37,28 +37,13 @@ local DEFAULT_ROOM_KIND_COLORS = {
 }
 
 local function resolveSurfacePalette(surfacePalette)
-    return {
-        WallMaterial = surfacePalette and surfacePalette.WallMaterial
-            or DEFAULT_SURFACE_PALETTE.WallMaterial,
-        WallColor = surfacePalette and surfacePalette.WallColor
-            or DEFAULT_SURFACE_PALETTE.WallColor,
-        FloorMaterial = surfacePalette and surfacePalette.FloorMaterial
-            or DEFAULT_SURFACE_PALETTE.FloorMaterial,
-        FloorColor = surfacePalette and surfacePalette.FloorColor
-            or DEFAULT_SURFACE_PALETTE.FloorColor,
-        CeilingMaterial = surfacePalette and surfacePalette.CeilingMaterial
-            or DEFAULT_SURFACE_PALETTE.CeilingMaterial,
-        CeilingColor = surfacePalette and surfacePalette.CeilingColor
-            or DEFAULT_SURFACE_PALETTE.CeilingColor,
-        DoorMaterial = surfacePalette and surfacePalette.DoorMaterial
-            or DEFAULT_SURFACE_PALETTE.DoorMaterial,
-        DoorColor = surfacePalette and surfacePalette.DoorColor
-            or DEFAULT_SURFACE_PALETTE.DoorColor,
-        ExitFloorMaterial = surfacePalette and surfacePalette.ExitFloorMaterial
-            or DEFAULT_SURFACE_PALETTE.ExitFloorMaterial,
-        ExitFloorColor = surfacePalette and surfacePalette.ExitFloorColor
-            or DEFAULT_SURFACE_PALETTE.ExitFloorColor,
-    }
+    local resolvedPalette = {}
+
+    for property, defaultValue in pairs(DEFAULT_SURFACE_PALETTE) do
+        resolvedPalette[property] = surfacePalette and surfacePalette[property] or defaultValue
+    end
+
+    return resolvedPalette
 end
 
 local function edgeKey(roomIdA, roomIdB)
