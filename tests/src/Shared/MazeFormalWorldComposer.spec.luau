@@ -26,6 +26,14 @@ return function()
         world.ReturnHoldPad ~= nil and world.ReturnHoldPad.Prompt ~= nil,
         'Formal world should create an interactable return hold pad for run-gate returns'
     )
+    assert(
+        type(world.InitialMonsterPatrolIndex) == 'number',
+        'Formal world should export the initial monster patrol slot'
+    )
+    assert(
+        type(world.InitialMonsterSpawnRoomId) == 'string',
+        'Formal world should export the room chosen for initial monster spawn'
+    )
     assert(next(world.RoomAffordances or {}) ~= nil, 'Formal world should expose room affordances')
     assert(next(world.LootNodes or {}) ~= nil, 'Formal world should create loot nodes')
     assert(next(world.ExtractionNodes or {}) ~= nil, 'Formal world should create extraction nodes')
@@ -62,6 +70,18 @@ return function()
     )
 
     assert(extractionCount >= 1, 'Formal world should include at least one extraction node')
+    assert(
+        world.InitialMonsterSpawnRoomId ~= world.CampRoomId,
+        'Initial monster spawn should never use the camp room'
+    )
+
+    local campRoom = world.RoomById[world.CampRoomId]
+    for _, neighborRoomId in pairs(campRoom.Neighbors or {}) do
+        assert(
+            world.InitialMonsterSpawnRoomId ~= neighborRoomId,
+            'Initial monster spawn should avoid rooms adjacent to the camp room'
+        )
+    end
 
     local patrolPointCount = 0
     local expectedPatrolPointCount = 0
@@ -164,6 +184,10 @@ return function()
     assert(
         patrolPointCount == expectedPatrolPointCount,
         'Legacy patrol points should remain a flattened view of loot-room patrol anchors'
+    )
+    assert(
+        world.InitialMonsterPatrolIndex >= 1 and world.InitialMonsterPatrolIndex <= patrolPointCount,
+        'Initial monster patrol index should point into the flattened patrol-point list'
     )
     assert(
         controlPointCount >= 1,
