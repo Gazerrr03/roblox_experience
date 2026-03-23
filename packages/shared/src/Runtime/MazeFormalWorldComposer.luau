@@ -183,14 +183,18 @@ function MazeFormalWorldComposer.build(seed, config, options)
         end
     end
 
-    local returnHoldPad = MazeInteractionPartFactory.createPart({
+    local returnHoldPadPosition = shell.CampCenter + Vector3.new(0, 0.5, -10)
+    local _, returnHoldPrompt = MazeInteractionPartFactory.createPromptPart({
         Name = 'ReturnHoldPad',
         Size = Vector3.new(8, 1, 8),
-        CFrame = CFrame.new(shell.CampCenter + Vector3.new(0, 0.5, -10)),
+        CFrame = CFrame.new(returnHoldPadPosition),
         Color = Color3.fromRGB(77, 147, 196),
         Material = Enum.Material.Neon,
+        ActionText = 'Return',
+        ObjectText = 'Run Entrance',
         Transparency = 0.2,
         CanCollide = false,
+        MaxActivationDistance = 12,
     }, shell.Root)
 
     local extractionNodeId = 'PrimaryExtraction'
@@ -200,8 +204,8 @@ function MazeFormalWorldComposer.build(seed, config, options)
         CFrame = CFrame.new(shell.ExtractionCenter + Vector3.new(0, 0.5, 0)),
         Color = Color3.fromRGB(214, 170, 94),
         Material = Enum.Material.Neon,
-        ActionText = 'Extract',
-        ObjectText = resolvedOptions.ExtractionObjectText or 'Maze Exit',
+        ActionText = 'Return',
+        ObjectText = resolvedOptions.ExtractionObjectText or 'Run Entrance',
         CanCollide = false,
         MaxActivationDistance = resolvedOptions.ExtractionMaxActivationDistance or 12,
     }, shell.Root)
@@ -240,7 +244,10 @@ function MazeFormalWorldComposer.build(seed, config, options)
     shell.InitialMonsterPatrolIndex = initialMonsterPatrolIndex
         or (#shell.PatrolPoints > 0 and 1 or nil)
     shell.InitialMonsterSpawnRoomId = initialMonsterSpawnRoomId
-    shell.ReturnHoldPad = returnHoldPad
+    shell.ReturnHoldPad = {
+        Prompt = returnHoldPrompt,
+        Position = returnHoldPadPosition,
+    }
     shell.ExtractionNodes = extractionNodes
 
     return shell

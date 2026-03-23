@@ -23,8 +23,8 @@ return function()
     )
     assert(world.ReturnPrompt == nil, 'Formal world should not expose the debug return prompt')
     assert(
-        world.ReturnHoldPad ~= nil,
-        'Formal world should create a return hold pad for post-run staging'
+        world.ReturnHoldPad ~= nil and world.ReturnHoldPad.Prompt ~= nil,
+        'Formal world should create an interactable return hold pad for run-gate returns'
     )
     assert(
         type(world.InitialMonsterPatrolIndex) == 'number',
@@ -55,10 +55,19 @@ return function()
         extractionCount += 1
         assert(extractionNode.Prompt ~= nil, 'Extraction nodes should expose a prompt')
         assert(
-            extractionNode.Prompt.ObjectText == 'Maze Exit',
-            'Formal extraction prompt should use maze exit wording'
+            extractionNode.Prompt.ObjectText == 'Run Entrance',
+            'Formal extraction prompt should point players back to the run entrance'
+        )
+        assert(
+            extractionNode.Prompt.ActionText == 'Return',
+            'Formal extraction prompt should align with the shared return semantics'
         )
     end
+
+    assert(
+        world.ReturnHoldPad.Prompt.ObjectText == 'Run Entrance',
+        'The blue return pad should point players back to the run entrance'
+    )
 
     assert(extractionCount >= 1, 'Formal world should include at least one extraction node')
     assert(
