@@ -22,20 +22,20 @@ return function()
     roomArchetypes.Name = contract.OptionalAuthoringFolderName
     roomArchetypes.Parent = assetRoot
 
-    local cavePocket = Instance.new('Folder')
-    cavePocket.Name = 'CavePocket'
-    cavePocket.Parent = roomArchetypes
+    local entrySafe = Instance.new('Folder')
+    entrySafe.Name = 'EntrySafe'
+    entrySafe.Parent = roomArchetypes
 
     local shellModel = Instance.new('Model')
     shellModel.Name = contract.OptionalShellModelName
     local shellPart = Instance.new('Part')
     shellPart.Name = 'ShellPart'
     shellPart.Parent = shellModel
-    shellModel.Parent = cavePocket
+    shellModel.Parent = entrySafe
 
     assert(
-        contract.getRoomArchetypeShellModel(assetRoot, 'CavePocket') == shellModel,
-        'Authoring contract should expose optional archetype shell assets'
+        contract.getRoomArchetypeShellModel(assetRoot, 'EntrySafe') == shellModel,
+        'Authoring contract should expose optional room shell assets'
     )
     assert(
         contract.validateRoot(assetRoot) == assetRoot,
@@ -69,7 +69,7 @@ return function()
     shellModel:Destroy()
     local invalidShell = Instance.new('Folder')
     invalidShell.Name = contract.OptionalShellModelName
-    invalidShell.Parent = cavePocket
+    invalidShell.Parent = entrySafe
 
     local invalidOk, invalidErr = pcall(function()
         contract.validateRoot(assetRoot)

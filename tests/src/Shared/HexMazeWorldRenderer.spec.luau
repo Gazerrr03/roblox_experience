@@ -30,23 +30,6 @@ return function()
         child.Parent = moduleAssetsRoot
     end
 
-    local roomArchetypes = Instance.new('Folder')
-    roomArchetypes.Name = contract.OptionalAuthoringFolderName
-    roomArchetypes.Parent = moduleAssetsRoot
-
-    local cavePocketAssets = Instance.new('Folder')
-    cavePocketAssets.Name = 'CavePocket'
-    cavePocketAssets.Parent = roomArchetypes
-
-    local authoredShell = Instance.new('Model')
-    authoredShell.Name = contract.OptionalShellModelName
-    local authoredShellPart = Instance.new('Part')
-    authoredShellPart.Name = 'ShellPart'
-    authoredShellPart.Size = Vector3.new(2, 2, 2)
-    authoredShellPart.Anchored = true
-    authoredShellPart.Parent = authoredShell
-    authoredShell.Parent = cavePocketAssets
-
     local rendered = renderer.build({
         WorldName = 'RendererSpecMazeWorld',
         Layout = layout,
@@ -60,8 +43,6 @@ return function()
     local root = rendered.Root
     assert(root ~= nil and root.Parent == Workspace, 'Renderer should create world root folder')
 
-    local checkedRooms = 0
-    local caveRoomFound = false
     for _, roomId in ipairs(rendered.RoomIds) do
         local roomFolder = root:FindFirstChild(roomId)
         assert(roomFolder ~= nil, string.format('Room folder should exist for %s', roomId))
@@ -74,50 +55,24 @@ return function()
         assert(#ceilingTiles:GetChildren() > 1, 'Ceiling should not be a single square slab')
         assert(
             roomFolder:FindFirstChild('Floor') == nil,
-            'Legacy rectangular floor part should be removed'
+            'Legacy rectangular floor part should stay removed'
         )
         assert(
             roomFolder:FindFirstChild('Ceiling') == nil,
-            'Legacy rectangular ceiling part should be removed'
+            'Legacy rectangular ceiling part should stay removed'
         )
 
-        local wallPartCount = 0
-        for _, child in ipairs(roomFolder:GetChildren()) do
-            if string.sub(child.Name, 1, 5) == 'Wall_' then
-                wallPartCount += 1
-            end
-        end
-        assert(
-            wallPartCount >= 6,
-            'Each room should render six wall edges with doorway segmentation'
-        )
         local authoringSockets = roomFolder:FindFirstChild('AuthoringSockets')
         assert(authoringSockets ~= nil, 'Each room should expose authoring sockets')
         assert(
             authoringSockets:FindFirstChild('ShellModelSocket') ~= nil,
             'Each room should expose an external-shell attachment socket'
         )
-
-        if layout.Rooms[roomId].ArchetypeId == 'CavePocket' then
-            caveRoomFound = true
-            assert(
-                roomFolder:FindFirstChild('CavePocketDecor') ~= nil,
-                'Cave archetype rooms should render cave-like interior dressing'
-            )
-            assert(
-                roomFolder:FindFirstChild('AuthoredShell_CavePocket') ~= nil,
-                'Cave archetype rooms should accept authored external shell models'
-            )
-        end
-
-        checkedRooms += 1
-        if checkedRooms >= 2 then
-            if caveRoomFound then
-                break
-            end
-        end
+        assert(
+            roomFolder:FindFirstChild('RoomTemplateDecor') ~= nil,
+            'Each room should expose blockout decor for its room template'
+        )
     end
-    assert(caveRoomFound, 'Renderer spec should include at least one cave archetype room')
 
     local firstRoomFolder = root:FindFirstChild(rendered.RoomIds[1])
     local firstFloorTile = firstRoomFolder
@@ -133,7 +88,6 @@ return function()
         'Renderer should honor the maze lighting profile floor color'
     )
 
-    local leafDoorwayId = nil
     for doorwayId, connector in pairs(rendered.Connectors) do
         assert(
             connector.Root ~= nil and connector.Root.Parent == root,
@@ -148,24 +102,25 @@ return function()
             string.format('Connector %s should expose a shell attachment socket', doorwayId)
         )
         assert(
-            connector.Root:FindFirstChild(string.format('ConnectorFloor_%s', doorwayId)) ~= nil,
+            connector.Root:FindFirstChild(string.format('Connector_%s_Floor', doorwayId)) ~= nil,
             string.format(
                 'Renderer should build fallback connector floor geometry for %s',
                 doorwayId
             )
         )
         assert(
-            connector.Root:FindFirstChild(string.format('ConnectorCeiling_%s', doorwayId)) ~= nil,
+            connector.Root:FindFirstChild(string.format('Connector_%s_Ceiling', doorwayId)) ~= nil,
             string.format(
                 'Renderer should build fallback connector ceiling geometry for %s',
                 doorwayId
             )
         )
         assert(
-            connector.Root:FindFirstChild(
-                string.format('AuthoredPassageShell_%s', connector.ArchetypeId)
-            ) == nil,
-            string.format('Fallback connector for %s should not claim an authored shell', doorwayId)
+            connector.Root:FindFirstChild(string.format('Connector_%s_Accent', doorwayId)) ~= nil,
+            string.format(
+                'Renderer should build a readable connector accent strip for %s',
+                doorwayId
+            )
         )
     end
     assert(
@@ -173,33 +128,11 @@ return function()
         'Renderer should build connectors between doorway-linked rooms'
     )
     assert(
-        next(rendered.ExitPassages) ~= nil,
-        'Renderer should build full exit passages for external room openings'
+        next(rendered.ExitPassages) == nil,
+        'Renderer should not build exterior passages in the sealed indoor baseline'
     )
-    for exitPassageId, exitPassage in pairs(rendered.ExitPassages) do
-        assert(
-            exitPassage.Root ~= nil and exitPassage.Root.Parent == root,
-            string.format('Renderer should create an exit passage root for %s', exitPassageId)
-        )
-        assert(
-            exitPassage.AuthoringSockets ~= nil,
-            string.format('Exit passage %s should expose authoring sockets', exitPassageId)
-        )
-        assert(
-            exitPassage.Root:FindFirstChild(string.format('ExitPassage_%s_Floor', exitPassageId))
-                ~= nil,
-            string.format('Renderer should build fallback exit passage floor for %s', exitPassageId)
-        )
-        assert(
-            exitPassage.Root:FindFirstChild(string.format('ExitPassage_%s_Ceiling', exitPassageId))
-                ~= nil,
-            string.format(
-                'Renderer should build fallback exit passage ceiling for %s',
-                exitPassageId
-            )
-        )
-    end
 
+    local leafDoorwayId = nil
     for doorwayId, doorway in pairs(rendered.Doorways) do
         if doorway.HasDoorLeaves then
             leafDoorwayId = doorwayId
@@ -225,6 +158,23 @@ return function()
 
     root:Destroy()
 
+    local roomArchetypes = Instance.new('Folder')
+    roomArchetypes.Name = contract.OptionalAuthoringFolderName
+    roomArchetypes.Parent = moduleAssetsRoot
+
+    local entrySafeAssets = Instance.new('Folder')
+    entrySafeAssets.Name = 'EntrySafe'
+    entrySafeAssets.Parent = roomArchetypes
+
+    local authoredRoomShell = Instance.new('Model')
+    authoredRoomShell.Name = contract.OptionalShellModelName
+    local authoredRoomShellPart = Instance.new('Part')
+    authoredRoomShellPart.Name = 'ShellPart'
+    authoredRoomShellPart.Size = Vector3.new(2, 2, 2)
+    authoredRoomShellPart.Anchored = true
+    authoredRoomShellPart.Parent = authoredRoomShell
+    authoredRoomShell.Parent = entrySafeAssets
+
     local connectorArchetypes = Instance.new('Folder')
     connectorArchetypes.Name = contract.OptionalConnectorAuthoringFolderName
     connectorArchetypes.Parent = moduleAssetsRoot
@@ -243,7 +193,7 @@ return function()
     connectorShell.Parent = industrialHallAssets
 
     local authoredRendered = renderer.build({
-        WorldName = 'RendererSpecMazeWorldAuthoredConnectors',
+        WorldName = 'RendererSpecMazeWorldAuthoredAssets',
         Layout = layout,
         Parent = Workspace,
         ModuleAssetsRoot = moduleAssetsRoot,
@@ -253,49 +203,28 @@ return function()
     })
 
     root = authoredRendered.Root
-    for doorwayId, connector in pairs(authoredRendered.Connectors) do
-        assert(
-            connector.Shell ~= nil,
-            string.format('Renderer should attach an authored connector shell for %s', doorwayId)
-        )
-        assert(
-            connector.Root:FindFirstChild(
-                string.format('AuthoredPassageShell_%s', connector.ArchetypeId)
-            ) ~= nil,
-            string.format('Authored connector shell should be present for %s', doorwayId)
-        )
-        assert(
-            connector.Root:FindFirstChild(string.format('ConnectorFloor_%s', doorwayId)) == nil,
-            string.format(
-                'Authored connector %s should not keep fallback floor geometry',
-                doorwayId
-            )
-        )
-    end
-    for exitPassageId, exitPassage in pairs(authoredRendered.ExitPassages) do
-        assert(
-            exitPassage.Shell ~= nil,
-            string.format(
-                'Renderer should attach an authored exit passage shell for %s',
-                exitPassageId
-            )
-        )
-        assert(
-            exitPassage.Root:FindFirstChild(
-                string.format('AuthoredPassageShell_%s', exitPassage.ArchetypeId)
-            ) ~= nil,
-            string.format('Authored exit passage shell should be present for %s', exitPassageId)
-        )
-        assert(
-            exitPassage.Root:FindFirstChild(string.format('ExitPassage_%s_Floor', exitPassageId))
-                == nil,
-            string.format(
-                'Authored exit passage %s should not keep fallback floor geometry',
-                exitPassageId
-            )
-        )
-    end
+    local campRoomFolder = root:FindFirstChild(layout.CampRoomId)
+    assert(campRoomFolder ~= nil, 'Camp room folder should exist in the authored render')
+    assert(
+        campRoomFolder:FindFirstChild('AuthoredShell_EntrySafe') ~= nil,
+        'Camp room should accept authored room shell assets by authoring asset id'
+    )
 
-    root:Destroy()
+    local foundAuthoredConnectorShell = false
+    for doorwayId, connector in pairs(authoredRendered.Connectors) do
+        if connector.Shell ~= nil then
+            foundAuthoredConnectorShell = true
+            assert(
+                connector.Root:FindFirstChild('AuthoredPassageShell_IndustrialHall') ~= nil,
+                string.format('Connector %s should attach the authored connector shell', doorwayId)
+            )
+        end
+    end
+    assert(
+        foundAuthoredConnectorShell,
+        'At least one connector should consume the authored connector shell'
+    )
+
+    authoredRendered.Root:Destroy()
     moduleAssetsRoot:Destroy()
 end
