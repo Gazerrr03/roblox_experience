@@ -6,6 +6,7 @@ MazeBootstrapStatus.set('BootstrapScriptLoaded', nil)
 
 task.defer(function()
     local mazeSessionService
+    local lightingResult
 
     local ok, err = pcall(function()
         MazeBootstrapStatus.set('RequirePackages', nil)
@@ -29,7 +30,11 @@ task.defer(function()
         mazeSessionService = MazeSessionService.new()
 
         MazeBootstrapStatus.set('StartLightingService', nil)
-        MazeLightingService.new():start()
+        lightingResult = MazeLightingService.new():start()
+
+        if lightingResult and lightingResult.SurfacePalette then
+            mazeSessionService:setSurfacePalette(lightingResult.SurfacePalette)
+        end
 
         MazeBootstrapStatus.set('StartSessionService', nil)
         mazeSessionService:start()

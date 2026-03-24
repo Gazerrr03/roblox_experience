@@ -24,6 +24,19 @@ function MazeLightingService:start()
             )
         )
     end
+
+    if created.TechnologyApplied then
+        print('[MazeLightingDiag] applied Future lighting profile')
+    else
+        warn(
+            string.format(
+                '[MazeLightingDiag] applied fallback readable profile: %s',
+                tostring(created.TechnologyError or 'Technology unavailable')
+            )
+        )
+    end
+
+    return created
 end
 
 return MazeLightingService
