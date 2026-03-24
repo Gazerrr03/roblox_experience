@@ -36,49 +36,161 @@ local function ensureEffect(parent, className, name)
     return existing
 end
 
+local function applyProperty(target, propertyPath, propertyName, value, skippedProperties)
+    local ok, err = pcall(function()
+        target[propertyName] = value
+    end)
+
+    if ok then
+        return true
+    end
+
+    skippedProperties[propertyPath] = tostring(err)
+    return false
+end
+
 function MazeLightingProfile.apply(lighting)
-    lighting.Technology = Enum.Technology.Future
-    lighting.GlobalShadows = true
-    lighting.Brightness = 2
-    lighting.ClockTime = 1.25
-    lighting.ExposureCompensation = -0.4
-    lighting.ShadowSoftness = 0.35
-    lighting.Ambient = Color3.fromRGB(8, 10, 14)
-    lighting.OutdoorAmbient = Color3.fromRGB(30, 34, 40)
-    lighting.EnvironmentDiffuseScale = 0.3
-    lighting.EnvironmentSpecularScale = 0.2
+    local skippedProperties = {}
+
+    applyProperty(
+        lighting,
+        'Lighting.Technology',
+        'Technology',
+        Enum.Technology.Future,
+        skippedProperties
+    )
+    applyProperty(lighting, 'Lighting.GlobalShadows', 'GlobalShadows', true, skippedProperties)
+    applyProperty(lighting, 'Lighting.Brightness', 'Brightness', 2, skippedProperties)
+    applyProperty(lighting, 'Lighting.ClockTime', 'ClockTime', 1.25, skippedProperties)
+    applyProperty(
+        lighting,
+        'Lighting.ExposureCompensation',
+        'ExposureCompensation',
+        -0.4,
+        skippedProperties
+    )
+    applyProperty(lighting, 'Lighting.ShadowSoftness', 'ShadowSoftness', 0.35, skippedProperties)
+    applyProperty(
+        lighting,
+        'Lighting.Ambient',
+        'Ambient',
+        Color3.fromRGB(8, 10, 14),
+        skippedProperties
+    )
+    applyProperty(
+        lighting,
+        'Lighting.OutdoorAmbient',
+        'OutdoorAmbient',
+        Color3.fromRGB(30, 34, 40),
+        skippedProperties
+    )
+    applyProperty(
+        lighting,
+        'Lighting.EnvironmentDiffuseScale',
+        'EnvironmentDiffuseScale',
+        0.3,
+        skippedProperties
+    )
+    applyProperty(
+        lighting,
+        'Lighting.EnvironmentSpecularScale',
+        'EnvironmentSpecularScale',
+        0.2,
+        skippedProperties
+    )
 
     local atmosphere = ensureEffect(lighting, 'Atmosphere', EFFECT_NAMES.Atmosphere)
-    atmosphere.Color = Color3.fromRGB(92, 100, 112)
-    atmosphere.Decay = Color3.fromRGB(14, 16, 20)
-    atmosphere.Density = 0.38
-    atmosphere.Glare = 0.05
-    atmosphere.Haze = 1.75
-    atmosphere.Offset = -0.2
+    applyProperty(
+        atmosphere,
+        'MazeAtmosphere.Color',
+        'Color',
+        Color3.fromRGB(92, 100, 112),
+        skippedProperties
+    )
+    applyProperty(
+        atmosphere,
+        'MazeAtmosphere.Decay',
+        'Decay',
+        Color3.fromRGB(14, 16, 20),
+        skippedProperties
+    )
+    applyProperty(atmosphere, 'MazeAtmosphere.Density', 'Density', 0.38, skippedProperties)
+    applyProperty(atmosphere, 'MazeAtmosphere.Glare', 'Glare', 0.05, skippedProperties)
+    applyProperty(atmosphere, 'MazeAtmosphere.Haze', 'Haze', 1.75, skippedProperties)
+    applyProperty(atmosphere, 'MazeAtmosphere.Offset', 'Offset', -0.2, skippedProperties)
 
     local colorCorrection =
         ensureEffect(lighting, 'ColorCorrectionEffect', EFFECT_NAMES.ColorCorrection)
-    colorCorrection.Brightness = -0.03
-    colorCorrection.Contrast = 0.16
-    colorCorrection.Saturation = -0.12
-    colorCorrection.TintColor = Color3.fromRGB(214, 223, 255)
+    applyProperty(
+        colorCorrection,
+        'MazeColorCorrection.Brightness',
+        'Brightness',
+        -0.03,
+        skippedProperties
+    )
+    applyProperty(
+        colorCorrection,
+        'MazeColorCorrection.Contrast',
+        'Contrast',
+        0.16,
+        skippedProperties
+    )
+    applyProperty(
+        colorCorrection,
+        'MazeColorCorrection.Saturation',
+        'Saturation',
+        -0.12,
+        skippedProperties
+    )
+    applyProperty(
+        colorCorrection,
+        'MazeColorCorrection.TintColor',
+        'TintColor',
+        Color3.fromRGB(214, 223, 255),
+        skippedProperties
+    )
 
     local bloom = ensureEffect(lighting, 'BloomEffect', EFFECT_NAMES.Bloom)
-    bloom.Intensity = 0.18
-    bloom.Size = 28
-    bloom.Threshold = 1.35
+    applyProperty(bloom, 'MazeBloom.Intensity', 'Intensity', 0.18, skippedProperties)
+    applyProperty(bloom, 'MazeBloom.Size', 'Size', 28, skippedProperties)
+    applyProperty(bloom, 'MazeBloom.Threshold', 'Threshold', 1.35, skippedProperties)
 
     local depthOfField = ensureEffect(lighting, 'DepthOfFieldEffect', EFFECT_NAMES.DepthOfField)
-    depthOfField.FarIntensity = 0.08
-    depthOfField.FocusDistance = 30
-    depthOfField.InFocusRadius = 18
-    depthOfField.NearIntensity = 0.12
+    applyProperty(
+        depthOfField,
+        'MazeDepthOfField.FarIntensity',
+        'FarIntensity',
+        0.08,
+        skippedProperties
+    )
+    applyProperty(
+        depthOfField,
+        'MazeDepthOfField.FocusDistance',
+        'FocusDistance',
+        30,
+        skippedProperties
+    )
+    applyProperty(
+        depthOfField,
+        'MazeDepthOfField.InFocusRadius',
+        'InFocusRadius',
+        18,
+        skippedProperties
+    )
+    applyProperty(
+        depthOfField,
+        'MazeDepthOfField.NearIntensity',
+        'NearIntensity',
+        0.12,
+        skippedProperties
+    )
 
     return {
         Atmosphere = atmosphere,
         ColorCorrection = colorCorrection,
         Bloom = bloom,
         DepthOfField = depthOfField,
+        SkippedProperties = skippedProperties,
     }
 end
 

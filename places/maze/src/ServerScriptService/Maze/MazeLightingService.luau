@@ -12,7 +12,18 @@ function MazeLightingService.new()
 end
 
 function MazeLightingService:start()
-    Shared.Runtime.MazeLightingProfile.apply(Lighting)
+    local created = Shared.Runtime.MazeLightingProfile.apply(Lighting)
+    local skippedProperties = created.SkippedProperties or {}
+
+    for propertyName, err in pairs(skippedProperties) do
+        warn(
+            string.format(
+                '[MazeLighting] skipped %s update: %s',
+                tostring(propertyName),
+                tostring(err)
+            )
+        )
+    end
 end
 
 return MazeLightingService
