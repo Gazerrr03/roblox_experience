@@ -1,5 +1,6 @@
 local MonsterBehaviorCatalog = require(script.Parent.MonsterBehaviorCatalog)
 local MonsterEffectCatalog = require(script.Parent.MonsterEffectCatalog)
+local MonsterPresentationCatalog = require(script.Parent.MonsterPresentationCatalog)
 
 local MonsterAuthorProfile = {}
 
@@ -14,6 +15,36 @@ local function validateSummaryTable(summaryTable, missingReason)
 
     if not isNonEmptyString(summaryTable.Summary) then
         return false, missingReason
+    end
+
+    return true
+end
+
+local function validatePresentation(presentation)
+    if type(presentation) ~= 'table' then
+        return false, 'MissingPresentation'
+    end
+
+    if type(presentation.ModelAssetId) ~= 'number' or presentation.ModelAssetId <= 0 then
+        return false, 'InvalidModelAssetId'
+    end
+
+    if not MonsterPresentationCatalog.KnownRigType[presentation.RigType] then
+        return false, 'InvalidRigType'
+    end
+
+    if not MonsterPresentationCatalog.KnownAnimationMode[presentation.AnimationMode] then
+        return false, 'InvalidAnimationMode'
+    end
+
+    if
+        presentation.ChaseLoopSoundAssetId ~= nil
+        and (
+            type(presentation.ChaseLoopSoundAssetId) ~= 'number'
+            or presentation.ChaseLoopSoundAssetId <= 0
+        )
+    then
+        return false, 'InvalidChaseLoopSoundAssetId'
     end
 
     return true
@@ -50,6 +81,11 @@ function MonsterAuthorProfile.validate(profile)
         validateSummaryTable(profile.CounterplayIntent, 'MissingCounterplayIntentSummary')
     if not counterplayOk then
         return false, counterplayReason
+    end
+
+    local presentationOk, presentationReason = validatePresentation(profile.Presentation)
+    if not presentationOk then
+        return false, presentationReason
     end
 
     local numericProfile = profile.NumericProfile
