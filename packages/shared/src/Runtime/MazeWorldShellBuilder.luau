@@ -35,6 +35,8 @@ function MazeWorldShellBuilder.build(seed, config, options)
         RoomById = rendered.RoomById,
         RoomIds = rendered.RoomIds,
         RoomFolders = rendered.RoomFolders,
+        Connectors = rendered.Connectors,
+        ExitPassages = rendered.ExitPassages,
         CampCenter = campCenter,
         ExtractionCenter = extractionCenter,
         SpawnCFrame = CFrame.new(campCenter + Vector3.new(0, 4, 0)),

@@ -16,8 +16,10 @@ local DOOR_LEAF_THICKNESS = 0.5
 local DOOR_CLEARANCE = 0
 local ROOM_DETECTION_BUFFER = 18
 local EXIT_CORRIDOR_LENGTH = 6
+local CONNECTOR_OVERLAP = 1
 local HEX_CIRCUMRADIUS_MULTIPLIER = 1 / math.cos(math.pi / 6)
 local SIDE_ANGLE_OFFSET_DEGREES = 0
+local DEFAULT_CONNECTOR_ARCHETYPE_ID = 'IndustrialHall'
 
 local DEFAULT_SURFACE_PALETTE = table.freeze({
     WallMaterial = Enum.Material.Concrete,
@@ -114,6 +116,24 @@ local function applyArchetypeShellAsset(roomFolder, roomCenter, room, moduleAsse
     end
 end
 
+local function applyShellModel(cloneParent, cloneName, shellModel, pivotCFrame)
+    if shellModel == nil then
+        return nil
+    end
+
+    local clone = shellModel:Clone()
+    clone.Name = cloneName
+    clone.Parent = cloneParent
+
+    if clone:IsA('Model') then
+        clone:PivotTo(pivotCFrame)
+    elseif clone:IsA('BasePart') then
+        clone.CFrame = pivotCFrame
+    end
+
+    return clone
+end
+
 local function createAuthoringSockets(roomFolder, roomCenter)
     local authoringFolder = Instance.new('Folder')
     authoringFolder.Name = 'AuthoringSockets'
@@ -128,6 +148,24 @@ local function createAuthoringSockets(roomFolder, roomCenter)
         Transparency = 1,
         CanCollide = false,
     }, authoringFolder)
+end
+
+local function createConnectorAuthoringSockets(connectorFolder, connectorPivot)
+    local authoringFolder = Instance.new('Folder')
+    authoringFolder.Name = 'AuthoringSockets'
+    authoringFolder.Parent = connectorFolder
+
+    createPart({
+        Name = 'ShellModelSocket',
+        Size = Vector3.new(2, 2, 2),
+        CFrame = connectorPivot,
+        Color = Color3.fromRGB(255, 255, 255),
+        Material = Enum.Material.ForceField,
+        Transparency = 1,
+        CanCollide = false,
+    }, authoringFolder)
+
+    return authoringFolder
 end
 
 local function buildCavePocketDecor(roomFolder, roomCenter, roomApothem)
@@ -437,22 +475,169 @@ local function buildRoom(parent, room, roomCenter, roomApothem, options)
     return roomFolder
 end
 
-local function buildExitCorridors(parent, room, roomCenter, roomApothem, surfacePalette)
+local function buildPassageMock(
+    passageFolder,
+    namePrefix,
+    corridorForward,
+    passageLength,
+    surfacePalette,
+    floorColor,
+    floorMaterial
+)
+    createPart({
+        Name = string.format('%sFloor', namePrefix),
+        Size = Vector3.new(DOORWAY_WIDTH, SLAB_THICKNESS, passageLength),
+        CFrame = corridorForward,
+        Color = floorColor or surfacePalette.FloorColor,
+        Material = floorMaterial or surfacePalette.FloorMaterial,
+    }, passageFolder)
+
+    createPart({
+        Name = string.format('%sCeiling', namePrefix),
+        Size = Vector3.new(DOORWAY_WIDTH, SLAB_THICKNESS, passageLength),
+        CFrame = corridorForward + Vector3.new(0, ROOM_CLEAR_HEIGHT + SLAB_THICKNESS, 0),
+        Color = surfacePalette.CeilingColor,
+        Material = surfacePalette.CeilingMaterial,
+    }, passageFolder)
+
+    local normal = corridorForward.LookVector
+    local tangent = Vector3.new(-normal.Z, 0, normal.X)
+
+    for _, sign in ipairs({ -1, 1 }) do
+        createPart({
+            Name = string.format('%sWall', namePrefix),
+            Size = Vector3.new(WALL_THICKNESS, WALL_HEIGHT, passageLength),
+            CFrame = corridorForward
+                + (tangent * ((DOORWAY_WIDTH / 2) + (WALL_THICKNESS / 2)) * sign)
+                + Vector3.new(0, WALL_HEIGHT / 2, 0),
+            Color = surfacePalette.WallColor,
+            Material = surfacePalette.WallMaterial,
+        }, passageFolder)
+    end
+end
+
+local function buildPassageInstance(
+    parent,
+    folderName,
+    namePrefix,
+    pivotName,
+    passageCenter,
+    corridorForward,
+    passageLength,
+    surfacePalette,
+    moduleAssetsRoot,
+    floorColor,
+    floorMaterial
+)
+    local passagePivot = CFrame.new(passageCenter + Vector3.new(0, ROOM_CLEAR_HEIGHT / 2, 0))
+        * CFrame.lookAt(Vector3.zero, corridorForward.LookVector)
+
+    local passageFolder = Instance.new('Folder')
+    passageFolder.Name = folderName
+    passageFolder.Parent = parent
+
+    local authoringSockets = createConnectorAuthoringSockets(passageFolder, passagePivot)
+    local authoredShell = applyShellModel(
+        passageFolder,
+        string.format('AuthoredPassageShell_%s', DEFAULT_CONNECTOR_ARCHETYPE_ID),
+        MazeModuleAssetContract.getConnectorShellModel(
+            moduleAssetsRoot,
+            DEFAULT_CONNECTOR_ARCHETYPE_ID
+        ),
+        passagePivot
+    )
+
+    if authoredShell == nil then
+        buildPassageMock(
+            passageFolder,
+            namePrefix,
+            corridorForward,
+            passageLength,
+            surfacePalette,
+            floorColor,
+            floorMaterial
+        )
+    end
+
+    return {
+        Id = pivotName,
+        ArchetypeId = DEFAULT_CONNECTOR_ARCHETYPE_ID,
+        Root = passageFolder,
+        Shell = authoredShell,
+        AuthoringSockets = authoringSockets,
+        Length = passageLength,
+    }
+end
+
+local function buildRoomConnector(
+    parent,
+    doorwayId,
+    roomCenterA,
+    roomCenterB,
+    directionFromA,
+    roomApothem,
+    surfacePalette,
+    moduleAssetsRoot
+)
+    local normal = sideVectors(directionFromA)
+    local centerDistance = (roomCenterB - roomCenterA).Magnitude
+    local connectorLength = math.max(
+        WALL_THICKNESS,
+        centerDistance - (roomApothem * 2) + (WALL_THICKNESS + CONNECTOR_OVERLAP)
+    )
+    local connectorCenter = (roomCenterA + roomCenterB) * 0.5
+    local floorCenter = connectorCenter + Vector3.new(0, -(SLAB_THICKNESS / 2), 0)
+    local corridorForward = CFrame.lookAt(floorCenter, floorCenter + normal)
+
+    return buildPassageInstance(
+        parent,
+        string.format('Connector_%s', doorwayId),
+        string.format('Connector_%s_', doorwayId),
+        doorwayId,
+        connectorCenter,
+        corridorForward,
+        connectorLength,
+        surfacePalette,
+        moduleAssetsRoot
+    )
+end
+
+local function buildExitPassages(
+    parent,
+    room,
+    roomCenter,
+    roomApothem,
+    surfacePalette,
+    moduleAssetsRoot
+)
+    local exitPassages = {}
+
     for _, directionIndex in ipairs(room.ExitDirections or {}) do
         local normal = sideVectors(directionIndex)
-        local corridorCenter = roomCenter
+        local passageLength = EXIT_CORRIDOR_LENGTH + WALL_THICKNESS + CONNECTOR_OVERLAP
+        local floorCenter = roomCenter
             + (normal * (roomApothem + (EXIT_CORRIDOR_LENGTH / 2)))
             + Vector3.new(0, -(SLAB_THICKNESS / 2), 0)
-        local corridorForward = CFrame.lookAt(corridorCenter, corridorCenter + normal)
+        local passageCenter = floorCenter + Vector3.new(0, SLAB_THICKNESS / 2, 0)
+        local corridorForward = CFrame.lookAt(floorCenter, floorCenter + normal)
+        local passageId = string.format('%s_%d', room.Id, directionIndex)
 
-        createPart({
-            Name = string.format('ExitCorridor_%s_%d', room.Id, directionIndex),
-            Size = Vector3.new(DOORWAY_WIDTH, SLAB_THICKNESS, EXIT_CORRIDOR_LENGTH),
-            CFrame = corridorForward,
-            Color = surfacePalette.ExitFloorColor,
-            Material = surfacePalette.ExitFloorMaterial,
-        }, parent)
+        exitPassages[passageId] = buildPassageInstance(
+            parent,
+            string.format('ExitPassage_%s', passageId),
+            string.format('ExitPassage_%s_', passageId),
+            passageId,
+            passageCenter,
+            corridorForward,
+            passageLength,
+            surfacePalette,
+            moduleAssetsRoot,
+            surfacePalette.ExitFloorColor,
+            surfacePalette.ExitFloorMaterial
+        )
     end
+
+    return exitPassages
 end
 
 function HexMazeWorldRenderer.build(params)
@@ -478,6 +663,8 @@ function HexMazeWorldRenderer.build(params)
     local roomById = {}
     local roomIds = {}
     local roomFolders = {}
+    local connectors = {}
+    local exitPassages = {}
     local doorways = {}
 
     for roomId in pairs(layout.Rooms) do
@@ -498,13 +685,40 @@ function HexMazeWorldRenderer.build(params)
             ModuleAssetsRoot = params.ModuleAssetsRoot,
             SurfacePalette = surfacePalette,
         })
-        buildExitCorridors(worldFolder, room, roomCenter, roomApothem, surfacePalette)
+        for exitPassageId, exitPassage in
+            pairs(
+                buildExitPassages(
+                    worldFolder,
+                    room,
+                    roomCenter,
+                    roomApothem,
+                    surfacePalette,
+                    params.ModuleAssetsRoot
+                )
+            )
+        do
+            exitPassages[exitPassageId] = exitPassage
+        end
     end
 
     for doorwayId, doorwayLayout in pairs(layout.Doorways) do
         local roomCenter = roomCenters[doorwayLayout.RoomA]
+        local otherRoomCenter = roomCenters[doorwayLayout.RoomB]
         if not roomCenter then
             continue
+        end
+
+        if otherRoomCenter then
+            connectors[doorwayId] = buildRoomConnector(
+                worldFolder,
+                doorwayId,
+                roomCenter,
+                otherRoomCenter,
+                doorwayLayout.DirectionFromA,
+                roomApothem,
+                surfacePalette,
+                params.ModuleAssetsRoot
+            )
         end
 
         local doorway = createDoorwayInstance(
@@ -589,6 +803,8 @@ function HexMazeWorldRenderer.build(params)
         RoomById = roomById,
         RoomIds = roomIds,
         RoomFolders = roomFolders,
+        Connectors = connectors,
+        ExitPassages = exitPassages,
         Doorways = doorways,
         ToggleDoor = toggleDoor,
         FindRoomByPosition = findRoomByPosition,
