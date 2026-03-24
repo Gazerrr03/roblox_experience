@@ -1,7 +1,9 @@
 local MazeBuilder = {}
 
 local HexRoomPrefabs = require(script.Parent.HexRoomPrefabs)
+local MazePassageTemplates = require(script.Parent.MazePassageTemplates)
 local MazeRoomArchetypes = require(script.Parent.MazeRoomArchetypes)
+local MazeRoomTemplates = require(script.Parent.MazeRoomTemplates)
 
 local HEX_DIRECTIONS = {
     { Q = 1, R = 0 },
@@ -26,8 +28,6 @@ local BASE_RATIO_COUNTS = {
 local RATIO_TYPE_ORDER = { 'T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8' }
 
 local DEFAULT_ROOM_COUNT = 20
-local DEFAULT_EXIT_MIN = 2
-local DEFAULT_EXIT_MAX = 4
 local DEFAULT_DOOR_LEAF_CHANCE = 0.6
 local DEFAULT_MAX_ATTEMPTS = 200
 
@@ -65,6 +65,55 @@ local function buildDirectionSet(directions)
         directionSet[directionIndex] = true
     end
     return directionSet
+end
+
+local function countEntries(map)
+    local count = 0
+    for _ in pairs(map or {}) do
+        count += 1
+    end
+    return count
+end
+
+local function cloneSortedArray(values)
+    local cloned = table.clone(values or {})
+    table.sort(cloned)
+    return cloned
+end
+
+local function buildSet(values)
+    local lookup = {}
+    for _, value in ipairs(values or {}) do
+        lookup[value] = true
+    end
+    return lookup
+end
+
+local function sortedRoomIds(rooms)
+    local roomIds = {}
+    for roomId in pairs(rooms) do
+        table.insert(roomIds, roomId)
+    end
+    table.sort(roomIds)
+    return roomIds
+end
+
+local function sortedDoorwayIds(doorways)
+    local doorwayIds = {}
+    for doorwayId in pairs(doorways or {}) do
+        table.insert(doorwayIds, doorwayId)
+    end
+    table.sort(doorwayIds)
+    return doorwayIds
+end
+
+local function collectSortedNeighborRoomIds(room)
+    local neighborRoomIds = {}
+    for _, neighborRoomId in pairs(room.Neighbors or {}) do
+        table.insert(neighborRoomIds, neighborRoomId)
+    end
+    table.sort(neighborRoomIds)
+    return neighborRoomIds
 end
 
 local function createRoom(roomId, q, r, roomSpacing, typeId, rotationSteps, openDirections)
@@ -335,23 +384,6 @@ local function enumeratePlacementCandidates(
     return candidates[#candidates]
 end
 
-local function collectExternalStubs(rooms)
-    local stubs = {}
-
-    for roomId, room in pairs(rooms) do
-        for _, directionIndex in ipairs(room.OpenDirections) do
-            if room.Neighbors[directionIndex] == nil then
-                table.insert(stubs, {
-                    RoomId = roomId,
-                    Direction = directionIndex,
-                })
-            end
-        end
-    end
-
-    return stubs
-end
-
 local function computeDistances(rooms, startRoomId)
     local distances = {
         [startRoomId] = 0,
@@ -366,7 +398,7 @@ local function computeDistances(rooms, startRoomId)
         local room = rooms[roomId]
         local distance = distances[roomId]
 
-        for _, neighborRoomId in pairs(room.Neighbors) do
+        for _, neighborRoomId in ipairs(collectSortedNeighborRoomIds(room)) do
             if distances[neighborRoomId] == nil then
                 distances[neighborRoomId] = distance + 1
                 table.insert(queue, neighborRoomId)
@@ -412,7 +444,7 @@ local function buildMainPath(rooms, startRoomId, targetRoomId)
         end
 
         local room = rooms[roomId]
-        for _, neighborRoomId in pairs(room.Neighbors) do
+        for _, neighborRoomId in ipairs(collectSortedNeighborRoomIds(room)) do
             if not visited[neighborRoomId] then
                 visited[neighborRoomId] = true
                 parents[neighborRoomId] = roomId
@@ -438,22 +470,21 @@ local function buildMainPath(rooms, startRoomId, targetRoomId)
     return path
 end
 
-local function addExitDirection(room, directionIndex)
-    if table.find(room.ExitDirections, directionIndex) then
-        return
-    end
-
-    table.insert(room.ExitDirections, directionIndex)
-    table.sort(room.ExitDirections)
-end
-
-local function assignRoomArchetypes(rooms)
+local function finalizeRoomConnectivity(rooms)
     for _, room in pairs(rooms) do
-        local archetype = MazeRoomArchetypes.classifyRoom(room)
-        room.ArchetypeId = archetype.Id
-        room.AuthoringAssetId = archetype.AuthoringAssetId
-        room.SupportsExternalShellModel = archetype.SupportsExternalShellModel == true
-        room.VisualLanguage = archetype.VisualLanguage
+        local connectedDirections = {}
+        for directionIndex in pairs(room.Neighbors or {}) do
+            table.insert(connectedDirections, directionIndex)
+        end
+        table.sort(connectedDirections)
+
+        room.OpenDirections = table.clone(connectedDirections)
+        room.DoorDirections = table.clone(connectedDirections)
+        room.OpenDirectionSet = buildDirectionSet(connectedDirections)
+        room.DoorCount = #connectedDirections
+        room.DoorMask = HexRoomPrefabs.computeDoorMask(connectedDirections)
+        room.ExitDirections = {}
+        room.StartExternalDirection = nil
     end
 end
 
@@ -506,12 +537,419 @@ local function validateRoomConnections(rooms)
     return true, nil
 end
 
+local function buildLoopMetadata(rooms, doorways, campRoomId)
+    local visited = {
+        [campRoomId] = true,
+    }
+    local queue = { campRoomId }
+    local queueIndex = 1
+    local treeEdges = {}
+
+    while queueIndex <= #queue do
+        local roomId = queue[queueIndex]
+        queueIndex += 1
+        local room = rooms[roomId]
+
+        for _, neighborRoomId in ipairs(collectSortedNeighborRoomIds(room)) do
+            if not visited[neighborRoomId] then
+                visited[neighborRoomId] = true
+                treeEdges[string.format(
+                    '%s|%s',
+                    roomId < neighborRoomId and roomId or neighborRoomId,
+                    roomId < neighborRoomId and neighborRoomId or roomId
+                )] =
+                    true
+                table.insert(queue, neighborRoomId)
+            end
+        end
+    end
+
+    local loopDoorwayIds = {}
+    local loopDoorwaySet = {}
+    local loopRoomSet = {}
+
+    for _, doorwayId in ipairs(sortedDoorwayIds(doorways)) do
+        if not treeEdges[doorwayId] then
+            table.insert(loopDoorwayIds, doorwayId)
+            loopDoorwaySet[doorwayId] = true
+            local doorway = doorways[doorwayId]
+            loopRoomSet[doorway.RoomA] = true
+            loopRoomSet[doorway.RoomB] = true
+        end
+    end
+
+    return {
+        LoopCount = #loopDoorwayIds,
+        LoopDoorwayIds = loopDoorwayIds,
+        LoopDoorwaySet = loopDoorwaySet,
+        LoopRoomSet = loopRoomSet,
+    }
+end
+
+local function selectScoredRoomId(roomIds, rooms, excludedRoomIds, predicate, scoreFn)
+    local bestRoomId = nil
+    local bestScore = nil
+
+    for _, roomId in ipairs(roomIds) do
+        if excludedRoomIds[roomId] ~= true then
+            local room = rooms[roomId]
+            if predicate(roomId, room) then
+                local score = scoreFn(roomId, room)
+                if
+                    bestScore == nil
+                    or score > bestScore
+                    or (score == bestScore and roomId < bestRoomId)
+                then
+                    bestRoomId = roomId
+                    bestScore = score
+                end
+            end
+        end
+    end
+
+    return bestRoomId
+end
+
+local function applyArchetype(room)
+    local archetype = MazeRoomArchetypes.classifyRoom(room)
+    room.ArchetypeId = archetype.Id
+    room.AuthoringAssetId = archetype.AuthoringAssetId
+    room.SupportsExternalShellModel = archetype.SupportsExternalShellModel == true
+    room.VisualLanguage = archetype.VisualLanguage
+end
+
+local function assignRoomTemplates(rooms, campRoomId, extractionRoomId, mainPath, loopMetadata)
+    local roomIds = sortedRoomIds(rooms)
+    local distances = computeDistances(rooms, campRoomId)
+    local mainPathSet = buildSet(mainPath)
+    local maxDistance = 0
+    for _, distance in pairs(distances) do
+        maxDistance = math.max(maxDistance, distance)
+    end
+
+    local assignedRoomIds = {}
+
+    local function assign(roomId, templateId)
+        if roomId == nil then
+            return
+        end
+        MazeRoomTemplates.applyTemplate(rooms[roomId], templateId)
+        applyArchetype(rooms[roomId])
+        assignedRoomIds[roomId] = true
+    end
+
+    assign(campRoomId, 'EntrySafe')
+    assign(extractionRoomId, 'ExtractionReturn')
+
+    local midDepth = maxDistance / 2
+    local landmarkRoomId = selectScoredRoomId(
+        roomIds,
+        rooms,
+        assignedRoomIds,
+        function(roomId, room)
+            return room.Kind == 'Loot'
+                and distances[roomId] >= 2
+                and countEntries(room.Neighbors) >= 2
+        end,
+        function(roomId, room)
+            local distanceScore = math.max(0, 10 - math.abs(distances[roomId] - midDepth) * 2)
+            local loopBonus = loopMetadata.LoopRoomSet[roomId] and 8 or 0
+            local pathBonus = mainPathSet[roomId] and 6 or 0
+            return (countEntries(room.Neighbors) * 10) + distanceScore + loopBonus + pathBonus
+        end
+    )
+    assign(landmarkRoomId, 'LandmarkFacility')
+
+    local highValueRiskRoomId = selectScoredRoomId(
+        roomIds,
+        rooms,
+        assignedRoomIds,
+        function(roomId, room)
+            return room.Kind == 'Loot' and distances[roomId] >= 2
+        end,
+        function(roomId, room)
+            local deadEndBonus = room.DoorCount == 1 and 25 or 0
+            local offMainPathBonus = mainPathSet[roomId] and 0 or 10
+            return (distances[roomId] * 15) + deadEndBonus + offMainPathBonus - room.DoorCount
+        end
+    )
+    assign(highValueRiskRoomId, 'HighValueRisk')
+
+    local bulkheadRoomId = selectScoredRoomId(
+        roomIds,
+        rooms,
+        assignedRoomIds,
+        function(roomId, room)
+            return room.Kind == 'Loot'
+                and mainPathSet[roomId]
+                and distances[roomId] >= 1
+                and distances[roomId] < maxDistance
+                and countEntries(room.Neighbors) >= 2
+        end,
+        function(roomId, room)
+            local targetDepth = math.max(1, math.floor(maxDistance * 0.45))
+            local depthScore = math.max(0, 18 - math.abs(distances[roomId] - targetDepth) * 6)
+            local degreeScore = room.DoorCount == 2 and 14 or (room.DoorCount == 3 and 10 or 4)
+            return depthScore + degreeScore
+        end
+    )
+    assign(bulkheadRoomId, 'BulkheadGate')
+
+    local shortcutRoomId = selectScoredRoomId(
+        roomIds,
+        rooms,
+        assignedRoomIds,
+        function(roomId, room)
+            return room.Kind == 'Loot'
+                and (loopMetadata.LoopRoomSet[roomId] or countEntries(room.Neighbors) >= 3)
+                and distances[roomId] >= 2
+        end,
+        function(roomId, room)
+            local loopBonus = loopMetadata.LoopRoomSet[roomId] and 20 or 0
+            local offMainPathBonus = mainPathSet[roomId] and 0 or 12
+            return loopBonus
+                + offMainPathBonus
+                + (countEntries(room.Neighbors) * 4)
+                + distances[roomId]
+        end
+    )
+    assign(shortcutRoomId, 'ShortcutLoop')
+
+    local remainingLootRoomIds = {}
+    for _, roomId in ipairs(roomIds) do
+        if assignedRoomIds[roomId] ~= true and rooms[roomId].Kind == 'Loot' then
+            table.insert(remainingLootRoomIds, roomId)
+        end
+    end
+
+    table.sort(remainingLootRoomIds, function(left, right)
+        local leftRoom = rooms[left]
+        local rightRoom = rooms[right]
+        local leftScore = (mainPathSet[left] and 20 or 0)
+            + (countEntries(leftRoom.Neighbors) * 4)
+            - distances[left]
+        local rightScore = (mainPathSet[right] and 20 or 0)
+            + (countEntries(rightRoom.Neighbors) * 4)
+            - distances[right]
+        if leftScore ~= rightScore then
+            return leftScore > rightScore
+        end
+        return left < right
+    end)
+
+    local transitTarget = 0
+    if #remainingLootRoomIds > 1 then
+        transitTarget = math.max(
+            1,
+            math.min(math.floor(#remainingLootRoomIds * 0.35), #remainingLootRoomIds - 1)
+        )
+    end
+
+    for index, roomId in ipairs(remainingLootRoomIds) do
+        if index <= transitTarget then
+            assign(roomId, 'TransitHall')
+        else
+            assign(roomId, 'SearchCluster')
+        end
+    end
+
+    for _, roomId in ipairs(roomIds) do
+        if rooms[roomId].RoomTemplateId == nil then
+            local fallbackTemplateId = if roomId == campRoomId
+                then 'EntrySafe'
+                elseif roomId == extractionRoomId then 'ExtractionReturn'
+                else 'SearchCluster'
+            assign(roomId, fallbackTemplateId)
+        end
+
+        rooms[roomId].EndpointDefs = MazeRoomTemplates.buildEndpointDefs(rooms[roomId])
+    end
+
+    return {
+        Distances = distances,
+        LandmarkRoomId = landmarkRoomId,
+        HighValueRiskRoomId = highValueRiskRoomId,
+        BulkheadRoomId = bulkheadRoomId,
+        ShortcutRoomId = shortcutRoomId,
+    }
+end
+
+local function indexEndpointDefsByDirection(room)
+    local endpointsByDirection = {}
+    for _, endpointDef in ipairs(room.EndpointDefs or {}) do
+        endpointsByDirection[endpointDef.Direction] = endpointDef
+    end
+    return endpointsByDirection
+end
+
+local function enrichDoorwayMetadata(rooms, doorways, loopMetadata)
+    for doorwayId, doorway in pairs(doorways) do
+        local roomA = rooms[doorway.RoomA]
+        local roomB = rooms[doorway.RoomB]
+        local endpointDefsA = indexEndpointDefsByDirection(roomA)
+        local endpointDefsB = indexEndpointDefsByDirection(roomB)
+        local passageDefinition = MazePassageTemplates.resolveDoorwayArchetype(
+            roomA,
+            roomB,
+            loopMetadata.LoopDoorwaySet[doorwayId] == true
+        )
+        doorway.PassageArchetypeId = passageDefinition.Id
+        doorway.EndpointTypeA = endpointDefsA[doorway.DirectionFromA]
+                and endpointDefsA[doorway.DirectionFromA].EndpointType
+            or MazePassageTemplates.EndpointType.Hall
+        doorway.EndpointTypeB = endpointDefsB[doorway.DirectionFromB]
+                and endpointDefsB[doorway.DirectionFromB].EndpointType
+            or MazePassageTemplates.EndpointType.Hall
+        doorway.RoomCategoryA = roomA.RoomCategory
+        doorway.RoomCategoryB = roomB.RoomCategory
+        doorway.IsLoopDoorway = loopMetadata.LoopDoorwaySet[doorwayId] == true
+    end
+end
+
+local function buildMacroGraph(roomIds, rooms, mainPath, loopMetadata, assignmentMetadata)
+    local branchRoomIds = {}
+    local mainPathSet = buildSet(mainPath)
+    for _, roomId in ipairs(roomIds) do
+        if mainPathSet[roomId] ~= true then
+            table.insert(branchRoomIds, roomId)
+        end
+    end
+
+    local anchorRoomIds = {}
+    for _, roomId in ipairs({
+        mainPath[1],
+        assignmentMetadata.LandmarkRoomId,
+        assignmentMetadata.HighValueRiskRoomId,
+        mainPath[#mainPath],
+    }) do
+        if roomId ~= nil and not table.find(anchorRoomIds, roomId) then
+            table.insert(anchorRoomIds, roomId)
+        end
+    end
+
+    local loopRoomIds = {}
+    for roomId in pairs(loopMetadata.LoopRoomSet) do
+        table.insert(loopRoomIds, roomId)
+    end
+    table.sort(loopRoomIds)
+
+    local landmarkRoomIds = {}
+    for _, roomId in ipairs(roomIds) do
+        if (rooms[roomId].LandmarkWeight or 0) >= 3 then
+            table.insert(landmarkRoomIds, roomId)
+        end
+    end
+
+    return {
+        Style = 'AnchoredLoopingFacility',
+        AnchorRoomIds = anchorRoomIds,
+        LandmarkRoomIds = landmarkRoomIds,
+        ShortcutRoomIds = assignmentMetadata.ShortcutRoomId and {
+            assignmentMetadata.ShortcutRoomId,
+        } or {},
+        MainPathRoomIds = cloneSortedArray(mainPath),
+        BranchRoomIds = branchRoomIds,
+        LoopDoorwayIds = cloneSortedArray(loopMetadata.LoopDoorwayIds),
+        LoopRoomIds = loopRoomIds,
+        LoopCount = loopMetadata.LoopCount,
+        DepthByRoomId = assignmentMetadata.Distances,
+    }
+end
+
+local function buildPlacedRooms(roomIds, rooms)
+    local placedRooms = {}
+    for _, roomId in ipairs(roomIds) do
+        local room = rooms[roomId]
+        table.insert(placedRooms, {
+            Id = roomId,
+            Category = room.RoomCategory,
+            RoomTemplateId = room.RoomTemplateId,
+            RiskTier = room.RiskTier,
+            LandmarkWeight = room.LandmarkWeight,
+            SearchProfile = room.SearchProfile,
+            Position = room.Position,
+        })
+    end
+    return placedRooms
+end
+
+local function buildPlacedPassages(doorways, externalDoorways)
+    local placedDoorways = {}
+    for _, doorwayId in ipairs(sortedDoorwayIds(doorways)) do
+        local doorway = doorways[doorwayId]
+        table.insert(placedDoorways, {
+            Id = doorwayId,
+            Kind = 'Doorway',
+            RoomA = doorway.RoomA,
+            RoomB = doorway.RoomB,
+            DirectionFromA = doorway.DirectionFromA,
+            DirectionFromB = doorway.DirectionFromB,
+            PassageArchetypeId = doorway.PassageArchetypeId,
+            EndpointTypeA = doorway.EndpointTypeA,
+            EndpointTypeB = doorway.EndpointTypeB,
+            IsLoopDoorway = doorway.IsLoopDoorway,
+        })
+    end
+
+    local placedExits = {}
+    for _, externalDoorway in ipairs(externalDoorways or {}) do
+        table.insert(placedExits, {
+            Id = string.format('%s_%d', externalDoorway.RoomId, externalDoorway.Direction),
+            Kind = externalDoorway.Kind,
+            RoomId = externalDoorway.RoomId,
+            Direction = externalDoorway.Direction,
+            PassageArchetypeId = externalDoorway.PassageArchetypeId,
+            EndpointType = externalDoorway.EndpointType,
+        })
+    end
+
+    return {
+        Doorways = placedDoorways,
+        Exits = placedExits,
+    }
+end
+
+local function buildSearchDistribution(roomIds, rooms)
+    local roomIdsByTemplate = {}
+    for _, templateId in ipairs(MazeRoomTemplates.getOrderedTemplateIds()) do
+        roomIdsByTemplate[templateId] = {}
+    end
+
+    local riskRoomIds = {}
+    for _, roomId in ipairs(roomIds) do
+        local room = rooms[roomId]
+        table.insert(roomIdsByTemplate[room.RoomTemplateId], roomId)
+        if (room.RiskTier or 0) >= 3 then
+            table.insert(riskRoomIds, roomId)
+        end
+    end
+
+    return {
+        RoomIdsByTemplate = roomIdsByTemplate,
+        HighRiskRoomIds = riskRoomIds,
+    }
+end
+
+local function buildLandmarkNodes(roomIds, rooms)
+    local nodes = {}
+    for _, roomId in ipairs(roomIds) do
+        local room = rooms[roomId]
+        if (room.LandmarkWeight or 0) >= 3 then
+            table.insert(nodes, {
+                RoomId = roomId,
+                RoomTemplateId = room.RoomTemplateId,
+                LandmarkWeight = room.LandmarkWeight,
+                Position = room.Position,
+            })
+        end
+    end
+    return nodes
+end
+
 local function buildAttempt(seed, config)
     local roomCount = math.max(3, config.RoomCount or DEFAULT_ROOM_COUNT)
     local roomSpacing = config.RoomSpacing or 40
     local doorLeafChance = config.DoorLeafChance or DEFAULT_DOOR_LEAF_CHANCE
-    local exitMin = math.max(0, config.ExitMin or DEFAULT_EXIT_MIN)
-    local exitMax = math.max(exitMin, config.ExitMax or DEFAULT_EXIT_MAX)
     local random = Random.new(seed)
 
     local rooms = {}
@@ -677,38 +1115,15 @@ local function buildAttempt(seed, config)
         end
     end
 
-    local allExternalStubs = collectExternalStubs(rooms)
-    local selectedExitStubs = {}
-
-    for _, stub in ipairs(allExternalStubs) do
-        if not (stub.RoomId == startRoom.Id and stub.Direction == startExitDirection) then
-            table.insert(selectedExitStubs, stub)
-        end
-    end
-
-    if #selectedExitStubs < exitMin or #selectedExitStubs > exitMax then
-        return nil, string.format('ExitCountOutOfRange(%d)', #selectedExitStubs)
-    end
-
     for _, room in pairs(rooms) do
         room.Kind = 'Loot'
-        room.ExitDirections = {}
-    end
-
-    addExitDirection(startRoom, startExitDirection)
-
-    for _, exitStub in ipairs(selectedExitStubs) do
-        local room = rooms[exitStub.RoomId]
-        if room then
-            addExitDirection(room, exitStub.Direction)
-        end
     end
 
     local campRoomId = startRoom.Id
     local extractionRoomId = selectExtractionRoom(rooms, campRoomId)
     rooms[campRoomId].Kind = 'Camp'
     rooms[extractionRoomId].Kind = 'Extraction'
-    assignRoomArchetypes(rooms)
+    finalizeRoomConnectivity(rooms)
 
     local doorwayKeys = {}
     for edgeKey in pairs(edgesByKey) do
@@ -729,42 +1144,40 @@ local function buildAttempt(seed, config)
         }
     end
 
-    local externalDoorways = {
-        {
-            RoomId = campRoomId,
-            Direction = startExitDirection,
-            Kind = 'Start',
-        },
-    }
-
-    for _, exitStub in ipairs(selectedExitStubs) do
-        table.insert(externalDoorways, {
-            RoomId = exitStub.RoomId,
-            Direction = exitStub.Direction,
-            Kind = 'Exit',
-        })
-    end
-
-    table.sort(externalDoorways, function(left, right)
-        if left.RoomId ~= right.RoomId then
-            return left.RoomId < right.RoomId
-        end
-        return left.Direction < right.Direction
-    end)
+    local externalDoorways = {}
 
     local valid, reason = validateRoomConnections(rooms)
     if not valid then
         return nil, reason
     end
 
+    local mainPath = buildMainPath(rooms, campRoomId, extractionRoomId)
+    local loopMetadata = buildLoopMetadata(rooms, doorways, campRoomId)
+    if loopMetadata.LoopCount < 1 then
+        return nil, 'LoopingFacilityRequired'
+    end
+
+    local assignmentMetadata =
+        assignRoomTemplates(rooms, campRoomId, extractionRoomId, mainPath, loopMetadata)
+
+    enrichDoorwayMetadata(rooms, doorways, loopMetadata)
+    local orderedRoomIds = sortedRoomIds(rooms)
+    local macroGraph =
+        buildMacroGraph(orderedRoomIds, rooms, mainPath, loopMetadata, assignmentMetadata)
+
     return {
         Seed = seed,
         Rooms = rooms,
         Doorways = doorways,
-        MainPath = buildMainPath(rooms, campRoomId, extractionRoomId),
+        MainPath = mainPath,
         CampRoomId = campRoomId,
         ExtractionRoomId = extractionRoomId,
         ExternalDoorways = externalDoorways,
+        MacroGraph = macroGraph,
+        PlacedRooms = buildPlacedRooms(orderedRoomIds, rooms),
+        PlacedPassages = buildPlacedPassages(doorways, externalDoorways),
+        SearchDistribution = buildSearchDistribution(orderedRoomIds, rooms),
+        LandmarkNodes = buildLandmarkNodes(orderedRoomIds, rooms),
     }
 end
 

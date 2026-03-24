@@ -3,32 +3,33 @@ return function()
     local gameplay = require(ReplicatedStorage:WaitForChild('Packages'):WaitForChild('Gameplay'))
     local archetypes = gameplay.ProcGen.MazeRoomArchetypes
 
-    local cavePocket = archetypes.getDefinition('CavePocket')
-    assert(cavePocket ~= nil, 'Room archetype catalog should expose a cave pocket definition')
+    local landmark = archetypes.getDefinition('LandmarkFacility')
+    assert(landmark ~= nil, 'Room archetype catalog should expose a landmark facility definition')
     assert(
-        cavePocket.SupportsExternalShellModel == true,
-        'Cave pocket archetype should allow authored external shell models'
+        landmark.SupportsExternalShellModel == true,
+        'Landmark facility archetype should allow authored external shell models'
     )
     assert(
-        cavePocket.VisualLanguage == 'NaturalCave',
-        'Cave pocket archetype should advertise a cave-like visual language'
+        landmark.VisualLanguage == 'NavigationAnchor',
+        'Landmark facility archetype should advertise a navigation-anchor visual language'
     )
 
-    local campChamber = archetypes.classifyRoom({
+    local classifiedCamp = archetypes.classifyRoom({
         Kind = 'Camp',
         DoorCount = 3,
     })
     assert(
-        campChamber.Id == 'CampChamber',
-        'Camp rooms should classify into the dedicated camp chamber archetype'
+        classifiedCamp.Id == 'EntrySafe',
+        'Camp rooms should classify into the entry-safe archetype'
     )
 
-    local caveClassified = archetypes.classifyRoom({
+    local classifiedHighRisk = archetypes.classifyRoom({
+        RoomTemplateId = 'HighValueRisk',
         Kind = 'Loot',
-        DoorCount = 2,
+        DoorCount = 1,
     })
     assert(
-        caveClassified.Id == 'CavePocket',
-        'Low-door-count loot rooms should classify into the cave archetype'
+        classifiedHighRisk.Id == 'HighValueRisk',
+        'Template-driven rooms should keep their matching archetype id'
     )
 end

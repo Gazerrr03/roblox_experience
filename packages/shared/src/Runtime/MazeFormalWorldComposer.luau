@@ -59,7 +59,12 @@ local function buildRoomAffordance(shell, roomId)
     local affordance = {
         RoomId = roomId,
         RoomKind = room.Kind,
+        RoomCategory = room.RoomCategory,
+        RoomTemplateId = room.RoomTemplateId,
         RoomCenter = roomCenter,
+        SearchProfile = room.SearchProfile,
+        RiskTier = room.RiskTier,
+        LandmarkWeight = room.LandmarkWeight,
         SpawnSockets = {
             {
                 Id = string.format('%s_Spawn_1', roomId),
@@ -83,6 +88,24 @@ local function buildRoomAffordance(shell, roomId)
     end
 
     return affordance
+end
+
+local function pickItemDefForRoom(items, itemIndex, room)
+    if room.RoomTemplateId == 'HighValueRisk' then
+        return items[#items], itemIndex
+    end
+
+    if room.RoomTemplateId == 'LandmarkFacility' then
+        return items[math.min(2, #items)], itemIndex
+    end
+
+    if room.RoomTemplateId == 'TransitHall' or room.RoomTemplateId == 'BulkheadGate' then
+        return items[1], itemIndex
+    end
+
+    local itemDef = items[itemIndex]
+    local nextItemIndex = (itemIndex % #items) + 1
+    return itemDef, nextItemIndex
 end
 
 local function appendDoorwayAffordances(roomAffordances, doorwayId, doorway)
@@ -162,8 +185,8 @@ function MazeFormalWorldComposer.build(seed, config, options)
         roomAffordances[roomId] = affordance
 
         if room.Kind == 'Loot' then
-            local itemDef = Items[itemIndex]
-            itemIndex = (itemIndex % #Items) + 1
+            local itemDef
+            itemDef, itemIndex = pickItemDefForRoom(Items, itemIndex, room)
 
             local _, prompt = MazeInteractionPartFactory.createPromptPart({
                 Name = string.format('Loot_%s', roomId),
@@ -178,6 +201,8 @@ function MazeFormalWorldComposer.build(seed, config, options)
 
             lootNodes[roomId] = {
                 ItemDef = itemDef,
+                RoomTemplateId = room.RoomTemplateId,
+                SearchProfile = room.SearchProfile,
                 Prompt = prompt,
                 Position = lootPosition,
                 Collected = false,
