@@ -6,6 +6,7 @@ return function()
     local behaviorCatalog = gameplay.Monsters.MonsterBehaviorCatalog
     local effectCatalog = gameplay.Monsters.MonsterEffectCatalog
     local authorProfileModule = gameplay.Monsters.MonsterAuthorProfile
+    local presentationCatalog = gameplay.Monsters.MonsterPresentationCatalog
     local runtimeProfileModule = gameplay.Monsters.MonsterRuntimeProfile
 
     local scrapWisp = gameplay.Config.Monsters[1]
@@ -27,6 +28,18 @@ return function()
 
     assert(runtimeProfile.Id == 'scrap-wisp', 'Compiled runtime should preserve the monster id')
     assert(runtimeProfile.Name == 'Scrap Wisp', 'Compiled runtime should preserve the monster name')
+    assert(
+        runtimeProfile.Presentation.ModelAssetId == 4446576906,
+        'Compiled runtime should expose the configured model asset id'
+    )
+    assert(
+        runtimeProfile.Presentation.RigType == presentationCatalog.RigType.R6,
+        'Compiled runtime should preserve the configured rig type'
+    )
+    assert(
+        runtimeProfile.Presentation.AnimationMode == presentationCatalog.AnimationMode.DefaultR6,
+        'Compiled runtime should preserve the configured animation mode'
+    )
     assert(runtimeProfile.Speed == 12, 'Compiled runtime should expose the configured speed')
     assert(
         runtimeProfile.SightRange == 60,
@@ -77,6 +90,20 @@ return function()
     local missingNameOk, missingNameReason = authorProfileModule.validate(missingNameProfile)
     assert(missingNameOk == false, 'Missing names should fail author profile validation')
     assert(missingNameReason == 'MissingName', 'Missing names should expose the expected reason')
+
+    local missingPresentationProfile = table.clone(scrapWisp)
+    missingPresentationProfile.Presentation = nil
+
+    local missingPresentationOk, missingPresentationReason =
+        authorProfileModule.validate(missingPresentationProfile)
+    assert(
+        missingPresentationOk == false,
+        'Missing presentation payloads should fail author profile validation'
+    )
+    assert(
+        missingPresentationReason == 'MissingPresentation',
+        'Missing presentation payloads should expose the expected reason'
+    )
 
     local unknownBehaviorProfile = table.clone(scrapWisp)
     unknownBehaviorProfile.BehaviorIntents = {
