@@ -198,8 +198,17 @@ function MazeSessionService.new()
     )
     self.CorpsesByUserId = {}
     self.BootPhase = 'New'
+    self.SurfacePalette = Shared.Runtime.MazeLightingProfile.SurfacePalette
 
     return self
+end
+
+function MazeSessionService:setSurfacePalette(surfacePalette)
+    if type(surfacePalette) ~= 'table' then
+        return
+    end
+
+    self.SurfacePalette = surfacePalette
 end
 
 function MazeSessionService:_setBootPhase(phase)
@@ -446,7 +455,9 @@ end
 function MazeSessionService:_rebuildWorld()
     self:_setBootPhase('RebuildWorld')
     clearDefaultWorkspaceShell()
-    self.World = MazeWorldBuilder.build(self.SessionData.Seed, SessionConfig.ProcGen)
+    self.World = MazeWorldBuilder.build(self.SessionData.Seed, SessionConfig.ProcGen, {
+        SurfacePalette = self.SurfacePalette,
+    })
     self:_setBootPhase('BindWorldInteractions')
     self:_bindWorldInteractions()
 end
