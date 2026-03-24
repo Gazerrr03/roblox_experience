@@ -22,4 +22,5 @@
 ## Notes
 
 - Manual test notes:
+  - Which test layer(s) did you use: deterministic logic, local maze, local run fallback, staging published smoke?
 - Risks / follow-ups:
