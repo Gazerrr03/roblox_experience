@@ -10,6 +10,7 @@ local MazeEntryAvailability = Shared.Session.MazeEntryAvailability
 local TeleportDiagnostics = Shared.Util.TeleportDiagnostics
 
 local RunMazePortal = {}
+local FORCE_FRESH_MAZE_SERVER_FOR_DIAGNOSTICS = true
 
 RunMazePortal.FailureCode = table.freeze({
     ReserveServerFailed = 'ReserveServerFailed',
@@ -24,6 +25,11 @@ function RunMazePortal.enter(params)
     })
 
     local mazeAccessCode = currentSession.MazeAccessCode
+    if FORCE_FRESH_MAZE_SERVER_FOR_DIAGNOSTICS and mazeAccessCode ~= nil then
+        print('[RunMazeDiag] ignoring cached MazeAccessCode to force a fresh reserved maze server')
+        mazeAccessCode = nil
+    end
+
     if mazeAccessCode == nil then
         local reserved, reserveResult = pcall(function()
             return TeleportService:ReserveServer(SessionConfig.PlaceIds.Maze)
@@ -44,6 +50,9 @@ function RunMazePortal.enter(params)
         end
 
         mazeAccessCode = reserveResult
+        print('[RunMazeDiag] reserved a fresh maze server access code')
+    else
+        print('[RunMazeDiag] reusing cached maze server access code')
     end
 
     local nextSession =
