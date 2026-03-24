@@ -36,6 +36,15 @@ local DEBUG_DAMAGE_BY_ACTION = {
 
 local MazeSessionService = {}
 MazeSessionService.__index = MazeSessionService
+MazeSessionService.BootstrapPhaseAttribute = 'MazeBootstrapPhase'
+MazeSessionService.BootstrapErrorAttribute = 'MazeBootstrapError'
+MazeSessionService.BootstrapFailedAttribute = 'MazeBootstrapFailed'
+
+local function setBootstrapStatus(phase, err)
+    ReplicatedStorage:SetAttribute(MazeSessionService.BootstrapPhaseAttribute, phase)
+    ReplicatedStorage:SetAttribute(MazeSessionService.BootstrapFailedAttribute, err ~= nil)
+    ReplicatedStorage:SetAttribute(MazeSessionService.BootstrapErrorAttribute, err)
+end
 
 local function mergeSummaries(existingSummaries, nextSummaries)
     local summariesByUserId = {}
@@ -188,8 +197,35 @@ function MazeSessionService.new()
         end
     )
     self.CorpsesByUserId = {}
+    self.BootPhase = 'New'
+    self.SurfacePalette = Shared.Runtime.MazeLightingProfile.SurfacePalette
 
     return self
+end
+
+function MazeSessionService:setSurfacePalette(surfacePalette)
+    if type(surfacePalette) ~= 'table' then
+        return
+    end
+
+    self.SurfacePalette = surfacePalette
+end
+
+function MazeSessionService:_setBootPhase(phase)
+    self.BootPhase = phase
+    setBootstrapStatus(phase, nil)
+    print(string.format('[MazeBoot] phase=%s', phase))
+end
+
+function MazeSessionService:_setBootFailure(err)
+    setBootstrapStatus(self.BootPhase, tostring(err))
+    warn(
+        string.format(
+            '[MazeBoot] failure at phase=%s error=%s',
+            tostring(self.BootPhase),
+            tostring(err)
+        )
+    )
 end
 
 function MazeSessionService:_readTeleportData(player)
@@ -417,8 +453,12 @@ function MazeSessionService:_setStatus(status)
 end
 
 function MazeSessionService:_rebuildWorld()
+    self:_setBootPhase('RebuildWorld')
     clearDefaultWorkspaceShell()
-    self.World = MazeWorldBuilder.build(self.SessionData.Seed, SessionConfig.ProcGen)
+    self.World = MazeWorldBuilder.build(self.SessionData.Seed, SessionConfig.ProcGen, {
+        SurfacePalette = self.SurfacePalette,
+    })
+    self:_setBootPhase('BindWorldInteractions')
     self:_bindWorldInteractions()
 end
 
@@ -518,6 +558,7 @@ function MazeSessionService:_teleportToCamp(players, summaries, mazeCompleted)
 end
 
 function MazeSessionService:_beginFormalExpedition()
+    self:_setBootPhase('BeginFormalExpedition')
     local started, reason = self.RunTracker:beginExpedition()
     if not started then
         if reason ~= 'InvalidState' then
@@ -527,6 +568,7 @@ function MazeSessionService:_beginFormalExpedition()
     end
 
     local patrolPoints, initialPatrolIndex = collectPatrolPointsFromWorld(self.World)
+    self:_setBootPhase('SpawnMonster')
     self.MonsterService:spawn(patrolPoints, initialPatrolIndex)
     self:_setStatus('Maze session is live. Explore, loot, and find an extraction point.')
 end
@@ -634,6 +676,20 @@ function MazeSessionService:_spawnCorpseForPlayer(player)
     self.CorpsesByUserId[player.UserId] = corpse
 end
 
+function MazeSessionService:_completeExpeditionIfNoActivePlayers()
+    if self.RunTracker:getActiveCount() ~= 0 then
+        return false
+    end
+
+    local completed, reason = self.RunTracker:completeExpedition()
+    if not completed then
+        return nil, reason
+    end
+
+    self.MonsterService:destroy()
+    return true
+end
+
 function MazeSessionService:_handlePlayerDeath(player, damageKind)
     self:_spawnCorpseForPlayer(player)
     self:_syncPlayerMovement(player)
@@ -644,15 +700,10 @@ function MazeSessionService:_handlePlayerDeath(player, damageKind)
         return
     end
 
-    local mazeCompleted = self.RunTracker:getActiveCount() == 0
-    if mazeCompleted then
-        local completed, reason = self.RunTracker:completeExpedition()
-        if not completed then
-            self:_setStatus(string.format('Maze completion failed: %s', tostring(reason)))
-            return
-        end
-
-        self.MonsterService:destroy()
+    local mazeCompleted, completionReason = self:_completeExpeditionIfNoActivePlayers()
+    if mazeCompleted == nil then
+        self:_setStatus(string.format('Maze completion failed: %s', tostring(completionReason)))
+        return
     end
 
     if self:_teleportToCamp({ player }, { summary }, mazeCompleted) then
@@ -786,15 +837,10 @@ function MazeSessionService:_returnPlayerToRunEntrance(player, returnReason, _in
         return
     end
 
-    local mazeCompleted = self.RunTracker:getActiveCount() == 0
-    if mazeCompleted then
-        local completed, completionReason = self.RunTracker:completeExpedition()
-        if not completed then
-            self:_setStatus(string.format('Maze completion failed: %s', tostring(completionReason)))
-            return
-        end
-
-        self.MonsterService:destroy()
+    local mazeCompleted, completionReason = self:_completeExpeditionIfNoActivePlayers()
+    if mazeCompleted == nil then
+        self:_setStatus(string.format('Maze completion failed: %s', tostring(completionReason)))
+        return
     end
 
     self:_clearPlayerMovement(player)
@@ -830,18 +876,23 @@ function MazeSessionService:_launchMaze()
         return
     end
 
+    self:_setBootPhase('LaunchMaze')
     self.IsLaunched = true
     Players.CharacterAutoLoads = true
 
     self:_rebuildWorld()
 
+    self:_setBootPhase('LoadCharacters')
     for _, player in ipairs(Players:GetPlayers()) do
         player:LoadCharacter()
     end
 
     self:_beginFormalExpedition()
+    self:_setBootPhase('StartSnapshotLoop')
     self:_startSnapshotLoop()
+    self:_setBootPhase('FirstSnapshot')
     self:_broadcastSnapshot()
+    self:_setBootPhase('Launched')
 end
 
 function MazeSessionService:_startSnapshotLoop()
@@ -873,9 +924,12 @@ function MazeSessionService:_startSnapshotLoop()
 end
 
 function MazeSessionService:start()
+    self:_setBootPhase('Start')
     self:_loadSessionDataFromJoin()
+    self:_setBootPhase('ConfigureCharacterLoading')
     Players.CharacterAutoLoads = false
 
+    self:_setBootPhase('BindExistingPlayers')
     for _, player in ipairs(Players:GetPlayers()) do
         bindCharacterTeleport(self, player)
         self:_addPlayerState(player)
@@ -885,6 +939,7 @@ function MazeSessionService:start()
         end
     end
 
+    self:_setBootPhase('BindPlayerSignals')
     Players.PlayerAdded:Connect(function(player)
         self:_handlePlayerTeleportData(player)
         bindCharacterTeleport(self, player)
@@ -904,6 +959,7 @@ function MazeSessionService:start()
         self:_broadcastSnapshot()
     end)
 
+    self:_setBootPhase('BindMazeActionRemote')
     self.Remotes.MazeAction.OnServerEvent:Connect(function(player, payload)
         if type(payload) ~= 'table' then
             return
@@ -922,7 +978,17 @@ function MazeSessionService:start()
         end
     end)
 
-    self:_launchMaze()
+    self:_setBootPhase('BeforeLaunchMaze')
+    task.defer(function()
+        local ok, err = pcall(function()
+            self:_setBootPhase('DeferredLaunchMaze')
+            self:_launchMaze()
+        end)
+
+        if not ok then
+            self:_setBootFailure(err)
+        end
+    end)
 end
 
 return MazeSessionService
