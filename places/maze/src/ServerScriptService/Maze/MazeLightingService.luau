@@ -12,7 +12,31 @@ function MazeLightingService.new()
 end
 
 function MazeLightingService:start()
-    Shared.Runtime.MazeLightingProfile.apply(Lighting)
+    local created = Shared.Runtime.MazeLightingProfile.apply(Lighting)
+    local skippedProperties = created.SkippedProperties or {}
+
+    for propertyName, err in pairs(skippedProperties) do
+        warn(
+            string.format(
+                '[MazeLighting] skipped %s update: %s',
+                tostring(propertyName),
+                tostring(err)
+            )
+        )
+    end
+
+    if created.TechnologyApplied then
+        print('[MazeLightingDiag] applied Future lighting profile')
+    else
+        warn(
+            string.format(
+                '[MazeLightingDiag] applied fallback readable profile: %s',
+                tostring(created.TechnologyError or 'Technology unavailable')
+            )
+        )
+    end
+
+    return created
 end
 
 return MazeLightingService
