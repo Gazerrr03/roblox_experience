@@ -475,6 +475,7 @@ function HexMazeWorldRenderer.build(params)
     worldFolder.Parent = parent
 
     local roomCenters = {}
+    local flatRoomCenters = {}
     local roomById = {}
     local roomIds = {}
     local roomFolders = {}
@@ -489,6 +490,7 @@ function HexMazeWorldRenderer.build(params)
         local room = layout.Rooms[roomId]
         local roomCenter = room.Position + originOffset
         roomCenters[roomId] = roomCenter
+        flatRoomCenters[roomId] = { X = roomCenter.X, Z = roomCenter.Z }
         roomById[roomId] = room
 
         roomFolders[roomId] = buildRoom(worldFolder, room, roomCenter, roomApothem, {
@@ -499,6 +501,36 @@ function HexMazeWorldRenderer.build(params)
             SurfacePalette = surfacePalette,
         })
         buildExitCorridors(worldFolder, room, roomCenter, roomApothem, surfacePalette)
+    end
+
+    local detectionRadius = roomApothem + detectionBuffer
+    local detectionRadiusSq = detectionRadius * detectionRadius
+    local gridSize = detectionRadius
+    local spatialGrid = {}
+
+    for _, roomId in ipairs(roomIds) do
+        local center = flatRoomCenters[roomId]
+        local minGX = math.floor((center.X - detectionRadius) / gridSize)
+        local maxGX = math.floor((center.X + detectionRadius) / gridSize)
+        local minGZ = math.floor((center.Z - detectionRadius) / gridSize)
+        local maxGZ = math.floor((center.Z + detectionRadius) / gridSize)
+
+        for gx = minGX, maxGX do
+            local row = spatialGrid[gx]
+            if not row then
+                row = {}
+                spatialGrid[gx] = row
+            end
+
+            for gz = minGZ, maxGZ do
+                local cell = row[gz]
+                if not cell then
+                    cell = {}
+                    row[gz] = cell
+                end
+                table.insert(cell, roomId)
+            end
+        end
     end
 
     for doorwayId, doorwayLayout in pairs(layout.Doorways) do
@@ -523,25 +555,33 @@ function HexMazeWorldRenderer.build(params)
         doorways[doorwayId] = doorway
     end
 
-    local detectionRadius = roomApothem + detectionBuffer
-
     local function findRoomByPosition(position)
-        local nearestRoom = nil
-        local nearestDistance = math.huge
-        local flatPosition = Vector3.new(position.X, 0, position.Z)
+        local px, pz = position.X, position.Z
+        local gx, gz = math.floor(px / gridSize), math.floor(pz / gridSize)
 
-        for _, roomId in ipairs(roomIds) do
-            local room = roomById[roomId]
-            local roomCenter = roomCenters[roomId]
-            local flatCenter = Vector3.new(roomCenter.X, 0, roomCenter.Z)
-            local distance = (flatCenter - flatPosition).Magnitude
-            if distance < nearestDistance then
-                nearestDistance = distance
-                nearestRoom = room
+        local row = spatialGrid[gx]
+        local cell = row and row[gz]
+        if not cell then
+            return nil, math.huge
+        end
+
+        local nearestRoom = nil
+        local nearestDistanceSq = math.huge
+
+        for _, roomId in ipairs(cell) do
+            local center = flatRoomCenters[roomId]
+            local dx = center.X - px
+            local dz = center.Z - pz
+            local distSq = dx * dx + dz * dz
+
+            if distSq < nearestDistanceSq then
+                nearestDistanceSq = distSq
+                nearestRoom = roomById[roomId]
             end
         end
 
-        if nearestDistance <= detectionRadius then
+        local nearestDistance = math.sqrt(nearestDistanceSq)
+        if nearestDistanceSq <= detectionRadiusSq then
             return nearestRoom, nearestDistance
         end
 
