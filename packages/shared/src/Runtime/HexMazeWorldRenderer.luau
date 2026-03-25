@@ -480,6 +480,16 @@ function HexMazeWorldRenderer.build(params)
     local roomFolders = {}
     local doorways = {}
 
+    -- ⚡ Bolt: Optimized nested lookup for doorways to avoid string allocations
+    -- and edgeKey() formatting in high-frequency traversal checks.
+    local doorwaysByRoomIds = {}
+
+    -- ⚡ Bolt: Spatial hash grid for O(1) room lookups and pre-calculated numeric
+    -- coordinates to eliminate Vector3 allocations and math.sqrt in hot loops.
+    local numericRoomCenters = {}
+    local spatialHash = {}
+    local spatialHashCellSize = roomApothem * 2
+
     for roomId in pairs(layout.Rooms) do
         table.insert(roomIds, roomId)
     end
@@ -499,6 +509,25 @@ function HexMazeWorldRenderer.build(params)
             SurfacePalette = surfacePalette,
         })
         buildExitCorridors(worldFolder, room, roomCenter, roomApothem, surfacePalette)
+
+        numericRoomCenters[roomId] = { X = roomCenter.X, Z = roomCenter.Z, Room = room }
+
+        local gridX = math.floor(roomCenter.X / spatialHashCellSize)
+        local gridZ = math.floor(roomCenter.Z / spatialHashCellSize)
+
+        for dx = -1, 1 do
+            for dz = -1, 1 do
+                local hashX = gridX + dx
+                local hashZ = gridZ + dz
+                if not spatialHash[hashX] then
+                    spatialHash[hashX] = {}
+                end
+                if not spatialHash[hashX][hashZ] then
+                    spatialHash[hashX][hashZ] = {}
+                end
+                table.insert(spatialHash[hashX][hashZ], roomId)
+            end
+        end
     end
 
     for doorwayId, doorwayLayout in pairs(layout.Doorways) do
@@ -521,33 +550,56 @@ function HexMazeWorldRenderer.build(params)
         doorway.DirectionFromA = doorwayLayout.DirectionFromA
         doorway.DirectionFromB = doorwayLayout.DirectionFromB
         doorways[doorwayId] = doorway
+
+        local idA, idB = doorway.RoomA, doorway.RoomB
+        if not doorwaysByRoomIds[idA] then
+            doorwaysByRoomIds[idA] = {}
+        end
+        if not doorwaysByRoomIds[idB] then
+            doorwaysByRoomIds[idB] = {}
+        end
+        doorwaysByRoomIds[idA][idB] = doorway
+        doorwaysByRoomIds[idB][idA] = doorway
     end
 
     local detectionRadius = roomApothem + detectionBuffer
 
+    -- ⚡ Bolt: Optimized findRoomByPosition uses a grid-based spatial hash to
+    -- achieve O(1) average lookup. It avoids all Vector3 allocations and uses
+    -- squared distance comparisons to minimize CPU overhead during AI heartbeats.
     local function findRoomByPosition(position)
-        local nearestRoom = nil
-        local nearestDistance = math.huge
-        local flatPosition = Vector3.new(position.X, 0, position.Z)
+        local posX, posZ = position.X, position.Z
+        local gridX = math.floor(posX / spatialHashCellSize)
+        local gridZ = math.floor(posZ / spatialHashCellSize)
 
-        for _, roomId in ipairs(roomIds) do
-            local room = roomById[roomId]
-            local roomCenter = roomCenters[roomId]
-            local flatCenter = Vector3.new(roomCenter.X, 0, roomCenter.Z)
-            local distance = (flatCenter - flatPosition).Magnitude
-            if distance < nearestDistance then
-                nearestDistance = distance
-                nearestRoom = room
+        local nearestRoom = nil
+        local nearestDistanceSq = math.huge
+
+        local cell = spatialHash[gridX] and spatialHash[gridX][gridZ]
+        if cell then
+            for _, roomId in ipairs(cell) do
+                local data = numericRoomCenters[roomId]
+                local dx = data.X - posX
+                local dz = data.Z - posZ
+                local distSq = dx * dx + dz * dz
+
+                if distSq < nearestDistanceSq then
+                    nearestDistanceSq = distSq
+                    nearestRoom = data.Room
+                end
             end
         end
 
-        if nearestDistance <= detectionRadius then
-            return nearestRoom, nearestDistance
+        local detectionRadiusSq = detectionRadius * detectionRadius
+        if nearestDistanceSq <= detectionRadiusSq then
+            return nearestRoom, math.sqrt(nearestDistanceSq)
         end
 
-        return nil, nearestDistance
+        return nil, math.sqrt(nearestDistanceSq)
     end
 
+    -- ⚡ Bolt: canTraverseBetweenPositions uses the pre-indexed nested doorway
+    -- map to avoid string formatting and high-frequency allocations.
     local function canTraverseBetweenPositions(fromPosition, toPosition)
         local fromRoom = findRoomByPosition(fromPosition)
         local toRoom = findRoomByPosition(toPosition)
@@ -560,12 +612,12 @@ function HexMazeWorldRenderer.build(params)
             return true
         end
 
-        local doorwayId = edgeKey(fromRoom.Id, toRoom.Id)
-        local doorway = doorways[doorwayId]
+        local doorway = doorwaysByRoomIds[fromRoom.Id] and doorwaysByRoomIds[fromRoom.Id][toRoom.Id]
         if not doorway then
             return false
         end
-        if doorway and doorway.HasDoorLeaves and not doorway.IsOpen then
+
+        if doorway.HasDoorLeaves and not doorway.IsOpen then
             return false
         end
 
