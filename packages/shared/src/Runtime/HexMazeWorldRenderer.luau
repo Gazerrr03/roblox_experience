@@ -530,6 +530,11 @@ function HexMazeWorldRenderer.build(params)
     local roomFolders = {}
     local doorways = {}
 
+    -- OPTIMIZATION: Use a spatial hash for O(1) room lookups by world position.
+    -- This avoids O(N) linear scans through all rooms during distance checks.
+    local gridSize = roomApothem * 2
+    local spatialHash = {}
+
     for roomId in pairs(layout.Rooms) do
         table.insert(roomIds, roomId)
     end
@@ -540,6 +545,17 @@ function HexMazeWorldRenderer.build(params)
         local roomCenter = room.Position + originOffset
         roomCenters[roomId] = roomCenter
         roomById[roomId] = room
+
+        -- Index room by grid coordinate to enable fast spatial queries
+        local gx = math.floor(roomCenter.X / gridSize)
+        local gz = math.floor(roomCenter.Z / gridSize)
+        if not spatialHash[gx] then
+            spatialHash[gx] = {}
+        end
+        if not spatialHash[gx][gz] then
+            spatialHash[gx][gz] = {}
+        end
+        table.insert(spatialHash[gx][gz], roomId)
 
         roomFolders[roomId] = buildRoom(worldFolder, room, roomCenter, roomApothem, {
             IncludeRoomMarker = includeRoomMarker,
@@ -588,27 +604,67 @@ function HexMazeWorldRenderer.build(params)
 
     local detectionRadius = roomApothem + detectionBuffer
 
+    local detectionRadiusSq = detectionRadius * detectionRadius
+
+    -- OPTIMIZATION: Query the spatial hash to find the nearest room.
+    -- This avoids iterating through the entire room list (O(N) -> O(1)).
+    -- Uses squared distance comparisons to avoid costly math.sqrt calls in the loop.
     local function findRoomByPosition(position)
         local nearestRoom = nil
-        local nearestDistance = math.huge
-        local flatPosition = Vector3.new(position.X, 0, position.Z)
+        local nearestDistanceSq = math.huge
 
-        for _, roomId in ipairs(roomIds) do
-            local room = roomById[roomId]
-            local roomCenter = roomCenters[roomId]
-            local flatCenter = Vector3.new(roomCenter.X, 0, roomCenter.Z)
-            local distance = (flatCenter - flatPosition).Magnitude
-            if distance < nearestDistance then
-                nearestDistance = distance
-                nearestRoom = room
+        local px, pz = position.X, position.Z
+        local gx = math.floor(px / gridSize)
+        local gz = math.floor(pz / gridSize)
+
+        -- Check the 3x3 grid neighborhood around the position
+        for ox = -1, 1 do
+            local cellX = spatialHash[gx + ox]
+            if not cellX then
+                continue
+            end
+
+            for oz = -1, 1 do
+                local bucket = cellX[gz + oz]
+                if not bucket then
+                    continue
+                end
+
+                for _, roomId in ipairs(bucket) do
+                    local roomCenter = roomCenters[roomId]
+                    local dx = roomCenter.X - px
+                    local dz = roomCenter.Z - pz
+                    local distSq = dx * dx + dz * dz
+
+                    if distSq < nearestDistanceSq then
+                        nearestDistanceSq = distSq
+                        nearestRoom = roomById[roomId]
+                    end
+                end
             end
         end
 
-        if nearestDistance <= detectionRadius then
-            return nearestRoom, nearestDistance
+        -- If no room was found in the neighborhood, fall back to a full scan to preserve
+        -- the API contract of always finding the absolute nearest room.
+        if nearestRoom == nil then
+            for _, roomId in ipairs(roomIds) do
+                local roomCenter = roomCenters[roomId]
+                local dx = roomCenter.X - px
+                local dz = roomCenter.Z - pz
+                local distSq = dx * dx + dz * dz
+
+                if distSq < nearestDistanceSq then
+                    nearestDistanceSq = distSq
+                    nearestRoom = roomById[roomId]
+                end
+            end
         end
 
-        return nil, nearestDistance
+        if nearestDistanceSq <= detectionRadiusSq then
+            return nearestRoom, math.sqrt(nearestDistanceSq)
+        end
+
+        return nil, math.sqrt(nearestDistanceSq)
     end
 
     local function canTraverseBetweenPositions(fromPosition, toPosition)
