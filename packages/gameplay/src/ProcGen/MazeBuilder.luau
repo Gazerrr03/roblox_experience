@@ -665,8 +665,10 @@ local function buildAttempt(seed, config)
                 local oppositeDirectionIndex = OPPOSITE_DIRECTIONS[directionIndex]
                 if
                     neighborRoom
-                    and bit32.band(neighborRoom.DoorMask, DIRECTION_BITMASKS[oppositeDirectionIndex])
-                        ~= 0
+                    and bit32.band(
+                        neighborRoom.DoorMask,
+                        DIRECTION_BITMASKS[oppositeDirectionIndex]
+                    ) ~= 0
                     and neighborRoom.Neighbors[oppositeDirectionIndex] == nil
                     and newRoom.Neighbors[directionIndex] == nil
                 then
