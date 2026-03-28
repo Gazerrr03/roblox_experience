@@ -1,0 +1,3 @@
+## 2024-03-28 - Optimize MazeBuilder Coordinate and Door Lookups
+**Learning:** For high-frequency Luau operations like procedural generation, using `string.format` for coordinate keys (`axialKey`) and table-based boolean sets (`OpenDirectionSet`) for door checks significantly increases string allocation and GC pressure. Numeric hashing for coordinates and bitmasking for door state are much more efficient for O(1) lookups.
+**Action:** Use bitwise operations (`bit32`) and numeric hashes for all high-frequency lookups in procedural generation loops. Pre-calculate lookup tables for static values like opposite directions.
