@@ -12,6 +12,7 @@ local UI = require(Packages:WaitForChild('UI'))
 
 local Remotes = Shared.Network.Remotes.ensureScope(Shared.Network.Remotes.Scope.Maze)
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
+local heldItemController = Shared.Client.HeldItemController.new(localPlayer)
 local Theme = UI.Hud.Theme
 
 Shared.Client.FirstPersonController.start(localPlayer)
@@ -174,6 +175,8 @@ script.Destroying:Connect(function()
         sprintInputEndedConnection:Disconnect()
         sprintInputEndedConnection = nil
     end
+
+    heldItemController:destroy()
 end)
 
 Remotes.MazePrivateState.OnClientEvent:Connect(function()
@@ -198,6 +201,7 @@ Remotes.MazeState.OnClientEvent:Connect(function(snapshot)
 
     local inventory = snapshot.Inventory or {}
     visibleBackpackItems = inventory.BackpackItems or {}
+    heldItemController:applyInventory(inventory)
     inventoryLabel.Text = string.format(
         'Inventory: %d total | %d backpack | %d held | %d/%d KG | %d value',
         inventory.Count or 0,
@@ -211,10 +215,11 @@ Remotes.MazeState.OnClientEvent:Connect(function(snapshot)
     local heldItem = inventory.HeldItem
     local detailLines = {
         heldItem and string.format(
-            'Held: %s | %d KG | %d value',
+            'Held: %s | %d KG | %d value%s',
             heldItem.Name,
             heldItem.Weight,
-            heldItem.Value
+            heldItem.Value,
+            heldItem.Light and ' | Glow active' or ''
         ) or 'Held: Empty hands',
         'Backpack:',
     }
