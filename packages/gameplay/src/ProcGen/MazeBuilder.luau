@@ -27,6 +27,40 @@ local BASE_RATIO_COUNTS = {
 }
 local RATIO_TYPE_ORDER = { 'T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8' }
 
+-- Pre-calculate all rotated variants of hex room prefabs.
+-- This optimization avoids O(N) direction table allocations, sorting, and mask
+-- computations during the main generation loop, which can run through hundreds
+-- of attempts.
+local PREFAB_VARIANTS_BY_TYPE = {}
+
+for _, typeId in ipairs(RATIO_TYPE_ORDER) do
+    local definition = HexRoomPrefabs.getDefinition(typeId)
+    if not definition then
+        continue
+    end
+
+    local variants = {}
+    for rotationSteps = 0, 5 do
+        local rotatedDirections = table.create(#definition.OpenDirections)
+        for index, directionIndex in ipairs(definition.OpenDirections) do
+            rotatedDirections[index] = ((directionIndex - 1 + rotationSteps) % 6) + 1
+        end
+        table.sort(rotatedDirections)
+
+        local doorMask = 0
+        for _, directionIndex in ipairs(rotatedDirections) do
+            doorMask = bit32.bor(doorMask, bit32.lshift(1, directionIndex - 1))
+        end
+
+        table.insert(variants, {
+            RotationSteps = rotationSteps,
+            OpenDirections = table.freeze(rotatedDirections),
+            DoorMask = doorMask,
+        })
+    end
+    PREFAB_VARIANTS_BY_TYPE[typeId] = table.freeze(variants)
+end
+
 local DEFAULT_ROOM_COUNT = 20
 local DEFAULT_EXIT_MIN = 2
 local DEFAULT_EXIT_MAX = 4
@@ -227,13 +261,12 @@ local function pickWeightedType(random, quotas, typeIds)
     return typeIds[#typeIds]
 end
 
-local function canPlaceVariant(rooms, roomsByAxialKey, blockedAxialKeys, q, r, openDirections)
+local function canPlaceVariant(rooms, roomsByAxialKey, blockedAxialKeys, q, r, openMask)
     local positionKey = axialKey(q, r)
     if roomsByAxialKey[positionKey] or blockedAxialKeys[positionKey] then
         return false
     end
 
-    local openMask = HexRoomPrefabs.computeDoorMask(openDirections)
     for directionIndex, direction in ipairs(HEX_DIRECTIONS) do
         local neighborQ = q + direction.Q
         local neighborR = r + direction.R
@@ -276,18 +309,18 @@ local function enumeratePlacementCandidates(
     local candidates = {}
 
     for _, typeId in ipairs(RATIO_TYPE_ORDER) do
-        if (quotas[typeId] or 0) <= 0 then
+        local quota = quotas[typeId] or 0
+        if quota <= 0 then
             continue
         end
 
-        local definition = HexRoomPrefabs.getDefinition(typeId)
-        if not definition then
+        local variants = PREFAB_VARIANTS_BY_TYPE[typeId]
+        if not variants then
             continue
         end
 
-        for rotationSteps = 0, 5 do
-            local openDirections = rotateDirections(definition.OpenDirections, rotationSteps)
-            if not table.find(openDirections, requiredDirection) then
+        for _, variant in ipairs(variants) do
+            if not table.find(variant.OpenDirections, requiredDirection) then
                 continue
             end
 
@@ -298,14 +331,14 @@ local function enumeratePlacementCandidates(
                     blockedAxialKeys,
                     targetQ,
                     targetR,
-                    openDirections
+                    variant.DoorMask
                 )
             then
                 table.insert(candidates, {
                     TypeId = typeId,
-                    RotationSteps = rotationSteps,
-                    OpenDirections = openDirections,
-                    Weight = quotas[typeId],
+                    RotationSteps = variant.RotationSteps,
+                    OpenDirections = variant.OpenDirections,
+                    Weight = quota,
                 })
             end
         end
