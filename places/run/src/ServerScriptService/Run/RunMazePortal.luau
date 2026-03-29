@@ -13,8 +13,15 @@ local RunMazePortal = {}
 
 RunMazePortal.FailureCode = table.freeze({
     ReserveServerFailed = 'ReserveServerFailed',
-    TeleportToPrivateServerFailed = 'TeleportToPrivateServerFailed',
+    TeleportAsyncFailed = 'TeleportAsyncFailed',
 })
+
+local function buildReservedServerTeleportOptions(accessCode, teleportData)
+    local teleportOptions = Instance.new('TeleportOptions')
+    teleportOptions.ReservedServerAccessCode = accessCode
+    teleportOptions:SetTeleportData(teleportData)
+    return teleportOptions
+end
 
 function RunMazePortal.enter(params)
     local currentSession = CampMazeSessionContract.normalizeCampSession(params.CampSession)
@@ -58,25 +65,24 @@ function RunMazePortal.enter(params)
         EntryReason = params.EntryReason or 'maze_gate',
     })
 
+    local teleportOptions = buildReservedServerTeleportOptions(mazeAccessCode, teleportData)
     local success, message = pcall(function()
-        TeleportService:TeleportToPrivateServer(
+        TeleportService:TeleportAsync(
             SessionConfig.PlaceIds.Maze,
-            mazeAccessCode,
             { params.Player },
-            nil,
-            teleportData
+            teleportOptions
         )
     end)
     if not success then
         return {
             Ok = false,
-            FailureCode = RunMazePortal.FailureCode.TeleportToPrivateServerFailed,
+            FailureCode = RunMazePortal.FailureCode.TeleportAsyncFailed,
             Reason = TeleportDiagnostics.formatFailure(
-                'TeleportToPrivateServer',
+                'TeleportAsync',
                 message,
                 mazeTeleportSnapshot
             ),
-            ReasonCode = RunMazePortal.FailureCode.TeleportToPrivateServerFailed,
+            ReasonCode = RunMazePortal.FailureCode.TeleportAsyncFailed,
             CurrentSession = currentSession,
         }
     end
