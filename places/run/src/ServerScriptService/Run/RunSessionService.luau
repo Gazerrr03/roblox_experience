@@ -10,6 +10,7 @@ local SessionConfig = Shared.Config.SessionConfig
 local Remotes = Shared.Network.Remotes.ensureScope(Shared.Network.Remotes.Scope.Run)
 local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
 local MazeEntryAvailability = Shared.Session.MazeEntryAvailability
+local SessionSeedPolicy = Shared.Session.SessionSeedPolicy
 local ControlStateService = Shared.Runtime.ControlStateService
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local PlayerStateService = Shared.Runtime.PlayerStateService
@@ -28,6 +29,22 @@ local MAZE_ENTRY_DISTANCE_BUFFER = 2
 local LOCAL_DEBUG_ROOM_DETECTION_RADIUS = 56
 local LOCAL_DEBUG_MAZE_RETURN_REASON = 'local_debug_return'
 local SNAPSHOT_INTERVAL_SECONDS = 0.25
+local RUN_MAZE_GATE_RETURN_REASONS = table.freeze({
+    early_return = true,
+    extracted = true,
+})
+
+local function resolvePendingSpawnCFrame(self, pendingSpawnValue)
+    if typeof(pendingSpawnValue) == 'CFrame' then
+        return pendingSpawnValue
+    end
+
+    if self.World and self.World.ReturnCFrame then
+        return self.World.ReturnCFrame
+    end
+
+    return RunWorldBuilder.ReturnCFrame
+end
 
 local function bindCharacterTeleport(self, player)
     player.CharacterAdded:Connect(function(character)
@@ -47,7 +64,9 @@ local function bindCharacterTeleport(self, player)
             return
         end
 
-        local targetCFrame = self.PendingSpawnByUserId[player.UserId] and self.World.ReturnCFrame
+        local pendingSpawnValue = self.PendingSpawnByUserId[player.UserId]
+        local targetCFrame = pendingSpawnValue
+                and resolvePendingSpawnCFrame(self, pendingSpawnValue)
             or self.World.SpawnCFrame
         self.PendingSpawnByUserId[player.UserId] = nil
         character:PivotTo(targetCFrame)
@@ -110,6 +129,8 @@ function RunSessionService.new()
     self.PendingSpawnByUserId = {}
     self.PendingLocalMazeSpawnByUserId = {}
     self.CampSessionLock = false
+    self.HasAuthoritativeSessionSeed = false
+    self.SessionSeedRandom = nil
     self.LastMazeEntryRequestAtByUserId = {}
     self.MazeEntryMode = MazeEntryAvailability.Mode.Blocked
     self.MazeEntryReason =
@@ -173,6 +194,7 @@ function RunSessionService:_applySessionConfig(incoming)
 
     if type(incoming.Seed) == 'number' then
         self.SessionData.Seed = incoming.Seed
+        self.HasAuthoritativeSessionSeed = true
     end
     if type(incoming.Quota) == 'number' then
         self.SessionData.Quota = incoming.Quota
@@ -234,26 +256,57 @@ function RunSessionService:_loadSessionDataFromJoin()
         return
     end
 
+    self:_applyReturnedPlayersFromTeleportData(players, acceptedTeleportData)
+end
+
+function RunSessionService:_getReturnStatusText(playerDisplayName, summary, teleportData)
+    if RUN_MAZE_GATE_RETURN_REASONS[summary.ReturnReason] then
+        return string.format(
+            '%s returned to the maze gate with %d value (%s).',
+            playerDisplayName,
+            summary.Value or 0,
+            summary.ReturnReason or 'unknown'
+        )
+    end
+
+    if teleportData.MazeReturn and teleportData.MazeReturn.MazeCompleted == true then
+        return string.format(
+            '%s returned from the completed maze run with %d value.',
+            playerDisplayName,
+            summary.Value or 0
+        )
+    end
+
+    return string.format(
+        '%s returned from the maze with %d value (%s).',
+        playerDisplayName,
+        summary.Value or 0,
+        summary.ReturnReason or 'unknown'
+    )
+end
+
+function RunSessionService:_applyReturnedPlayersFromTeleportData(players, acceptedTeleportData)
     local returnedPlayers = {}
     for _, player in ipairs(players) do
         local teleportData = self:_readTeleportData(player) or acceptedTeleportData
         local returnSummary = CampMazeSessionContract.findReturnSummary(teleportData, player.UserId)
         if returnSummary then
-            self.PendingSpawnByUserId[player.UserId] = true
+            self.PendingSpawnByUserId[player.UserId] =
+                self:_getReturnSpawnCFrameForSummary(returnSummary)
             table.insert(returnedPlayers, {
                 Player = player,
                 Summary = returnSummary,
+                TeleportData = teleportData,
             })
         end
     end
 
     if #returnedPlayers == 1 then
         local returnedPlayer = returnedPlayers[1]
-        self.Status = string.format(
-            '%s returned from the maze with %d value (%s).',
+        self.Status = self:_getReturnStatusText(
             returnedPlayer.Player.DisplayName,
-            returnedPlayer.Summary.Value or 0,
-            returnedPlayer.Summary.ReturnReason or 'unknown'
+            returnedPlayer.Summary,
+            returnedPlayer.TeleportData
         )
     elseif #returnedPlayers > 1 then
         self.Status = 'The crew returned from the maze. Review the camp summaries together.'
@@ -270,14 +323,23 @@ function RunSessionService:_teleportCharactersToSpawn()
     for _, player in ipairs(Players:GetPlayers()) do
         local character = player.Character
         if character and character.Parent then
-            local targetCFrame = self.PendingSpawnByUserId[player.UserId]
-                    and self.World.ReturnCFrame
+            local pendingSpawnValue = self.PendingSpawnByUserId[player.UserId]
+            local targetCFrame = pendingSpawnValue
+                    and resolvePendingSpawnCFrame(self, pendingSpawnValue)
                 or self.World.SpawnCFrame
             self.PendingSpawnByUserId[player.UserId] = nil
             character:PivotTo(targetCFrame)
             self:_applyMovementMode(player)
         end
     end
+end
+
+function RunSessionService:_getReturnSpawnCFrameForSummary(summary)
+    if RUN_MAZE_GATE_RETURN_REASONS[summary.ReturnReason] then
+        return self.World and self.World.MazeReturnCFrame or RunWorldBuilder.MazeReturnCFrame
+    end
+
+    return self.World and self.World.ReturnCFrame or RunWorldBuilder.ReturnCFrame
 end
 
 function RunSessionService:_rebuildWorld()
@@ -772,21 +834,8 @@ function RunSessionService:_handlePlayerTeleportData(player)
 
     local summary = CampMazeSessionContract.findReturnSummary(teleportData, player.UserId)
     if summary then
-        self.PendingSpawnByUserId[player.UserId] = self.World and self.World.ReturnCFrame or true
-        if teleportData.MazeReturn and teleportData.MazeReturn.MazeCompleted == true then
-            self.Status = string.format(
-                '%s returned from the completed maze run with %d value.',
-                player.DisplayName,
-                summary.Value or 0
-            )
-        else
-            self.Status = string.format(
-                '%s returned from the maze with %d value (%s).',
-                player.DisplayName,
-                summary.Value or 0,
-                summary.ReturnReason or 'unknown'
-            )
-        end
+        self.PendingSpawnByUserId[player.UserId] = self:_getReturnSpawnCFrameForSummary(summary)
+        self.Status = self:_getReturnStatusText(player.DisplayName, summary, teleportData)
         return
     end
 
@@ -797,8 +846,23 @@ function RunSessionService:_handlePlayerTeleportData(player)
     self.Status = string.format('%s joined the camp session.', player.DisplayName)
 end
 
+function RunSessionService:_ensureAuthoritativeSessionSeed()
+    local seed, issuedNewSeed = SessionSeedPolicy.ensureAuthoritativeSeed({
+        CurrentSeed = self.SessionData.Seed,
+        DefaultSeed = SessionConfig.DefaultSeed,
+        HasAuthoritativeSeed = self.HasAuthoritativeSessionSeed,
+        RandomSource = self.SessionSeedRandom or Random.new(),
+    })
+
+    self.SessionData.Seed = seed
+    if issuedNewSeed then
+        self.HasAuthoritativeSessionSeed = true
+    end
+end
+
 function RunSessionService:start()
     self:_loadSessionDataFromJoin()
+    self:_ensureAuthoritativeSessionSeed()
     Players.CharacterAutoLoads = false
 
     for _, player in ipairs(Players:GetPlayers()) do
