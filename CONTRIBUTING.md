@@ -95,7 +95,7 @@ Useful local commands:
 Treat local validation as a stack of separate signals:
 
 1. deterministic logic baseline
-2. local `maze` gameplay iteration
+2. local `maze` iteration
 3. local `run` handoff validation with `SessionDebugLocalMazeHandoff=true`
 4. staging published smoke for real teleport and multiplayer checks
 
