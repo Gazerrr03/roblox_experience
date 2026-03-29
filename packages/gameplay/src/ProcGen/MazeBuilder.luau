@@ -13,7 +13,6 @@ local HEX_DIRECTIONS = {
 }
 
 local OPPOSITE_DIRECTIONS = { 4, 5, 6, 1, 2, 3 }
-local DIRECTION_BITMASKS = HexRoomPrefabs.DirectionBitmasks
 
 local START_TYPE_IDS = { 'T5', 'T6', 'T7' }
 local BASE_RATIO_COUNTS = {
@@ -245,8 +244,12 @@ local function canPlaceVariant(rooms, roomsByAxialKey, blockedAxialKeys, q, r, o
 
         local neighbor = rooms[neighborRoomId]
         local opposite = OPPOSITE_DIRECTIONS[directionIndex]
-        local selfHasDoor = bit32.band(openMask, DIRECTION_BITMASKS[directionIndex]) ~= 0
-        local neighborHasDoor = bit32.band(neighbor.DoorMask, DIRECTION_BITMASKS[opposite]) ~= 0
+        local selfHasDoor = bit32.band(openMask, HexRoomPrefabs.DirectionBitmasks[directionIndex])
+            ~= 0
+        local neighborHasDoor = bit32.band(
+            neighbor.DoorMask,
+            HexRoomPrefabs.DirectionBitmasks[opposite]
+        ) ~= 0
 
         if selfHasDoor ~= neighborHasDoor then
             return false
@@ -455,11 +458,12 @@ local function validateRoomConnections(rooms)
     for roomId, room in pairs(rooms) do
         local exitDirectionMask = 0
         for _, directionIndex in ipairs(room.ExitDirections or {}) do
-            exitDirectionMask = bit32.bor(exitDirectionMask, DIRECTION_BITMASKS[directionIndex])
+            exitDirectionMask =
+                bit32.bor(exitDirectionMask, HexRoomPrefabs.DirectionBitmasks[directionIndex])
         end
 
         for directionIndex, neighborRoomId in pairs(room.Neighbors) do
-            if bit32.band(room.DoorMask, DIRECTION_BITMASKS[directionIndex]) == 0 then
+            if bit32.band(room.DoorMask, HexRoomPrefabs.DirectionBitmasks[directionIndex]) == 0 then
                 return false, string.format('NeighborOnClosedEdge(%s:%d)', roomId, directionIndex)
             end
 
@@ -473,7 +477,7 @@ local function validateRoomConnections(rooms)
             if neighbor.Neighbors[opposite] ~= roomId then
                 return false, string.format('NonMirrorNeighbor(%s:%s)', roomId, neighborRoomId)
             end
-            if bit32.band(neighbor.DoorMask, DIRECTION_BITMASKS[opposite]) == 0 then
+            if bit32.band(neighbor.DoorMask, HexRoomPrefabs.DirectionBitmasks[opposite]) == 0 then
                 return false,
                     string.format('NeighborClosedMirrorEdge(%s:%s)', roomId, neighborRoomId)
             end
@@ -483,14 +487,18 @@ local function validateRoomConnections(rooms)
             local neighborRoomId = room.Neighbors[directionIndex]
             if
                 neighborRoomId == nil
-                and bit32.band(exitDirectionMask, DIRECTION_BITMASKS[directionIndex]) == 0
+                and bit32.band(
+                        exitDirectionMask,
+                        HexRoomPrefabs.DirectionBitmasks[directionIndex]
+                    )
+                    == 0
             then
                 return false, string.format('UnclassifiedOpenEdge(%s:%d)', roomId, directionIndex)
             end
         end
 
         for directionIndex = 1, 6 do
-            local directionBit = DIRECTION_BITMASKS[directionIndex]
+            local directionBit = HexRoomPrefabs.DirectionBitmasks[directionIndex]
             if bit32.band(exitDirectionMask, directionBit) ~= 0 then
                 if room.Neighbors[directionIndex] ~= nil then
                     return false,
@@ -616,7 +624,7 @@ local function buildAttempt(seed, config)
             local existingRoom = rooms[existingRoomId]
             if
                 existingRoom
-                and bit32.band(existingRoom.DoorMask, DIRECTION_BITMASKS[opposite]) ~= 0
+                and bit32.band(existingRoom.DoorMask, HexRoomPrefabs.DirectionBitmasks[opposite]) ~= 0
                 and existingRoom.Neighbors[opposite] == nil
             then
                 connectRooms(sourceRoom, frontierEntry.Direction, existingRoom)
@@ -667,7 +675,7 @@ local function buildAttempt(seed, config)
                     neighborRoom
                     and bit32.band(
                         neighborRoom.DoorMask,
-                        DIRECTION_BITMASKS[oppositeDirectionIndex]
+                        HexRoomPrefabs.DirectionBitmasks[oppositeDirectionIndex]
                     ) ~= 0
                     and neighborRoom.Neighbors[oppositeDirectionIndex] == nil
                     and newRoom.Neighbors[directionIndex] == nil
