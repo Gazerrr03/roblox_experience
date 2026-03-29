@@ -35,7 +35,9 @@ task.defer(function()
         local MazeSessionService = require(script.Parent.Maze.MazeSessionService)
 
         setBootstrapStatus('ConstructSessionService', nil)
-        mazeSessionService = MazeSessionService.new()
+        mazeSessionService = MazeSessionService.new({
+            ReportBootstrapStatus = setBootstrapStatus,
+        })
 
         setBootstrapStatus('StartLightingService', nil)
         lightingResult = MazeLightingService.new():start()

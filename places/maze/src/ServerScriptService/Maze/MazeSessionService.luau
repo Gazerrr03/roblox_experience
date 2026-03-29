@@ -36,14 +36,13 @@ local DEBUG_DAMAGE_BY_ACTION = {
 
 local MazeSessionService = {}
 MazeSessionService.__index = MazeSessionService
-MazeSessionService.BootstrapPhaseAttribute = 'MazeBootstrapPhase'
-MazeSessionService.BootstrapErrorAttribute = 'MazeBootstrapError'
-MazeSessionService.BootstrapFailedAttribute = 'MazeBootstrapFailed'
 
-local function setBootstrapStatus(phase, err)
-    ReplicatedStorage:SetAttribute(MazeSessionService.BootstrapPhaseAttribute, phase)
-    ReplicatedStorage:SetAttribute(MazeSessionService.BootstrapFailedAttribute, err ~= nil)
-    ReplicatedStorage:SetAttribute(MazeSessionService.BootstrapErrorAttribute, err)
+local function reportBootstrapStatus(self, phase, err)
+    if type(self.ReportBootstrapStatus) ~= 'function' then
+        return
+    end
+
+    self.ReportBootstrapStatus(phase, err)
 end
 
 local function mergeSummaries(existingSummaries, nextSummaries)
@@ -156,8 +155,9 @@ local function collectPatrolPointsFromWorld(world)
     return world and world.PatrolPoints or {}, initialPatrolIndex
 end
 
-function MazeSessionService.new()
+function MazeSessionService.new(options)
     local self = setmetatable({}, MazeSessionService)
+    local config = type(options) == 'table' and options or {}
 
     self.SessionData = {
         Seed = SessionConfig.DefaultSeed,
@@ -198,6 +198,7 @@ function MazeSessionService.new()
     )
     self.CorpsesByUserId = {}
     self.BootPhase = 'New'
+    self.ReportBootstrapStatus = config.ReportBootstrapStatus
     self.SurfacePalette = Shared.Runtime.MazeLightingProfile.SurfacePalette
 
     return self
@@ -213,12 +214,12 @@ end
 
 function MazeSessionService:_setBootPhase(phase)
     self.BootPhase = phase
-    setBootstrapStatus(phase, nil)
+    reportBootstrapStatus(self, phase, nil)
     print(string.format('[MazeBoot] phase=%s', phase))
 end
 
 function MazeSessionService:_setBootFailure(err)
-    setBootstrapStatus(self.BootPhase, tostring(err))
+    reportBootstrapStatus(self, self.BootPhase, tostring(err))
     warn(
         string.format(
             '[MazeBoot] failure at phase=%s error=%s',
