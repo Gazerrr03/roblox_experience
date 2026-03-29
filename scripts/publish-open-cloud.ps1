@@ -2,19 +2,36 @@ param(
     [ValidateSet('all', 'lobby', 'run', 'maze')]
     [string]$Place = 'all',
 
-    [string]$UniverseId = [Environment]::GetEnvironmentVariable('ROBLOX_UNIVERSE_ID', 'User')
+    [string]$UniverseId
 )
 
 $ErrorActionPreference = 'Stop'
 
-$apiKey = [Environment]::GetEnvironmentVariable('ROBLOX_OPEN_CLOUD_API_KEY', 'User')
+function Get-EnvironmentValue {
+    param([string]$Name)
+
+    foreach ($target in @('Process', 'User', 'Machine')) {
+        $value = [Environment]::GetEnvironmentVariable($Name, $target)
+        if (-not [string]::IsNullOrWhiteSpace($value)) {
+            return $value
+        }
+    }
+
+    return $null
+}
+
+$apiKey = Get-EnvironmentValue 'ROBLOX_OPEN_CLOUD_API_KEY'
 
 if ([string]::IsNullOrWhiteSpace($apiKey)) {
-    throw 'Missing ROBLOX_OPEN_CLOUD_API_KEY in user environment.'
+    throw 'Missing ROBLOX_OPEN_CLOUD_API_KEY in Process/User/Machine environment.'
 }
 
 if ([string]::IsNullOrWhiteSpace($UniverseId)) {
-    throw 'Missing ROBLOX_UNIVERSE_ID in user environment or -UniverseId argument.'
+    $UniverseId = Get-EnvironmentValue 'ROBLOX_UNIVERSE_ID'
+}
+
+if ([string]::IsNullOrWhiteSpace($UniverseId)) {
+    throw 'Missing ROBLOX_UNIVERSE_ID in Process/User/Machine environment or -UniverseId argument.'
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
