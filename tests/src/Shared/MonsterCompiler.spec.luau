@@ -40,9 +40,13 @@ return function()
         runtimeProfile.Presentation.AnimationMode == presentationCatalog.AnimationMode.DefaultR6,
         'Compiled runtime should preserve the configured animation mode'
     )
-    assert(runtimeProfile.Speed == 12, 'Compiled runtime should expose the configured speed')
     assert(
-        runtimeProfile.SightRange == 60,
+        runtimeProfile.Presentation.ChaseLoopSoundAssetId == 9118823108,
+        'Compiled runtime should expose the configured chase loop sound asset id'
+    )
+    assert(runtimeProfile.Speed == 14, 'Compiled runtime should expose the configured speed')
+    assert(
+        runtimeProfile.SightRange == 36,
         'Compiled runtime should expose the configured sight range'
     )
     assert(
@@ -50,8 +54,8 @@ return function()
         'Compiled runtime should expose the configured patrol speed multiplier'
     )
     assert(
-        runtimeProfile.Behaviors[behaviorCatalog.Behavior.Patrol] == true,
-        'Patrol should stay enabled in the maze runtime profile'
+        runtimeProfile.Behaviors[behaviorCatalog.Behavior.Patrol] == nil,
+        'Disabled patrol intents should not reach the maze runtime profile'
     )
     assert(
         runtimeProfile.Behaviors[behaviorCatalog.Behavior.SenseNearestTarget] == true,

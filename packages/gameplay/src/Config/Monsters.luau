@@ -20,16 +20,18 @@ return {
             ModelAssetId = 4446576906,
             RigType = MonsterPresentationCatalog.RigType.R6,
             AnimationMode = MonsterPresentationCatalog.AnimationMode.DefaultR6,
+            ChaseLoopSoundAssetId = 9118823108,
         },
         NumericProfile = {
-            Speed = 12,
-            SightRange = 60,
+            Speed = 14,
+            SightRange = 36,
             PatrolSpeedMultiplier = 0.45,
             SpawnOffset = Vector3.new(0, 4, 0),
         },
         BehaviorIntents = {
             {
                 Id = MonsterBehaviorCatalog.Behavior.Patrol,
+                Enabled = false,
             },
             {
                 Id = MonsterBehaviorCatalog.Behavior.SenseNearestTarget,

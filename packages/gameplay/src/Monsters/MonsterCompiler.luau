@@ -24,6 +24,7 @@ local function cloneRuntimePresentation(presentation)
         ModelAssetId = presentation.ModelAssetId,
         RigType = presentation.RigType,
         AnimationMode = presentation.AnimationMode,
+        ChaseLoopSoundAssetId = presentation.ChaseLoopSoundAssetId,
     })
 end
 
