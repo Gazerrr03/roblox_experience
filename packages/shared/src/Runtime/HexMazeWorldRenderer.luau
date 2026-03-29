@@ -492,9 +492,9 @@ local function buildRoomConnector(
         Material = surfacePalette.CeilingMaterial,
     }, parent)
 
-    for _, sign in ipairs({ -1, 1 }) do
+    for index, sign in ipairs({ -1, 1 }) do
         createPart({
-            Name = string.format('ConnectorWall_%s', doorwayId),
+            Name = string.format('ConnectorWall_%s_%d', doorwayId, index),
             Size = Vector3.new(WALL_THICKNESS, WALL_HEIGHT, connectorLength),
             CFrame = corridorForward
                 + (tangent * ((DOORWAY_WIDTH / 2) + (WALL_THICKNESS / 2)) * sign)
