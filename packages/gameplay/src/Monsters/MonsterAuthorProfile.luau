@@ -37,6 +37,16 @@ local function validatePresentation(presentation)
         return false, 'InvalidAnimationMode'
     end
 
+    if
+        presentation.ChaseLoopSoundAssetId ~= nil
+        and (
+            type(presentation.ChaseLoopSoundAssetId) ~= 'number'
+            or presentation.ChaseLoopSoundAssetId <= 0
+        )
+    then
+        return false, 'InvalidChaseLoopSoundAssetId'
+    end
+
     return true
 end
 

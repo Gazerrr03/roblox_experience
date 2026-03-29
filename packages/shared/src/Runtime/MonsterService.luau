@@ -20,6 +20,10 @@ local DEFAULT_R6_ANIMATIONS = table.freeze({
     Walk = 180426354,
     Run = 180426354,
 })
+local DEFAULT_CHASE_LOOP_VOLUME = 0.45
+local DEFAULT_CHASE_LOOP_MIN_DISTANCE = 8
+local DEFAULT_CHASE_LOOP_MAX_DISTANCE = 48
+local DEFAULT_VISUAL_SMOOTHING_SPEED = 12
 
 local function defaultWarn(message)
     warn(message)
@@ -57,6 +61,20 @@ local function defaultLoadAnimationTrack(animator, animationId, animationName)
     return track
 end
 
+local function defaultCreateLoopSound(parent, soundAssetId, soundName)
+    local sound = Instance.new('Sound')
+    sound.Name = soundName
+    sound.SoundId = string.format('rbxassetid://%d', soundAssetId)
+    sound.Looped = true
+    sound.Volume = DEFAULT_CHASE_LOOP_VOLUME
+    sound.RollOffMode = Enum.RollOffMode.InverseTapered
+    sound.RollOffMinDistance = DEFAULT_CHASE_LOOP_MIN_DISTANCE
+    sound.RollOffMaxDistance = DEFAULT_CHASE_LOOP_MAX_DISTANCE
+    sound.Parent = parent
+
+    return sound
+end
+
 function MonsterService.new(
     monsterRuntimeProfile,
     isExpeditionActiveCallback,
@@ -85,12 +103,21 @@ function MonsterService.new(
         MonsterRoot = nil,
         MonsterPositionPart = nil,
         MonsterHumanoid = nil,
+        ChaseLoopSound = nil,
+        IsChaseLoopSoundPlaying = false,
         AnimationTracks = {},
         ActiveAnimation = nil,
         Connection = nil,
+        LogicalPosition = nil,
         Warn = runtimeOptions.Warn or defaultWarn,
         LoadMonsterModel = runtimeOptions.AssetLoader or defaultLoadMonsterModel,
         LoadAnimationTrack = runtimeOptions.LoadAnimationTrack or defaultLoadAnimationTrack,
+        CreateLoopSound = runtimeOptions.CreateLoopSound or defaultCreateLoopSound,
+        GetPlayers = runtimeOptions.GetPlayers or function()
+            return Players:GetPlayers()
+        end,
+        VisualSmoothingSpeed = runtimeOptions.VisualSmoothingSpeed
+            or DEFAULT_VISUAL_SMOOTHING_SPEED,
     }, MonsterService)
 end
 
@@ -110,6 +137,18 @@ function MonsterService:destroy()
     self.ActiveAnimation = nil
     self.MonsterHumanoid = nil
     self.MonsterPositionPart = nil
+    self.LogicalPosition = nil
+
+    if self.ChaseLoopSound then
+        if self.ChaseLoopSound.Stop then
+            self.ChaseLoopSound:Stop()
+        end
+        if self.ChaseLoopSound.Destroy then
+            self.ChaseLoopSound:Destroy()
+        end
+        self.ChaseLoopSound = nil
+    end
+    self.IsChaseLoopSoundPlaying = false
 
     if self.MonsterRoot then
         self.MonsterRoot:Destroy()
@@ -142,6 +181,8 @@ function MonsterService:_createFallbackPart(spawnPosition)
 
     self.MonsterRoot = monster
     self.MonsterPositionPart = monster
+    self.LogicalPosition = spawnPosition
+    self:_attachChaseLoopSound(monster)
 end
 
 function MonsterService:_prepareModelForRuntime(model)
@@ -210,6 +251,24 @@ function MonsterService:_loadAnimationTracks(humanoid)
     self.MonsterHumanoid = humanoid
 end
 
+function MonsterService:_attachChaseLoopSound(parent)
+    local soundAssetId = self.Definition.Presentation.ChaseLoopSoundAssetId
+    if parent == nil or type(soundAssetId) ~= 'number' or soundAssetId <= 0 then
+        return
+    end
+
+    local soundOk, soundOrErr = pcall(function()
+        return self.CreateLoopSound(parent, soundAssetId, 'MonsterChaseLoop')
+    end)
+    if not soundOk then
+        self:_warnFallback(string.format('ChaseLoopSoundFailed (%s)', tostring(soundOrErr)))
+        return
+    end
+
+    self.ChaseLoopSound = soundOrErr
+    self.IsChaseLoopSoundPlaying = false
+end
+
 function MonsterService:_spawnModel(spawnPosition)
     local presentation = self.Definition.Presentation
     local model, loadReason = self.LoadMonsterModel(presentation.ModelAssetId)
@@ -237,6 +296,8 @@ function MonsterService:_spawnModel(spawnPosition)
 
     self.MonsterRoot = preparedModel
     self.MonsterPositionPart = rootPart
+    self.LogicalPosition = spawnPosition
+    self:_attachChaseLoopSound(rootPart)
 
     return true
 end
@@ -270,6 +331,10 @@ function MonsterService:_setAnimationState(animationName, speedMultiplier)
 end
 
 function MonsterService:_getCurrentPosition()
+    if self.LogicalPosition then
+        return self.LogicalPosition
+    end
+
     if not self.MonsterPositionPart then
         return nil
     end
@@ -277,15 +342,53 @@ function MonsterService:_getCurrentPosition()
     return self.MonsterPositionPart.Position
 end
 
-function MonsterService:_applyVisualCFrame(nextCFrame)
+function MonsterService:_setChaseLoopSoundPlaying(shouldPlay)
+    if not self.ChaseLoopSound then
+        return
+    end
+
+    local isPlaying = self.IsChaseLoopSoundPlaying == true or self.ChaseLoopSound.IsPlaying == true
+    if shouldPlay then
+        if not isPlaying and self.ChaseLoopSound.Play then
+            self.ChaseLoopSound:Play()
+        end
+        self.IsChaseLoopSoundPlaying = true
+        return
+    end
+
+    if isPlaying and self.ChaseLoopSound.Stop then
+        self.ChaseLoopSound:Stop()
+    end
+    self.IsChaseLoopSoundPlaying = false
+end
+
+function MonsterService:_applyVisualCFrame(nextCFrame, dt)
     if self.MonsterRoot == nil then
         return
     end
 
+    local appliedCFrame = nextCFrame
+    local smoothingAlpha = 1
+    if type(dt) == 'number' and dt > 0 then
+        smoothingAlpha = 1 - math.exp(-self.VisualSmoothingSpeed * dt)
+        smoothingAlpha = math.clamp(smoothingAlpha, 0, 1)
+    end
+
+    local currentCFrame
     if self.MonsterRoot:IsA('Model') then
-        self.MonsterRoot:PivotTo(nextCFrame)
+        currentCFrame = self.MonsterRoot:GetPivot()
     elseif self.MonsterRoot:IsA('BasePart') then
-        self.MonsterRoot.CFrame = nextCFrame
+        currentCFrame = self.MonsterRoot.CFrame
+    end
+
+    if currentCFrame and smoothingAlpha < 1 then
+        appliedCFrame = currentCFrame:Lerp(nextCFrame, smoothingAlpha)
+    end
+
+    if self.MonsterRoot:IsA('Model') then
+        self.MonsterRoot:PivotTo(appliedCFrame)
+    elseif self.MonsterRoot:IsA('BasePart') then
+        self.MonsterRoot.CFrame = appliedCFrame
     end
 end
 
@@ -320,7 +423,7 @@ function MonsterService:update(dt)
 
     local playerPositions = {}
 
-    for _, player in ipairs(Players:GetPlayers()) do
+    for _, player in ipairs(self.GetPlayers()) do
         if self.CanTargetPlayer(player) then
             local character = player.Character
             local rootPart = character and character:FindFirstChild('HumanoidRootPart')
@@ -367,20 +470,25 @@ function MonsterService:update(dt)
 
     if nextPosition and self.CanTraverse(currentPosition, nextPosition) then
         local travelOffset = nextPosition - currentPosition
+        self.LogicalPosition = nextPosition
         local facingCFrame = if travelOffset.Magnitude > 0
             then CFrame.lookAt(nextPosition, nextPosition + travelOffset.Unit)
             else CFrame.new(nextPosition)
-        self:_applyVisualCFrame(facingCFrame)
+        self:_applyVisualCFrame(facingCFrame, dt)
 
         if targetPlayer and self.Definition.Behaviors[MonsterBehaviorCatalog.Behavior.Chase] then
             self:_setAnimationState('Run', 1.15)
+            self:_setChaseLoopSoundPlaying(true)
         elseif travelOffset.Magnitude > 0 then
             self:_setAnimationState('Walk', 1)
+            self:_setChaseLoopSoundPlaying(false)
         else
             self:_setAnimationState('Idle', 1)
+            self:_setChaseLoopSoundPlaying(false)
         end
     else
         self:_setAnimationState('Idle', 1)
+        self:_setChaseLoopSoundPlaying(false)
     end
 end
 

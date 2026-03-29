@@ -36,6 +36,16 @@ function MonsterRuntimeProfile.validate(profile)
         return false, 'InvalidRuntimeAnimationMode'
     end
 
+    if
+        presentation.ChaseLoopSoundAssetId ~= nil
+        and (
+            type(presentation.ChaseLoopSoundAssetId) ~= 'number'
+            or presentation.ChaseLoopSoundAssetId <= 0
+        )
+    then
+        return false, 'InvalidRuntimeChaseLoopSoundAssetId'
+    end
+
     if type(profile.Speed) ~= 'number' or profile.Speed <= 0 then
         return false, 'InvalidRuntimeSpeed'
     end
