@@ -53,7 +53,7 @@ Use it to quickly decide what to read, what to run, and what should stay in root
 - I need to implement gameplay logic: start in `packages/gameplay/src`
 - I need to change cross-place handoff fields/remotes: start in `packages/shared/src` (`contract` line)
 - I need to modify one place flow only: start in that place's `places/<place>/src`
-- I need to validate shared logic changes: run `stylua --check .`, `selene .`, then test via `run-in-roblox`
+- I need to validate shared logic changes: run `stylua --check .`, `selene .`, then `run-in-roblox --place .\tmp\roblox_experience-tests.rbxlx --script tests/run-in-roblox.lua` (see `README.md` for full setup/build context)
 
 ## Hygiene Rules
 
