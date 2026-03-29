@@ -16,6 +16,7 @@ local DOOR_LEAF_THICKNESS = 0.5
 local DOOR_CLEARANCE = 0
 local ROOM_DETECTION_BUFFER = 18
 local EXIT_CORRIDOR_LENGTH = 6
+local CONNECTOR_OVERLAP = 1
 local HEX_CIRCUMRADIUS_MULTIPLIER = 1 / math.cos(math.pi / 6)
 local SIDE_ANGLE_OFFSET_DEGREES = 0
 
@@ -455,6 +456,55 @@ local function buildExitCorridors(parent, room, roomCenter, roomApothem, surface
     end
 end
 
+local function buildRoomConnector(
+    parent,
+    doorwayId,
+    roomCenterA,
+    roomCenterB,
+    directionFromA,
+    roomApothem,
+    surfacePalette
+)
+    local normal, tangent = sideVectors(directionFromA)
+    local centerDistance = (roomCenterB - roomCenterA).Magnitude
+    local connectorLength = math.max(
+        WALL_THICKNESS,
+        centerDistance - (roomApothem * 2) + (WALL_THICKNESS + CONNECTOR_OVERLAP)
+    )
+
+    local connectorCenter = (roomCenterA + roomCenterB) * 0.5
+    local corridorBaseCenter = connectorCenter + Vector3.new(0, -(SLAB_THICKNESS / 2), 0)
+    local corridorForward = CFrame.lookAt(corridorBaseCenter, corridorBaseCenter + normal)
+
+    createPart({
+        Name = string.format('ConnectorFloor_%s', doorwayId),
+        Size = Vector3.new(DOORWAY_WIDTH, SLAB_THICKNESS, connectorLength),
+        CFrame = corridorForward,
+        Color = surfacePalette.FloorColor,
+        Material = surfacePalette.FloorMaterial,
+    }, parent)
+
+    createPart({
+        Name = string.format('ConnectorCeiling_%s', doorwayId),
+        Size = Vector3.new(DOORWAY_WIDTH, SLAB_THICKNESS, connectorLength),
+        CFrame = corridorForward + Vector3.new(0, ROOM_CLEAR_HEIGHT + SLAB_THICKNESS, 0),
+        Color = surfacePalette.CeilingColor,
+        Material = surfacePalette.CeilingMaterial,
+    }, parent)
+
+    for index, sign in ipairs({ -1, 1 }) do
+        createPart({
+            Name = string.format('ConnectorWall_%s_%d', doorwayId, index),
+            Size = Vector3.new(WALL_THICKNESS, WALL_HEIGHT, connectorLength),
+            CFrame = corridorForward
+                + (tangent * ((DOORWAY_WIDTH / 2) + (WALL_THICKNESS / 2)) * sign)
+                + Vector3.new(0, WALL_HEIGHT / 2, 0),
+            Color = surfacePalette.WallColor,
+            Material = surfacePalette.WallMaterial,
+        }, parent)
+    end
+end
+
 function HexMazeWorldRenderer.build(params)
     local worldName = params.WorldName or 'GeneratedMazeWorld'
     local layout = params.Layout
@@ -503,8 +553,21 @@ function HexMazeWorldRenderer.build(params)
 
     for doorwayId, doorwayLayout in pairs(layout.Doorways) do
         local roomCenter = roomCenters[doorwayLayout.RoomA]
+        local otherRoomCenter = roomCenters[doorwayLayout.RoomB]
         if not roomCenter then
             continue
+        end
+
+        if otherRoomCenter then
+            buildRoomConnector(
+                worldFolder,
+                doorwayId,
+                roomCenter,
+                otherRoomCenter,
+                doorwayLayout.DirectionFromA,
+                roomApothem,
+                surfacePalette
+            )
         end
 
         local doorway = createDoorwayInstance(
