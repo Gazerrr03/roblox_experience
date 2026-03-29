@@ -135,6 +135,23 @@ Write-Host '3. Sync, press Play, and enter the experience.'
 
 if ($Place -eq 'run') {
     Write-Host '4. In the run start menu, click "Single Player" to launch the camp flow.'
+    Write-Host '5. For local handoff validation, set SessionDebugLocalMazeHandoff=true in Studio.'
+    Write-Host '6. Local debug fallback is useful for run -> maze wiring, but it does not prove formal teleport health.'
+}
+
+if ($Place -eq 'maze') {
+    Write-Host '4. Use this as the default local environment for maze-first monster iteration.'
+}
+
+Write-Host ''
+Write-Host 'Environment reminders:'
+Write-Host '- Keep SessionConfig.PlaceIds aligned with the formal published experience.'
+Write-Host '- Use Studio attributes SessionPlaceIdLobby/Run/Maze to point a local session at staging ids.'
+Write-Host '- Use SessionDebugLocalMazeHandoff=true only for local in-place maze fallback checks.'
+Write-Host '- Use a dedicated staging publish setup for real teleport and multiplayer smoke.'
+
+if ($Place -eq 'maze') {
+    Write-Host '- After local maze iteration, re-check run handoff and then run staging smoke before merge readiness.'
 }
 
 Write-Step 'Rojo server is running'
