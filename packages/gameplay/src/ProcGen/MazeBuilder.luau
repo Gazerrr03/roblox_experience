@@ -58,8 +58,12 @@ for _, typeId in ipairs(RATIO_TYPE_ORDER) do
 end
 
 -- Bolt Optimization: Numeric axial key to avoid string.format allocations
+-- Using bit-packing for a larger, safer range (16 bits each for Q and R, with offset)
 local function axialKey(q, r)
-    return (q + 1000) * 2000 + (r + 1000)
+    debug.profilebegin('axialKey')
+    local packed = bit32.bor(bit32.lshift(q + 32768, 16), r + 32768)
+    debug.profileend()
+    return packed
 end
 
 local function axialToWorld(q, r, roomSpacing)
@@ -95,7 +99,7 @@ end
 
 -- Bolt Optimization: Numeric frontier management
 local function addFrontier(frontier, frontierIndexByKey, roomId, directionIndex)
-    local key = roomId * 10 + directionIndex
+    local key = bit32.bor(bit32.lshift(roomId, 4), directionIndex)
     if frontierIndexByKey[key] then
         return
     end
@@ -105,7 +109,7 @@ local function addFrontier(frontier, frontierIndexByKey, roomId, directionIndex)
 end
 
 local function removeFrontier(frontier, frontierIndexByKey, roomId, directionIndex)
-    local key = roomId * 10 + directionIndex
+    local key = bit32.bor(bit32.lshift(roomId, 4), directionIndex)
     local index = frontierIndexByKey[key]
     if not index then
         return
@@ -129,8 +133,10 @@ local function popRandomFrontier(frontier, frontierIndexByKey, random)
 
     local index = random:NextInteger(1, #frontier)
     local key = frontier[index]
-    removeFrontier(frontier, frontierIndexByKey, math.floor(key / 10), key % 10)
-    return { RoomId = math.floor(key / 10), Direction = key % 10 }
+    local roomId = bit32.rshift(key, 4)
+    local directionIndex = bit32.band(key, 0xF)
+    removeFrontier(frontier, frontierIndexByKey, roomId, directionIndex)
+    return { RoomId = roomId, Direction = directionIndex }
 end
 
 local function buildPrefabQuotas(roomCount)
@@ -562,7 +568,8 @@ local function buildAttempt(seed, config)
             edgeDirectionFromA, edgeDirectionFromB = directionFromB, directionFromA
         end
 
-        local edgeKey = edgeRoomAId * 1000 + edgeRoomBId
+        -- Bolt Optimization: Numeric edge key with collision-safe bit-packing
+        local edgeKey = bit32.bor(bit32.lshift(edgeRoomAId, 16), edgeRoomBId)
         edgesByKey[edgeKey] = {
             RoomAId = edgeRoomAId,
             RoomBId = edgeRoomBId,
