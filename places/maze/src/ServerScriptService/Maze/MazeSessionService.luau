@@ -677,6 +677,20 @@ function MazeSessionService:_spawnCorpseForPlayer(player)
     self.CorpsesByUserId[player.UserId] = corpse
 end
 
+function MazeSessionService:_completeExpeditionIfNoActivePlayers()
+    if self.RunTracker:getActiveCount() ~= 0 then
+        return false
+    end
+
+    local completed, reason = self.RunTracker:completeExpedition()
+    if not completed then
+        return nil, reason
+    end
+
+    self.MonsterService:destroy()
+    return true
+end
+
 function MazeSessionService:_handlePlayerDeath(player, damageKind)
     self:_spawnCorpseForPlayer(player)
     self:_syncPlayerMovement(player)
@@ -687,15 +701,10 @@ function MazeSessionService:_handlePlayerDeath(player, damageKind)
         return
     end
 
-    local mazeCompleted = self.RunTracker:getActiveCount() == 0
-    if mazeCompleted then
-        local completed, reason = self.RunTracker:completeExpedition()
-        if not completed then
-            self:_setStatus(string.format('Maze completion failed: %s', tostring(reason)))
-            return
-        end
-
-        self.MonsterService:destroy()
+    local mazeCompleted, completionReason = self:_completeExpeditionIfNoActivePlayers()
+    if mazeCompleted == nil then
+        self:_setStatus(string.format('Maze completion failed: %s', tostring(completionReason)))
+        return
     end
 
     if self:_teleportToCamp({ player }, { summary }, mazeCompleted) then
@@ -829,15 +838,10 @@ function MazeSessionService:_returnPlayerToRunEntrance(player, returnReason, _in
         return
     end
 
-    local mazeCompleted = self.RunTracker:getActiveCount() == 0
-    if mazeCompleted then
-        local completed, completionReason = self.RunTracker:completeExpedition()
-        if not completed then
-            self:_setStatus(string.format('Maze completion failed: %s', tostring(completionReason)))
-            return
-        end
-
-        self.MonsterService:destroy()
+    local mazeCompleted, completionReason = self:_completeExpeditionIfNoActivePlayers()
+    if mazeCompleted == nil then
+        self:_setStatus(string.format('Maze completion failed: %s', tostring(completionReason)))
+        return
     end
 
     self:_clearPlayerMovement(player)

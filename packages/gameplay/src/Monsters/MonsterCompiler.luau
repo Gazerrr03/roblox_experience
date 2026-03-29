@@ -19,6 +19,15 @@ local function cloneRuntimeEffect(effectIntent)
     return table.freeze(runtimeEffect)
 end
 
+local function cloneRuntimePresentation(presentation)
+    return table.freeze({
+        ModelAssetId = presentation.ModelAssetId,
+        RigType = presentation.RigType,
+        AnimationMode = presentation.AnimationMode,
+        ChaseLoopSoundAssetId = presentation.ChaseLoopSoundAssetId,
+    })
+end
+
 function MonsterCompiler.compileMonsterForMaze(authorProfile)
     local validAuthorProfile, authorReason = MonsterAuthorProfile.validate(authorProfile)
     if not validAuthorProfile then
@@ -52,6 +61,7 @@ function MonsterCompiler.compileMonsterForMaze(authorProfile)
     local runtimeProfile = table.freeze({
         Id = authorProfile.Id,
         Name = authorProfile.Name,
+        Presentation = cloneRuntimePresentation(authorProfile.Presentation),
         Speed = authorProfile.NumericProfile.Speed,
         SightRange = authorProfile.NumericProfile.SightRange,
         PatrolSpeedMultiplier = authorProfile.NumericProfile.PatrolSpeedMultiplier,
