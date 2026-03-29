@@ -1,0 +1,124 @@
+name: Nightly Publish
+
+on:
+  schedule:
+    - cron: '0 15 * * *' # 23:00 Beijing Time (UTC+8)
+  workflow_dispatch:
+
+env:
+  PLACE_ID_MAZE: 114148445477110
+  PLACE_ID_RUN: 137478567439901
+  PLACE_ID_LIMINAL: 86424182464617
+
+jobs:
+  publish:
+    name: Build and Publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Aftman toolchain
+        uses: ok-nick/setup-aftman@v0.4.2
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git fetch --all
+
+      - name: Publish Maze
+        shell: bash
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+        run: |
+          echo "Preparing Maze content..."
+          git checkout maze || git checkout -b maze origin/maze
+          git merge origin/contract --no-edit || echo "No contract changes to merge or conflict"
+
+          echo "Installing dependencies..."
+          wally install
+
+          echo "Injecting placeId and DevPackages into project file..."
+          python3 -c "
+          import json, os
+          path = 'places/maze/default.project.json'
+          if not os.path.exists(path):
+              print(f'Error: {path} not found')
+              exit(1)
+          with open(path, 'r') as f:
+              d = json.load(f)
+          d['placeId'] = int(os.environ['PLACE_ID_MAZE'])
+          if 'DevPackages' not in d['tree']['ReplicatedStorage']:
+              d['tree']['ReplicatedStorage']['DevPackages'] = {'$path': '../../DevPackages'}
+          with open(path, 'w') as f:
+              json.dump(d, f, indent=2)
+          "
+
+          echo "Uploading to Roblox (Maze)..."
+          rojo upload places/maze/default.project.json --api-key "$ROBLOX_API_KEY"
+
+          echo "Restoring project file..."
+          git restore places/maze/default.project.json
+
+      - name: Publish Run and Liminal
+        shell: bash
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+        run: |
+          echo "Preparing Run content..."
+          # Clean up from previous step
+          git clean -fdx
+          git checkout run || git checkout -b run origin/run
+          git merge origin/contract --no-edit || echo "No contract changes to merge or conflict"
+
+          echo "Installing dependencies..."
+          wally install
+
+          echo "Injecting DevPackages into project file..."
+          python3 -c "
+          import json, os
+          path = 'places/run/default.project.json'
+          if not os.path.exists(path):
+              print(f'Error: {path} not found')
+              exit(1)
+          with open(path, 'r') as f:
+              d = json.load(f)
+          if 'DevPackages' not in d['tree']['ReplicatedStorage']:
+              d['tree']['ReplicatedStorage']['DevPackages'] = {'$path': '../../DevPackages'}
+          with open(path, 'w') as f:
+              json.dump(d, f, indent=2)
+          "
+
+          # Publish to Run
+          echo "Injecting Run placeId..."
+          python3 -c "
+          import json, os
+          path = 'places/run/default.project.json'
+          with open(path, 'r') as f:
+              d = json.load(f)
+          d['placeId'] = int(os.environ['PLACE_ID_RUN'])
+          with open(path, 'w') as f:
+              json.dump(d, f, indent=2)
+          "
+          echo "Uploading to Roblox (Run)..."
+          rojo upload places/run/default.project.json --api-key "$ROBLOX_API_KEY"
+
+          # Publish to Liminal
+          echo "Injecting Liminal placeId..."
+          python3 -c "
+          import json, os
+          path = 'places/run/default.project.json'
+          with open(path, 'r') as f:
+              d = json.load(f)
+          d['placeId'] = int(os.environ['PLACE_ID_LIMINAL'])
+          with open(path, 'w') as f:
+              json.dump(d, f, indent=2)
+          "
+          echo "Uploading to Roblox (Liminal)..."
+          rojo upload places/run/default.project.json --api-key "$ROBLOX_API_KEY"
+
+          echo "Restoring project file..."
+          git restore places/run/default.project.json

@@ -12,6 +12,8 @@ Roblox game skeleton for a multi-place experience:
 - `packages/ui`: lightweight UI helpers for the first vertical slice
 - `DevPackages`: Wally-generated third-party dependencies, kept separate from repo-owned source
 
+Root-level file routing for contributors is documented in `ROOT_ROUTE.md`.
+
 ## Place Delivery Lines
 
 Parallel work on the experience is split into four long-lived lines:
@@ -143,6 +145,35 @@ rojo serve places/lobby/default.project.json --port 34873
 - In a local Studio session, `game.PlaceId` and `game.GameId` may still be `0`, so cross-place maze teleports can remain blocked even when Rojo is connected.
 - To test the real maze teleport flow, use published `Lobby` / `Run` / `Maze` place ids.
 - To stay fully local in Studio, enable `SessionDebugLocalMazeHandoff` so run enters the in-place local debug maze fallback instead of cross-place teleporting.
+
+### Recommended Development Test Environments
+
+Use these environments as separate layers, not as substitutes for one another:
+
+1. Deterministic logic baseline
+   Run `stylua --check .`, `selene .`, and the `run-in-roblox` test place.
+2. Local `maze` iteration
+   Use `.\scripts\dev.ps1 -Place maze` for the fastest monster and expedition
+   gameplay iteration.
+3. Local `run` handoff validation
+   Use `.\scripts\dev.ps1 -Place run` with `SessionDebugLocalMazeHandoff=true`
+   in Studio to validate the run-owned local maze fallback path.
+4. Staging published smoke
+   Use a separate staging `Lobby / Run / Maze` publish setup for real teleport
+   and multiplayer smoke checks.
+
+Important boundaries:
+
+- Keep the source-controlled `SessionConfig.PlaceIds` aligned with the formal
+  published experience.
+- Use Studio attributes `SessionPlaceIdLobby`, `SessionPlaceIdRun`,
+  `SessionPlaceIdMaze`, and `SessionDebugLocalMazeHandoff` to switch local or
+  staging behavior without rewriting source defaults.
+- A passing local debug fallback is not proof that formal cross-place teleports
+  are healthy.
+
+For the full testing strategy, see
+`references/development-test-environments.md`.
 
 ### Validation Commands
 
