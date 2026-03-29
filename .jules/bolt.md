@@ -1,3 +1,0 @@
-## 2024-05-24 - Optimized Room Lookups with Spatial Hashing
-**Learning:** O(N) linear scans for spatial queries (like `findRoomByPosition`) become a bottleneck as the number of rooms increases. Repeatedly allocating `Vector3` objects and calling `.Magnitude` (which involves `math.sqrt`) inside loops creates significant GC pressure and CPU overhead in Luau.
-**Action:** Implement a grid-based spatial hash during initialization for O(1) average-case lookups. Use component-wise math (X/Z) and squared distance comparisons to avoid object allocations and expensive square root operations. Always include a fallback to maintain API contracts if a spatial neighborhood search misses.

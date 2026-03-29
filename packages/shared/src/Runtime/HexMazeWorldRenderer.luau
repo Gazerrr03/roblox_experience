@@ -607,8 +607,10 @@ function HexMazeWorldRenderer.build(params)
     local detectionRadiusSq = detectionRadius * detectionRadius
 
     -- OPTIMIZATION: Query the spatial hash to find the nearest room.
-    -- This avoids iterating through the entire room list (O(N) -> O(1)).
-    -- Uses squared distance comparisons to avoid costly math.sqrt calls in the loop.
+    -- Profile:
+    --   - Hot path (near rooms): O(1) average-case (3x3 grid lookup)
+    --   - Fallback (far from rooms): O(N) linear scan (preserves API contract)
+    --   - Performance: Eliminates Vector3 allocations and math.sqrt in the search loop.
     local function findRoomByPosition(position)
         local nearestRoom = nil
         local nearestDistanceSq = math.huge
