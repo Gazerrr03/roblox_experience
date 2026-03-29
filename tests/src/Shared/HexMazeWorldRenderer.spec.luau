@@ -137,7 +137,8 @@ return function()
     local connectorCount = 0
     for doorwayId, doorwayLayout in pairs(layout.Doorways) do
         if layout.Rooms[doorwayLayout.RoomA] and layout.Rooms[doorwayLayout.RoomB] then
-            local connectorFloor = root:FindFirstChild(string.format('ConnectorFloor_%s', doorwayId))
+            local connectorFloor =
+                root:FindFirstChild(string.format('ConnectorFloor_%s', doorwayId))
             local connectorCeiling =
                 root:FindFirstChild(string.format('ConnectorCeiling_%s', doorwayId))
             local connectorWall1 =
@@ -151,7 +152,10 @@ return function()
             )
             assert(
                 connectorCeiling ~= nil,
-                string.format('Renderer should create a connector ceiling for doorway %s', doorwayId)
+                string.format(
+                    'Renderer should create a connector ceiling for doorway %s',
+                    doorwayId
+                )
             )
             assert(
                 connectorWall1 ~= nil and connectorWall2 ~= nil,
