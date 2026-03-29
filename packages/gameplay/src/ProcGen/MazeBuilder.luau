@@ -12,6 +12,8 @@ local HEX_DIRECTIONS = {
     { Q = 0, R = 1 },
 }
 
+local OPPOSITE_DIRECTIONS = { 4, 5, 6, 1, 2, 3 }
+
 local START_TYPE_IDS = { 'T5', 'T6', 'T7' }
 local BASE_RATIO_COUNTS = {
     T1 = 4,
@@ -32,7 +34,7 @@ local DEFAULT_DOOR_LEAF_CHANCE = 0.6
 local DEFAULT_MAX_ATTEMPTS = 200
 
 local function oppositeDirection(directionIndex)
-    return ((directionIndex + 2) % 6) + 1
+    return OPPOSITE_DIRECTIONS[directionIndex]
 end
 
 local function rotateDirection(directionIndex, steps)
@@ -49,7 +51,7 @@ local function rotateDirections(directions, steps)
 end
 
 local function axialKey(q, r)
-    return string.format('%d:%d', q, r)
+    return bit32.bor(bit32.lshift(q, 16), bit32.band(r, 0xFFFF))
 end
 
 local function axialToWorld(q, r, roomSpacing)
@@ -59,17 +61,9 @@ local function axialToWorld(q, r, roomSpacing)
     return Vector3.new(x, 0, z)
 end
 
-local function buildDirectionSet(directions)
-    local directionSet = {}
-    for _, directionIndex in ipairs(directions) do
-        directionSet[directionIndex] = true
-    end
-    return directionSet
-end
-
 local function createRoom(roomId, q, r, roomSpacing, typeId, rotationSteps, openDirections)
     local definition = HexRoomPrefabs.getDefinition(typeId)
-    local directionSet = buildDirectionSet(openDirections)
+    local doorMask = HexRoomPrefabs.computeDoorMask(openDirections)
 
     return {
         Id = roomId,
@@ -79,11 +73,10 @@ local function createRoom(roomId, q, r, roomSpacing, typeId, rotationSteps, open
             R = r,
         },
         Position = axialToWorld(q, r, roomSpacing),
-        DoorMask = HexRoomPrefabs.computeDoorMask(openDirections),
+        DoorMask = doorMask,
         DoorCount = #openDirections,
         DoorDirections = table.clone(openDirections),
         OpenDirections = table.clone(openDirections),
-        OpenDirectionSet = directionSet,
         Neighbors = {},
         ExitDirections = {},
         PrefabId = definition and definition.PrefabId or string.format('Hex_%s', typeId),
@@ -240,7 +233,7 @@ local function canPlaceVariant(rooms, roomsByAxialKey, blockedAxialKeys, q, r, o
         return false
     end
 
-    local openSet = buildDirectionSet(openDirections)
+    local openMask = HexRoomPrefabs.computeDoorMask(openDirections)
     for directionIndex, direction in ipairs(HEX_DIRECTIONS) do
         local neighborQ = q + direction.Q
         local neighborR = r + direction.R
@@ -250,9 +243,13 @@ local function canPlaceVariant(rooms, roomsByAxialKey, blockedAxialKeys, q, r, o
         end
 
         local neighbor = rooms[neighborRoomId]
-        local opposite = oppositeDirection(directionIndex)
-        local selfHasDoor = openSet[directionIndex] == true
-        local neighborHasDoor = neighbor.OpenDirectionSet[opposite] == true
+        local opposite = OPPOSITE_DIRECTIONS[directionIndex]
+        local selfHasDoor = bit32.band(openMask, HexRoomPrefabs.DirectionBitmasks[directionIndex])
+            ~= 0
+        local neighborHasDoor = bit32.band(
+            neighbor.DoorMask,
+            HexRoomPrefabs.DirectionBitmasks[opposite]
+        ) ~= 0
 
         if selfHasDoor ~= neighborHasDoor then
             return false
@@ -459,13 +456,14 @@ end
 
 local function validateRoomConnections(rooms)
     for roomId, room in pairs(rooms) do
-        local exitDirectionSet = {}
+        local exitDirectionMask = 0
         for _, directionIndex in ipairs(room.ExitDirections or {}) do
-            exitDirectionSet[directionIndex] = true
+            exitDirectionMask =
+                bit32.bor(exitDirectionMask, HexRoomPrefabs.DirectionBitmasks[directionIndex])
         end
 
         for directionIndex, neighborRoomId in pairs(room.Neighbors) do
-            if room.OpenDirectionSet[directionIndex] ~= true then
+            if bit32.band(room.DoorMask, HexRoomPrefabs.DirectionBitmasks[directionIndex]) == 0 then
                 return false, string.format('NeighborOnClosedEdge(%s:%d)', roomId, directionIndex)
             end
 
@@ -475,11 +473,11 @@ local function validateRoomConnections(rooms)
                     string.format('MissingNeighborRoom(%s:%s)', roomId, tostring(neighborRoomId))
             end
 
-            local opposite = oppositeDirection(directionIndex)
+            local opposite = OPPOSITE_DIRECTIONS[directionIndex]
             if neighbor.Neighbors[opposite] ~= roomId then
                 return false, string.format('NonMirrorNeighbor(%s:%s)', roomId, neighborRoomId)
             end
-            if neighbor.OpenDirectionSet[opposite] ~= true then
+            if bit32.band(neighbor.DoorMask, HexRoomPrefabs.DirectionBitmasks[opposite]) == 0 then
                 return false,
                     string.format('NeighborClosedMirrorEdge(%s:%s)', roomId, neighborRoomId)
             end
@@ -487,18 +485,28 @@ local function validateRoomConnections(rooms)
 
         for _, directionIndex in ipairs(room.OpenDirections) do
             local neighborRoomId = room.Neighbors[directionIndex]
-            if neighborRoomId == nil and exitDirectionSet[directionIndex] ~= true then
+            if
+                neighborRoomId == nil
+                and bit32.band(
+                        exitDirectionMask,
+                        HexRoomPrefabs.DirectionBitmasks[directionIndex]
+                    )
+                    == 0
+            then
                 return false, string.format('UnclassifiedOpenEdge(%s:%d)', roomId, directionIndex)
             end
         end
 
-        for directionIndex in pairs(exitDirectionSet) do
-            if room.Neighbors[directionIndex] ~= nil then
-                return false,
-                    string.format('ExitCollidesWithNeighbor(%s:%d)', roomId, directionIndex)
-            end
-            if room.OpenDirectionSet[directionIndex] ~= true then
-                return false, string.format('ExitOnClosedEdge(%s:%d)', roomId, directionIndex)
+        for directionIndex = 1, 6 do
+            local directionBit = HexRoomPrefabs.DirectionBitmasks[directionIndex]
+            if bit32.band(exitDirectionMask, directionBit) ~= 0 then
+                if room.Neighbors[directionIndex] ~= nil then
+                    return false,
+                        string.format('ExitCollidesWithNeighbor(%s:%d)', roomId, directionIndex)
+                end
+                if bit32.band(room.DoorMask, directionBit) == 0 then
+                    return false, string.format('ExitOnClosedEdge(%s:%d)', roomId, directionIndex)
+                end
             end
         end
     end
@@ -616,7 +624,7 @@ local function buildAttempt(seed, config)
             local existingRoom = rooms[existingRoomId]
             if
                 existingRoom
-                and existingRoom.OpenDirectionSet[opposite] == true
+                and bit32.band(existingRoom.DoorMask, HexRoomPrefabs.DirectionBitmasks[opposite]) ~= 0
                 and existingRoom.Neighbors[opposite] == nil
             then
                 connectRooms(sourceRoom, frontierEntry.Direction, existingRoom)
@@ -662,10 +670,13 @@ local function buildAttempt(seed, config)
 
             if neighborRoomId then
                 local neighborRoom = rooms[neighborRoomId]
-                local oppositeDirectionIndex = oppositeDirection(directionIndex)
+                local oppositeDirectionIndex = OPPOSITE_DIRECTIONS[directionIndex]
                 if
                     neighborRoom
-                    and neighborRoom.OpenDirectionSet[oppositeDirectionIndex] == true
+                    and bit32.band(
+                        neighborRoom.DoorMask,
+                        HexRoomPrefabs.DirectionBitmasks[oppositeDirectionIndex]
+                    ) ~= 0
                     and neighborRoom.Neighbors[oppositeDirectionIndex] == nil
                     and newRoom.Neighbors[directionIndex] == nil
                 then
