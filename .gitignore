@@ -1,5 +1,6 @@
 .DS_Store
 DevPackages
+tmp/
 *.rbxlx.lock
 *.rbxl.lock
 *.project.user.json
