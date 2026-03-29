@@ -582,6 +582,7 @@ function MazeSessionService:_broadcastSnapshot()
         self.RunTracker:getReturnedSummaries()
     )
     local mazeStatus = self:_getMazeStatus()
+    local worldBuildFields = self:_getWorldBuildMetadataFields()
 
     for _, player in ipairs(Players:GetPlayers()) do
         self.Remotes.MazeState:FireClient(player, {
@@ -600,16 +601,11 @@ function MazeSessionService:_broadcastSnapshot()
             MazeStatus = mazeStatus,
             ReturnedPlayerSummaries = returnedSummaries,
             IsDirectBoot = self.IsDirectBoot,
-            WorldBuildSeed = self.WorldBuildMetadata and self.WorldBuildMetadata.Seed or nil,
-            WorldBuildSessionId = self.WorldBuildMetadata and self.WorldBuildMetadata.SessionId
-                or nil,
-            WorldBuildMazeAccessCode = self.WorldBuildMetadata
-                    and self.WorldBuildMetadata.MazeAccessCode
-                or nil,
-            WorldBuildIsDirectBoot = self.WorldBuildMetadata
-                    and self.WorldBuildMetadata.IsDirectBoot
-                or nil,
-            WorldBuildSource = self.WorldBuildMetadata and self.WorldBuildMetadata.Source or nil,
+            WorldBuildSeed = worldBuildFields.WorldBuildSeed,
+            WorldBuildSessionId = worldBuildFields.WorldBuildSessionId,
+            WorldBuildMazeAccessCode = worldBuildFields.WorldBuildMazeAccessCode,
+            WorldBuildIsDirectBoot = worldBuildFields.WorldBuildIsDirectBoot,
+            WorldBuildSource = worldBuildFields.WorldBuildSource,
         })
 
         self.Remotes.MazePrivateState:FireClient(player, nil)
