@@ -332,7 +332,7 @@ function MazeSessionService:_mergeTeleportData(teleportData, resetInventoryServi
         ResetInventoryService = resetInventoryService == true,
     }
 
-    if type(teleportData) ~= 'table' then
+    local function finalizeResult()
         result.ResultIsDirectBoot = self.IsDirectBoot
         result.ResultMazeAccessCode = self.CampSession and self.CampSession.MazeAccessCode or nil
         result.ResultSeed = self.SessionData.Seed
@@ -340,25 +340,21 @@ function MazeSessionService:_mergeTeleportData(teleportData, resetInventoryServi
         return result
     end
 
+    if type(teleportData) ~= 'table' then
+        return finalizeResult()
+    end
+
     local incomingSession = teleportData.CampSession
     result.HadCampSession = type(incomingSession) == 'table'
     if type(incomingSession) ~= 'table' then
-        result.ResultIsDirectBoot = self.IsDirectBoot
-        result.ResultMazeAccessCode = self.CampSession and self.CampSession.MazeAccessCode or nil
-        result.ResultSeed = self.SessionData.Seed
-        result.ResultSessionId = self.CampSession and self.CampSession.SessionId or nil
-        return result
+        return finalizeResult()
     end
 
     local nextSession, accepted =
         CampMazeSessionContract.reconcileIncomingCampSession(self.CampSession, incomingSession)
     result.Accepted = accepted == true
     if not accepted then
-        result.ResultIsDirectBoot = self.IsDirectBoot
-        result.ResultMazeAccessCode = self.CampSession and self.CampSession.MazeAccessCode or nil
-        result.ResultSeed = self.SessionData.Seed
-        result.ResultSessionId = self.CampSession and self.CampSession.SessionId or nil
-        return result
+        return finalizeResult()
     end
 
     local incoming = teleportData.SessionConfig
@@ -387,12 +383,7 @@ function MazeSessionService:_mergeTeleportData(teleportData, resetInventoryServi
         self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
     end
 
-    result.ResultIsDirectBoot = self.IsDirectBoot
-    result.ResultMazeAccessCode = self.CampSession and self.CampSession.MazeAccessCode or nil
-    result.ResultSeed = self.SessionData.Seed
-    result.ResultSessionId = self.CampSession and self.CampSession.SessionId or nil
-
-    return result
+    return finalizeResult()
 end
 
 function MazeSessionService:_loadSessionDataFromJoin()
