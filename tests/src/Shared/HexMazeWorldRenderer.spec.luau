@@ -134,6 +134,41 @@ return function()
     )
 
     local leafDoorwayId = nil
+    local connectorCount = 0
+    for doorwayId, doorwayLayout in pairs(layout.Doorways) do
+        if layout.Rooms[doorwayLayout.RoomA] and layout.Rooms[doorwayLayout.RoomB] then
+            local connectorFloor =
+                root:FindFirstChild(string.format('ConnectorFloor_%s', doorwayId))
+            local connectorCeiling =
+                root:FindFirstChild(string.format('ConnectorCeiling_%s', doorwayId))
+            local connectorWall1 =
+                root:FindFirstChild(string.format('ConnectorWall_%s_%d', doorwayId, 1))
+            local connectorWall2 =
+                root:FindFirstChild(string.format('ConnectorWall_%s_%d', doorwayId, 2))
+
+            assert(
+                connectorFloor ~= nil,
+                string.format('Renderer should create a connector floor for doorway %s', doorwayId)
+            )
+            assert(
+                connectorCeiling ~= nil,
+                string.format(
+                    'Renderer should create a connector ceiling for doorway %s',
+                    doorwayId
+                )
+            )
+            assert(
+                connectorWall1 ~= nil and connectorWall2 ~= nil,
+                string.format('Renderer should create connector walls for doorway %s', doorwayId)
+            )
+            connectorCount += 1
+        end
+    end
+    assert(
+        connectorCount >= 1,
+        'Renderer should build connector geometry between neighboring rooms'
+    )
+
     for doorwayId, doorway in pairs(rendered.Doorways) do
         if doorway.HasDoorLeaves then
             leafDoorwayId = doorwayId
