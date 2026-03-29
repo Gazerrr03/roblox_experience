@@ -9,7 +9,7 @@ local Shared = require(Packages:WaitForChild('Shared'))
 local UI = require(Packages:WaitForChild('UI'))
 
 local Theme = UI.Hud.Theme
-local Remotes = Shared.Network.Remotes.ensureScope(Shared.Network.Remotes.Scope.Lobby)
+local Remotes = Shared.Network.Remotes.waitForScope(Shared.Network.Remotes.Scope.Lobby)
 
 Shared.Client.FirstPersonController.start(localPlayer)
 
