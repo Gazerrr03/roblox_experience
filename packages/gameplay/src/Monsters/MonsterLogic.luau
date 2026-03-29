@@ -2,17 +2,13 @@ local MonsterLogic = {}
 
 function MonsterLogic.pickNearestTarget(currentPosition, playerPositions, sightRange)
     local closestPlayer = nil
-    local closestDistanceSq = sightRange * sightRange
+    local closestDistance = sightRange
 
     for player, position in pairs(playerPositions) do
-        local offset = position - currentPosition
-        -- Optimization: Use squared distance to avoid expensive square root (Magnitude)
-        -- Benchmark Note: This replaces a .Magnitude call (sqrt(x^2 + y^2 + z^2)) with a
-        -- simple dot product (x:Dot(x)), saving ~15-20% per iteration in the loop.
-        local distanceSq = offset:Dot(offset)
-        if distanceSq <= closestDistanceSq then
+        local distance = (position - currentPosition).Magnitude
+        if distance <= closestDistance then
             closestPlayer = player
-            closestDistanceSq = distanceSq
+            closestDistance = distance
         end
     end
 

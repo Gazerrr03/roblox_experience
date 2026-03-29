@@ -1,5 +1,3 @@
-local MonsterPresentationCatalog = require(script.Parent.MonsterPresentationCatalog)
-
 local MonsterRuntimeProfile = {}
 
 local function isNonEmptyString(value)
@@ -17,33 +15,6 @@ function MonsterRuntimeProfile.validate(profile)
 
     if not isNonEmptyString(profile.Name) then
         return false, 'MissingRuntimeName'
-    end
-
-    local presentation = profile.Presentation
-    if type(presentation) ~= 'table' then
-        return false, 'MissingRuntimePresentation'
-    end
-
-    if type(presentation.ModelAssetId) ~= 'number' or presentation.ModelAssetId <= 0 then
-        return false, 'InvalidRuntimeModelAssetId'
-    end
-
-    if not MonsterPresentationCatalog.KnownRigType[presentation.RigType] then
-        return false, 'InvalidRuntimeRigType'
-    end
-
-    if not MonsterPresentationCatalog.KnownAnimationMode[presentation.AnimationMode] then
-        return false, 'InvalidRuntimeAnimationMode'
-    end
-
-    if
-        presentation.ChaseLoopSoundAssetId ~= nil
-        and (
-            type(presentation.ChaseLoopSoundAssetId) ~= 'number'
-            or presentation.ChaseLoopSoundAssetId <= 0
-        )
-    then
-        return false, 'InvalidRuntimeChaseLoopSoundAssetId'
     end
 
     if type(profile.Speed) ~= 'number' or profile.Speed <= 0 then

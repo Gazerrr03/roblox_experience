@@ -90,33 +90,6 @@ Useful local commands:
 - `cd places/run && rojo serve`
 - `rojo build tests/default.project.json -o <output.rbxlx>`
 
-## Development Test Environments
-
-Treat local validation as a stack of separate signals:
-
-1. deterministic logic baseline
-2. local `maze` iteration
-3. local `run` handoff validation with `SessionDebugLocalMazeHandoff=true`
-4. staging published smoke for real teleport and multiplayer checks
-
-Do not rely on a single environment for all of those answers.
-
-Environment switching rules:
-
-- Keep `packages/shared/src/Config/SessionConfig.luau` pointed at the formal
-  published defaults.
-- Use Studio attributes on `game` or `ReplicatedStorage` for temporary
-  overrides:
-  - `SessionPlaceIdLobby`
-  - `SessionPlaceIdRun`
-  - `SessionPlaceIdMaze`
-  - `SessionDebugLocalMazeHandoff`
-- Prefer a dedicated staging published setup over the formal production
-  experience for real teleport smoke tests.
-
-For the full layered strategy, see
-`references/development-test-environments.md`.
-
 ## Studio-Backed Tests
 
 The closest local reproduction of the CI Roblox test path is:

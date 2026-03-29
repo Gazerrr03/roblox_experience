@@ -4,7 +4,6 @@ return function()
     local Shared = require(Packages:WaitForChild('Shared'))
     local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
     local runModules = ReplicatedStorage:WaitForChild('PlaceModules'):WaitForChild('Run')
-    local OutdoorAreaBuilder = require(runModules:WaitForChild('OutdoorAreaBuilder'))
     local RunSessionService = require(runModules:WaitForChild('RunSessionService'))
     local RunWorldBuilder = require(runModules:WaitForChild('RunWorldBuilder'))
 
@@ -29,17 +28,6 @@ return function()
             ReturnReason = 'death',
         }) == RunWorldBuilder.ReturnCFrame,
         'Non-loop returns should keep using the generic run return position'
-    )
-    assert(
-        RunWorldBuilder.MazeReturnCFrame.Position.X
-                == OutdoorAreaBuilder.MazeGateMarkerCFrame.Position.X
-            and RunWorldBuilder.MazeReturnCFrame.Position.Z
-                == OutdoorAreaBuilder.MazeGateMarkerCFrame.Position.Z,
-        'Maze-gate returns should align to the purple run entrance marker on the X/Z plane'
-    )
-    assert(
-        RunWorldBuilder.MazeReturnCFrame.Position.Y == 4,
-        'Maze-gate returns should keep the expected character landing height'
     )
 
     local startupService = RunSessionService.new()

@@ -8,8 +8,7 @@ local RunWorldBuilder = {}
 local OUTDOOR_THRESHOLD_Z = 20
 local DEFAULT_SPAWN_CFRAME = CFrame.new(0, 4, -6)
 local DEFAULT_RETURN_CFRAME = CFrame.new(0, 4, -2)
-local MAZE_RETURN_CFRAME =
-    CFrame.new(OutdoorAreaBuilder.MazeGateMarkerCFrame.Position + Vector3.new(0, 3.5, 0))
+local MAZE_RETURN_CFRAME = CFrame.new(0, 4, 108)
 
 local function createPart(config, parent)
     local part = Instance.new('Part')

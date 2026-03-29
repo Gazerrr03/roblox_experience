@@ -16,7 +16,6 @@ local DOOR_LEAF_THICKNESS = 0.5
 local DOOR_CLEARANCE = 0
 local ROOM_DETECTION_BUFFER = 18
 local EXIT_CORRIDOR_LENGTH = 6
-local CONNECTOR_OVERLAP = 1
 local HEX_CIRCUMRADIUS_MULTIPLIER = 1 / math.cos(math.pi / 6)
 local SIDE_ANGLE_OFFSET_DEGREES = 0
 
@@ -456,55 +455,6 @@ local function buildExitCorridors(parent, room, roomCenter, roomApothem, surface
     end
 end
 
-local function buildRoomConnector(
-    parent,
-    doorwayId,
-    roomCenterA,
-    roomCenterB,
-    directionFromA,
-    roomApothem,
-    surfacePalette
-)
-    local normal, tangent = sideVectors(directionFromA)
-    local centerDistance = (roomCenterB - roomCenterA).Magnitude
-    local connectorLength = math.max(
-        WALL_THICKNESS,
-        centerDistance - (roomApothem * 2) + (WALL_THICKNESS + CONNECTOR_OVERLAP)
-    )
-
-    local connectorCenter = (roomCenterA + roomCenterB) * 0.5
-    local corridorBaseCenter = connectorCenter + Vector3.new(0, -(SLAB_THICKNESS / 2), 0)
-    local corridorForward = CFrame.lookAt(corridorBaseCenter, corridorBaseCenter + normal)
-
-    createPart({
-        Name = string.format('ConnectorFloor_%s', doorwayId),
-        Size = Vector3.new(DOORWAY_WIDTH, SLAB_THICKNESS, connectorLength),
-        CFrame = corridorForward,
-        Color = surfacePalette.FloorColor,
-        Material = surfacePalette.FloorMaterial,
-    }, parent)
-
-    createPart({
-        Name = string.format('ConnectorCeiling_%s', doorwayId),
-        Size = Vector3.new(DOORWAY_WIDTH, SLAB_THICKNESS, connectorLength),
-        CFrame = corridorForward + Vector3.new(0, ROOM_CLEAR_HEIGHT + SLAB_THICKNESS, 0),
-        Color = surfacePalette.CeilingColor,
-        Material = surfacePalette.CeilingMaterial,
-    }, parent)
-
-    for index, sign in ipairs({ -1, 1 }) do
-        createPart({
-            Name = string.format('ConnectorWall_%s_%d', doorwayId, index),
-            Size = Vector3.new(WALL_THICKNESS, WALL_HEIGHT, connectorLength),
-            CFrame = corridorForward
-                + (tangent * ((DOORWAY_WIDTH / 2) + (WALL_THICKNESS / 2)) * sign)
-                + Vector3.new(0, WALL_HEIGHT / 2, 0),
-            Color = surfacePalette.WallColor,
-            Material = surfacePalette.WallMaterial,
-        }, parent)
-    end
-end
-
 function HexMazeWorldRenderer.build(params)
     local worldName = params.WorldName or 'GeneratedMazeWorld'
     local layout = params.Layout
@@ -530,6 +480,11 @@ function HexMazeWorldRenderer.build(params)
     local roomFolders = {}
     local doorways = {}
 
+    -- OPTIMIZATION: Use a spatial hash for O(1) room lookups by world position.
+    -- This avoids O(N) linear scans through all rooms during distance checks.
+    local gridSize = roomApothem * 2
+    local spatialHash = {}
+
     for roomId in pairs(layout.Rooms) do
         table.insert(roomIds, roomId)
     end
@@ -540,6 +495,17 @@ function HexMazeWorldRenderer.build(params)
         local roomCenter = room.Position + originOffset
         roomCenters[roomId] = roomCenter
         roomById[roomId] = room
+
+        -- Index room by grid coordinate to enable fast spatial queries
+        local gx = math.floor(roomCenter.X / gridSize)
+        local gz = math.floor(roomCenter.Z / gridSize)
+        if not spatialHash[gx] then
+            spatialHash[gx] = {}
+        end
+        if not spatialHash[gx][gz] then
+            spatialHash[gx][gz] = {}
+        end
+        table.insert(spatialHash[gx][gz], roomId)
 
         roomFolders[roomId] = buildRoom(worldFolder, room, roomCenter, roomApothem, {
             IncludeRoomMarker = includeRoomMarker,
@@ -553,21 +519,8 @@ function HexMazeWorldRenderer.build(params)
 
     for doorwayId, doorwayLayout in pairs(layout.Doorways) do
         local roomCenter = roomCenters[doorwayLayout.RoomA]
-        local otherRoomCenter = roomCenters[doorwayLayout.RoomB]
         if not roomCenter then
             continue
-        end
-
-        if otherRoomCenter then
-            buildRoomConnector(
-                worldFolder,
-                doorwayId,
-                roomCenter,
-                otherRoomCenter,
-                doorwayLayout.DirectionFromA,
-                roomApothem,
-                surfacePalette
-            )
         end
 
         local doorway = createDoorwayInstance(
@@ -588,27 +541,69 @@ function HexMazeWorldRenderer.build(params)
 
     local detectionRadius = roomApothem + detectionBuffer
 
+    local detectionRadiusSq = detectionRadius * detectionRadius
+
+    -- OPTIMIZATION: Query the spatial hash to find the nearest room.
+    -- Profile:
+    --   - Hot path (near rooms): O(1) average-case (3x3 grid lookup)
+    --   - Fallback (far from rooms): O(N) linear scan (preserves API contract)
+    --   - Performance: Eliminates Vector3 allocations and math.sqrt in the search loop.
+    local gridSizeSq = gridSize * gridSize
+
     local function findRoomByPosition(position)
         local nearestRoom = nil
-        local nearestDistance = math.huge
-        local flatPosition = Vector3.new(position.X, 0, position.Z)
+        local nearestDistanceSq = math.huge
 
-        for _, roomId in ipairs(roomIds) do
-            local room = roomById[roomId]
+        local px, pz = position.X, position.Z
+
+        local function updateNearest(roomId)
             local roomCenter = roomCenters[roomId]
-            local flatCenter = Vector3.new(roomCenter.X, 0, roomCenter.Z)
-            local distance = (flatCenter - flatPosition).Magnitude
-            if distance < nearestDistance then
-                nearestDistance = distance
-                nearestRoom = room
+            local dx = roomCenter.X - px
+            local dz = roomCenter.Z - pz
+            local distSq = dx * dx + dz * dz
+
+            if distSq < nearestDistanceSq then
+                nearestDistanceSq = distSq
+                nearestRoom = roomById[roomId]
             end
         end
 
-        if nearestDistance <= detectionRadius then
-            return nearestRoom, nearestDistance
+        local gx = math.floor(px / gridSize)
+        local gz = math.floor(pz / gridSize)
+
+        -- Check the 3x3 grid neighborhood around the position
+        for ox = -1, 1 do
+            local cellX = spatialHash[gx + ox]
+            if not cellX then
+                continue
+            end
+
+            for oz = -1, 1 do
+                local bucket = cellX[gz + oz]
+                if not bucket then
+                    continue
+                end
+
+                for _, roomId in ipairs(bucket) do
+                    updateNearest(roomId)
+                end
+            end
         end
 
-        return nil, nearestDistance
+        -- If no room was found in the neighborhood, or if the best 3x3 result is still at
+        -- least one full grid cell away, fall back to a full scan to preserve the
+        -- API contract of always finding the absolute nearest room.
+        if nearestRoom == nil or nearestDistanceSq >= gridSizeSq then
+            for _, roomId in ipairs(roomIds) do
+                updateNearest(roomId)
+            end
+        end
+
+        if nearestDistanceSq <= detectionRadiusSq then
+            return nearestRoom, math.sqrt(nearestDistanceSq)
+        end
+
+        return nil, math.sqrt(nearestDistanceSq)
     end
 
     local function canTraverseBetweenPositions(fromPosition, toPosition)
