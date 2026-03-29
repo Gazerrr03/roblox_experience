@@ -533,6 +533,7 @@ function HexMazeWorldRenderer.build(params)
     -- OPTIMIZATION: Use a spatial hash for O(1) room lookups by world position.
     -- This avoids O(N) linear scans through all rooms during distance checks.
     local gridSize = roomApothem * 2
+    local gridSizeSq = gridSize * gridSize
     local spatialHash = {}
 
     for roomId in pairs(layout.Rooms) do
@@ -616,6 +617,19 @@ function HexMazeWorldRenderer.build(params)
         local nearestDistanceSq = math.huge
 
         local px, pz = position.X, position.Z
+
+        local function updateNearest(roomId)
+            local roomCenter = roomCenters[roomId]
+            local dx = roomCenter.X - px
+            local dz = roomCenter.Z - pz
+            local distSq = dx * dx + dz * dz
+
+            if distSq < nearestDistanceSq then
+                nearestDistanceSq = distSq
+                nearestRoom = roomById[roomId]
+            end
+        end
+
         local gx = math.floor(px / gridSize)
         local gz = math.floor(pz / gridSize)
 
@@ -633,32 +647,17 @@ function HexMazeWorldRenderer.build(params)
                 end
 
                 for _, roomId in ipairs(bucket) do
-                    local roomCenter = roomCenters[roomId]
-                    local dx = roomCenter.X - px
-                    local dz = roomCenter.Z - pz
-                    local distSq = dx * dx + dz * dz
-
-                    if distSq < nearestDistanceSq then
-                        nearestDistanceSq = distSq
-                        nearestRoom = roomById[roomId]
-                    end
+                    updateNearest(roomId)
                 end
             end
         end
 
-        -- If no room was found in the neighborhood, fall back to a full scan to preserve
-        -- the API contract of always finding the absolute nearest room.
-        if nearestRoom == nil then
+        -- If no room was found or the nearest room from the 3x3 neighborhood is still at
+        -- least one grid cell away, fall back to a full scan to preserve the API contract
+        -- of always finding the absolute nearest room.
+        if nearestRoom == nil or nearestDistanceSq >= gridSizeSq then
             for _, roomId in ipairs(roomIds) do
-                local roomCenter = roomCenters[roomId]
-                local dx = roomCenter.X - px
-                local dz = roomCenter.Z - pz
-                local distSq = dx * dx + dz * dz
-
-                if distSq < nearestDistanceSq then
-                    nearestDistanceSq = distSq
-                    nearestRoom = roomById[roomId]
-                end
+                updateNearest(roomId)
             end
         end
 
