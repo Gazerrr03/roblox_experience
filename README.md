@@ -12,6 +12,8 @@ Roblox game skeleton for a multi-place experience:
 - `packages/ui`: lightweight UI helpers for the first vertical slice
 - `DevPackages`: Wally-generated third-party dependencies, kept separate from repo-owned source
 
+Root-level file routing for contributors is documented in `ROOT_ROUTE.md`.
+
 ## Place Delivery Lines
 
 Parallel work on the experience is split into four long-lived lines:
