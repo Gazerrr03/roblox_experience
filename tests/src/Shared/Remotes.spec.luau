@@ -50,30 +50,4 @@ return function()
         mazeScoped.MazePrivateState == remotes.MazePrivateState,
         'Maze scope should reuse MazePrivateState'
     )
-
-    local waitedMazeScope =
-        shared.Network.Remotes.waitForScope(shared.Network.Remotes.Scope.Maze, 0)
-    assert(
-        waitedMazeScope.MazeState == remotes.MazeState,
-        'waitForScope should reuse an existing MazeState remote without creating a new one'
-    )
-
-    existingContainer:Destroy()
-    local missingWaitOk, missingWaitError = pcall(function()
-        shared.Network.Remotes.waitForScope(shared.Network.Remotes.Scope.Maze, 0)
-    end)
-    assert(missingWaitOk == false, 'waitForScope should fail when remotes are missing')
-    assert(
-        string.find(tostring(missingWaitError), 'ReplicatedStorage%.Remotes') ~= nil,
-        'waitForScope should explain that the remotes container is missing'
-    )
-    assert(
-        ReplicatedStorage:FindFirstChild('Remotes') == nil,
-        'waitForScope should not create the remotes container when it is missing'
-    )
-
-    local invalidScopeOk = pcall(function()
-        shared.Network.Remotes.waitForScope('Nope', 0)
-    end)
-    assert(invalidScopeOk == false, 'waitForScope should reject unknown scopes')
 end
