@@ -5,6 +5,7 @@ return {
     InventoryService = require(script.InventoryService),
     MazeDebugWorldComposer = require(script.MazeDebugWorldComposer),
     MazeFormalWorldComposer = require(script.MazeFormalWorldComposer),
+    MazeLightingProfile = require(script.MazeLightingProfile),
     MazeModuleAssetContract = require(script.MazeModuleAssetContract),
     MazeWorldShellBuilder = require(script.MazeWorldShellBuilder),
     MonsterService = require(script.MonsterService),
