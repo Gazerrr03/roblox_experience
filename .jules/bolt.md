@@ -1,3 +1,0 @@
-## 2026-03-25 - [O(1) Spatial Hash for Room Lookups]
-**Learning:** High-frequency functions like `findRoomByPosition` and `canTraverseBetweenPositions` in a procedural maze context are critical for performance, as they are called on every heartbeat for multiple AI agents (monsters). $O(N)$ searches and string allocations in these hot paths quickly become a major bottleneck due to GC pressure and CPU usage.
-**Action:** Always implement spatial indexing (grid-based hashes) for position-based queries and pre-indexed adjacency maps for entity relationship checks. Avoid all string formatting and `Vector3` allocations in heartbeat-driven loops.

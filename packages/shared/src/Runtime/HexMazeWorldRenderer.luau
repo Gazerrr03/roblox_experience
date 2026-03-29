@@ -50,14 +50,6 @@ local function resolveSurfacePalette(surfacePalette)
     return resolvedPalette
 end
 
-local function edgeKey(roomIdA, roomIdB)
-    if roomIdA < roomIdB then
-        return string.format('%s|%s', roomIdA, roomIdB)
-    end
-
-    return string.format('%s|%s', roomIdB, roomIdA)
-end
-
 local function createPart(config, parent)
     local part = Instance.new('Part')
     part.Name = config.Name
@@ -476,7 +468,6 @@ function HexMazeWorldRenderer.build(params)
 
     local roomCenters = {}
     local roomById = {}
-    local roomIds = {}
     local roomFolders = {}
     local doorways = {}
 
@@ -490,12 +481,13 @@ function HexMazeWorldRenderer.build(params)
     local spatialHash = {}
     local spatialHashCellSize = roomApothem * 2
 
+    local sortedRoomIds = {}
     for roomId in pairs(layout.Rooms) do
-        table.insert(roomIds, roomId)
+        table.insert(sortedRoomIds, roomId)
     end
-    table.sort(roomIds)
+    table.sort(sortedRoomIds)
 
-    for _, roomId in ipairs(roomIds) do
+    for _, roomId in ipairs(sortedRoomIds) do
         local room = layout.Rooms[roomId]
         local roomCenter = room.Position + originOffset
         roomCenters[roomId] = roomCenter
@@ -563,6 +555,7 @@ function HexMazeWorldRenderer.build(params)
     end
 
     local detectionRadius = roomApothem + detectionBuffer
+    local detectionRadiusSq = detectionRadius * detectionRadius
 
     -- ⚡ Bolt: Optimized findRoomByPosition uses a grid-based spatial hash to
     -- achieve O(1) average lookup. It avoids all Vector3 allocations and uses
@@ -590,7 +583,6 @@ function HexMazeWorldRenderer.build(params)
             end
         end
 
-        local detectionRadiusSq = detectionRadius * detectionRadius
         if nearestDistanceSq <= detectionRadiusSq then
             return nearestRoom, math.sqrt(nearestDistanceSq)
         end
@@ -639,7 +631,7 @@ function HexMazeWorldRenderer.build(params)
         Layout = layout,
         RoomCenters = roomCenters,
         RoomById = roomById,
-        RoomIds = roomIds,
+        RoomIds = sortedRoomIds,
         RoomFolders = roomFolders,
         Doorways = doorways,
         ToggleDoor = toggleDoor,
