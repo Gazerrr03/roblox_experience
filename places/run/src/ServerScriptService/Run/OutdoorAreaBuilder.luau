@@ -1,4 +1,5 @@
 local OutdoorAreaBuilder = {}
+local MAZE_GATE_MARKER_CFRAME = CFrame.new(0, 0.5, 120)
 
 function OutdoorAreaBuilder.build(worldFolder, createPart, createPromptPart)
     local outdoorFolder = Instance.new('Folder')
@@ -105,7 +106,7 @@ function OutdoorAreaBuilder.build(worldFolder, createPart, createPromptPart)
     local _, mazePrompt = createPromptPart({
         Name = 'MazeGateMarker',
         Size = Vector3.new(6, 1, 6),
-        CFrame = CFrame.new(0, 0.5, 120),
+        CFrame = MAZE_GATE_MARKER_CFRAME,
         Color = Color3.fromRGB(154, 113, 214),
         Material = Enum.Material.Neon,
         ActionText = 'Enter',
@@ -119,5 +120,7 @@ function OutdoorAreaBuilder.build(worldFolder, createPart, createPromptPart)
         MazePrompt = mazePrompt,
     }
 end
+
+OutdoorAreaBuilder.MazeGateMarkerCFrame = MAZE_GATE_MARKER_CFRAME
 
 return OutdoorAreaBuilder
