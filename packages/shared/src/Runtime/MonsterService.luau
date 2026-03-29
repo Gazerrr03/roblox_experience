@@ -37,9 +37,11 @@ local function defaultLoadMonsterModel(assetId)
         return nil, assetContainer
     end
 
-    local model = (if assetContainer:IsA('Model')
-        then assetContainer:FindFirstChildWhichIsA('Model') or assetContainer
-        else assetContainer:FindFirstChildWhichIsA('Model'))
+    local model = (
+        if assetContainer:IsA('Model')
+            then assetContainer:FindFirstChildWhichIsA('Model') or assetContainer
+            else assetContainer:FindFirstChildWhichIsA('Model')
+    )
     if not model then
         assetContainer:Destroy()
         return nil, 'MissingModelInAsset'
