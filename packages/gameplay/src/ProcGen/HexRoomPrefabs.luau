@@ -8,6 +8,7 @@ HexRoomPrefabs.Directions = table.freeze({
     E = 5,
     F = 6,
 })
+HexRoomPrefabs.DirectionBitmasks = table.freeze({ 1, 2, 4, 8, 16, 32 })
 
 local ORDERED_DEFINITIONS = {
     {
@@ -87,7 +88,7 @@ local function sortDirections(directions)
 end
 
 local function directionToMaskBit(directionIndex)
-    return bit32.lshift(1, directionIndex - 1)
+    return HexRoomPrefabs.DirectionBitmasks[directionIndex]
 end
 
 function HexRoomPrefabs.computeDoorMask(directions)

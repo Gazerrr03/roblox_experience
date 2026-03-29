@@ -13,7 +13,7 @@ local HEX_DIRECTIONS = {
 }
 
 local OPPOSITE_DIRECTIONS = { 4, 5, 6, 1, 2, 3 }
-local DIRECTION_BITMASKS = { 1, 2, 4, 8, 16, 32 }
+local DIRECTION_BITMASKS = HexRoomPrefabs.DirectionBitmasks
 
 local START_TYPE_IDS = { 'T5', 'T6', 'T7' }
 local BASE_RATIO_COUNTS = {
