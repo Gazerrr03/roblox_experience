@@ -1,3 +1,0 @@
-## 2026-03-24 - Linear Room Lookup in HexMazeWorldRenderer
-**Learning:** The `findRoomByPosition` function in `HexMazeWorldRenderer` (used by the monster and for player HUD updates) performs a linear O(N) search over all rooms. For each room in each call, it also performs multiple `Vector3` allocations and calculates `.Magnitude` (which involves a square root). As the maze size grows, this becomes a significant bottleneck for both CPU and GC pressure.
-**Action:** Implement a grid-based spatial hash during the `build` process to reduce lookups to near O(1). Pre-calculate numeric room centers (X and Z) to avoid redundant `Vector3` object allocations and use squared distance comparisons to avoid `math.sqrt`.
