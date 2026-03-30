@@ -33,10 +33,6 @@ local DEFAULT_EXIT_MAX = 4
 local DEFAULT_DOOR_LEAF_CHANCE = 0.6
 local DEFAULT_MAX_ATTEMPTS = 200
 
-local function oppositeDirection(directionIndex)
-    return OPPOSITE_DIRECTIONS[directionIndex]
-end
-
 local function rotateDirection(directionIndex, steps)
     return ((directionIndex - 1 + steps) % 6) + 1
 end
@@ -50,8 +46,29 @@ local function rotateDirections(directions, steps)
     return rotated
 end
 
+local PREFAB_VARIANTS_BY_TYPE = {}
+for _, typeId in ipairs(RATIO_TYPE_ORDER) do
+    local variants = {}
+    local definition = HexRoomPrefabs.getDefinition(typeId)
+    if definition then
+        for steps = 0, 5 do
+            local openDirections = rotateDirections(definition.OpenDirections, steps)
+            table.insert(variants, table.freeze({
+                RotationSteps = steps,
+                OpenDirections = table.freeze(openDirections),
+                DoorMask = HexRoomPrefabs.computeDoorMask(openDirections),
+            }))
+        end
+    end
+    PREFAB_VARIANTS_BY_TYPE[typeId] = table.freeze(variants)
+end
+
+local function oppositeDirection(directionIndex)
+    return OPPOSITE_DIRECTIONS[directionIndex]
+end
+
 local function axialKey(q, r)
-    return bit32.bor(bit32.lshift(q, 16), bit32.band(r, 0xFFFF))
+    return bit32.bor(bit32.lshift(bit32.band(q, 0xFFFF), 16), bit32.band(r, 0xFFFF))
 end
 
 local function axialToWorld(q, r, roomSpacing)
@@ -227,13 +244,12 @@ local function pickWeightedType(random, quotas, typeIds)
     return typeIds[#typeIds]
 end
 
-local function canPlaceVariant(rooms, roomsByAxialKey, blockedAxialKeys, q, r, openDirections)
+local function canPlaceVariant(rooms, roomsByAxialKey, blockedAxialKeys, q, r, openMask)
     local positionKey = axialKey(q, r)
     if roomsByAxialKey[positionKey] or blockedAxialKeys[positionKey] then
         return false
     end
 
-    local openMask = HexRoomPrefabs.computeDoorMask(openDirections)
     for directionIndex, direction in ipairs(HEX_DIRECTIONS) do
         local neighborQ = q + direction.Q
         local neighborR = r + direction.R
@@ -274,20 +290,16 @@ local function enumeratePlacementCandidates(
     requiredDirection
 )
     local candidates = {}
+    local requiredMask = HexRoomPrefabs.DirectionBitmasks[requiredDirection]
 
     for _, typeId in ipairs(RATIO_TYPE_ORDER) do
-        if (quotas[typeId] or 0) <= 0 then
+        local quota = quotas[typeId] or 0
+        if quota <= 0 then
             continue
         end
 
-        local definition = HexRoomPrefabs.getDefinition(typeId)
-        if not definition then
-            continue
-        end
-
-        for rotationSteps = 0, 5 do
-            local openDirections = rotateDirections(definition.OpenDirections, rotationSteps)
-            if not table.find(openDirections, requiredDirection) then
+        for _, variant in ipairs(PREFAB_VARIANTS_BY_TYPE[typeId]) do
+            if bit32.band(variant.DoorMask, requiredMask) == 0 then
                 continue
             end
 
@@ -298,14 +310,14 @@ local function enumeratePlacementCandidates(
                     blockedAxialKeys,
                     targetQ,
                     targetR,
-                    openDirections
+                    variant.DoorMask
                 )
             then
                 table.insert(candidates, {
                     TypeId = typeId,
-                    RotationSteps = rotationSteps,
-                    OpenDirections = openDirections,
-                    Weight = quotas[typeId],
+                    RotationSteps = variant.RotationSteps,
+                    OpenDirections = variant.OpenDirections,
+                    Weight = quota,
                 })
             end
         end
