@@ -3,9 +3,54 @@ local MonsterEffectCatalog = require(script.Parent.MonsterEffectCatalog)
 local MonsterPresentationCatalog = require(script.Parent.MonsterPresentationCatalog)
 
 local MonsterAuthorProfile = {}
+local ERROR_CATEGORY = table.freeze({
+    Schema = 'SchemaError',
+    Boundary = 'BoundaryError',
+})
+local SCHEMA_MODE = table.freeze({
+    LegacyFlat = 'LegacyFlat',
+    Layered = 'Layered',
+})
+local SEMANTIC_FIELDS = table.freeze({
+    Lore = true,
+    Atmosphere = true,
+    TriggerIntent = true,
+    CounterplayIntent = true,
+})
+local TUNING_FIELDS = table.freeze({
+    Speed = true,
+    SightRange = true,
+    PatrolSpeedMultiplier = true,
+    SpawnOffset = true,
+})
+local EXECUTABLE_FIELDS = table.freeze({
+    BehaviorIntents = true,
+    EffectIntents = true,
+})
+local BOUNDARY_REASONS = table.freeze({
+    BoundaryLegacySemanticFieldAtRoot = true,
+    BoundaryLegacyTuningFieldAtRoot = true,
+    BoundaryLegacyExecutableFieldAtRoot = true,
+    BoundarySemanticsContainsNonSemanticField = true,
+    BoundaryTuningContainsNonTuningField = true,
+    BoundaryExecutableContainsNonExecutableField = true,
+})
+
+MonsterAuthorProfile.ErrorCategory = ERROR_CATEGORY
+MonsterAuthorProfile.SchemaMode = SCHEMA_MODE
 
 local function isNonEmptyString(value)
     return type(value) == 'string' and value ~= ''
+end
+
+local function hasAnyField(payload, fields)
+    for fieldName in pairs(fields) do
+        if payload[fieldName] ~= nil then
+            return true
+        end
+    end
+
+    return false
 end
 
 local function validateSummaryTable(summaryTable, missingReason)
@@ -50,6 +95,94 @@ local function validatePresentation(presentation)
     return true
 end
 
+local function usesLayeredSchema(profile)
+    return profile.Semantics ~= nil or profile.Tuning ~= nil or profile.Executable ~= nil
+end
+
+local function normalizeSections(profile)
+    if usesLayeredSchema(profile) then
+        if hasAnyField(profile, SEMANTIC_FIELDS) then
+            return nil, 'BoundaryLegacySemanticFieldAtRoot'
+        end
+
+        if profile.NumericProfile ~= nil or hasAnyField(profile, TUNING_FIELDS) then
+            return nil, 'BoundaryLegacyTuningFieldAtRoot'
+        end
+
+        if hasAnyField(profile, EXECUTABLE_FIELDS) then
+            return nil, 'BoundaryLegacyExecutableFieldAtRoot'
+        end
+
+        local semantics = profile.Semantics
+        if type(semantics) ~= 'table' then
+            return nil, 'MissingSemantics'
+        end
+        if
+            semantics.NumericProfile ~= nil
+            or hasAnyField(semantics, TUNING_FIELDS)
+            or hasAnyField(semantics, EXECUTABLE_FIELDS)
+        then
+            return nil, 'BoundarySemanticsContainsNonSemanticField'
+        end
+
+        local tuning = profile.Tuning
+        if type(tuning) ~= 'table' then
+            return nil, 'MissingTuning'
+        end
+        if
+            tuning.NumericProfile ~= nil
+            or hasAnyField(tuning, SEMANTIC_FIELDS)
+            or hasAnyField(tuning, EXECUTABLE_FIELDS)
+        then
+            return nil, 'BoundaryTuningContainsNonTuningField'
+        end
+
+        local executable = profile.Executable
+        if type(executable) ~= 'table' then
+            return nil, 'MissingExecutable'
+        end
+        if
+            executable.NumericProfile ~= nil
+            or hasAnyField(executable, SEMANTIC_FIELDS)
+            or hasAnyField(executable, TUNING_FIELDS)
+        then
+            return nil, 'BoundaryExecutableContainsNonExecutableField'
+        end
+
+        return {
+            SchemaMode = SCHEMA_MODE.Layered,
+            Presentation = profile.Presentation,
+            Semantics = semantics,
+            Tuning = tuning,
+            Executable = executable,
+        }
+    end
+
+    return {
+        SchemaMode = SCHEMA_MODE.LegacyFlat,
+        Presentation = profile.Presentation,
+        Semantics = {
+            Lore = profile.Lore,
+            Atmosphere = profile.Atmosphere,
+            TriggerIntent = profile.TriggerIntent,
+            CounterplayIntent = profile.CounterplayIntent,
+        },
+        Tuning = profile.NumericProfile,
+        Executable = {
+            BehaviorIntents = profile.BehaviorIntents,
+            EffectIntents = profile.EffectIntents,
+        },
+    }
+end
+
+function MonsterAuthorProfile.classifyReason(reason)
+    if BOUNDARY_REASONS[reason] then
+        return ERROR_CATEGORY.Boundary
+    end
+
+    return ERROR_CATEGORY.Schema
+end
+
 function MonsterAuthorProfile.validate(profile)
     if type(profile) ~= 'table' then
         return false, 'MalformedMonsterAuthorProfile'
@@ -63,60 +196,67 @@ function MonsterAuthorProfile.validate(profile)
         return false, 'MissingName'
     end
 
-    if not isNonEmptyString(profile.Lore) then
+    local normalizedSections, sectionReason = normalizeSections(profile)
+    if not normalizedSections then
+        return false, sectionReason
+    end
+
+    local semantics = normalizedSections.Semantics
+    if not isNonEmptyString(semantics.Lore) then
         return false, 'MissingLore'
     end
 
-    if not isNonEmptyString(profile.Atmosphere) then
+    if not isNonEmptyString(semantics.Atmosphere) then
         return false, 'MissingAtmosphere'
     end
 
     local triggerOk, triggerReason =
-        validateSummaryTable(profile.TriggerIntent, 'MissingTriggerIntentSummary')
+        validateSummaryTable(semantics.TriggerIntent, 'MissingTriggerIntentSummary')
     if not triggerOk then
         return false, triggerReason
     end
 
     local counterplayOk, counterplayReason =
-        validateSummaryTable(profile.CounterplayIntent, 'MissingCounterplayIntentSummary')
+        validateSummaryTable(semantics.CounterplayIntent, 'MissingCounterplayIntentSummary')
     if not counterplayOk then
         return false, counterplayReason
     end
 
-    local presentationOk, presentationReason = validatePresentation(profile.Presentation)
+    local presentationOk, presentationReason = validatePresentation(normalizedSections.Presentation)
     if not presentationOk then
         return false, presentationReason
     end
 
-    local numericProfile = profile.NumericProfile
-    if type(numericProfile) ~= 'table' then
-        return false, 'MissingNumericProfile'
+    local executable = normalizedSections.Executable
+    local tuning = normalizedSections.Tuning
+    if type(tuning) ~= 'table' then
+        if normalizedSections.SchemaMode == SCHEMA_MODE.LegacyFlat then
+            return false, 'MissingNumericProfile'
+        end
+        return false, 'MissingTuning'
     end
 
-    if type(numericProfile.Speed) ~= 'number' or numericProfile.Speed <= 0 then
+    if type(tuning.Speed) ~= 'number' or tuning.Speed <= 0 then
         return false, 'InvalidSpeed'
     end
 
-    if type(numericProfile.SightRange) ~= 'number' or numericProfile.SightRange <= 0 then
+    if type(tuning.SightRange) ~= 'number' or tuning.SightRange <= 0 then
         return false, 'InvalidSightRange'
     end
 
-    if
-        type(numericProfile.PatrolSpeedMultiplier) ~= 'number'
-        or numericProfile.PatrolSpeedMultiplier <= 0
-    then
+    if type(tuning.PatrolSpeedMultiplier) ~= 'number' or tuning.PatrolSpeedMultiplier <= 0 then
         return false, 'InvalidPatrolSpeedMultiplier'
     end
 
-    if numericProfile.SpawnOffset ~= nil and typeof(numericProfile.SpawnOffset) ~= 'Vector3' then
+    if tuning.SpawnOffset ~= nil and typeof(tuning.SpawnOffset) ~= 'Vector3' then
         return false, 'InvalidSpawnOffset'
     end
 
-    if type(profile.BehaviorIntents) ~= 'table' or #profile.BehaviorIntents == 0 then
+    if type(executable.BehaviorIntents) ~= 'table' or #executable.BehaviorIntents == 0 then
         return false, 'MissingBehaviorIntents'
     end
 
-    for _, behaviorIntent in ipairs(profile.BehaviorIntents) do
+    for _, behaviorIntent in ipairs(executable.BehaviorIntents) do
         if type(behaviorIntent) ~= 'table' then
             return false, 'MalformedBehaviorIntent'
         end
@@ -130,7 +270,7 @@ function MonsterAuthorProfile.validate(profile)
         end
     end
 
-    local effectIntents = profile.EffectIntents
+    local effectIntents = executable.EffectIntents
     if effectIntents ~= nil then
         if type(effectIntents) ~= 'table' then
             return false, 'MalformedEffectIntents'
@@ -144,7 +284,16 @@ function MonsterAuthorProfile.validate(profile)
         end
     end
 
-    return true
+    return true,
+        {
+            Id = profile.Id,
+            Name = profile.Name,
+            SchemaMode = normalizedSections.SchemaMode,
+            Presentation = normalizedSections.Presentation,
+            Semantics = semantics,
+            Tuning = tuning,
+            Executable = executable,
+        }
 end
 
 return MonsterAuthorProfile
