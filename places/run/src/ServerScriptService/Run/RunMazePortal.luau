@@ -10,7 +10,7 @@ local MazeEntryAvailability = Shared.Session.MazeEntryAvailability
 local TeleportDiagnostics = Shared.Util.TeleportDiagnostics
 
 local RunMazePortal = {}
-local FORCE_FRESH_MAZE_SERVER_FOR_DIAGNOSTICS = true
+local FORCE_FRESH_MAZE_SERVER_FOR_DIAGNOSTICS = false
 
 RunMazePortal.FailureCode = table.freeze({
     ReserveServerFailed = 'ReserveServerFailed',
