@@ -126,7 +126,7 @@ local function normalizeSections(profile)
         return nil, 'BoundaryLegacyTuningFieldAtRoot'
     end
 
-    if profile.Presentation ~= nil or hasAnyField(profile, EXECUTABLE_FIELDS) then
+    if hasAnyField(profile, EXECUTABLE_FIELDS) then
         return nil, 'BoundaryLegacyExecutableFieldAtRoot'
     end
 
