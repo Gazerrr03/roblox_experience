@@ -171,24 +171,28 @@ function Inventory:loadSummary(summary)
     self.NextItemInstanceId = 1
 
     local maxItemInstanceId = 0
-    for _, rawItemEntry in ipairs(summary.BackpackItems or {}) do
+    local function processItem(rawItemEntry)
         local itemEntry = normalizeItemEntry(rawItemEntry)
         if itemEntry ~= nil then
-            table.insert(self.BackpackItems, itemEntry)
             self.Weight += itemEntry.Weight
             if itemEntry.InstanceId > maxItemInstanceId then
                 maxItemInstanceId = itemEntry.InstanceId
             end
         end
+
+        return itemEntry
     end
 
-    local heldItem = normalizeItemEntry(summary.HeldItem)
+    for _, rawItemEntry in ipairs(summary.BackpackItems or {}) do
+        local itemEntry = processItem(rawItemEntry)
+        if itemEntry ~= nil then
+            table.insert(self.BackpackItems, itemEntry)
+        end
+    end
+
+    local heldItem = processItem(summary.HeldItem)
     if heldItem ~= nil then
         self.HeldItem = heldItem
-        self.Weight += heldItem.Weight
-        if heldItem.InstanceId > maxItemInstanceId then
-            maxItemInstanceId = heldItem.InstanceId
-        end
     end
 
     self.NextItemInstanceId = maxItemInstanceId + 1
