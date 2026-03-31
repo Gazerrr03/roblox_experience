@@ -9,6 +9,8 @@ MonsterBriefGateway.__index = MonsterBriefGateway
 local DEFAULT_TIMEOUT_SECONDS = 8
 local DEFAULT_ENDPOINT_ATTRIBUTE = 'MonsterBriefGatewayUrl'
 local DEFAULT_API_KEY_ATTRIBUTE = 'MonsterBriefGatewayApiKey'
+local DEFAULT_ENDPOINT_PROTOCOL_ATTRIBUTE = 'MonsterBriefGatewayProtocol'
+local DEFAULT_ENDPOINT_MODEL_ATTRIBUTE = 'MonsterBriefGatewayModel'
 local DEFAULT_PROVIDER_ATTRIBUTE = 'MonsterBriefLlmProvider'
 local DEFAULT_PROVIDER_API_KEY_ATTRIBUTE = 'MonsterBriefLlmApiKey'
 local DEFAULT_PROVIDER_BASE_URL_ATTRIBUTE = 'MonsterBriefLlmBaseUrl'
@@ -17,6 +19,11 @@ local DEFAULT_PROVIDER_MODEL_ATTRIBUTE = 'MonsterBriefLlmModel'
 local PROVIDER = table.freeze({
     Moonshot = 'moonshot',
     DeepSeek = 'deepseek',
+})
+
+local ENDPOINT_PROTOCOL = table.freeze({
+    BriefJson = 'brief-json',
+    OpenAIChat = 'openai-chat',
 })
 
 local BRIEF_SYSTEM_PROMPT = table.concat({
@@ -85,6 +92,15 @@ local function normalizeProviderName(providerName)
     return nil
 end
 
+local function normalizeEndpointProtocol(protocol)
+    local value = string.lower(trimText(protocol))
+    if value == ENDPOINT_PROTOCOL.OpenAIChat then
+        return ENDPOINT_PROTOCOL.OpenAIChat
+    end
+
+    return ENDPOINT_PROTOCOL.BriefJson
+end
+
 local function normalizeContentAsJson(content)
     if type(content) ~= 'string' then
         return nil
@@ -147,6 +163,12 @@ function MonsterBriefGateway.new(options)
         TimeoutSeconds = gatewayOptions.TimeoutSeconds or DEFAULT_TIMEOUT_SECONDS,
         EndpointAttributeName = gatewayOptions.EndpointAttributeName or DEFAULT_ENDPOINT_ATTRIBUTE,
         ApiKeyAttributeName = gatewayOptions.ApiKeyAttributeName or DEFAULT_API_KEY_ATTRIBUTE,
+        EndpointProtocol = gatewayOptions.EndpointProtocol,
+        EndpointModel = gatewayOptions.EndpointModel,
+        EndpointProtocolAttributeName = gatewayOptions.EndpointProtocolAttributeName
+            or DEFAULT_ENDPOINT_PROTOCOL_ATTRIBUTE,
+        EndpointModelAttributeName = gatewayOptions.EndpointModelAttributeName
+            or DEFAULT_ENDPOINT_MODEL_ATTRIBUTE,
         Provider = gatewayOptions.Provider,
         ProviderApiKey = gatewayOptions.ProviderApiKey,
         ProviderBaseUrl = gatewayOptions.ProviderBaseUrl,
@@ -167,6 +189,22 @@ end
 
 function MonsterBriefGateway:_resolveApiKey()
     return self.ApiKey or resolveAttributeString(self.ApiKeyAttributeName)
+end
+
+function MonsterBriefGateway:_resolveEndpointProtocol()
+    return normalizeEndpointProtocol(
+        self.EndpointProtocol or resolveAttributeString(self.EndpointProtocolAttributeName)
+    )
+end
+
+function MonsterBriefGateway:_resolveEndpointModel()
+    local model =
+        trimText(self.EndpointModel or resolveAttributeString(self.EndpointModelAttributeName))
+    if model == '' then
+        return nil
+    end
+
+    return model
 end
 
 function MonsterBriefGateway:_resolveProvider()
@@ -295,6 +333,95 @@ function MonsterBriefGateway:_requestProviderBrief(provider, prompt, playerConte
     return true, normalizedPayload
 end
 
+function MonsterBriefGateway:_requestOpenAiCompatibleBrief(
+    endpoint,
+    apiKey,
+    model,
+    prompt,
+    playerContext
+)
+    if not model then
+        return false,
+            {
+                ErrorCode = MonsterBriefGateway.ErrorCode.EndpointNotConfigured,
+                Message = 'OpenAI 兼容网关缺少模型配置（MonsterBriefGatewayModel）。',
+            }
+    end
+
+    local headers = {
+        ['Content-Type'] = 'application/json',
+    }
+    if apiKey then
+        headers.Authorization = string.format('Bearer %s', apiKey)
+    end
+
+    local success, responseOrError = pcall(function()
+        return self:_request({
+            Url = endpoint,
+            Method = 'POST',
+            Headers = headers,
+            Body = HttpService:JSONEncode({
+                model = model,
+                messages = {
+                    {
+                        role = 'system',
+                        content = BRIEF_SYSTEM_PROMPT,
+                    },
+                    {
+                        role = 'user',
+                        content = HttpService:JSONEncode({
+                            Prompt = prompt,
+                            Player = playerContext or {},
+                        }),
+                    },
+                },
+            }),
+            Timeout = self.TimeoutSeconds,
+        })
+    end)
+
+    if not success then
+        return false,
+            {
+                ErrorCode = MonsterBriefGateway.ErrorCode.HttpRequestFailed,
+                Message = string.format('UGC 网关请求失败：%s', tostring(responseOrError)),
+            }
+    end
+
+    local response = responseOrError
+    if type(response) ~= 'table' or response.Success ~= true then
+        local statusCode = if type(response) == 'table' then response.StatusCode else nil
+        local providerMessage = if type(response) == 'table'
+            then extractErrorMessage(response.Body)
+            else nil
+        return false,
+            {
+                ErrorCode = MonsterBriefGateway.ErrorCode.HttpRequestFailed,
+                Message = string.format(
+                    'UGC 网关请求失败(status=%s)：%s',
+                    tostring(statusCode),
+                    providerMessage or '请检查网关配置和体验 HTTP 设置。'
+                ),
+            }
+    end
+
+    local payload = decodeJson(response.Body)
+    local choices = payload and payload.choices
+    local firstChoice = type(choices) == 'table' and choices[1] or nil
+    local message = firstChoice and firstChoice.message
+    local content = message and message.content
+    local normalizedPayload = normalizeContentAsJson(content)
+    if type(normalizedPayload) ~= 'table' then
+        return false,
+            {
+                ErrorCode = MonsterBriefGateway.ErrorCode.InvalidResponse,
+                Message = 'UGC 网关返回格式无法解析。',
+            }
+    end
+
+    return true, normalizedPayload
+end
+
 function MonsterBriefGateway:generateBrief(prompt, playerContext)
     local normalizedPrompt = trimText(prompt)
     if normalizedPrompt == '' then
@@ -344,6 +471,42 @@ function MonsterBriefGateway:generateBrief(prompt, playerContext)
                 Message = if RunService:IsStudio()
                     then 'MonsterBriefGatewayUrl 未配置，暂时无法调用 LLM 服务。'
                     else 'UGC 服务暂不可用，请稍后重试。',
+            }
+    end
+
+    local endpointProtocol = self:_resolveEndpointProtocol()
+    if endpointProtocol == ENDPOINT_PROTOCOL.OpenAIChat then
+        local endpointOk, endpointPayload = self:_requestOpenAiCompatibleBrief(
+            endpoint,
+            self:_resolveApiKey(),
+            self:_resolveEndpointModel(),
+            normalizedPrompt,
+            playerContext
+        )
+        if not endpointOk then
+            return false, endpointPayload
+        end
+
+        if endpointPayload.Status == 'NeedMoreInfo' then
+            return true,
+                {
+                    Status = 'NeedMoreInfo',
+                    Question = endpointPayload.Question or '请补充更多细节后再试。',
+                }
+        end
+
+        if type(endpointPayload.Brief) ~= 'table' then
+            return false,
+                {
+                    ErrorCode = MonsterBriefGateway.ErrorCode.InvalidResponse,
+                    Message = 'UGC 网关未返回有效 brief。',
+                }
+        end
+
+        return true,
+            {
+                Status = 'Ready',
+                Brief = endpointPayload.Brief,
             }
     end
 

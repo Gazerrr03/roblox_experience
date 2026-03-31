@@ -286,6 +286,8 @@ function RunSessionService:_applyLocalGatewayConfigIfPresent()
     setServerAttribute('MonsterBriefLlmApiKey', providerApiKey)
     setServerAttribute('MonsterBriefLlmBaseUrl', providerBaseUrl)
     setServerAttribute('MonsterBriefLlmModel', providerModel)
+    setServerAttribute('MonsterBriefGatewayProtocol', config.EndpointProtocol)
+    setServerAttribute('MonsterBriefGatewayModel', config.EndpointModel)
 end
 
 function RunSessionService:_getUgcGenerationState(player)
