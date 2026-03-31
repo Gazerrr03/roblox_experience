@@ -6,6 +6,17 @@ local MonsterRuntimeProfile = require(script.Parent.MonsterRuntimeProfile)
 local DEFAULT_SPAWN_OFFSET = Vector3.new(0, 4, 0)
 
 local MonsterCompiler = {}
+local SCHEMA_MODE = table.freeze({
+    LegacyFlat = 'LegacyFlat',
+    Layered = 'Layered',
+})
+
+local function buildErrorDiagnostic(category, code)
+    return table.freeze({
+        Category = category,
+        Code = code,
+    })
+end
 
 local function cloneRuntimeEffect(effectIntent)
     local runtimeEffect = {
@@ -29,14 +40,16 @@ local function cloneRuntimePresentation(presentation)
 end
 
 function MonsterCompiler.compileMonsterForMaze(authorProfile)
-    local validAuthorProfile, authorReason = MonsterAuthorProfile.validate(authorProfile)
+    local validAuthorProfile, normalizedOrReason = MonsterAuthorProfile.validate(authorProfile)
     if not validAuthorProfile then
-        return false, authorReason
+        local category = MonsterAuthorProfile.classifyReason(normalizedOrReason)
+        return false, normalizedOrReason, buildErrorDiagnostic(category, normalizedOrReason)
     end
+    local normalizedProfile = normalizedOrReason
 
     local behaviors = {}
     local skippedBehaviorIds = {}
-    for _, behaviorIntent in ipairs(authorProfile.BehaviorIntents) do
+    for _, behaviorIntent in ipairs(normalizedProfile.Executable.BehaviorIntents) do
         if behaviorIntent.Enabled ~= false then
             if MonsterBehaviorCatalog.MazeExecutable[behaviorIntent.Id] then
                 behaviors[behaviorIntent.Id] = true
@@ -48,7 +61,7 @@ function MonsterCompiler.compileMonsterForMaze(authorProfile)
 
     local runtimeEffects = {}
     local skippedEffectIds = {}
-    for _, effectIntent in ipairs(authorProfile.EffectIntents or {}) do
+    for _, effectIntent in ipairs(normalizedProfile.Executable.EffectIntents or {}) do
         if effectIntent.Enabled ~= false then
             if MonsterEffectCatalog.MazeExecutable[effectIntent.Id] then
                 table.insert(runtimeEffects, cloneRuntimeEffect(effectIntent))
@@ -59,25 +72,34 @@ function MonsterCompiler.compileMonsterForMaze(authorProfile)
     end
 
     local runtimeProfile = table.freeze({
-        Id = authorProfile.Id,
-        Name = authorProfile.Name,
-        Presentation = cloneRuntimePresentation(authorProfile.Presentation),
-        Speed = authorProfile.NumericProfile.Speed,
-        SightRange = authorProfile.NumericProfile.SightRange,
-        PatrolSpeedMultiplier = authorProfile.NumericProfile.PatrolSpeedMultiplier,
-        SpawnOffset = authorProfile.NumericProfile.SpawnOffset or DEFAULT_SPAWN_OFFSET,
+        Id = normalizedProfile.Id,
+        Name = normalizedProfile.Name,
+        Presentation = cloneRuntimePresentation(normalizedProfile.Executable.Presentation),
+        Speed = normalizedProfile.Tuning.Speed,
+        SightRange = normalizedProfile.Tuning.SightRange,
+        PatrolSpeedMultiplier = normalizedProfile.Tuning.PatrolSpeedMultiplier,
+        SpawnOffset = normalizedProfile.Tuning.SpawnOffset or DEFAULT_SPAWN_OFFSET,
         Behaviors = table.freeze(behaviors),
         Effects = table.freeze(runtimeEffects),
     })
 
     local validRuntimeProfile, runtimeReason = MonsterRuntimeProfile.validate(runtimeProfile)
     if not validRuntimeProfile then
-        return false, runtimeReason
+        return false,
+            runtimeReason,
+            buildErrorDiagnostic(MonsterAuthorProfile.ErrorCategory.Schema, runtimeReason)
+    end
+
+    local warnings = {}
+    if normalizedProfile.SchemaMode == SCHEMA_MODE.LegacyFlat then
+        table.insert(warnings, 'DeprecatedLegacySchema')
     end
 
     local compileReport = table.freeze({
+        SchemaMode = normalizedProfile.SchemaMode,
         SkippedBehaviorIds = table.freeze(skippedBehaviorIds),
         SkippedEffectIds = table.freeze(skippedEffectIds),
+        Warnings = table.freeze(warnings),
     })
 
     return true, runtimeProfile, compileReport
