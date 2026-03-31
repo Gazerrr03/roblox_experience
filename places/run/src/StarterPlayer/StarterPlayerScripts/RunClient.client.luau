@@ -14,6 +14,7 @@ local Remotes = Shared.Network.Remotes.waitForScope(Shared.Network.Remotes.Scope
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local heldItemController = Shared.Client.HeldItemController.new(localPlayer)
 local NarrativeUI = require(script.Parent.NarrativeUI)
+local BackpackUI = require(script.Parent.BackpackUI)
 local Theme = UI.Hud.Theme
 
 local disconnectFirstPersonLock

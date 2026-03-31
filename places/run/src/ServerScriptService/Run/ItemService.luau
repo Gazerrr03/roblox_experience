@@ -23,6 +23,14 @@ local RunService = game:GetService('RunService')
 
 --#endregion
 
+--#region Requires
+
+local Packages = ReplicatedStorage:WaitForChild('Packages')
+local Shared = require(Packages:WaitForChild('Shared'))
+local Remotes = Shared.Network.Remotes.waitForScope(Shared.Network.Remotes.Scope.Run)
+
+--#endregion
+
 --#region Module
 
 local ItemService = {}
@@ -176,6 +184,39 @@ end)
 
 Players.PlayerRemoving:Connect(function(player)
     ItemService.cleanupPlayer(player)
+end)
+
+-- ==================== 网络事件处理 ====================
+
+-- 获取背包数据
+Remotes.GetInventory.OnServerInvoke = function(player: Player): {[string]: ItemData}
+    return ItemService.getInventory(player)
+end
+
+-- 装备/卸下道具
+Remotes.EquipItem.OnServerEvent:Connect(function(player: Player, itemName: string, equip: boolean)
+    if equip then
+        local success = ItemService.equipItem(player, itemName)
+        if success then
+            print(player.Name .. " 装备了: " .. itemName)
+        end
+    else
+        local success = ItemService.unequipItem(player, itemName)
+        if success then
+            print(player.Name .. " 卸下了: " .. itemName)
+        end
+    end
+end)
+
+-- 使用道具
+Remotes.UseItem.OnServerEvent:Connect(function(player: Player, itemName: string)
+    local success = ItemService.toggleItemActive(player, itemName)
+    if success then
+        local itemData = ItemService.getItemData(player, itemName)
+        if itemData then
+            print(player.Name .. " 使用了: " .. itemName .. " (状态: " .. tostring(itemData.IsActive) .. ")")
+        end
+    end
 end)
 
 return ItemService
