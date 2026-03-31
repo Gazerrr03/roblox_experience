@@ -1,5 +1,7 @@
 local Workspace = game:GetService('Workspace')
 
+local MazeModuleAssetContract = require(script.Parent.MazeModuleAssetContract)
+
 local HexMazeWorldRenderer = {}
 
 local ROOM_CLEAR_HEIGHT = 14
@@ -17,20 +19,36 @@ local EXIT_CORRIDOR_LENGTH = 6
 local HEX_CIRCUMRADIUS_MULTIPLIER = 1 / math.cos(math.pi / 6)
 local SIDE_ANGLE_OFFSET_DEGREES = 0
 
-local WALL_MATERIAL = Enum.Material.Concrete
-local WALL_COLOR = Color3.fromRGB(116, 114, 110)
-local FLOOR_MATERIAL = Enum.Material.Concrete
-local FLOOR_COLOR = Color3.fromRGB(98, 96, 92)
-local CEILING_COLOR = Color3.fromRGB(88, 86, 82)
-local DOOR_MATERIAL = Enum.Material.Concrete
-local DOOR_COLOR = Color3.fromRGB(74, 72, 68)
-local EXIT_FLOOR_COLOR = Color3.fromRGB(40, 36, 28)
+local DEFAULT_SURFACE_PALETTE = table.freeze({
+    WallMaterial = Enum.Material.Concrete,
+    WallColor = Color3.fromRGB(116, 114, 110),
+    FloorMaterial = Enum.Material.Concrete,
+    FloorColor = Color3.fromRGB(98, 96, 92),
+    CeilingMaterial = Enum.Material.Concrete,
+    CeilingColor = Color3.fromRGB(88, 86, 82),
+    DoorMaterial = Enum.Material.Concrete,
+    DoorColor = Color3.fromRGB(74, 72, 68),
+    ExitFloorMaterial = Enum.Material.Concrete,
+    ExitFloorColor = Color3.fromRGB(40, 36, 28),
+})
 
 local DEFAULT_ROOM_KIND_COLORS = {
     Camp = Color3.fromRGB(83, 126, 78),
     Loot = Color3.fromRGB(88, 92, 112),
     Extraction = Color3.fromRGB(145, 119, 73),
 }
+local CAVE_ROCK_COLOR = Color3.fromRGB(84, 81, 76)
+local CAVE_ROCK_MATERIAL = Enum.Material.Slate
+
+local function resolveSurfacePalette(surfacePalette)
+    local resolvedPalette = {}
+
+    for property, defaultValue in pairs(DEFAULT_SURFACE_PALETTE) do
+        resolvedPalette[property] = surfacePalette and surfacePalette[property] or defaultValue
+    end
+
+    return resolvedPalette
+end
 
 local function edgeKey(roomIdA, roomIdB)
     if roomIdA < roomIdB then
@@ -78,6 +96,74 @@ local function createPromptPart(config, parent)
     return part, prompt
 end
 
+local function applyArchetypeShellAsset(roomFolder, roomCenter, room, moduleAssetsRoot)
+    local shellModel =
+        MazeModuleAssetContract.getRoomArchetypeShellModel(moduleAssetsRoot, room.ArchetypeId)
+    if shellModel == nil then
+        return
+    end
+
+    local clone = shellModel:Clone()
+    clone.Name = string.format('AuthoredShell_%s', room.ArchetypeId)
+    clone.Parent = roomFolder
+
+    if clone:IsA('Model') then
+        clone:PivotTo(CFrame.new(roomCenter))
+    elseif clone:IsA('BasePart') then
+        clone.CFrame = CFrame.new(roomCenter)
+    end
+end
+
+local function createAuthoringSockets(roomFolder, roomCenter)
+    local authoringFolder = Instance.new('Folder')
+    authoringFolder.Name = 'AuthoringSockets'
+    authoringFolder.Parent = roomFolder
+
+    createPart({
+        Name = 'ShellModelSocket',
+        Size = Vector3.new(2, 2, 2),
+        CFrame = CFrame.new(roomCenter + Vector3.new(0, 4, 0)),
+        Color = Color3.fromRGB(255, 255, 255),
+        Material = Enum.Material.ForceField,
+        Transparency = 1,
+        CanCollide = false,
+    }, authoringFolder)
+end
+
+local function buildCavePocketDecor(roomFolder, roomCenter, roomApothem)
+    local caveDecorFolder = Instance.new('Folder')
+    caveDecorFolder.Name = 'CavePocketDecor'
+    caveDecorFolder.Parent = roomFolder
+
+    for index, decorConfig in ipairs({
+        {
+            Offset = Vector3.new(-roomApothem * 0.42, 2.4, -roomApothem * 0.12),
+            Size = Vector3.new(8, 5, 7),
+            Shape = Enum.PartType.Ball,
+        },
+        {
+            Offset = Vector3.new(roomApothem * 0.38, 1.8, roomApothem * 0.18),
+            Size = Vector3.new(9, 4, 6),
+            Shape = Enum.PartType.Ball,
+        },
+        {
+            Offset = Vector3.new(0, 11, roomApothem * 0.34),
+            Size = Vector3.new(roomApothem * 0.8, 3, 6),
+            Shape = Enum.PartType.Block,
+        },
+    }) do
+        createPart({
+            Name = string.format('CaveRock_%d', index),
+            Size = decorConfig.Size,
+            CFrame = CFrame.new(roomCenter + decorConfig.Offset),
+            Color = CAVE_ROCK_COLOR,
+            Material = CAVE_ROCK_MATERIAL,
+            Shape = decorConfig.Shape,
+            CanCollide = false,
+        }, caveDecorFolder)
+    end
+end
+
 local function sideVectors(directionIndex)
     local angle = math.rad((-(directionIndex - 1) * 60) + SIDE_ANGLE_OFFSET_DEGREES)
     local normal = Vector3.new(math.cos(angle), 0, math.sin(angle))
@@ -96,7 +182,7 @@ local function isInsideHex(offset, apothem)
     return true
 end
 
-local function createHexTiledSlab(parent, name, center, apothem, yOffset, color)
+local function createHexTiledSlab(parent, name, center, apothem, yOffset, color, material)
     local slabFolder = Instance.new('Folder')
     slabFolder.Name = name
     slabFolder.Parent = parent
@@ -132,7 +218,7 @@ local function createHexTiledSlab(parent, name, center, apothem, yOffset, color)
                     Size = Vector3.new(FLOOR_TILE_SIZE, SLAB_THICKNESS, FLOOR_TILE_SIZE),
                     CFrame = CFrame.new(center + tileCenterOffset + Vector3.new(0, yOffset, 0)),
                     Color = color,
-                    Material = FLOOR_MATERIAL,
+                    Material = material,
                 }, slabFolder)
             end
         end
@@ -141,7 +227,15 @@ local function createHexTiledSlab(parent, name, center, apothem, yOffset, color)
     return slabFolder
 end
 
-local function createHexSideWall(parent, center, directionIndex, apothem, sideLength, hasDoorway)
+local function createHexSideWall(
+    parent,
+    center,
+    directionIndex,
+    apothem,
+    sideLength,
+    hasDoorway,
+    surfacePalette
+)
     local normal, tangent = sideVectors(directionIndex)
     local wallCenter = center + normal * apothem + Vector3.new(0, WALL_HEIGHT / 2, 0)
     local wallForward = CFrame.lookAt(wallCenter, wallCenter + normal)
@@ -151,8 +245,8 @@ local function createHexSideWall(parent, center, directionIndex, apothem, sideLe
             Name = string.format('Wall_%d', directionIndex),
             Size = Vector3.new(sideLength, WALL_HEIGHT, WALL_THICKNESS),
             CFrame = wallForward,
-            Color = WALL_COLOR,
-            Material = WALL_MATERIAL,
+            Color = surfacePalette.WallColor,
+            Material = surfacePalette.WallMaterial,
         }, parent)
         return
     end
@@ -165,8 +259,8 @@ local function createHexSideWall(parent, center, directionIndex, apothem, sideLe
             Name = string.format('Wall_%d_Segment', directionIndex),
             Size = Vector3.new(segmentLength, WALL_HEIGHT, WALL_THICKNESS),
             CFrame = wallForward + (tangent * (segmentOffset * sign)),
-            Color = WALL_COLOR,
-            Material = WALL_MATERIAL,
+            Color = surfacePalette.WallColor,
+            Material = surfacePalette.WallMaterial,
         }, parent)
     end
 
@@ -176,8 +270,8 @@ local function createHexSideWall(parent, center, directionIndex, apothem, sideLe
             Name = string.format('Wall_%d_Lintel', directionIndex),
             Size = Vector3.new(DOORWAY_WIDTH, lintelHeight, WALL_THICKNESS),
             CFrame = wallForward + Vector3.new(0, DOORWAY_HEIGHT + (lintelHeight / 2), 0),
-            Color = WALL_COLOR,
-            Material = WALL_MATERIAL,
+            Color = surfacePalette.WallColor,
+            Material = surfacePalette.WallMaterial,
         }, parent)
     end
 end
@@ -201,7 +295,8 @@ local function createDoorwayInstance(
     center,
     directionIndex,
     apothem,
-    hasDoorLeaves
+    hasDoorLeaves,
+    surfacePalette
 )
     local normal, tangent = sideVectors(directionIndex)
     local openingCenter = center + normal * (apothem - WALL_THICKNESS * 0.5)
@@ -242,16 +337,16 @@ local function createDoorwayInstance(
         Name = string.format('Door_%s_Left', doorwayId),
         Size = Vector3.new(leafWidth, DOORWAY_HEIGHT, DOOR_LEAF_THICKNESS),
         CFrame = doorway.ClosedLeftCFrame,
-        Color = DOOR_COLOR,
-        Material = DOOR_MATERIAL,
+        Color = surfacePalette.DoorColor,
+        Material = surfacePalette.DoorMaterial,
     }, parent)
 
     doorway.RightLeaf = createPart({
         Name = string.format('Door_%s_Right', doorwayId),
         Size = Vector3.new(leafWidth, DOORWAY_HEIGHT, DOOR_LEAF_THICKNESS),
         CFrame = doorway.ClosedRightCFrame,
-        Color = DOOR_COLOR,
-        Material = DOOR_MATERIAL,
+        Color = surfacePalette.DoorColor,
+        Material = surfacePalette.DoorMaterial,
     }, parent)
 
     local _, prompt = createPromptPart({
@@ -283,7 +378,8 @@ local function buildRoom(parent, room, roomCenter, roomApothem, options)
         roomCenter,
         roomApothem,
         -(SLAB_THICKNESS / 2),
-        FLOOR_COLOR
+        options.SurfacePalette.FloorColor,
+        options.SurfacePalette.FloorMaterial
     )
     createHexTiledSlab(
         roomFolder,
@@ -291,7 +387,8 @@ local function buildRoom(parent, room, roomCenter, roomApothem, options)
         roomCenter,
         roomApothem,
         ROOM_CLEAR_HEIGHT + (SLAB_THICKNESS / 2),
-        CEILING_COLOR
+        options.SurfacePalette.CeilingColor,
+        options.SurfacePalette.CeilingMaterial
     )
 
     if options.IncludeRoomMarker then
@@ -324,12 +421,23 @@ local function buildRoom(parent, room, roomCenter, roomApothem, options)
             directionIndex,
             roomApothem,
             sideLength,
-            doorwayDirections[directionIndex] == true
+            doorwayDirections[directionIndex] == true,
+            options.SurfacePalette
         )
     end
+
+    createAuthoringSockets(roomFolder, roomCenter)
+
+    if room.ArchetypeId == 'CavePocket' then
+        buildCavePocketDecor(roomFolder, roomCenter, roomApothem)
+    end
+
+    applyArchetypeShellAsset(roomFolder, roomCenter, room, options.ModuleAssetsRoot)
+
+    return roomFolder
 end
 
-local function buildExitCorridors(parent, room, roomCenter, roomApothem)
+local function buildExitCorridors(parent, room, roomCenter, roomApothem, surfacePalette)
     for _, directionIndex in ipairs(room.ExitDirections or {}) do
         local normal = sideVectors(directionIndex)
         local corridorCenter = roomCenter
@@ -341,8 +449,8 @@ local function buildExitCorridors(parent, room, roomCenter, roomApothem)
             Name = string.format('ExitCorridor_%s_%d', room.Id, directionIndex),
             Size = Vector3.new(DOORWAY_WIDTH, SLAB_THICKNESS, EXIT_CORRIDOR_LENGTH),
             CFrame = corridorForward,
-            Color = EXIT_FLOOR_COLOR,
-            Material = FLOOR_MATERIAL,
+            Color = surfacePalette.ExitFloorColor,
+            Material = surfacePalette.ExitFloorMaterial,
         }, parent)
     end
 end
@@ -355,6 +463,7 @@ function HexMazeWorldRenderer.build(params)
     local includeRoomMarker = params.IncludeRoomMarker ~= false
     local parent = params.Parent or Workspace
     local detectionBuffer = params.DetectionBuffer or ROOM_DETECTION_BUFFER
+    local surfacePalette = resolveSurfacePalette(params.SurfacePalette)
 
     local existing = parent:FindFirstChild(worldName)
     if existing then
@@ -368,6 +477,7 @@ function HexMazeWorldRenderer.build(params)
     local roomCenters = {}
     local roomById = {}
     local roomIds = {}
+    local roomFolders = {}
     local doorways = {}
 
     for roomId in pairs(layout.Rooms) do
@@ -381,12 +491,14 @@ function HexMazeWorldRenderer.build(params)
         roomCenters[roomId] = roomCenter
         roomById[roomId] = room
 
-        buildRoom(worldFolder, room, roomCenter, roomApothem, {
+        roomFolders[roomId] = buildRoom(worldFolder, room, roomCenter, roomApothem, {
             IncludeRoomMarker = includeRoomMarker,
             RoomMarkerTransparency = params.RoomMarkerTransparency,
             RoomKindColors = params.RoomKindColors,
+            ModuleAssetsRoot = params.ModuleAssetsRoot,
+            SurfacePalette = surfacePalette,
         })
-        buildExitCorridors(worldFolder, room, roomCenter, roomApothem)
+        buildExitCorridors(worldFolder, room, roomCenter, roomApothem, surfacePalette)
     end
 
     for doorwayId, doorwayLayout in pairs(layout.Doorways) do
@@ -401,7 +513,8 @@ function HexMazeWorldRenderer.build(params)
             roomCenter,
             doorwayLayout.DirectionFromA,
             roomApothem,
-            doorwayLayout.HasDoorLeaves
+            doorwayLayout.HasDoorLeaves,
+            surfacePalette
         )
         doorway.RoomA = doorwayLayout.RoomA
         doorway.RoomB = doorwayLayout.RoomB
@@ -475,6 +588,7 @@ function HexMazeWorldRenderer.build(params)
         RoomCenters = roomCenters,
         RoomById = roomById,
         RoomIds = roomIds,
+        RoomFolders = roomFolders,
         Doorways = doorways,
         ToggleDoor = toggleDoor,
         FindRoomByPosition = findRoomByPosition,

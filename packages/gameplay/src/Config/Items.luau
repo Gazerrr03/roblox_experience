@@ -20,4 +20,16 @@ return {
         Value = 42,
         Color = Color3.fromRGB(248, 196, 113),
     },
+    {
+        Id = 'glow-orb',
+        Name = 'Glow Orb',
+        Weight = 1,
+        Value = 24,
+        Color = Color3.fromRGB(142, 236, 255),
+        Light = {
+            Brightness = 2.5,
+            Range = 18,
+            Color = Color3.fromRGB(170, 240, 255),
+        },
+    },
 }

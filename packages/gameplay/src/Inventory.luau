@@ -1,6 +1,18 @@
 local Inventory = {}
 Inventory.__index = Inventory
 
+local function cloneLightConfig(lightConfig)
+    if type(lightConfig) ~= 'table' then
+        return nil
+    end
+
+    return {
+        Brightness = lightConfig.Brightness,
+        Range = lightConfig.Range,
+        Color = lightConfig.Color,
+    }
+end
+
 local function cloneItemEntry(itemEntry)
     return {
         InstanceId = itemEntry.InstanceId,
@@ -9,6 +21,7 @@ local function cloneItemEntry(itemEntry)
         Weight = itemEntry.Weight,
         Value = itemEntry.Value,
         Color = itemEntry.Color,
+        Light = cloneLightConfig(itemEntry.Light),
     }
 end
 
@@ -47,11 +60,28 @@ function Inventory:_buildItemEntry(itemDef)
         Weight = itemDef.Weight,
         Value = itemDef.Value,
         Color = itemDef.Color,
+        Light = cloneLightConfig(itemDef.Light),
     }
 
     self.NextItemInstanceId += 1
 
     return itemEntry
+end
+
+local function normalizeItemEntry(rawItemEntry)
+    if type(rawItemEntry) ~= 'table' or type(rawItemEntry.InstanceId) ~= 'number' then
+        return nil
+    end
+
+    return {
+        InstanceId = rawItemEntry.InstanceId,
+        Id = rawItemEntry.Id,
+        Name = rawItemEntry.Name,
+        Weight = rawItemEntry.Weight or 0,
+        Value = rawItemEntry.Value or 0,
+        Color = rawItemEntry.Color,
+        Light = cloneLightConfig(rawItemEntry.Light),
+    }
 end
 
 function Inventory:add(itemDef)
@@ -128,6 +158,45 @@ function Inventory:getSummary()
         BackpackItems = cloneArray(self.BackpackItems),
         HeldItem = self.HeldItem and cloneItemEntry(self.HeldItem) or nil,
     }
+end
+
+function Inventory:loadSummary(summary)
+    if type(summary) ~= 'table' then
+        return false, 'InvalidSummary'
+    end
+
+    self.Weight = 0
+    table.clear(self.BackpackItems)
+    self.HeldItem = nil
+    self.NextItemInstanceId = 1
+
+    local maxItemInstanceId = 0
+    local function processItem(rawItemEntry)
+        local itemEntry = normalizeItemEntry(rawItemEntry)
+        if itemEntry ~= nil then
+            self.Weight += itemEntry.Weight
+            if itemEntry.InstanceId > maxItemInstanceId then
+                maxItemInstanceId = itemEntry.InstanceId
+            end
+        end
+
+        return itemEntry
+    end
+
+    for _, rawItemEntry in ipairs(summary.BackpackItems or {}) do
+        local itemEntry = processItem(rawItemEntry)
+        if itemEntry ~= nil then
+            table.insert(self.BackpackItems, itemEntry)
+        end
+    end
+
+    local heldItem = processItem(summary.HeldItem)
+    if heldItem ~= nil then
+        self.HeldItem = heldItem
+    end
+
+    self.NextItemInstanceId = maxItemInstanceId + 1
+    return true
 end
 
 function Inventory:clear()
