@@ -8,7 +8,6 @@ local ERROR_CATEGORY = table.freeze({
     Boundary = 'BoundaryError',
 })
 local SCHEMA_MODE = table.freeze({
-    LegacyFlat = 'LegacyFlat',
     Layered = 'Layered',
 })
 local SEMANTIC_FIELDS = table.freeze({
@@ -24,6 +23,7 @@ local TUNING_FIELDS = table.freeze({
     SpawnOffset = true,
 })
 local EXECUTABLE_FIELDS = table.freeze({
+    Presentation = true,
     BehaviorIntents = true,
     EffectIntents = true,
 })
@@ -95,83 +95,70 @@ local function validatePresentation(presentation)
     return true
 end
 
-local function usesLayeredSchema(profile)
-    return profile.Semantics ~= nil or profile.Tuning ~= nil or profile.Executable ~= nil
-end
-
 local function normalizeSections(profile)
-    if usesLayeredSchema(profile) then
-        if hasAnyField(profile, SEMANTIC_FIELDS) then
-            return nil, 'BoundaryLegacySemanticFieldAtRoot'
-        end
+    local hasLayeredSections = profile.Semantics ~= nil
+        or profile.Tuning ~= nil
+        or profile.Executable ~= nil
+    if not hasLayeredSections then
+        return nil, 'LegacySchemaUnsupported'
+    end
 
-        if profile.NumericProfile ~= nil or hasAnyField(profile, TUNING_FIELDS) then
-            return nil, 'BoundaryLegacyTuningFieldAtRoot'
-        end
+    local semantics = profile.Semantics
+    if type(semantics) ~= 'table' then
+        return nil, 'MissingSemantics'
+    end
 
-        if hasAnyField(profile, EXECUTABLE_FIELDS) then
-            return nil, 'BoundaryLegacyExecutableFieldAtRoot'
-        end
+    local tuning = profile.Tuning
+    if type(tuning) ~= 'table' then
+        return nil, 'MissingTuning'
+    end
 
-        local semantics = profile.Semantics
-        if type(semantics) ~= 'table' then
-            return nil, 'MissingSemantics'
-        end
-        if
-            semantics.NumericProfile ~= nil
-            or hasAnyField(semantics, TUNING_FIELDS)
-            or hasAnyField(semantics, EXECUTABLE_FIELDS)
-        then
-            return nil, 'BoundarySemanticsContainsNonSemanticField'
-        end
+    local executable = profile.Executable
+    if type(executable) ~= 'table' then
+        return nil, 'MissingExecutable'
+    end
 
-        local tuning = profile.Tuning
-        if type(tuning) ~= 'table' then
-            return nil, 'MissingTuning'
-        end
-        if
-            tuning.NumericProfile ~= nil
-            or hasAnyField(tuning, SEMANTIC_FIELDS)
-            or hasAnyField(tuning, EXECUTABLE_FIELDS)
-        then
-            return nil, 'BoundaryTuningContainsNonTuningField'
-        end
+    if hasAnyField(profile, SEMANTIC_FIELDS) then
+        return nil, 'BoundaryLegacySemanticFieldAtRoot'
+    end
 
-        local executable = profile.Executable
-        if type(executable) ~= 'table' then
-            return nil, 'MissingExecutable'
-        end
-        if
-            executable.NumericProfile ~= nil
-            or hasAnyField(executable, SEMANTIC_FIELDS)
-            or hasAnyField(executable, TUNING_FIELDS)
-        then
-            return nil, 'BoundaryExecutableContainsNonExecutableField'
-        end
+    if profile.NumericProfile ~= nil or hasAnyField(profile, TUNING_FIELDS) then
+        return nil, 'BoundaryLegacyTuningFieldAtRoot'
+    end
 
-        return {
-            SchemaMode = SCHEMA_MODE.Layered,
-            Presentation = profile.Presentation,
-            Semantics = semantics,
-            Tuning = tuning,
-            Executable = executable,
-        }
+    if hasAnyField(profile, EXECUTABLE_FIELDS) then
+        return nil, 'BoundaryLegacyExecutableFieldAtRoot'
+    end
+
+    if
+        semantics.NumericProfile ~= nil
+        or hasAnyField(semantics, TUNING_FIELDS)
+        or hasAnyField(semantics, EXECUTABLE_FIELDS)
+    then
+        return nil, 'BoundarySemanticsContainsNonSemanticField'
+    end
+
+    if
+        tuning.NumericProfile ~= nil
+        or hasAnyField(tuning, SEMANTIC_FIELDS)
+        or hasAnyField(tuning, EXECUTABLE_FIELDS)
+    then
+        return nil, 'BoundaryTuningContainsNonTuningField'
+    end
+
+    if
+        executable.NumericProfile ~= nil
+        or hasAnyField(executable, SEMANTIC_FIELDS)
+        or hasAnyField(executable, TUNING_FIELDS)
+    then
+        return nil, 'BoundaryExecutableContainsNonExecutableField'
     end
 
     return {
-        SchemaMode = SCHEMA_MODE.LegacyFlat,
-        Presentation = profile.Presentation,
-        Semantics = {
-            Lore = profile.Lore,
-            Atmosphere = profile.Atmosphere,
-            TriggerIntent = profile.TriggerIntent,
-            CounterplayIntent = profile.CounterplayIntent,
-        },
-        Tuning = profile.NumericProfile,
-        Executable = {
-            BehaviorIntents = profile.BehaviorIntents,
-            EffectIntents = profile.EffectIntents,
-        },
+        SchemaMode = SCHEMA_MODE.Layered,
+        Semantics = semantics,
+        Tuning = tuning,
+        Executable = executable,
     }
 end
 
@@ -222,20 +209,13 @@ function MonsterAuthorProfile.validate(profile)
         return false, counterplayReason
     end
 
-    local presentationOk, presentationReason = validatePresentation(normalizedSections.Presentation)
+    local executable = normalizedSections.Executable
+    local presentationOk, presentationReason = validatePresentation(executable.Presentation)
     if not presentationOk then
         return false, presentationReason
     end
 
-    local executable = normalizedSections.Executable
     local tuning = normalizedSections.Tuning
-    if type(tuning) ~= 'table' then
-        if normalizedSections.SchemaMode == SCHEMA_MODE.LegacyFlat then
-            return false, 'MissingNumericProfile'
-        end
-        return false, 'MissingTuning'
-    end
-
     if type(tuning.Speed) ~= 'number' or tuning.Speed <= 0 then
         return false, 'InvalidSpeed'
     end
@@ -289,7 +269,6 @@ function MonsterAuthorProfile.validate(profile)
             Id = profile.Id,
             Name = profile.Name,
             SchemaMode = normalizedSections.SchemaMode,
-            Presentation = normalizedSections.Presentation,
             Semantics = semantics,
             Tuning = tuning,
             Executable = executable,
