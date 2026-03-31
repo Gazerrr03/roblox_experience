@@ -18,6 +18,7 @@ local REMOTE_NAMES_BY_SCOPE = table.freeze({
         'RunAction',
         'RunState',
         'RunPrivateState',
+        'ShowNarrative',
     },
     [Remotes.Scope.Maze] = {
         'MazeAction',
@@ -32,6 +33,7 @@ local ALL_REMOTE_NAMES = {
     'RunAction',
     'RunState',
     'RunPrivateState',
+    'ShowNarrative',
     'MazeAction',
     'MazeState',
     'MazePrivateState',

@@ -116,8 +116,57 @@ function OutdoorAreaBuilder.build(worldFolder, createPart, createPromptPart)
         RequiresLineOfSight = false,
     }, outdoorFolder)
 
+    -- 叙事交互点1：被遗忘的铭文石碑
+    local _, stelePrompt = createPromptPart({
+        Name = 'InscriptionStele',
+        Size = Vector3.new(3, 8, 1),
+        CFrame = CFrame.new(-35, 4, 60),
+        Color = Color3.fromRGB(84, 89, 96),
+        Material = Enum.Material.Slate,
+        ActionText = 'Read',
+        ObjectText = 'Weathered Inscription Stele',
+        MaxActivationDistance = 10,
+        KeyboardKeyCode = Enum.KeyCode.E,
+        HoldDuration = 0.5,
+        CanCollide = false,
+    }, outdoorFolder)
+
+    -- 叙事交互点2：镜子中的不速之客
+    local _, mirrorPrompt = createPromptPart({
+        Name = 'ShatteredMirror',
+        Size = Vector3.new(4, 5, 0.1),
+        CFrame = CFrame.new(25, 3, 95) * CFrame.Angles(0, math.rad(45), 0),
+        Color = Color3.fromRGB(200, 200, 200),
+        Material = Enum.Material.Glass,
+        Transparency = 0.3,
+        ActionText = 'Look into',
+        ObjectText = 'Shattered Mirror',
+        MaxActivationDistance = 8,
+        KeyboardKeyCode = Enum.KeyCode.E,
+        HoldDuration = 0,
+        CanCollide = false,
+    }, outdoorFolder)
+
+    -- 叙事交互点3：守望者的低语
+    local _, statuePrompt = createPromptPart({
+        Name = 'WatcherStatue',
+        Size = Vector3.new(3, 10, 2),
+        CFrame = CFrame.new(50, 5, 115),
+        Color = Color3.fromRGB(91, 95, 102),
+        Material = Enum.Material.Slate,
+        ActionText = 'Listen',
+        ObjectText = 'The Watcher Statue',
+        MaxActivationDistance = 12,
+        KeyboardKeyCode = Enum.KeyCode.E,
+        HoldDuration = 1,
+        CanCollide = true,
+    }, outdoorFolder)
+
     return {
         MazePrompt = mazePrompt,
+        StelePrompt = stelePrompt,
+        MirrorPrompt = mirrorPrompt,
+        StatuePrompt = statuePrompt,
     }
 end
 
