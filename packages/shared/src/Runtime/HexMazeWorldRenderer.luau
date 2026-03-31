@@ -1,6 +1,11 @@
+local ReplicatedStorage = game:GetService('ReplicatedStorage')
 local Workspace = game:GetService('Workspace')
 
+local Packages = ReplicatedStorage:WaitForChild('Packages')
+local Gameplay = require(Packages:WaitForChild('Gameplay'))
+
 local MazeModuleAssetContract = require(script.Parent.MazeModuleAssetContract)
+local MazePassageTemplates = Gameplay.ProcGen.MazePassageTemplates
 
 local HexMazeWorldRenderer = {}
 
@@ -16,6 +21,7 @@ local DOOR_LEAF_THICKNESS = 0.5
 local DOOR_CLEARANCE = 0
 local ROOM_DETECTION_BUFFER = 18
 local EXIT_CORRIDOR_LENGTH = 6
+local CONNECTOR_OVERLAP = 1
 local HEX_CIRCUMRADIUS_MULTIPLIER = 1 / math.cos(math.pi / 6)
 local SIDE_ANGLE_OFFSET_DEGREES = 0
 
@@ -37,8 +43,6 @@ local DEFAULT_ROOM_KIND_COLORS = {
     Loot = Color3.fromRGB(88, 92, 112),
     Extraction = Color3.fromRGB(145, 119, 73),
 }
-local CAVE_ROCK_COLOR = Color3.fromRGB(84, 81, 76)
-local CAVE_ROCK_MATERIAL = Enum.Material.Slate
 
 local function resolveSurfacePalette(surfacePalette)
     local resolvedPalette = {}
@@ -97,14 +101,16 @@ local function createPromptPart(config, parent)
 end
 
 local function applyArchetypeShellAsset(roomFolder, roomCenter, room, moduleAssetsRoot)
-    local shellModel =
-        MazeModuleAssetContract.getRoomArchetypeShellModel(moduleAssetsRoot, room.ArchetypeId)
+    local shellModel = MazeModuleAssetContract.getRoomArchetypeShellModel(
+        moduleAssetsRoot,
+        room.AuthoringAssetId or room.ArchetypeId
+    )
     if shellModel == nil then
         return
     end
 
     local clone = shellModel:Clone()
-    clone.Name = string.format('AuthoredShell_%s', room.ArchetypeId)
+    clone.Name = string.format('AuthoredShell_%s', room.AuthoringAssetId or room.ArchetypeId)
     clone.Parent = roomFolder
 
     if clone:IsA('Model') then
@@ -112,6 +118,24 @@ local function applyArchetypeShellAsset(roomFolder, roomCenter, room, moduleAsse
     elseif clone:IsA('BasePart') then
         clone.CFrame = CFrame.new(roomCenter)
     end
+end
+
+local function applyShellModel(cloneParent, cloneName, shellModel, pivotCFrame)
+    if shellModel == nil then
+        return nil
+    end
+
+    local clone = shellModel:Clone()
+    clone.Name = cloneName
+    clone.Parent = cloneParent
+
+    if clone:IsA('Model') then
+        clone:PivotTo(pivotCFrame)
+    elseif clone:IsA('BasePart') then
+        clone.CFrame = pivotCFrame
+    end
+
+    return clone
 end
 
 local function createAuthoringSockets(roomFolder, roomCenter)
@@ -130,37 +154,188 @@ local function createAuthoringSockets(roomFolder, roomCenter)
     }, authoringFolder)
 end
 
-local function buildCavePocketDecor(roomFolder, roomCenter, roomApothem)
-    local caveDecorFolder = Instance.new('Folder')
-    caveDecorFolder.Name = 'CavePocketDecor'
-    caveDecorFolder.Parent = roomFolder
+local function createConnectorAuthoringSockets(connectorFolder, connectorPivot)
+    local authoringFolder = Instance.new('Folder')
+    authoringFolder.Name = 'AuthoringSockets'
+    authoringFolder.Parent = connectorFolder
 
-    for index, decorConfig in ipairs({
-        {
-            Offset = Vector3.new(-roomApothem * 0.42, 2.4, -roomApothem * 0.12),
-            Size = Vector3.new(8, 5, 7),
-            Shape = Enum.PartType.Ball,
-        },
-        {
-            Offset = Vector3.new(roomApothem * 0.38, 1.8, roomApothem * 0.18),
-            Size = Vector3.new(9, 4, 6),
-            Shape = Enum.PartType.Ball,
-        },
-        {
-            Offset = Vector3.new(0, 11, roomApothem * 0.34),
-            Size = Vector3.new(roomApothem * 0.8, 3, 6),
-            Shape = Enum.PartType.Block,
-        },
-    }) do
+    createPart({
+        Name = 'ShellModelSocket',
+        Size = Vector3.new(2, 2, 2),
+        CFrame = connectorPivot,
+        Color = Color3.fromRGB(255, 255, 255),
+        Material = Enum.Material.ForceField,
+        Transparency = 1,
+        CanCollide = false,
+    }, authoringFolder)
+
+    return authoringFolder
+end
+
+local function buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem, surfacePalette)
+    local decorFolder = Instance.new('Folder')
+    decorFolder.Name = 'RoomTemplateDecor'
+    decorFolder.Parent = roomFolder
+
+    local function addDecorPart(name, size, offset, color, material, transparency)
         createPart({
-            Name = string.format('CaveRock_%d', index),
-            Size = decorConfig.Size,
-            CFrame = CFrame.new(roomCenter + decorConfig.Offset),
-            Color = CAVE_ROCK_COLOR,
-            Material = CAVE_ROCK_MATERIAL,
-            Shape = decorConfig.Shape,
+            Name = name,
+            Size = size,
+            CFrame = CFrame.new(roomCenter + offset),
+            Color = color,
+            Material = material,
+            Transparency = transparency or 0,
             CanCollide = false,
-        }, caveDecorFolder)
+        }, decorFolder)
+    end
+
+    if room.RoomTemplateId == 'EntrySafe' then
+        addDecorPart(
+            'StagingPad',
+            Vector3.new(roomApothem * 0.9, 0.4, roomApothem * 0.9),
+            Vector3.new(0, 0.25, 0),
+            Color3.fromRGB(98, 128, 112),
+            Enum.Material.Metal
+        )
+        addDecorPart(
+            'OrientationPylon',
+            Vector3.new(2, 9, 2),
+            Vector3.new(0, 4.5, roomApothem * 0.22),
+            Color3.fromRGB(108, 152, 142),
+            Enum.Material.Metal
+        )
+        return
+    end
+
+    if room.RoomTemplateId == 'TransitHall' then
+        addDecorPart(
+            'TransitBeam',
+            Vector3.new(roomApothem * 1.05, 1.2, 3),
+            Vector3.new(0, 10, 0),
+            Color3.fromRGB(92, 102, 112),
+            Enum.Material.Metal
+        )
+        addDecorPart(
+            'TransitStripe',
+            Vector3.new(roomApothem * 0.75, 0.15, 2),
+            Vector3.new(0, 0.2, 0),
+            Color3.fromRGB(124, 138, 150),
+            Enum.Material.Neon,
+            0.45
+        )
+        return
+    end
+
+    if room.RoomTemplateId == 'SearchCluster' then
+        addDecorPart(
+            'SearchCrateA',
+            Vector3.new(5, 3, 4),
+            Vector3.new(-roomApothem * 0.22, 1.5, 0),
+            Color3.fromRGB(108, 100, 92),
+            Enum.Material.WoodPlanks
+        )
+        addDecorPart(
+            'SearchCrateB',
+            Vector3.new(4, 2.2, 3),
+            Vector3.new(roomApothem * 0.2, 1.1, roomApothem * 0.1),
+            Color3.fromRGB(92, 90, 88),
+            Enum.Material.Metal
+        )
+        return
+    end
+
+    if room.RoomTemplateId == 'HighValueRisk' then
+        addDecorPart(
+            'VaultCore',
+            Vector3.new(7, 6, 7),
+            Vector3.new(0, 3, 0),
+            Color3.fromRGB(138, 118, 86),
+            Enum.Material.Metal
+        )
+        addDecorPart(
+            'HazardStrip',
+            Vector3.new(roomApothem * 0.8, 0.2, 2),
+            Vector3.new(0, 0.15, -roomApothem * 0.18),
+            Color3.fromRGB(194, 156, 74),
+            Enum.Material.Neon,
+            0.3
+        )
+        return
+    end
+
+    if room.RoomTemplateId == 'LandmarkFacility' then
+        addDecorPart(
+            'LandmarkTower',
+            Vector3.new(5, 12, 5),
+            Vector3.new(0, 6, 0),
+            Color3.fromRGB(82, 116, 136),
+            Enum.Material.Metal
+        )
+        addDecorPart(
+            'LandmarkRing',
+            Vector3.new(roomApothem * 0.95, 0.2, roomApothem * 0.95),
+            Vector3.new(0, 0.2, 0),
+            Color3.fromRGB(96, 150, 184),
+            Enum.Material.Neon,
+            0.45
+        )
+        return
+    end
+
+    if room.RoomTemplateId == 'ExtractionReturn' then
+        addDecorPart(
+            'ExtractionFrame',
+            Vector3.new(roomApothem * 0.95, 0.25, roomApothem * 0.95),
+            Vector3.new(0, 0.2, 0),
+            Color3.fromRGB(172, 142, 92),
+            Enum.Material.Neon,
+            0.35
+        )
+        addDecorPart(
+            'ExtractionBeacon',
+            Vector3.new(2.5, 10, 2.5),
+            Vector3.new(0, 5, 0),
+            Color3.fromRGB(184, 154, 98),
+            Enum.Material.Metal
+        )
+        return
+    end
+
+    if room.RoomTemplateId == 'BulkheadGate' then
+        addDecorPart(
+            'BulkheadFrame',
+            Vector3.new(roomApothem * 0.92, 7, 2),
+            Vector3.new(0, 3.5, 0),
+            Color3.fromRGB(126, 104, 88),
+            Enum.Material.Metal
+        )
+        addDecorPart(
+            'BulkheadThreshold',
+            Vector3.new(roomApothem * 0.9, 0.2, 3),
+            Vector3.new(0, 0.2, 0),
+            Color3.fromRGB(154, 124, 92),
+            Enum.Material.Neon,
+            0.45
+        )
+        return
+    end
+
+    if room.RoomTemplateId == 'ShortcutLoop' then
+        addDecorPart(
+            'ShortcutBrace',
+            Vector3.new(roomApothem * 0.8, 1.2, 3),
+            Vector3.new(0, 9, 0),
+            Color3.fromRGB(88, 118, 136),
+            Enum.Material.Metal
+        )
+        addDecorPart(
+            'ShortcutMarker',
+            Vector3.new(roomApothem * 0.75, 0.15, 1.5),
+            Vector3.new(0, 0.2, 0),
+            surfacePalette.ExitFloorColor,
+            Enum.Material.Neon,
+            0.45
+        )
     end
 end
 
@@ -409,9 +584,6 @@ local function buildRoom(parent, room, roomCenter, roomApothem, options)
     for directionIndex in pairs(room.Neighbors) do
         doorwayDirections[directionIndex] = true
     end
-    for _, directionIndex in ipairs(room.ExitDirections or {}) do
-        doorwayDirections[directionIndex] = true
-    end
 
     local sideLength = 2 * roomApothem * math.tan(math.pi / 6)
     for directionIndex = 1, 6 do
@@ -428,31 +600,203 @@ local function buildRoom(parent, room, roomCenter, roomApothem, options)
 
     createAuthoringSockets(roomFolder, roomCenter)
 
-    if room.ArchetypeId == 'CavePocket' then
-        buildCavePocketDecor(roomFolder, roomCenter, roomApothem)
-    end
+    buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem, options.SurfacePalette)
 
     applyArchetypeShellAsset(roomFolder, roomCenter, room, options.ModuleAssetsRoot)
 
     return roomFolder
 end
 
-local function buildExitCorridors(parent, room, roomCenter, roomApothem, surfacePalette)
-    for _, directionIndex in ipairs(room.ExitDirections or {}) do
+local function resolvePassageDefinition(archetypeId)
+    return MazePassageTemplates.getDefinition(archetypeId)
+        or MazePassageTemplates.getDefinition('IndustrialHall')
+end
+
+local function buildPassageMock(
+    passageFolder,
+    namePrefix,
+    corridorForward,
+    passageLength,
+    passageArchetypeId,
+    surfacePalette,
+    floorColor,
+    floorMaterial
+)
+    local passageDefinition = resolvePassageDefinition(passageArchetypeId)
+    local passageWidth = passageDefinition.Width or DOORWAY_WIDTH
+    local passageHeight = passageDefinition.Height or ROOM_CLEAR_HEIGHT
+    local wallThickness = WALL_THICKNESS * (passageDefinition.WallThicknessMultiplier or 1)
+
+    createPart({
+        Name = string.format('%sFloor', namePrefix),
+        Size = Vector3.new(passageWidth, SLAB_THICKNESS, passageLength),
+        CFrame = corridorForward,
+        Color = floorColor or surfacePalette.FloorColor,
+        Material = floorMaterial or surfacePalette.FloorMaterial,
+    }, passageFolder)
+
+    createPart({
+        Name = string.format('%sCeiling', namePrefix),
+        Size = Vector3.new(passageWidth, SLAB_THICKNESS, passageLength),
+        CFrame = corridorForward + Vector3.new(0, passageHeight + SLAB_THICKNESS, 0),
+        Color = surfacePalette.CeilingColor,
+        Material = surfacePalette.CeilingMaterial,
+    }, passageFolder)
+
+    local normal = corridorForward.LookVector
+    local tangent = Vector3.new(-normal.Z, 0, normal.X)
+
+    for _, sign in ipairs({ -1, 1 }) do
+        createPart({
+            Name = string.format('%sWall', namePrefix),
+            Size = Vector3.new(wallThickness, passageHeight, passageLength),
+            CFrame = corridorForward
+                + (tangent * ((passageWidth / 2) + (wallThickness / 2)) * sign)
+                + Vector3.new(0, (passageHeight + SLAB_THICKNESS) / 2, 0),
+            Color = surfacePalette.WallColor,
+            Material = surfacePalette.WallMaterial,
+        }, passageFolder)
+    end
+
+    createPart({
+        Name = string.format('%sAccent', namePrefix),
+        Size = Vector3.new(passageWidth * 0.85, 0.12, 1.5),
+        CFrame = corridorForward + Vector3.new(0, (SLAB_THICKNESS / 2) + 0.06, 0),
+        Color = passageDefinition.AccentColor,
+        Material = Enum.Material.Neon,
+        Transparency = 0.5,
+        CanCollide = false,
+    }, passageFolder)
+end
+
+local function buildPassageInstance(
+    parent,
+    folderName,
+    namePrefix,
+    pivotName,
+    passageCenter,
+    corridorForward,
+    passageLength,
+    passageArchetypeId,
+    surfacePalette,
+    moduleAssetsRoot,
+    floorColor,
+    floorMaterial
+)
+    local passageDefinition = resolvePassageDefinition(passageArchetypeId)
+    local passagePivot = CFrame.new(
+        passageCenter + Vector3.new(0, (passageDefinition.Height or ROOM_CLEAR_HEIGHT) / 2, 0)
+    ) * CFrame.lookAt(Vector3.zero, corridorForward.LookVector)
+
+    local passageFolder = Instance.new('Folder')
+    passageFolder.Name = folderName
+    passageFolder.Parent = parent
+
+    local authoringSockets = createConnectorAuthoringSockets(passageFolder, passagePivot)
+    local authoredShell = applyShellModel(
+        passageFolder,
+        string.format('AuthoredPassageShell_%s', passageArchetypeId),
+        MazeModuleAssetContract.getConnectorShellModel(moduleAssetsRoot, passageArchetypeId),
+        passagePivot
+    )
+
+    if authoredShell == nil then
+        buildPassageMock(
+            passageFolder,
+            namePrefix,
+            corridorForward,
+            passageLength,
+            passageArchetypeId,
+            surfacePalette,
+            floorColor,
+            floorMaterial
+        )
+    end
+
+    return {
+        Id = pivotName,
+        ArchetypeId = passageArchetypeId,
+        Root = passageFolder,
+        Shell = authoredShell,
+        AuthoringSockets = authoringSockets,
+        Length = passageLength,
+    }
+end
+
+local function buildRoomConnector(
+    parent,
+    doorwayId,
+    roomCenterA,
+    roomCenterB,
+    directionFromA,
+    roomApothem,
+    passageArchetypeId,
+    surfacePalette,
+    moduleAssetsRoot
+)
+    local normal = sideVectors(directionFromA)
+    local centerDistance = (roomCenterB - roomCenterA).Magnitude
+    local connectorLength = math.max(
+        WALL_THICKNESS,
+        centerDistance - (roomApothem * 2) + (WALL_THICKNESS + CONNECTOR_OVERLAP)
+    )
+    local connectorCenter = (roomCenterA + roomCenterB) * 0.5
+    local floorCenter = connectorCenter + Vector3.new(0, -(SLAB_THICKNESS / 2), 0)
+    local corridorForward = CFrame.lookAt(floorCenter, floorCenter + normal)
+
+    return buildPassageInstance(
+        parent,
+        string.format('Connector_%s', doorwayId),
+        string.format('Connector_%s_', doorwayId),
+        doorwayId,
+        connectorCenter,
+        corridorForward,
+        connectorLength,
+        passageArchetypeId,
+        surfacePalette,
+        moduleAssetsRoot
+    )
+end
+
+local function buildExitPassages(
+    parent,
+    room,
+    roomCenter,
+    roomApothem,
+    roomExternalDoorways,
+    surfacePalette,
+    moduleAssetsRoot
+)
+    local exitPassages = {}
+
+    for _, externalDoorway in ipairs(roomExternalDoorways or {}) do
+        local directionIndex = externalDoorway.Direction
         local normal = sideVectors(directionIndex)
-        local corridorCenter = roomCenter
+        local passageLength = EXIT_CORRIDOR_LENGTH + WALL_THICKNESS + CONNECTOR_OVERLAP
+        local floorCenter = roomCenter
             + (normal * (roomApothem + (EXIT_CORRIDOR_LENGTH / 2)))
             + Vector3.new(0, -(SLAB_THICKNESS / 2), 0)
-        local corridorForward = CFrame.lookAt(corridorCenter, corridorCenter + normal)
+        local passageCenter = floorCenter + Vector3.new(0, SLAB_THICKNESS / 2, 0)
+        local corridorForward = CFrame.lookAt(floorCenter, floorCenter + normal)
+        local passageId = string.format('%s_%d', room.Id, directionIndex)
 
-        createPart({
-            Name = string.format('ExitCorridor_%s_%d', room.Id, directionIndex),
-            Size = Vector3.new(DOORWAY_WIDTH, SLAB_THICKNESS, EXIT_CORRIDOR_LENGTH),
-            CFrame = corridorForward,
-            Color = surfacePalette.ExitFloorColor,
-            Material = surfacePalette.ExitFloorMaterial,
-        }, parent)
+        exitPassages[passageId] = buildPassageInstance(
+            parent,
+            string.format('ExitPassage_%s', passageId),
+            string.format('ExitPassage_%s_', passageId),
+            passageId,
+            passageCenter,
+            corridorForward,
+            passageLength,
+            externalDoorway.PassageArchetypeId,
+            surfacePalette,
+            moduleAssetsRoot,
+            surfacePalette.ExitFloorColor,
+            surfacePalette.ExitFloorMaterial
+        )
     end
+
+    return exitPassages
 end
 
 function HexMazeWorldRenderer.build(params)
@@ -478,7 +822,16 @@ function HexMazeWorldRenderer.build(params)
     local roomById = {}
     local roomIds = {}
     local roomFolders = {}
+    local connectors = {}
+    local exitPassages = {}
     local doorways = {}
+    local externalDoorwaysByRoomId = {}
+
+    for _, externalDoorway in ipairs(layout.ExternalDoorways or {}) do
+        externalDoorwaysByRoomId[externalDoorway.RoomId] = externalDoorwaysByRoomId[externalDoorway.RoomId]
+            or {}
+        table.insert(externalDoorwaysByRoomId[externalDoorway.RoomId], externalDoorway)
+    end
 
     for roomId in pairs(layout.Rooms) do
         table.insert(roomIds, roomId)
@@ -498,13 +851,42 @@ function HexMazeWorldRenderer.build(params)
             ModuleAssetsRoot = params.ModuleAssetsRoot,
             SurfacePalette = surfacePalette,
         })
-        buildExitCorridors(worldFolder, room, roomCenter, roomApothem, surfacePalette)
+        for exitPassageId, exitPassage in
+            pairs(
+                buildExitPassages(
+                    worldFolder,
+                    room,
+                    roomCenter,
+                    roomApothem,
+                    externalDoorwaysByRoomId[roomId],
+                    surfacePalette,
+                    params.ModuleAssetsRoot
+                )
+            )
+        do
+            exitPassages[exitPassageId] = exitPassage
+        end
     end
 
     for doorwayId, doorwayLayout in pairs(layout.Doorways) do
         local roomCenter = roomCenters[doorwayLayout.RoomA]
+        local otherRoomCenter = roomCenters[doorwayLayout.RoomB]
         if not roomCenter then
             continue
+        end
+
+        if otherRoomCenter then
+            connectors[doorwayId] = buildRoomConnector(
+                worldFolder,
+                doorwayId,
+                roomCenter,
+                otherRoomCenter,
+                doorwayLayout.DirectionFromA,
+                roomApothem,
+                doorwayLayout.PassageArchetypeId,
+                surfacePalette,
+                params.ModuleAssetsRoot
+            )
         end
 
         local doorway = createDoorwayInstance(
@@ -589,6 +971,8 @@ function HexMazeWorldRenderer.build(params)
         RoomById = roomById,
         RoomIds = roomIds,
         RoomFolders = roomFolders,
+        Connectors = connectors,
+        ExitPassages = exitPassages,
         Doorways = doorways,
         ToggleDoor = toggleDoor,
         FindRoomByPosition = findRoomByPosition,

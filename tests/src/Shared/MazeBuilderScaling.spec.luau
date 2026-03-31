@@ -102,15 +102,16 @@ return function()
         )
     end
 
-    local regularExits = 0
-    for _, external in ipairs(maze.ExternalDoorways or {}) do
-        if external.Kind == 'Exit' then
-            regularExits += 1
-        end
-    end
-
     assert(
-        regularExits >= config.ExitMin and regularExits <= config.ExitMax,
-        'Scaled generation should preserve configured regular-exit range'
+        #(maze.ExternalDoorways or {}) == 0,
+        'Scaled generation should remain fully indoor and avoid exterior doorways'
+    )
+    assert(
+        maze.MacroGraph.LoopCount >= 1,
+        'Scaled generation should still preserve a looping facility skeleton'
+    )
+    assert(
+        #maze.PlacedRooms == config.RoomCount,
+        'Scaled generation should keep placed-room metadata in sync with room count'
     )
 end

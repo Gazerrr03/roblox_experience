@@ -9,6 +9,17 @@ local EXPECTED_PREFAB_COUNTS_20 = {
     T8 = 1,
 }
 
+local REQUIRED_ROOM_TEMPLATES = {
+    'EntrySafe',
+    'TransitHall',
+    'SearchCluster',
+    'HighValueRisk',
+    'LandmarkFacility',
+    'ExtractionReturn',
+    'BulkheadGate',
+    'ShortcutLoop',
+}
+
 return function()
     local ReplicatedStorage = game:GetService('ReplicatedStorage')
     local gameplay = require(ReplicatedStorage:WaitForChild('Packages'):WaitForChild('Gameplay'))
@@ -31,7 +42,7 @@ return function()
     local deadEnds = 0
     local openSixRooms = 0
     local prefabCounts = {}
-    local cavePocketCount = 0
+    local roomTemplateCounts = {}
 
     for roomId, room in pairs(maze.Rooms) do
         roomCount += 1
@@ -44,24 +55,40 @@ return function()
             type(room.PrefabTypeId) == 'string' and string.sub(room.PrefabTypeId, 1, 1) == 'T',
             string.format('Room %s should map to T1-T8 prefab taxonomy', roomId)
         )
+        assert(type(room.RoomTemplateId) == 'string', 'Room should expose a room template id')
+        assert(type(room.RoomCategory) == 'string', 'Room should expose a room category')
+        assert(type(room.ArchetypeId) == 'string', 'Room should expose an archetype id')
+        assert(type(room.AuthoringAssetId) == 'string', 'Room should expose an authoring asset id')
+        assert(type(room.SearchProfile) == 'table', 'Room should expose a search profile table')
+        assert(type(room.RiskTier) == 'number', 'Room should expose a numeric risk tier')
+        assert(type(room.LandmarkWeight) == 'number', 'Room should expose a landmark weight')
         assert(
-            type(room.ArchetypeId) == 'string',
-            string.format('Room %s should expose an archetype id', roomId)
-        )
-        assert(
-            type(room.AuthoringAssetId) == 'string',
-            string.format('Room %s should expose an authoring asset id', roomId)
+            type(room.EndpointDefs) == 'table' and #room.EndpointDefs == room.DoorCount,
+            string.format('Room %s should expose one endpoint def per open edge', roomId)
         )
 
         prefabCounts[room.PrefabTypeId] = (prefabCounts[room.PrefabTypeId] or 0) + 1
-        if room.ArchetypeId == 'CavePocket' then
-            cavePocketCount += 1
-        end
+        roomTemplateCounts[room.RoomTemplateId] = (roomTemplateCounts[room.RoomTemplateId] or 0) + 1
 
         if room.DoorCount == 1 then
             deadEnds += 1
         elseif room.DoorCount == 6 then
             openSixRooms += 1
+        end
+
+        for _, endpointDef in ipairs(room.EndpointDefs) do
+            assert(
+                endpointDef.Direction >= 1 and endpointDef.Direction <= 6,
+                'Endpoint defs should preserve the hex direction index'
+            )
+            assert(
+                type(endpointDef.EndpointType) == 'string',
+                'Endpoint defs should carry endpoint typing for passage matching'
+            )
+            assert(
+                type(endpointDef.PassageArchetypeId) == 'string',
+                'Endpoint defs should carry a suggested passage archetype id'
+            )
         end
 
         for directionIndex, neighborRoomId in pairs(room.Neighbors) do
@@ -72,22 +99,24 @@ return function()
                 string.format('Door symmetry should hold between %s and %s', roomId, neighborRoomId)
             )
         end
-
-        if room.DoorCount ~= 5 then
-            assert(
-                type(room.PrefabTypeId) == 'string' and string.sub(room.PrefabTypeId, 1, 1) == 'T',
-                string.format('Room %s should map to T-prefab classification', roomId)
-            )
-        end
     end
 
     assert(roomCount == config.RoomCount, 'Maze should honor configured room count')
     assert(deadEnds >= 1, 'Maze should preserve at least one dead-end room')
-    assert(cavePocketCount >= 1, 'Maze should expose at least one cave-like room archetype')
     assert(
         openSixRooms <= math.max(1, math.floor(roomCount * 0.15)),
         'Six-door hub rooms should stay low frequency'
     )
+
+    for _, templateId in ipairs(REQUIRED_ROOM_TEMPLATES) do
+        assert(
+            (roomTemplateCounts[templateId] or 0) >= 1,
+            string.format(
+                '20-room layouts should include the %s template at least once',
+                templateId
+            )
+        )
+    end
 
     local prefabTypeIds = {}
     for prefabTypeId in pairs(EXPECTED_PREFAB_COUNTS_20) do
@@ -109,6 +138,20 @@ return function()
         )
     end
 
+    assert(type(maze.MacroGraph) == 'table', 'Maze should expose macro-graph metadata')
+    assert(
+        maze.MacroGraph.Style == 'AnchoredLoopingFacility',
+        'Maze should classify its topology as an anchored looping facility'
+    )
+    assert(
+        maze.MacroGraph.LoopCount >= 1,
+        'Maze should preserve at least one loop so the layout is not a single chain'
+    )
+    assert(
+        type(maze.MacroGraph.AnchorRoomIds) == 'table' and #maze.MacroGraph.AnchorRoomIds >= 3,
+        'Maze should expose several anchor rooms for navigation and routing'
+    )
+
     local doorwayCount = 0
     local doorwayLeaves = 0
     for doorwayId, doorway in pairs(maze.Doorways) do
@@ -128,6 +171,14 @@ return function()
             roomB.Neighbors[doorway.DirectionFromB] == doorway.RoomA,
             string.format('Doorway %s should align with room B neighbor map', doorwayId)
         )
+        assert(
+            type(doorway.PassageArchetypeId) == 'string',
+            'Doorways should expose the resolved passage archetype'
+        )
+        assert(
+            type(doorway.EndpointTypeA) == 'string' and type(doorway.EndpointTypeB) == 'string',
+            'Doorways should expose endpoint type metadata on both sides'
+        )
     end
 
     assert(doorwayCount > 0, 'Maze should expose at least one doorway')
@@ -135,42 +186,9 @@ return function()
     assert(doorwayLeaves < doorwayCount, 'Maze should keep some doorway openings without leaves')
 
     local externalDoorways = maze.ExternalDoorways or {}
-    local startExits = 0
-    local regularExits = 0
-    local seenExternalKeys = {}
-
-    for _, external in ipairs(externalDoorways) do
-        local room = maze.Rooms[external.RoomId]
-        assert(room ~= nil, 'External doorway should reference an existing room')
-
-        local key = string.format('%s:%d', external.RoomId, external.Direction)
-        assert(not seenExternalKeys[key], 'External doorway entries should not duplicate')
-        seenExternalKeys[key] = true
-
-        if external.Kind == 'Start' then
-            startExits += 1
-            assert(
-                external.RoomId == maze.CampRoomId,
-                'Start external doorway should always belong to the camp room'
-            )
-            assert(
-                room.StartExternalDirection == external.Direction,
-                'Camp room start external direction should match exported external doorway'
-            )
-        else
-            regularExits += 1
-        end
-
-        assert(
-            room.Neighbors[external.Direction] == nil,
-            'External doorway direction should not be connected to another room'
-        )
-    end
-
-    assert(startExits == 1, 'Maze should expose exactly one start external doorway')
     assert(
-        regularExits >= config.ExitMin and regularExits <= config.ExitMax,
-        'Maze should keep regular external exits inside configured range'
+        #externalDoorways == 0,
+        'Maze should no longer export exterior doorways that open into the void'
     )
 
     assert(
@@ -183,12 +201,49 @@ return function()
         'Main path should terminate at extraction room'
     )
 
+    assert(
+        type(maze.PlacedRooms) == 'table' and #maze.PlacedRooms == config.RoomCount,
+        'Maze should expose placed-room metadata'
+    )
+    assert(
+        type(maze.PlacedPassages) == 'table' and #maze.PlacedPassages.Doorways == doorwayCount,
+        'Maze should expose placed-passage metadata for every doorway'
+    )
+    assert(
+        #maze.PlacedPassages.Exits == 0,
+        'Maze should no longer expose exterior exit passages in the room-first indoor baseline'
+    )
+    assert(
+        type(maze.SearchDistribution) == 'table',
+        'Maze should expose search-distribution metadata for future loot/risk tuning'
+    )
+    assert(
+        type(maze.LandmarkNodes) == 'table' and #maze.LandmarkNodes >= 2,
+        'Maze should expose landmark-node metadata for navigation anchors'
+    )
+
+    local highValueRiskRoomIds = maze.SearchDistribution.RoomIdsByTemplate.HighValueRisk or {}
+    assert(
+        #highValueRiskRoomIds >= 1,
+        'Maze should always expose at least one high-value risk room'
+    )
+    local highValueRiskRoomId = highValueRiskRoomIds[1]
+    local highValueRiskDepth = maze.MacroGraph.DepthByRoomId[highValueRiskRoomId]
+    assert(
+        highValueRiskDepth ~= nil and highValueRiskDepth >= 2,
+        'High-value risk rooms should stay outside the immediate entry safety buffer'
+    )
+
     for doorwayId, doorway in pairs(maze.Doorways) do
         local secondDoorway = secondMaze.Doorways[doorwayId]
         assert(secondDoorway ~= nil, 'Maze doorway keys should be deterministic for same seed')
         assert(
             doorway.HasDoorLeaves == secondDoorway.HasDoorLeaves,
             'Door leaf randomization should be deterministic for same seed'
+        )
+        assert(
+            doorway.PassageArchetypeId == secondDoorway.PassageArchetypeId,
+            'Passage archetype assignment should be deterministic for same seed'
         )
     end
 
@@ -202,6 +257,10 @@ return function()
         assert(
             room.DoorMask == secondRoom.DoorMask,
             'Door mask should be deterministic for same seed'
+        )
+        assert(
+            room.RoomTemplateId == secondRoom.RoomTemplateId,
+            'Room-template selection should be deterministic for same seed'
         )
         assert(
             room.ArchetypeId == secondRoom.ArchetypeId,
