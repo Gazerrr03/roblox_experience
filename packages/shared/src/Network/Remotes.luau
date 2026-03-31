@@ -1,4 +1,5 @@
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local RunService = game:GetService('RunService')
 
 local Remotes = {}
 
@@ -36,6 +37,12 @@ local ALL_REMOTE_NAMES = {
     'MazePrivateState',
 }
 
+local function assertServer(operationName)
+    if RunService:IsClient() then
+        error(string.format('%s can only be called on the server.', operationName), 0)
+    end
+end
+
 local function ensureContainer()
     local container = ReplicatedStorage:FindFirstChild('Remotes')
     if container then
@@ -60,7 +67,25 @@ local function ensureRemote(container, name)
     return remote
 end
 
+local function waitForContainer(timeoutSeconds)
+    if timeoutSeconds == nil then
+        return ReplicatedStorage:WaitForChild('Remotes')
+    end
+
+    return ReplicatedStorage:WaitForChild('Remotes', timeoutSeconds)
+end
+
+local function waitForRemote(container, name, timeoutSeconds)
+    if timeoutSeconds == nil then
+        return container:WaitForChild(name)
+    end
+
+    return container:WaitForChild(name, timeoutSeconds)
+end
+
 function Remotes.ensure()
+    assertServer('Remotes.ensure')
+
     local container = ensureContainer()
     local resolved = {}
 
@@ -72,6 +97,8 @@ function Remotes.ensure()
 end
 
 function Remotes.ensureScope(scope)
+    assertServer('Remotes.ensureScope')
+
     local remoteNames = REMOTE_NAMES_BY_SCOPE[scope]
     if remoteNames == nil then
         error(string.format('Unknown remote scope %q', tostring(scope)), 0)
@@ -82,6 +109,46 @@ function Remotes.ensureScope(scope)
 
     for _, name in ipairs(remoteNames) do
         resolved[name] = ensureRemote(container, name)
+    end
+
+    return resolved
+end
+
+function Remotes.waitForScope(scope, timeoutSeconds)
+    local remoteNames = REMOTE_NAMES_BY_SCOPE[scope]
+    if remoteNames == nil then
+        error(string.format('Unknown remote scope %q', tostring(scope)), 0)
+    end
+
+    local startTime = os.clock()
+    local function getRemainingTimeout()
+        if timeoutSeconds == nil then
+            return nil
+        end
+
+        local elapsed = os.clock() - startTime
+        local remaining = timeoutSeconds - elapsed
+        if remaining < 0 then
+            return 0
+        end
+
+        return remaining
+    end
+
+    local container = waitForContainer(getRemainingTimeout())
+    if container == nil then
+        error('Timed out waiting for ReplicatedStorage.Remotes.', 0)
+    end
+
+    local resolved = {}
+
+    for _, name in ipairs(remoteNames) do
+        local remote = waitForRemote(container, name, getRemainingTimeout())
+        if remote == nil then
+            error(string.format('Timed out waiting for remote %s.', name), 0)
+        end
+
+        resolved[name] = remote
     end
 
     return resolved

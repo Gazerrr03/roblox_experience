@@ -31,6 +31,7 @@ return function()
     local deadEnds = 0
     local openSixRooms = 0
     local prefabCounts = {}
+    local cavePocketCount = 0
 
     for roomId, room in pairs(maze.Rooms) do
         roomCount += 1
@@ -43,8 +44,19 @@ return function()
             type(room.PrefabTypeId) == 'string' and string.sub(room.PrefabTypeId, 1, 1) == 'T',
             string.format('Room %s should map to T1-T8 prefab taxonomy', roomId)
         )
+        assert(
+            type(room.ArchetypeId) == 'string',
+            string.format('Room %s should expose an archetype id', roomId)
+        )
+        assert(
+            type(room.AuthoringAssetId) == 'string',
+            string.format('Room %s should expose an authoring asset id', roomId)
+        )
 
         prefabCounts[room.PrefabTypeId] = (prefabCounts[room.PrefabTypeId] or 0) + 1
+        if room.ArchetypeId == 'CavePocket' then
+            cavePocketCount += 1
+        end
 
         if room.DoorCount == 1 then
             deadEnds += 1
@@ -71,6 +83,7 @@ return function()
 
     assert(roomCount == config.RoomCount, 'Maze should honor configured room count')
     assert(deadEnds >= 1, 'Maze should preserve at least one dead-end room')
+    assert(cavePocketCount >= 1, 'Maze should expose at least one cave-like room archetype')
     assert(
         openSixRooms <= math.max(1, math.floor(roomCount * 0.15)),
         'Six-door hub rooms should stay low frequency'
@@ -189,6 +202,10 @@ return function()
         assert(
             room.DoorMask == secondRoom.DoorMask,
             'Door mask should be deterministic for same seed'
+        )
+        assert(
+            room.ArchetypeId == secondRoom.ArchetypeId,
+            'Room archetype selection should be deterministic for same seed'
         )
     end
 end

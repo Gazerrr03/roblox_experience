@@ -20,6 +20,75 @@ local function cloneTable(input)
     return table.clone(input or {})
 end
 
+local function cloneLightConfig(lightConfig)
+    if type(lightConfig) ~= 'table' then
+        return nil
+    end
+
+    return {
+        Brightness = lightConfig.Brightness,
+        Range = lightConfig.Range,
+        Color = lightConfig.Color,
+    }
+end
+
+local function cloneInventoryItem(itemEntry)
+    if type(itemEntry) ~= 'table' then
+        return nil
+    end
+
+    return {
+        InstanceId = itemEntry.InstanceId,
+        Id = itemEntry.Id,
+        Name = itemEntry.Name,
+        Weight = itemEntry.Weight,
+        Value = itemEntry.Value,
+        Color = itemEntry.Color,
+        Light = cloneLightConfig(itemEntry.Light),
+    }
+end
+
+local function cloneInventorySummary(summary)
+    if type(summary) ~= 'table' then
+        return nil
+    end
+
+    local backpackItems = {}
+    for index, itemEntry in ipairs(summary.BackpackItems or {}) do
+        backpackItems[index] = cloneInventoryItem(itemEntry)
+    end
+
+    return {
+        Capacity = summary.Capacity or 0,
+        Weight = summary.Weight or 0,
+        Count = summary.Count or 0,
+        BackpackCount = summary.BackpackCount or #backpackItems,
+        HeldCount = summary.HeldCount or (summary.HeldItem and 1 or 0),
+        Value = summary.Value or 0,
+        BackpackItems = backpackItems,
+        HeldItem = cloneInventoryItem(summary.HeldItem),
+    }
+end
+
+local function clonePlayerInventories(playerInventories)
+    local cloned = {}
+
+    for _, entry in ipairs(playerInventories or {}) do
+        if type(entry) == 'table' and type(entry.UserId) == 'number' then
+            table.insert(cloned, {
+                UserId = entry.UserId,
+                Inventory = cloneInventorySummary(entry.Inventory),
+            })
+        end
+    end
+
+    table.sort(cloned, function(left, right)
+        return left.UserId < right.UserId
+    end)
+
+    return cloned
+end
+
 local function sortPlayers(players)
     table.sort(players, function(left, right)
         if left.UserId == right.UserId then
@@ -240,6 +309,7 @@ function CampMazeSessionContract.buildLobbyToRunTeleportData(params)
         Entry = {
             Kind = 'LobbyLaunch',
         },
+        PlayerInventories = {},
     }
 end
 
@@ -248,6 +318,17 @@ function CampMazeSessionContract.buildLobbyToCampTeleportData(params)
 end
 
 function CampMazeSessionContract.buildRunToMazeTeleportData(params)
+    local playerInventories = {}
+    if
+        type(params.EnteringPlayer) == 'table'
+        and type(params.EnteringPlayer.UserId) == 'number'
+    then
+        table.insert(playerInventories, {
+            UserId = params.EnteringPlayer.UserId,
+            Inventory = cloneInventorySummary(params.PlayerInventory),
+        })
+    end
+
     return {
         SessionConfig = cloneTable(params.SessionConfig),
         CampSession = CampMazeSessionContract.normalizeCampSession(params.CampSession),
@@ -258,6 +339,7 @@ function CampMazeSessionContract.buildRunToMazeTeleportData(params)
             EntryReason = params.EntryReason or 'camp_gate',
             EnteringPlayer = table.clone(params.EnteringPlayer),
         },
+        PlayerInventories = clonePlayerInventories(playerInventories),
     }
 end
 
@@ -273,6 +355,7 @@ function CampMazeSessionContract.buildMazeToRunTeleportData(params)
             MazeCompleted = params.MazeCompleted == true,
             Summaries = cloneArray(params.Summaries),
         },
+        PlayerInventories = clonePlayerInventories(params.PlayerInventories),
     }
 end
 
@@ -289,6 +372,21 @@ function CampMazeSessionContract.findReturnSummary(teleportData, userId)
     for _, summary in ipairs(mazeReturn.Summaries or {}) do
         if summary.UserId == userId then
             return summary
+        end
+    end
+
+    return nil
+end
+
+function CampMazeSessionContract.findPlayerInventory(teleportData, userId)
+    local playerInventories = teleportData and teleportData.PlayerInventories
+    if type(playerInventories) ~= 'table' then
+        return nil
+    end
+
+    for _, entry in ipairs(playerInventories) do
+        if entry.UserId == userId then
+            return cloneInventorySummary(entry.Inventory)
         end
     end
 

@@ -10,8 +10,9 @@ local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
 local UI = require(Packages:WaitForChild('UI'))
 
-local Remotes = Shared.Network.Remotes.ensureScope(Shared.Network.Remotes.Scope.Run)
+local Remotes = Shared.Network.Remotes.waitForScope(Shared.Network.Remotes.Scope.Run)
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
+local heldItemController = Shared.Client.HeldItemController.new(localPlayer)
 local Theme = UI.Hud.Theme
 
 local disconnectFirstPersonLock
@@ -22,6 +23,7 @@ local isCampPanelVisible = true
 local actionInputConnection
 local sprintInputEndedConnection
 local isMenuMouseUnlockBound = false
+local visibleBackpackItems = {}
 local MENU_MOUSE_UNLOCK_STEP = 'RunMenuMouseUnlock'
 ensureFirstPersonLock = function()
     disconnectFirstPersonLock = Shared.Client.FirstPersonController.start(localPlayer)
@@ -89,6 +91,7 @@ script.Destroying:Connect(function()
         sprintInputEndedConnection = nil
     end
 
+    heldItemController:destroy()
     unbindMenuMouseUnlock()
 end)
 
@@ -214,7 +217,7 @@ local panel = Instance.new('Frame')
 panel.Name = 'CampPanel'
 panel.AnchorPoint = Vector2.new(0, 0)
 panel.Position = UDim2.fromScale(0.03, 0.05)
-panel.Size = UDim2.fromOffset(440, 500)
+panel.Size = UDim2.fromOffset(440, 620)
 panel.BackgroundColor3 = Theme.Background
 panel.BorderSizePixel = 0
 panel.Visible = false
@@ -246,7 +249,13 @@ objectiveLabel.Text = 'Objective: --'
 
 local guideLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 60), Theme.Text, 16, false)
 guideLabel.Text =
-    'In-world prompts:\n- Shop Terminal (Soon)\n- Loadout Bench (Soon)\n- Camp Gate / Shared Maze Gate\nKeyboard: Hold LeftShift to sprint, tap C to toggle Camp Status'
+    'In-world prompts:\n- Shop Terminal (Soon)\n- Loadout Bench (Soon)\n- Camp Gate / Shared Maze Gate\nKeyboard: Hold LeftShift to sprint, tap C to toggle Camp Status, 1-3 to equip, X to stow'
+
+local inventoryLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 44), Theme.Warning, 16, false)
+inventoryLabel.Text = 'Inventory: --'
+
+local inventoryDetailLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 126), Theme.Text, 15, false)
+inventoryDetailLabel.Text = ''
 
 local playerStateLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 86), Theme.Warning, 16, false)
 playerStateLabel.Text = 'Health: --\nStamina: --\nState: --\nMovement: --'
@@ -285,6 +294,30 @@ actionInputConnection = UserInputService.InputBegan:Connect(function(input, game
         if isRunLaunched then
             isCampPanelVisible = not isCampPanelVisible
             syncCampPanelVisibility()
+        end
+        return
+    end
+
+    if input.KeyCode == Enum.KeyCode.X and isRunLaunched then
+        Remotes.RunAction:FireServer({
+            Type = 'RequestUnequipItem',
+        })
+        return
+    end
+
+    local slotIndexByKeyCode = {
+        [Enum.KeyCode.One] = 1,
+        [Enum.KeyCode.Two] = 2,
+        [Enum.KeyCode.Three] = 3,
+    }
+    local slotIndex = slotIndexByKeyCode[input.KeyCode]
+    if slotIndex ~= nil and isRunLaunched then
+        local itemEntry = visibleBackpackItems[slotIndex]
+        if itemEntry then
+            Remotes.RunAction:FireServer({
+                Type = 'RequestEquipItem',
+                ItemInstanceId = itemEntry.InstanceId,
+            })
         end
         return
     end
@@ -340,11 +373,15 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
         releaseFirstPersonLockForMenu()
         bindMenuMouseUnlock()
         canRequestMazeEntry = false
+        visibleBackpackItems = {}
+        heldItemController:applyInventory(nil)
         menuStatusLabel.Text =
             string.format('%s\nMaze Entry: %s', snapshot.Status, buildMazeEntryText(snapshot))
         singlePlayerButton.Active = true
         singlePlayerButton.AutoButtonColor = true
         singlePlayerButton.Text = 'Single Player'
+        inventoryLabel.Text = 'Inventory: --'
+        inventoryDetailLabel.Text = ''
         playerStateLabel.Text = 'Health: --\nStamina: --\nState: --\nMovement: --'
         return
     end
@@ -363,6 +400,51 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
     )
 
     objectiveLabel.Text = string.format('Objective: %s', snapshot.Objective)
+
+    local inventory = snapshot.Inventory or {}
+    visibleBackpackItems = inventory.BackpackItems or {}
+    heldItemController:applyInventory(inventory)
+    inventoryLabel.Text = string.format(
+        'Inventory: %d total | %d backpack | %d held | %d/%d KG | %d value',
+        inventory.Count or 0,
+        inventory.BackpackCount or 0,
+        inventory.HeldCount or 0,
+        inventory.Weight or 0,
+        inventory.Capacity or 0,
+        inventory.Value or 0
+    )
+
+    local heldItem = inventory.HeldItem
+    local inventoryDetailLines = {
+        heldItem and string.format(
+            'Held: %s | %d KG | %d value%s',
+            heldItem.Name,
+            heldItem.Weight,
+            heldItem.Value,
+            heldItem.Light and ' | Glow active' or ''
+        ) or 'Held: Empty hands',
+        'Backpack:',
+    }
+    if #visibleBackpackItems == 0 then
+        table.insert(inventoryDetailLines, '- Empty')
+    else
+        for itemIndex = 1, math.min(#visibleBackpackItems, 3) do
+            local itemEntry = visibleBackpackItems[itemIndex]
+            table.insert(
+                inventoryDetailLines,
+                string.format(
+                    '- [%d] %s | %d KG | %d value',
+                    itemIndex,
+                    itemEntry.Name,
+                    itemEntry.Weight,
+                    itemEntry.Value
+                )
+            )
+        end
+    end
+    table.insert(inventoryDetailLines, '')
+    table.insert(inventoryDetailLines, 'Keys: 1-3 equip listed item | X stow held item')
+    inventoryDetailLabel.Text = table.concat(inventoryDetailLines, '\n')
 
     local playerState = snapshot.PlayerState or {}
     local movement = snapshot.Movement or {}

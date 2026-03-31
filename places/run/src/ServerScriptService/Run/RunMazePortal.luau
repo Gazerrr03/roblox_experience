@@ -10,11 +10,19 @@ local MazeEntryAvailability = Shared.Session.MazeEntryAvailability
 local TeleportDiagnostics = Shared.Util.TeleportDiagnostics
 
 local RunMazePortal = {}
+local FORCE_FRESH_MAZE_SERVER_FOR_DIAGNOSTICS = false
 
 RunMazePortal.FailureCode = table.freeze({
     ReserveServerFailed = 'ReserveServerFailed',
-    TeleportToPrivateServerFailed = 'TeleportToPrivateServerFailed',
+    TeleportAsyncFailed = 'TeleportAsyncFailed',
 })
+
+local function buildReservedServerTeleportOptions(accessCode, teleportData)
+    local teleportOptions = Instance.new('TeleportOptions')
+    teleportOptions.ReservedServerAccessCode = accessCode
+    teleportOptions:SetTeleportData(teleportData)
+    return teleportOptions
+end
 
 function RunMazePortal.enter(params)
     local currentSession = CampMazeSessionContract.normalizeCampSession(params.CampSession)
@@ -24,6 +32,11 @@ function RunMazePortal.enter(params)
     })
 
     local mazeAccessCode = currentSession.MazeAccessCode
+    if FORCE_FRESH_MAZE_SERVER_FOR_DIAGNOSTICS and mazeAccessCode ~= nil then
+        print('[RunMazeDiag] ignoring cached MazeAccessCode to force a fresh reserved maze server')
+        mazeAccessCode = nil
+    end
+
     if mazeAccessCode == nil then
         local reserved, reserveResult = pcall(function()
             return TeleportService:ReserveServer(SessionConfig.PlaceIds.Maze)
@@ -44,6 +57,9 @@ function RunMazePortal.enter(params)
         end
 
         mazeAccessCode = reserveResult
+        print('[RunMazeDiag] reserved a fresh maze server access code')
+    else
+        print('[RunMazeDiag] reusing cached maze server access code')
     end
 
     local nextSession =
@@ -56,27 +72,27 @@ function RunMazePortal.enter(params)
         CampSession = nextSession,
         EnteringPlayer = params.EnteringPlayer,
         EntryReason = params.EntryReason or 'maze_gate',
+        PlayerInventory = params.PlayerInventory,
     })
 
+    local teleportOptions = buildReservedServerTeleportOptions(mazeAccessCode, teleportData)
     local success, message = pcall(function()
-        TeleportService:TeleportToPrivateServer(
+        TeleportService:TeleportAsync(
             SessionConfig.PlaceIds.Maze,
-            mazeAccessCode,
             { params.Player },
-            nil,
-            teleportData
+            teleportOptions
         )
     end)
     if not success then
         return {
             Ok = false,
-            FailureCode = RunMazePortal.FailureCode.TeleportToPrivateServerFailed,
+            FailureCode = RunMazePortal.FailureCode.TeleportAsyncFailed,
             Reason = TeleportDiagnostics.formatFailure(
-                'TeleportToPrivateServer',
+                'TeleportAsync',
                 message,
                 mazeTeleportSnapshot
             ),
-            ReasonCode = RunMazePortal.FailureCode.TeleportToPrivateServerFailed,
+            ReasonCode = RunMazePortal.FailureCode.TeleportAsyncFailed,
             CurrentSession = currentSession,
         }
     end

@@ -52,7 +52,7 @@ function MonsterService:destroy()
     end
 end
 
-function MonsterService:spawn(patrolPoints)
+function MonsterService:spawn(patrolPoints, initialPatrolIndex)
     self:destroy()
     self.PatrolPoints = patrolPoints
     self.PatrolIndex = 1
@@ -60,6 +60,8 @@ function MonsterService:spawn(patrolPoints)
     if #patrolPoints == 0 then
         return
     end
+
+    self.PatrolIndex = math.clamp(initialPatrolIndex or 1, 1, #patrolPoints)
 
     local monster = Instance.new('Part')
     monster.Name = self.Definition.Name
@@ -69,7 +71,7 @@ function MonsterService:spawn(patrolPoints)
     monster.CanCollide = false
     monster.Material = Enum.Material.Neon
     monster.Color = Color3.fromRGB(214, 91, 91)
-    monster.Position = patrolPoints[1] + self.Definition.SpawnOffset
+    monster.Position = patrolPoints[self.PatrolIndex] + self.Definition.SpawnOffset
     monster.Parent = Workspace
 
     self.MonsterPart = monster

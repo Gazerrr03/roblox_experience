@@ -6,6 +6,7 @@ return {
     MonsterCompiler = MonsterCompiler,
     MonsterEffectCatalog = require(script.MonsterEffectCatalog),
     MonsterLogic = require(script.MonsterLogic),
+    MazeMonsterSpawnPolicy = require(script.MazeMonsterSpawnPolicy),
     MonsterRuntimeProfile = require(script.MonsterRuntimeProfile),
     compileMonsterForMaze = MonsterCompiler.compileMonsterForMaze,
 }

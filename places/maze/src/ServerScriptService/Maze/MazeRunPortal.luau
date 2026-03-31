@@ -23,6 +23,7 @@ function MazeRunPortal.returnPlayers(params)
         CampSession = nextCampSession,
         Summaries = params.Summaries,
         MazeCompleted = params.MazeCompleted,
+        PlayerInventories = params.PlayerInventories,
     })
 
     local runTeleportSnapshot = TeleportDiagnostics.captureSnapshot({
