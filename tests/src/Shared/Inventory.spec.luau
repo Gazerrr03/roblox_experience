@@ -100,6 +100,22 @@ return function()
     inventoryService:addPlayer(fakePlayer)
     local servicePickupSuccess, serviceEntry = inventoryService:pickup(fakePlayer, items[4])
     assert(servicePickupSuccess == true, 'Runtime inventory should pick up items for the player')
+    local tokenPickupSuccess, tokenEntry = inventoryService:pickup(fakePlayer, items[1])
+    assert(tokenPickupSuccess == true, 'Runtime inventory should pick up the starter UGC token')
+    assert(
+        inventoryService:countByItemId(fakePlayer, items[1].Id) == 1,
+        'Runtime inventory should count items by item id'
+    )
+    local consumedToken, consumedEntry = inventoryService:consumeByItemId(fakePlayer, items[1].Id)
+    assert(consumedToken == true, 'Runtime inventory should consume an item by id')
+    assert(
+        consumedEntry.InstanceId == tokenEntry.InstanceId,
+        'Consumed item should match the picked-up token instance id'
+    )
+    assert(
+        inventoryService:countByItemId(fakePlayer, items[1].Id) == 0,
+        'Consumed items should no longer be counted in inventory summaries'
+    )
 
     local serviceEquipSuccess = inventoryService:equip(fakePlayer, serviceEntry.InstanceId)
     assert(serviceEquipSuccess == true, 'Runtime inventory should equip a held item')

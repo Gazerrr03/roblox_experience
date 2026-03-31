@@ -205,4 +205,46 @@ function Inventory:clear()
     self.HeldItem = nil
 end
 
+function Inventory:countById(itemId)
+    if type(itemId) ~= 'string' or itemId == '' then
+        return 0
+    end
+
+    local count = 0
+    for _, itemEntry in ipairs(self.BackpackItems) do
+        if itemEntry.Id == itemId then
+            count += 1
+        end
+    end
+
+    if self.HeldItem and self.HeldItem.Id == itemId then
+        count += 1
+    end
+
+    return count
+end
+
+function Inventory:consumeById(itemId)
+    if type(itemId) ~= 'string' or itemId == '' then
+        return false, 'MissingItemId'
+    end
+
+    for index, itemEntry in ipairs(self.BackpackItems) do
+        if itemEntry.Id == itemId then
+            local consumed = table.remove(self.BackpackItems, index)
+            self.Weight -= consumed.Weight
+            return true, cloneItemEntry(consumed)
+        end
+    end
+
+    if self.HeldItem and self.HeldItem.Id == itemId then
+        local consumed = self.HeldItem
+        self.HeldItem = nil
+        self.Weight -= consumed.Weight
+        return true, cloneItemEntry(consumed)
+    end
+
+    return false, 'ItemNotFound'
+end
+
 return Inventory
