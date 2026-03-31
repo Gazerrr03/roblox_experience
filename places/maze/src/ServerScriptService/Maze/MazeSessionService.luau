@@ -79,6 +79,25 @@ local function getWorldBuildSourceForBuild(hasAcceptedTeleportDataBeforeBuild)
     return WORLD_BUILD_SOURCE.DirectBootDefault
 end
 
+local function sanitizeIncomingInventoryCapacity(rawCapacity)
+    if
+        type(rawCapacity) ~= 'number'
+        or rawCapacity ~= rawCapacity
+        or rawCapacity == math.huge
+        or rawCapacity == -math.huge
+    then
+        return nil
+    end
+
+    local normalizedCapacity = math.floor(rawCapacity)
+    if normalizedCapacity < 1 then
+        return nil
+    end
+
+    local trustedCapacityUpperBound = math.max(1, math.floor(SessionConfig.InventoryCapacity))
+    return math.min(normalizedCapacity, trustedCapacityUpperBound)
+end
+
 local function mergeSummaries(existingSummaries, nextSummaries)
     local summariesByUserId = {}
 
@@ -391,9 +410,11 @@ function MazeSessionService:_mergeTeleportData(teleportData, resetInventoryServi
         if type(incoming.RunDurationSeconds) == 'number' then
             self.SessionData.RunDurationSeconds = incoming.RunDurationSeconds
         end
-        if type(incoming.InventoryCapacity) == 'number' then
-            self.SessionData.InventoryCapacity = incoming.InventoryCapacity
-            self.InventoryService.Capacity = incoming.InventoryCapacity
+        local incomingInventoryCapacity =
+            sanitizeIncomingInventoryCapacity(incoming.InventoryCapacity)
+        if incomingInventoryCapacity ~= nil then
+            self.SessionData.InventoryCapacity = incomingInventoryCapacity
+            self.InventoryService:setCapacity(incomingInventoryCapacity)
         end
     end
 
