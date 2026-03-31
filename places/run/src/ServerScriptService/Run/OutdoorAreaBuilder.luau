@@ -368,6 +368,10 @@ function OutdoorAreaBuilder.build(worldFolder, createPart, createPromptPart)
         RequiresLineOfSight = false,
     }, outdoorFolder)
 
+    -- ==================== 初始化叙事交互系统 ====================
+    local NarrativeInteractionSystem = require(script.Parent.NarrativeInteractionSystem)
+    NarrativeInteractionSystem.initialize(outdoorFolder)
+
     return {
         MazePrompt = mazePrompt,
     }
