@@ -308,6 +308,7 @@ function MazeSessionService.new()
     )
     self.CorpsesByUserId = {}
     self.BootPhase = 'New'
+    self.SurfacePalette = Shared.Runtime.MazeLightingProfile.SurfacePalette
 
     self:_emitDiagnostic('InitDefaultState', {
         InitialIsDirectBoot = self.IsDirectBoot,
@@ -336,6 +337,13 @@ function MazeSessionService:_setBootFailure(err)
     )
 end
 
+function MazeSessionService:setSurfacePalette(surfacePalette)
+    if type(surfacePalette) ~= 'table' then
+        return
+    end
+
+    self.SurfacePalette = surfacePalette
+end
 function MazeSessionService:_readTeleportData(player)
     local joinData = player:GetJoinData()
     return joinData and joinData.TeleportData
@@ -654,7 +662,9 @@ end
 function MazeSessionService:_rebuildWorld()
     self:_setBootPhase('RebuildWorld')
     clearDefaultWorkspaceShell()
-    self.World = MazeWorldBuilder.build(self.SessionData.Seed, SessionConfig.ProcGen)
+    self.World = MazeWorldBuilder.build(self.SessionData.Seed, SessionConfig.ProcGen, {
+        SurfacePalette = self.SurfacePalette,
+    })
     self:_recordWorldBuildMetadata()
     self:_setBootPhase('BindWorldInteractions')
     self:_bindWorldInteractions()
