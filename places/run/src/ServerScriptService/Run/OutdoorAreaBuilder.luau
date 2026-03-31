@@ -372,6 +372,10 @@ function OutdoorAreaBuilder.build(worldFolder, createPart, createPromptPart)
     local NarrativeInteractionSystem = require(script.Parent.NarrativeInteractionSystem)
     NarrativeInteractionSystem.initialize(outdoorFolder)
 
+    -- ==================== 初始化可交互对象 ====================
+    local InteractableObjectsSetup = require(script.Parent.InteractableObjectsSetup)
+    InteractableObjectsSetup.setupInteractables(outdoorFolder)
+
     return {
         MazePrompt = mazePrompt,
     }

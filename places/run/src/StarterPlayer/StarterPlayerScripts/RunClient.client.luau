@@ -15,6 +15,7 @@ local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local heldItemController = Shared.Client.HeldItemController.new(localPlayer)
 local NarrativeUI = require(script.Parent.NarrativeUI)
 local BackpackUI = require(script.Parent.BackpackUI)
+local ItemClient = require(script.Parent.ItemClient)
 local Theme = UI.Hud.Theme
 
 local disconnectFirstPersonLock
@@ -505,3 +506,6 @@ end)
 Remotes.ShowNarrative.OnClientEvent:Connect(function(layer1, layer2, layer3)
     NarrativeUI.show(layer1, layer2, layer3)
 end)
+
+-- 初始化道具客户端
+ItemClient.initialize()

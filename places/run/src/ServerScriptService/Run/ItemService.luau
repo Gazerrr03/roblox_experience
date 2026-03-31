@@ -29,6 +29,8 @@ local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
 local Remotes = Shared.Network.Remotes.waitForScope(Shared.Network.Remotes.Scope.Run)
 
+local ItemFunctionality = require(script.Parent.ItemFunctionality)
+
 --#endregion
 
 --#region Module
@@ -191,6 +193,11 @@ end)
 -- 获取背包数据
 Remotes.GetInventory.OnServerInvoke = function(player: Player): {[string]: ItemData}
     return ItemService.getInventory(player)
+end
+
+-- 获取单个道具数据
+Remotes.GetItemData.OnServerInvoke = function(player: Player, itemName: string): ItemData?
+    return ItemService.getItemData(player, itemName)
 end
 
 -- 装备/卸下道具
