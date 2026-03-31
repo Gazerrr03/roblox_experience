@@ -1,7 +1,6 @@
 local MonsterBehaviorCatalog = require(script.Parent.Parent.Monsters.MonsterBehaviorCatalog)
 local MonsterEffectCatalog = require(script.Parent.Parent.Monsters.MonsterEffectCatalog)
 local MonsterPresentationCatalog = require(script.Parent.Parent.Monsters.MonsterPresentationCatalog)
-local MonsterPresentationCatalog = require(script.Parent.Parent.Monsters.MonsterPresentationCatalog)
 
 return {
     {
