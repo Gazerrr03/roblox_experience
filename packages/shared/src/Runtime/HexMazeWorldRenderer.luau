@@ -107,10 +107,12 @@ local function applyArchetypeShellAsset(roomFolder, roomCenter, room, moduleAsse
     clone.Name = string.format('AuthoredShell_%s', room.ArchetypeId)
     clone.Parent = roomFolder
 
-    if clone:IsA('Model') then
+    if clone:IsA('BasePart') then
+        clone.Anchored = true
+    end
+
+    if clone:IsA('Model') or clone:IsA('BasePart') then
         clone:PivotTo(CFrame.new(roomCenter))
-    elseif clone:IsA('BasePart') then
-        clone.CFrame = CFrame.new(roomCenter)
     end
 end
 

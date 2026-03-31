@@ -38,13 +38,10 @@ return function()
     cavePocketAssets.Name = 'CavePocket'
     cavePocketAssets.Parent = roomArchetypes
 
-    local authoredShell = Instance.new('Model')
+    local authoredShell = Instance.new('Part')
     authoredShell.Name = contract.OptionalShellModelName
-    local authoredShellPart = Instance.new('Part')
-    authoredShellPart.Name = 'ShellPart'
-    authoredShellPart.Size = Vector3.new(2, 2, 2)
-    authoredShellPart.Anchored = true
-    authoredShellPart.Parent = authoredShell
+    authoredShell.Size = Vector3.new(2, 2, 2)
+    authoredShell.Anchored = false
     authoredShell.Parent = cavePocketAssets
 
     local rendered = renderer.build({
@@ -104,9 +101,18 @@ return function()
                 roomFolder:FindFirstChild('CavePocketDecor') ~= nil,
                 'Cave archetype rooms should render cave-like interior dressing'
             )
+            local caveShell = roomFolder:FindFirstChild('AuthoredShell_CavePocket')
             assert(
-                roomFolder:FindFirstChild('AuthoredShell_CavePocket') ~= nil,
+                caveShell ~= nil,
                 'Cave archetype rooms should accept authored external shell models'
+            )
+            assert(caveShell:IsA('BasePart'), 'Part-based authored shells should be supported')
+            assert(caveShell.Anchored == true, 'Part-based authored shells should be anchored')
+
+            local caveRoomCenter = rendered.RoomCenters[roomId]
+            assert(
+                (caveShell.Position - caveRoomCenter).Magnitude < 0.001,
+                'Part-based authored shells should be pivoted to the room center'
             )
         end
 
