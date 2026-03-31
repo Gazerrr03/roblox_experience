@@ -471,9 +471,15 @@ function MonsterService:update(dt)
     if nextPosition and self.CanTraverse(currentPosition, nextPosition) then
         local travelOffset = nextPosition - currentPosition
         self.LogicalPosition = nextPosition
+        local currentRotation = CFrame.identity
+        if self.MonsterRoot and self.MonsterRoot:IsA('Model') then
+            currentRotation = self.MonsterRoot:GetPivot().Rotation
+        elseif self.MonsterRoot and self.MonsterRoot:IsA('BasePart') then
+            currentRotation = self.MonsterRoot.CFrame.Rotation
+        end
         local facingCFrame = if travelOffset.Magnitude > 0
             then CFrame.lookAt(nextPosition, nextPosition + travelOffset.Unit)
-            else CFrame.new(nextPosition)
+            else currentRotation + nextPosition
         self:_applyVisualCFrame(facingCFrame, dt)
 
         if targetPlayer and self.Definition.Behaviors[MonsterBehaviorCatalog.Behavior.Chase] then
