@@ -609,17 +609,16 @@ local function buildAttempt(seed, config)
     local startRotation = random:NextInteger(0, 5)
     local startDirections = rotateDirections(startDefinition.OpenDirections, startRotation)
     local startDoorMask = HexRoomPrefabs.computeDoorMask(startDirections)
-    local startRoom =
-        createRoom(
-            'Room_001',
-            0,
-            0,
-            roomSpacing,
-            startTypeId,
-            startRotation,
-            startDirections,
-            startDoorMask
-        )
+    local startRoom = createRoom(
+        'Room_001',
+        0,
+        0,
+        roomSpacing,
+        startTypeId,
+        startRotation,
+        startDirections,
+        startDoorMask
+    )
     startRoom.Kind = 'Camp'
     registerRoom(startRoom)
     quotas[startTypeId] -= 1
