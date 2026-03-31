@@ -652,7 +652,7 @@ local function buildPassageMock(
             Size = Vector3.new(wallThickness, passageHeight, passageLength),
             CFrame = corridorForward
                 + (tangent * ((passageWidth / 2) + (wallThickness / 2)) * sign)
-                + Vector3.new(0, passageHeight / 2, 0),
+                + Vector3.new(0, (passageHeight + SLAB_THICKNESS) / 2, 0),
             Color = surfacePalette.WallColor,
             Material = surfacePalette.WallMaterial,
         }, passageFolder)
@@ -661,7 +661,7 @@ local function buildPassageMock(
     createPart({
         Name = string.format('%sAccent', namePrefix),
         Size = Vector3.new(passageWidth * 0.85, 0.12, 1.5),
-        CFrame = corridorForward + Vector3.new(0, 0.16, 0),
+        CFrame = corridorForward + Vector3.new(0, (SLAB_THICKNESS / 2) + 0.06, 0),
         Color = passageDefinition.AccentColor,
         Material = Enum.Material.Neon,
         Transparency = 0.5,
