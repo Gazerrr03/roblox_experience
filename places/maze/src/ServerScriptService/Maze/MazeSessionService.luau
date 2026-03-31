@@ -31,6 +31,7 @@ local MonsterService = require(SharedPackage:WaitForChild('Runtime'):WaitForChil
 local ControlStateService = Shared.Runtime.ControlStateService
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local PlayerStateService = Shared.Runtime.PlayerStateService
+local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 
 local MazeRunPortal = require(script.Parent.MazeRunPortal)
 local MazeWorldBuilder = require(script.Parent.MazeWorldBuilder)
@@ -370,6 +371,7 @@ function MazeSessionService:_mergeTeleportData(teleportData, resetInventoryServi
         end
         if type(incoming.InventoryCapacity) == 'number' then
             self.SessionData.InventoryCapacity = incoming.InventoryCapacity
+            self.InventoryService.Capacity = incoming.InventoryCapacity
         end
     end
 
@@ -452,6 +454,15 @@ function MazeSessionService:_handlePlayerTeleportData(player)
         ResultSessionId = mergeResult.ResultSessionId,
         WorldBuildSource = self.WorldBuildMetadata and self.WorldBuildMetadata.Source or nil,
     })
+end
+
+function MazeSessionService:_hydratePlayerInventory(player, teleportData)
+    return TeleportInventoryHydrator.hydratePlayerInventory(
+        self.InventoryService,
+        player,
+        teleportData,
+        CampMazeSessionContract.findPlayerInventory
+    )
 end
 
 function MazeSessionService:_addPlayerState(player)
@@ -674,7 +685,6 @@ end
 
 function MazeSessionService:_buildSummaryFor(player, returnReason, wasSettled)
     local inventorySummary = self.InventoryService:getSummary(player)
-    self.InventoryService:deposit(player)
 
     return CampMazeSessionContract.buildReturnSummary({
         UserId = player.UserId,
@@ -686,6 +696,23 @@ function MazeSessionService:_buildSummaryFor(player, returnReason, wasSettled)
         WasExtracted = returnReason == 'extracted' or returnReason == 'settled',
         WasSettled = wasSettled == true,
     })
+end
+
+function MazeSessionService:_buildPlayerInventories(players)
+    local playerInventories = {}
+
+    for _, player in ipairs(players) do
+        table.insert(playerInventories, {
+            UserId = player.UserId,
+            Inventory = self.InventoryService:getSummary(player),
+        })
+    end
+
+    table.sort(playerInventories, function(left, right)
+        return left.UserId < right.UserId
+    end)
+
+    return playerInventories
 end
 
 function MazeSessionService:_canReturnToCamp()
@@ -709,6 +736,7 @@ function MazeSessionService:_teleportToCamp(players, summaries, mazeCompleted)
             CampSession = self.CampSession,
             Summaries = mergedSummaries,
             MazeCompleted = mazeCompleted,
+            PlayerInventories = self:_buildPlayerInventories(players),
         })
         if not result.Ok then
             self:_setStatus(string.format('Camp return failed: %s', tostring(result.Reason)))
@@ -1092,6 +1120,7 @@ function MazeSessionService:start()
     for _, player in ipairs(Players:GetPlayers()) do
         bindCharacterTeleport(self, player)
         self:_addPlayerState(player)
+        self:_hydratePlayerInventory(player, self:_readTeleportData(player))
 
         if player.Character then
             player.Character:Destroy()
@@ -1102,6 +1131,7 @@ function MazeSessionService:start()
         self:_handlePlayerTeleportData(player)
         bindCharacterTeleport(self, player)
         self:_addPlayerState(player)
+        self:_hydratePlayerInventory(player, self:_readTeleportData(player))
 
         if self.IsLaunched then
             player:LoadCharacter()
