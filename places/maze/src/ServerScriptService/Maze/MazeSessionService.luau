@@ -393,7 +393,7 @@ function MazeSessionService:_mergeTeleportData(teleportData, resetInventoryServi
         end
         if type(incoming.InventoryCapacity) == 'number' then
             self.SessionData.InventoryCapacity = incoming.InventoryCapacity
-            self.InventoryService.Capacity = incoming.InventoryCapacity
+            self.InventoryService:setCapacity(incoming.InventoryCapacity)
         end
     end
 
