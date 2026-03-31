@@ -49,15 +49,23 @@ end
 local PREFAB_VARIANTS_BY_TYPE = {}
 for _, typeId in ipairs(RATIO_TYPE_ORDER) do
     local variants = {}
+    local seenMasks = {}
     local definition = HexRoomPrefabs.getDefinition(typeId)
     if definition then
         for steps = 0, 5 do
             local openDirections = rotateDirections(definition.OpenDirections, steps)
-            table.insert(variants, table.freeze({
-                RotationSteps = steps,
-                OpenDirections = table.freeze(openDirections),
-                DoorMask = HexRoomPrefabs.computeDoorMask(openDirections),
-            }))
+            local doorMask = HexRoomPrefabs.computeDoorMask(openDirections)
+            if not seenMasks[doorMask] then
+                seenMasks[doorMask] = true
+                table.insert(
+                    variants,
+                    table.freeze({
+                        RotationSteps = steps,
+                        OpenDirections = table.freeze(openDirections),
+                        DoorMask = doorMask,
+                    })
+                )
+            end
         end
     end
     PREFAB_VARIANTS_BY_TYPE[typeId] = table.freeze(variants)
@@ -78,9 +86,18 @@ local function axialToWorld(q, r, roomSpacing)
     return Vector3.new(x, 0, z)
 end
 
-local function createRoom(roomId, q, r, roomSpacing, typeId, rotationSteps, openDirections)
+local function createRoom(
+    roomId,
+    q,
+    r,
+    roomSpacing,
+    typeId,
+    rotationSteps,
+    openDirections,
+    doorMaskOverride
+)
     local definition = HexRoomPrefabs.getDefinition(typeId)
-    local doorMask = HexRoomPrefabs.computeDoorMask(openDirections)
+    local doorMask = doorMaskOverride or HexRoomPrefabs.computeDoorMask(openDirections)
 
     return {
         Id = roomId,
@@ -317,6 +334,7 @@ local function enumeratePlacementCandidates(
                     TypeId = typeId,
                     RotationSteps = variant.RotationSteps,
                     OpenDirections = variant.OpenDirections,
+                    DoorMask = variant.DoorMask,
                     Weight = quota,
                 })
             end
@@ -590,8 +608,18 @@ local function buildAttempt(seed, config)
     local startDefinition = HexRoomPrefabs.getDefinition(startTypeId)
     local startRotation = random:NextInteger(0, 5)
     local startDirections = rotateDirections(startDefinition.OpenDirections, startRotation)
+    local startDoorMask = HexRoomPrefabs.computeDoorMask(startDirections)
     local startRoom =
-        createRoom('Room_001', 0, 0, roomSpacing, startTypeId, startRotation, startDirections)
+        createRoom(
+            'Room_001',
+            0,
+            0,
+            roomSpacing,
+            startTypeId,
+            startRotation,
+            startDirections,
+            startDoorMask
+        )
     startRoom.Kind = 'Camp'
     registerRoom(startRoom)
     quotas[startTypeId] -= 1
@@ -667,7 +695,8 @@ local function buildAttempt(seed, config)
             roomSpacing,
             candidate.TypeId,
             candidate.RotationSteps,
-            candidate.OpenDirections
+            candidate.OpenDirections,
+            candidate.DoorMask
         )
         registerRoom(newRoom)
         quotas[candidate.TypeId] -= 1
