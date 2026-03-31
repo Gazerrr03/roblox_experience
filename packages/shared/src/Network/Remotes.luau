@@ -120,7 +120,22 @@ function Remotes.waitForScope(scope, timeoutSeconds)
         error(string.format('Unknown remote scope %q', tostring(scope)), 0)
     end
 
-    local container = waitForContainer(timeoutSeconds)
+    local startTime = os.clock()
+    local function getRemainingTimeout()
+        if timeoutSeconds == nil then
+            return nil
+        end
+
+        local elapsed = os.clock() - startTime
+        local remaining = timeoutSeconds - elapsed
+        if remaining < 0 then
+            return 0
+        end
+
+        return remaining
+    end
+
+    local container = waitForContainer(getRemainingTimeout())
     if container == nil then
         error('Timed out waiting for ReplicatedStorage.Remotes.', 0)
     end
@@ -128,7 +143,7 @@ function Remotes.waitForScope(scope, timeoutSeconds)
     local resolved = {}
 
     for _, name in ipairs(remoteNames) do
-        local remote = waitForRemote(container, name, timeoutSeconds)
+        local remote = waitForRemote(container, name, getRemainingTimeout())
         if remote == nil then
             error(string.format('Timed out waiting for remote %s.', name), 0)
         end
