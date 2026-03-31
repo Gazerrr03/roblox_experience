@@ -31,6 +31,7 @@ local MonsterService = require(SharedPackage:WaitForChild('Runtime'):WaitForChil
 local ControlStateService = Shared.Runtime.ControlStateService
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local PlayerStateService = Shared.Runtime.PlayerStateService
+local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 
 local MazeRunPortal = require(script.Parent.MazeRunPortal)
 local MazeWorldBuilder = require(script.Parent.MazeWorldBuilder)
@@ -456,14 +457,12 @@ function MazeSessionService:_handlePlayerTeleportData(player)
 end
 
 function MazeSessionService:_hydratePlayerInventory(player, teleportData)
-    local inventorySummary =
-        CampMazeSessionContract.findPlayerInventory(teleportData, player.UserId)
-    if inventorySummary == nil then
-        return false
-    end
-
-    local loaded = self.InventoryService:loadSummary(player, inventorySummary)
-    return loaded == true
+    return TeleportInventoryHydrator.hydratePlayerInventory(
+        self.InventoryService,
+        player,
+        teleportData,
+        CampMazeSessionContract.findPlayerInventory
+    )
 end
 
 function MazeSessionService:_addPlayerState(player)

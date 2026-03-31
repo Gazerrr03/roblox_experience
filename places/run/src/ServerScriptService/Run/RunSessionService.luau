@@ -15,6 +15,7 @@ local ControlStateService = Shared.Runtime.ControlStateService
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local InventoryService = Shared.Runtime.InventoryService
 local PlayerStateService = Shared.Runtime.PlayerStateService
+local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 
 local LocalDebugMazeWorldBuilder = require(script.Parent.LocalDebugMazeWorldBuilder)
 local RunMazePortal = require(script.Parent.RunMazePortal)
@@ -213,14 +214,12 @@ function RunSessionService:_applySessionConfig(incoming)
 end
 
 function RunSessionService:_hydratePlayerInventory(player, teleportData)
-    local inventorySummary =
-        CampMazeSessionContract.findPlayerInventory(teleportData, player.UserId)
-    if inventorySummary == nil then
-        return false
-    end
-
-    local loaded = self.InventoryService:loadSummary(player, inventorySummary)
-    return loaded == true
+    return TeleportInventoryHydrator.hydratePlayerInventory(
+        self.InventoryService,
+        player,
+        teleportData,
+        CampMazeSessionContract.findPlayerInventory
+    )
 end
 
 function RunSessionService:_syncCampSession()
