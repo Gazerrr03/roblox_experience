@@ -109,11 +109,15 @@ local function applyArchetypeShellAsset(roomFolder, roomCenter, room, moduleAsse
 
     if clone:IsA('BasePart') then
         clone.Anchored = true
+    elseif clone:IsA('Model') then
+        for _, descendant in ipairs(clone:GetDescendants()) do
+            if descendant:IsA('BasePart') then
+                descendant.Anchored = true
+            end
+        end
     end
 
-    if clone:IsA('Model') or clone:IsA('BasePart') then
-        clone:PivotTo(CFrame.new(roomCenter))
-    end
+    clone:PivotTo(CFrame.new(roomCenter))
 end
 
 local function createAuthoringSockets(roomFolder, roomCenter)
