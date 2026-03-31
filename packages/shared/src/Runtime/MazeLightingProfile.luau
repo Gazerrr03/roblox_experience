@@ -303,11 +303,9 @@ function MazeLightingProfile.apply(lighting, options)
         TechnologyApplied = technologyApplied,
         TechnologyError = skippedProperties['Lighting.Technology'],
         AppliedProfile = appliedProfile,
-        SurfacePalette = (
-            if technologyApplied
-                then MazeLightingProfile.SurfacePalette
-                else MazeLightingProfile.FallbackSurfacePalette
-        ),
+        SurfacePalette = (if technologyApplied
+            then MazeLightingProfile.SurfacePalette
+            else MazeLightingProfile.FallbackSurfacePalette),
         SkippedProperties = skippedProperties,
     }
 end
