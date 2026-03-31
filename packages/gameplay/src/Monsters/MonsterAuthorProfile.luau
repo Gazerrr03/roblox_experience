@@ -37,6 +37,7 @@ local BOUNDARY_REASONS = table.freeze({
 })
 
 MonsterAuthorProfile.ErrorCategory = ERROR_CATEGORY
+MonsterAuthorProfile.SchemaMode = SCHEMA_MODE
 
 local function isNonEmptyString(value)
     return type(value) == 'string' and value ~= ''
