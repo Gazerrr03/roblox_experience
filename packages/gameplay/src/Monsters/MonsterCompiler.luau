@@ -6,10 +6,6 @@ local MonsterRuntimeProfile = require(script.Parent.MonsterRuntimeProfile)
 local DEFAULT_SPAWN_OFFSET = Vector3.new(0, 4, 0)
 
 local MonsterCompiler = {}
-local SCHEMA_MODE = table.freeze({
-    LegacyFlat = 'LegacyFlat',
-    Layered = 'Layered',
-})
 
 local function buildErrorDiagnostic(category, code)
     return table.freeze({
@@ -91,7 +87,7 @@ function MonsterCompiler.compileMonsterForMaze(authorProfile)
     end
 
     local warnings = {}
-    if normalizedProfile.SchemaMode == SCHEMA_MODE.LegacyFlat then
+    if normalizedProfile.SchemaMode == MonsterAuthorProfile.SchemaMode.LegacyFlat then
         table.insert(warnings, 'DeprecatedLegacySchema')
     end
 
