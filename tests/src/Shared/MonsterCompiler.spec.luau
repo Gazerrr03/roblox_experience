@@ -12,20 +12,6 @@ return function()
     local scrapWisp = gameplay.Config.Monsters[1]
     local errorCategory = authorProfileModule.ErrorCategory
 
-    local function buildLegacyProfile(layeredProfile)
-        return {
-            Id = layeredProfile.Id,
-            Name = layeredProfile.Name,
-            Lore = layeredProfile.Semantics.Lore,
-            Atmosphere = layeredProfile.Semantics.Atmosphere,
-            TriggerIntent = table.clone(layeredProfile.Semantics.TriggerIntent),
-            CounterplayIntent = table.clone(layeredProfile.Semantics.CounterplayIntent),
-            NumericProfile = table.clone(layeredProfile.Tuning),
-            BehaviorIntents = table.clone(layeredProfile.Executable.BehaviorIntents),
-            EffectIntents = table.clone(layeredProfile.Executable.EffectIntents),
-        }
-    end
-
     local validAuthorProfile, normalizedProfile = authorProfileModule.validate(scrapWisp)
     assert(
         validAuthorProfile == true,
@@ -106,7 +92,7 @@ return function()
     )
     assert(
         #compileReport.Warnings == 0,
-        'Layered schema compiles should not emit deprecation warnings'
+        'Layered schema compiles should not emit compatibility warnings'
     )
     assert(
         #compileReport.SkippedBehaviorIds == 1
@@ -119,22 +105,27 @@ return function()
         'Compiler should report maze-skipped effect intents'
     )
 
-    local legacyProfile = buildLegacyProfile(scrapWisp)
-    local legacyCompileOk, legacyRuntimeProfile, legacyCompileReport = compiler(legacyProfile)
-    assert(legacyCompileOk == true, 'Legacy flat profiles should still compile during migration')
+    local legacyProfile = {
+        Id = scrapWisp.Id,
+        Name = scrapWisp.Name,
+        Lore = scrapWisp.Semantics.Lore,
+        Atmosphere = scrapWisp.Semantics.Atmosphere,
+        TriggerIntent = table.clone(scrapWisp.Semantics.TriggerIntent),
+        CounterplayIntent = table.clone(scrapWisp.Semantics.CounterplayIntent),
+        NumericProfile = table.clone(scrapWisp.Tuning),
+        BehaviorIntents = table.clone(scrapWisp.Executable.BehaviorIntents),
+        EffectIntents = table.clone(scrapWisp.Executable.EffectIntents),
+    }
+
+    local legacyCompileOk, legacyReason, legacyDiagnostic = compiler(legacyProfile)
+    assert(legacyCompileOk == false, 'Legacy flat schema should fail after migration cutoff')
     assert(
-        legacyRuntimeProfile.Speed == runtimeProfile.Speed
-            and legacyRuntimeProfile.SightRange == runtimeProfile.SightRange,
-        'Legacy and layered schema compiles should produce equivalent runtime output'
+        legacyReason == 'LegacySchemaUnsupported',
+        'Legacy flat schema should expose the dedicated unsupported reason'
     )
     assert(
-        legacyCompileReport.SchemaMode == 'LegacyFlat',
-        'Legacy compiles should report legacy schema mode'
-    )
-    assert(
-        #legacyCompileReport.Warnings == 1
-            and legacyCompileReport.Warnings[1] == 'DeprecatedLegacySchema',
-        'Legacy compiles should emit the deprecation warning'
+        legacyDiagnostic.Category == errorCategory.Schema,
+        'Legacy schema rejections should classify as schema diagnostics'
     )
 
     local missingNameProfile = table.clone(scrapWisp)
@@ -145,7 +136,8 @@ return function()
     assert(missingNameReason == 'MissingName', 'Missing names should expose the expected reason')
 
     local missingPresentationProfile = table.clone(scrapWisp)
-    missingPresentationProfile.Presentation = nil
+    missingPresentationProfile.Executable = table.clone(scrapWisp.Executable)
+    missingPresentationProfile.Executable.Presentation = nil
 
     local missingPresentationOk, missingPresentationReason =
         authorProfileModule.validate(missingPresentationProfile)

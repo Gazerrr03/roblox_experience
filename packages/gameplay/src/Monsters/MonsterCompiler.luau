@@ -26,15 +26,6 @@ local function cloneRuntimeEffect(effectIntent)
     return table.freeze(runtimeEffect)
 end
 
-local function cloneRuntimePresentation(presentation)
-    return table.freeze({
-        ModelAssetId = presentation.ModelAssetId,
-        RigType = presentation.RigType,
-        AnimationMode = presentation.AnimationMode,
-        ChaseLoopSoundAssetId = presentation.ChaseLoopSoundAssetId,
-    })
-end
-
 function MonsterCompiler.compileMonsterForMaze(authorProfile)
     local validAuthorProfile, normalizedOrReason = MonsterAuthorProfile.validate(authorProfile)
     if not validAuthorProfile then
@@ -70,7 +61,7 @@ function MonsterCompiler.compileMonsterForMaze(authorProfile)
     local runtimeProfile = table.freeze({
         Id = normalizedProfile.Id,
         Name = normalizedProfile.Name,
-        Presentation = cloneRuntimePresentation(normalizedProfile.Presentation),
+        Presentation = normalizedProfile.Executable.Presentation,
         Speed = normalizedProfile.Tuning.Speed,
         SightRange = normalizedProfile.Tuning.SightRange,
         PatrolSpeedMultiplier = normalizedProfile.Tuning.PatrolSpeedMultiplier,
@@ -86,16 +77,11 @@ function MonsterCompiler.compileMonsterForMaze(authorProfile)
             buildErrorDiagnostic(MonsterAuthorProfile.ErrorCategory.Schema, runtimeReason)
     end
 
-    local warnings = {}
-    if normalizedProfile.SchemaMode == MonsterAuthorProfile.SchemaMode.LegacyFlat then
-        table.insert(warnings, 'DeprecatedLegacySchema')
-    end
-
     local compileReport = table.freeze({
         SchemaMode = normalizedProfile.SchemaMode,
         SkippedBehaviorIds = table.freeze(skippedBehaviorIds),
         SkippedEffectIds = table.freeze(skippedEffectIds),
-        Warnings = table.freeze(warnings),
+        Warnings = table.freeze({}),
     })
 
     return true, runtimeProfile, compileReport

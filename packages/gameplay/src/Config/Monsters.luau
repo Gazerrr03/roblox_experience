@@ -18,12 +18,6 @@ return {
                 Tool = 'No dedicated suppression tool in v1',
             },
         },
-        Presentation = {
-            ModelAssetId = 4446576906,
-            RigType = MonsterPresentationCatalog.RigType.R6,
-            AnimationMode = MonsterPresentationCatalog.AnimationMode.DefaultR6,
-            ChaseLoopSoundAssetId = 9118823108,
-        },
         Tuning = {
             Speed = 14,
             SightRange = 36,
@@ -31,6 +25,12 @@ return {
             SpawnOffset = Vector3.new(0, 4, 0),
         },
         Executable = {
+            Presentation = {
+                ModelAssetId = 4446576906,
+                RigType = MonsterPresentationCatalog.RigType.R6,
+                AnimationMode = MonsterPresentationCatalog.AnimationMode.DefaultR6,
+                ChaseLoopSoundAssetId = 9118823108,
+            },
             BehaviorIntents = {
                 {
                     Id = MonsterBehaviorCatalog.Behavior.Patrol,
