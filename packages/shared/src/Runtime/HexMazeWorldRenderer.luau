@@ -55,11 +55,12 @@ local function resolveSurfacePalette(surfacePalette)
 end
 
 local function edgeKey(roomIdA, roomIdB)
+    -- Bolt: Using concatenation instead of string.format reduces allocation overhead
     if roomIdA < roomIdB then
-        return string.format('%s|%s', roomIdA, roomIdB)
+        return roomIdA .. '|' .. roomIdB
     end
 
-    return string.format('%s|%s', roomIdB, roomIdA)
+    return roomIdB .. '|' .. roomIdA
 end
 
 local function createPart(config, parent)
@@ -826,6 +827,8 @@ function HexMazeWorldRenderer.build(params)
     local exitPassages = {}
     local doorways = {}
     local externalDoorwaysByRoomId = {}
+    local spatialHash = {}
+    local GRID_SIZE = roomApothem * 2
 
     for _, externalDoorway in ipairs(layout.ExternalDoorways or {}) do
         externalDoorwaysByRoomId[externalDoorway.RoomId] = externalDoorwaysByRoomId[externalDoorway.RoomId]
@@ -843,6 +846,16 @@ function HexMazeWorldRenderer.build(params)
         local roomCenter = room.Position + originOffset
         roomCenters[roomId] = roomCenter
         roomById[roomId] = room
+
+        local gx = math.floor(roomCenter.X / GRID_SIZE)
+        local gz = math.floor(roomCenter.Z / GRID_SIZE)
+        -- Bolt: Axial-like key packing avoids string allocations for spatial hash lookups
+        local hashKey = bit32.bor(bit32.lshift(bit32.band(gx, 0xFFFF), 16), bit32.band(gz, 0xFFFF))
+
+        if spatialHash[hashKey] == nil then
+            spatialHash[hashKey] = {}
+        end
+        table.insert(spatialHash[hashKey], roomId)
 
         roomFolders[roomId] = buildRoom(worldFolder, room, roomCenter, roomApothem, {
             IncludeRoomMarker = includeRoomMarker,
@@ -908,21 +921,38 @@ function HexMazeWorldRenderer.build(params)
     local detectionRadius = roomApothem + detectionBuffer
 
     local function findRoomByPosition(position)
-        local nearestRoom = nil
-        local nearestDistance = math.huge
-        local flatPosition = Vector3.new(position.X, 0, position.Z)
+        -- Bolt: Spatial hash reduces lookup from O(N) to O(1)
+        local gx = math.floor(position.X / GRID_SIZE)
+        local gz = math.floor(position.Z / GRID_SIZE)
 
-        for _, roomId in ipairs(roomIds) do
-            local room = roomById[roomId]
-            local roomCenter = roomCenters[roomId]
-            local flatCenter = Vector3.new(roomCenter.X, 0, roomCenter.Z)
-            local distance = (flatCenter - flatPosition).Magnitude
-            if distance < nearestDistance then
-                nearestDistance = distance
-                nearestRoom = room
+        local nearestRoom = nil
+        local nearestDistanceSq = math.huge
+
+        for dx = -1, 1 do
+            for dz = -1, 1 do
+                local hashKey = bit32.bor(
+                    bit32.lshift(bit32.band(gx + dx, 0xFFFF), 16),
+                    bit32.band(gz + dz, 0xFFFF)
+                )
+                local roomIdsInCell = spatialHash[hashKey]
+                if roomIdsInCell then
+                    for _, roomId in ipairs(roomIdsInCell) do
+                        local roomCenter = roomCenters[roomId]
+                        -- Bolt: Component-wise distance comparison avoids Vector3 allocations
+                        local dx_ = roomCenter.X - position.X
+                        local dz_ = roomCenter.Z - position.Z
+                        local distSq = dx_ * dx_ + dz_ * dz_
+
+                        if distSq < nearestDistanceSq then
+                            nearestDistanceSq = distSq
+                            nearestRoom = roomById[roomId]
+                        end
+                    end
+                end
             end
         end
 
+        local nearestDistance = math.sqrt(nearestDistanceSq)
         if nearestDistance <= detectionRadius then
             return nearestRoom, nearestDistance
         end
