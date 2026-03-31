@@ -1,51 +1,43 @@
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
 
-local BOOTSTRAP_PHASE_ATTRIBUTE = 'MazeBootstrapPhase'
-local BOOTSTRAP_ERROR_ATTRIBUTE = 'MazeBootstrapError'
-local BOOTSTRAP_FAILED_ATTRIBUTE = 'MazeBootstrapFailed'
+local MazeBootstrapStatus = require(script.Parent.Maze.MazeBootstrapStatus)
 
-local function setBootstrapStatus(phase, err)
-    ReplicatedStorage:SetAttribute(BOOTSTRAP_PHASE_ATTRIBUTE, phase)
-    ReplicatedStorage:SetAttribute(BOOTSTRAP_FAILED_ATTRIBUTE, err ~= nil)
-    ReplicatedStorage:SetAttribute(BOOTSTRAP_ERROR_ATTRIBUTE, err)
-end
-
-setBootstrapStatus('BootstrapScriptLoaded', nil)
+MazeBootstrapStatus.set('BootstrapScriptLoaded', nil)
 
 task.defer(function()
     local mazeSessionService
 
     local ok, err = pcall(function()
-        setBootstrapStatus('RequirePackages', nil)
+        MazeBootstrapStatus.set('RequirePackages', nil)
         local Packages = ReplicatedStorage:WaitForChild('Packages')
 
-        setBootstrapStatus('RequireShared', nil)
+        MazeBootstrapStatus.set('RequireShared', nil)
         local Shared = require(Packages:WaitForChild('Shared'))
 
         -- Create maze remotes before the heavier maze service require chain so
         -- clients can still attach and read diagnostics if bootstrap fails later.
-        setBootstrapStatus('EnsureRemotes', nil)
+        MazeBootstrapStatus.set('EnsureRemotes', nil)
         Shared.Network.Remotes.ensure()
 
-        setBootstrapStatus('RequireLightingService', nil)
+        MazeBootstrapStatus.set('RequireLightingService', nil)
         local MazeLightingService = require(script.Parent.Maze.MazeLightingService)
 
-        setBootstrapStatus('RequireSessionService', nil)
+        MazeBootstrapStatus.set('RequireSessionService', nil)
         local MazeSessionService = require(script.Parent.Maze.MazeSessionService)
 
-        setBootstrapStatus('ConstructSessionService', nil)
+        MazeBootstrapStatus.set('ConstructSessionService', nil)
         mazeSessionService = MazeSessionService.new()
 
-        setBootstrapStatus('StartLightingService', nil)
+        MazeBootstrapStatus.set('StartLightingService', nil)
         MazeLightingService.new():start()
 
-        setBootstrapStatus('StartSessionService', nil)
+        MazeBootstrapStatus.set('StartSessionService', nil)
         mazeSessionService:start()
     end)
 
     if not ok then
         local phase = mazeSessionService and mazeSessionService.BootPhase or 'BootstrapFailed'
-        setBootstrapStatus(phase, tostring(err))
+        MazeBootstrapStatus.set(phase, tostring(err))
         warn(
             string.format(
                 '[MazeBoot] bootstrap failed at phase=%s error=%s',

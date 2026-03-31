@@ -33,6 +33,7 @@ local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local PlayerStateService = Shared.Runtime.PlayerStateService
 local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 
+local MazeBootstrapStatus = require(script.Parent.MazeBootstrapStatus)
 local MazeRunPortal = require(script.Parent.MazeRunPortal)
 local MazeWorldBuilder = require(script.Parent.MazeWorldBuilder)
 
@@ -43,15 +44,9 @@ local DEBUG_DAMAGE_BY_ACTION = {
 
 local MazeSessionService = {}
 MazeSessionService.__index = MazeSessionService
-MazeSessionService.BootstrapPhaseAttribute = 'MazeBootstrapPhase'
-MazeSessionService.BootstrapErrorAttribute = 'MazeBootstrapError'
-MazeSessionService.BootstrapFailedAttribute = 'MazeBootstrapFailed'
-
-local function setBootstrapStatus(phase, err)
-    ReplicatedStorage:SetAttribute(MazeSessionService.BootstrapPhaseAttribute, phase)
-    ReplicatedStorage:SetAttribute(MazeSessionService.BootstrapFailedAttribute, err ~= nil)
-    ReplicatedStorage:SetAttribute(MazeSessionService.BootstrapErrorAttribute, err)
-end
+MazeSessionService.BootstrapPhaseAttribute = MazeBootstrapStatus.PhaseAttribute
+MazeSessionService.BootstrapErrorAttribute = MazeBootstrapStatus.ErrorAttribute
+MazeSessionService.BootstrapFailedAttribute = MazeBootstrapStatus.FailedAttribute
 
 local function formatDiagnosticValue(value)
     if value == nil then
@@ -326,12 +321,12 @@ end
 
 function MazeSessionService:_setBootPhase(phase)
     self.BootPhase = phase
-    setBootstrapStatus(phase, nil)
+    MazeBootstrapStatus.set(phase, nil)
     print(string.format('[MazeBoot] phase=%s', phase))
 end
 
 function MazeSessionService:_setBootFailure(err)
-    setBootstrapStatus(self.BootPhase, tostring(err))
+    MazeBootstrapStatus.set(self.BootPhase, tostring(err))
     warn(
         string.format(
             '[MazeBoot] failure at phase=%s error=%s',
