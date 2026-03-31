@@ -98,6 +98,14 @@ return function()
     )
 
     inventoryService:addPlayer(fakePlayer)
+    local setCapacitySuccess, setCapacityReason = inventoryService:setCapacity(3)
+    assert(setCapacitySuccess == true, 'Inventory service should accept runtime capacity updates')
+    assert(setCapacityReason == nil, 'Successful capacity updates should not return an error')
+    assert(
+        inventoryService:getSummary(fakePlayer).Capacity == 3,
+        'Capacity updates should propagate to existing player inventories'
+    )
+
     local servicePickupSuccess, serviceEntry = inventoryService:pickup(fakePlayer, items[4])
     assert(servicePickupSuccess == true, 'Runtime inventory should pick up items for the player')
 

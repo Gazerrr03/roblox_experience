@@ -27,6 +27,19 @@ function InventoryService:get(player)
     return self.ByUserId[player.UserId]
 end
 
+function InventoryService:setCapacity(capacity)
+    if type(capacity) ~= 'number' then
+        return false, 'InvalidCapacity'
+    end
+
+    self.Capacity = capacity
+    for _, inventory in pairs(self.ByUserId) do
+        inventory.Capacity = capacity
+    end
+
+    return true
+end
+
 function InventoryService:pickup(player, itemDef)
     local inventory = self:get(player)
     if not inventory then
