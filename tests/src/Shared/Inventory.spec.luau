@@ -105,6 +105,24 @@ return function()
         inventoryService:getSummary(fakePlayer).Capacity == 3,
         'Capacity updates should propagate to existing player inventories'
     )
+    local invalidCapacitySuccess, invalidCapacityReason = inventoryService:setCapacity(0 / 0)
+    assert(invalidCapacitySuccess == false, 'Inventory service should reject NaN capacity updates')
+    assert(invalidCapacityReason == 'InvalidCapacity', 'NaN should map to InvalidCapacity')
+    local negativeCapacitySuccess, negativeCapacityReason = inventoryService:setCapacity(-1)
+    assert(
+        negativeCapacitySuccess == false,
+        'Inventory service should reject negative capacity updates'
+    )
+    assert(
+        negativeCapacityReason == 'InvalidCapacity',
+        'Negative capacity should map to InvalidCapacity'
+    )
+    local fractionalCapacitySuccess = inventoryService:setCapacity(3.9)
+    assert(fractionalCapacitySuccess == true, 'Inventory service should accept fractional inputs')
+    assert(
+        inventoryService:getSummary(fakePlayer).Capacity == 3,
+        'Fractional capacity updates should normalize to integer capacity'
+    )
 
     local servicePickupSuccess, serviceEntry = inventoryService:pickup(fakePlayer, items[4])
     assert(servicePickupSuccess == true, 'Runtime inventory should pick up items for the player')

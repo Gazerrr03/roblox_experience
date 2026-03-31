@@ -28,13 +28,20 @@ function InventoryService:get(player)
 end
 
 function InventoryService:setCapacity(capacity)
-    if type(capacity) ~= 'number' then
+    if
+        type(capacity) ~= 'number'
+        or capacity ~= capacity
+        or capacity == math.huge
+        or capacity == -math.huge
+        or capacity < 1
+    then
         return false, 'InvalidCapacity'
     end
 
-    self.Capacity = capacity
+    local normalizedCapacity = math.floor(capacity)
+    self.Capacity = normalizedCapacity
     for _, inventory in pairs(self.ByUserId) do
-        inventory.Capacity = capacity
+        inventory.Capacity = normalizedCapacity
     end
 
     return true
