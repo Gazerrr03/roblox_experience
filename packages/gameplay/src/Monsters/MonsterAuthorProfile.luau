@@ -140,7 +140,6 @@ local function normalizeSections(profile)
 
     if
         tuning.NumericProfile ~= nil
-        or tuning.Presentation ~= nil
         or hasAnyField(tuning, SEMANTIC_FIELDS)
         or hasAnyField(tuning, EXECUTABLE_FIELDS)
     then
