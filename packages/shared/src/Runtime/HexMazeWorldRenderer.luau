@@ -906,23 +906,55 @@ function HexMazeWorldRenderer.build(params)
     end
 
     local detectionRadius = roomApothem + detectionBuffer
+    local cellSize = roomApothem * 2
+    local roomsByGridKey = {}
+
+    for _, roomId in ipairs(roomIds) do
+        local roomCenter = roomCenters[roomId]
+        local gx = math.floor(roomCenter.X / cellSize)
+        local gz = math.floor(roomCenter.Z / cellSize)
+        local key = bit32.bor(bit32.lshift(bit32.band(gx, 0xFFFF), 16), bit32.band(gz, 0xFFFF))
+
+        if not roomsByGridKey[key] then
+            roomsByGridKey[key] = {}
+        end
+        table.insert(roomsByGridKey[key], roomById[roomId])
+    end
 
     local function findRoomByPosition(position)
         local nearestRoom = nil
-        local nearestDistance = math.huge
+        local nearestDistanceSq = math.huge
         local flatPosition = Vector3.new(position.X, 0, position.Z)
 
-        for _, roomId in ipairs(roomIds) do
-            local room = roomById[roomId]
-            local roomCenter = roomCenters[roomId]
-            local flatCenter = Vector3.new(roomCenter.X, 0, roomCenter.Z)
-            local distance = (flatCenter - flatPosition).Magnitude
-            if distance < nearestDistance then
-                nearestDistance = distance
-                nearestRoom = room
+        local gx = math.floor(flatPosition.X / cellSize)
+        local gz = math.floor(flatPosition.Z / cellSize)
+
+        for ox = -1, 1 do
+            for oz = -1, 1 do
+                local key = bit32.bor(
+                    bit32.lshift(bit32.band(gx + ox, 0xFFFF), 16),
+                    bit32.band(gz + oz, 0xFFFF)
+                )
+                local cell = roomsByGridKey[key]
+                if not cell then
+                    continue
+                end
+
+                for _, room in ipairs(cell) do
+                    local roomCenter = roomCenters[room.Id]
+                    local dx = roomCenter.X - flatPosition.X
+                    local dz = roomCenter.Z - flatPosition.Z
+                    local distanceSq = dx * dx + dz * dz
+
+                    if distanceSq < nearestDistanceSq then
+                        nearestDistanceSq = distanceSq
+                        nearestRoom = room
+                    end
+                end
             end
         end
 
+        local nearestDistance = math.sqrt(nearestDistanceSq)
         if nearestDistance <= detectionRadius then
             return nearestRoom, nearestDistance
         end
