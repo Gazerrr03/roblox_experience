@@ -107,7 +107,7 @@ function CampHouseBuilder.build(worldFolder, createPart, createPromptPart)
         Color = Color3.fromRGB(93, 196, 176),
         Material = Enum.Material.Metal,
         ActionText = 'Open Gate',
-        ObjectText = 'Camp Gate',
+        ObjectText = 'Temple Gate',
     }, houseFolder)
 
     local _, shopPrompt = createPromptPart({
@@ -117,7 +117,7 @@ function CampHouseBuilder.build(worldFolder, createPart, createPromptPart)
         Color = Color3.fromRGB(77, 147, 196),
         Material = Enum.Material.Metal,
         ActionText = 'Inspect',
-        ObjectText = 'Shop Terminal (Soon)',
+        ObjectText = 'Temple Shop (Soon)',
     }, houseFolder)
 
     local _, loadoutPrompt = createPromptPart({

@@ -18,11 +18,15 @@ local _BackpackUI = require(script.Parent.BackpackUI)
 local ItemClient = require(script.Parent.ItemClient)
 local Theme = UI.Hud.Theme
 
+local TEMPLE_LABEL = 'Temple'
+local SAND_BOOK_LABEL = 'Book of Sand'
+
 local disconnectFirstPersonLock
 local ensureFirstPersonLock
 local canRequestMazeEntry = false
 local isRunLaunched = false
 local isCampPanelVisible = true
+local isMouseFree = false
 local actionInputConnection
 local sprintInputEndedConnection
 local isMenuMouseUnlockBound = false
@@ -30,6 +34,7 @@ local visibleBackpackItems = {}
 local isUgcGenerating = false
 local isUgcDialogVisible = false
 local MENU_MOUSE_UNLOCK_STEP = 'RunMenuMouseUnlock'
+local MOUSE_TOGGLE_KEY = Enum.KeyCode.LeftAlt
 ensureFirstPersonLock = function()
     disconnectFirstPersonLock = Shared.Client.FirstPersonController.start(localPlayer)
     ensureFirstPersonLock = function() end
@@ -80,6 +85,17 @@ local function releaseFirstPersonLockForMenu()
     UserInputService.MouseIconEnabled = true
 end
 
+local function syncMouseMode()
+    if not isRunLaunched or isMouseFree then
+        releaseFirstPersonLockForMenu()
+        bindMenuMouseUnlock()
+        return
+    end
+
+    unbindMenuMouseUnlock()
+    ensureFirstPersonLock()
+end
+
 script.Destroying:Connect(function()
     if disconnectFirstPersonLock ~= nil then
         disconnectFirstPersonLock()
@@ -120,6 +136,27 @@ local function makeTextLabel(parent, size, color, textSize, bold)
     return label
 end
 
+local function applyPanelStyle(frame, cornerRadius, strokeTransparency)
+    local corner = Instance.new('UICorner')
+    corner.CornerRadius = UDim.new(0, cornerRadius)
+    corner.Parent = frame
+
+    local stroke = Instance.new('UIStroke')
+    stroke.Color = Theme.Text
+    stroke.Transparency = strokeTransparency or 0.86
+    stroke.Thickness = 1
+    stroke.Parent = frame
+
+    local gradient = Instance.new('UIGradient')
+    gradient.Rotation = 90
+    local base = frame.BackgroundColor3
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, base:Lerp(Color3.new(1, 1, 1), 0.03)),
+        ColorSequenceKeypoint.new(1, base:Lerp(Color3.new(0, 0, 0), 0.08)),
+    })
+    gradient.Parent = frame
+end
+
 local function buildMazeEntryText(snapshot)
     local mode = snapshot.MazeEntryMode or 'Blocked'
     local reasonCode = snapshot.MazeEntryReasonCode or 'Unknown'
@@ -137,6 +174,14 @@ menuBackdrop.Size = UDim2.fromScale(1, 1)
 menuBackdrop.BackgroundColor3 = Theme.Background
 menuBackdrop.Parent = screenGui
 
+local menuBackdropGradient = Instance.new('UIGradient')
+menuBackdropGradient.Rotation = 120
+menuBackdropGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Theme.Background:Lerp(Color3.new(1, 1, 1), 0.02)),
+    ColorSequenceKeypoint.new(1, Theme.Background:Lerp(Color3.new(0, 0, 0), 0.12)),
+})
+menuBackdropGradient.Parent = menuBackdrop
+
 local menuPanel = Instance.new('Frame')
 menuPanel.Name = 'Panel'
 menuPanel.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -146,9 +191,7 @@ menuPanel.BackgroundColor3 = Theme.Surface
 menuPanel.BorderSizePixel = 0
 menuPanel.Parent = menuBackdrop
 
-local menuCorner = Instance.new('UICorner')
-menuCorner.CornerRadius = UDim.new(0, 18)
-menuCorner.Parent = menuPanel
+applyPanelStyle(menuPanel, 18, 0.8)
 
 local menuPadding = Instance.new('UIPadding')
 menuPadding.PaddingTop = UDim.new(0, 28)
@@ -162,14 +205,14 @@ menuList.Padding = UDim.new(0, 14)
 menuList.Parent = menuPanel
 
 local eyebrow = makeTextLabel(menuPanel, UDim2.new(1, 0, 0, 20), Theme.Accent, 16, true)
-eyebrow.Text = 'CAMP STAGING PROTOTYPE'
+eyebrow.Text = 'TEMPLE STAGING PROTOTYPE'
 
 local menuTitle = makeTextLabel(menuPanel, UDim2.new(1, 0, 0, 72), Theme.Text, 34, true)
-menuTitle.Text = 'Enter the expedition camp'
+menuTitle.Text = string.format('Enter the %s', TEMPLE_LABEL)
 
 local menuBody = makeTextLabel(menuPanel, UDim2.new(1, 0, 0, 78), Theme.SubtleText, 18, false)
 menuBody.Text =
-    'Start inside the camp house, meet up with the crew, and open the main gate when you are ready to step into the wilderness and the shared maze gate.'
+    'Start inside the temple hall, meet up with the crew, and open the main gate when you are ready to step into the wilderness and the shared maze gate.'
 
 local singlePlayerButton = Instance.new('TextButton')
 singlePlayerButton.Size = UDim2.new(1, 0, 0, 52)
@@ -177,16 +220,30 @@ singlePlayerButton.BackgroundColor3 = Theme.Accent
 singlePlayerButton.TextColor3 = Theme.Background
 singlePlayerButton.Font = Enum.Font.GothamBold
 singlePlayerButton.TextSize = 20
-singlePlayerButton.Text = 'Enter Camp'
+singlePlayerButton.Text = string.format('Enter %s', TEMPLE_LABEL)
 singlePlayerButton.Parent = menuPanel
 
 local singlePlayerCorner = Instance.new('UICorner')
 singlePlayerCorner.CornerRadius = UDim.new(0, 12)
 singlePlayerCorner.Parent = singlePlayerButton
 
+local singlePlayerStroke = Instance.new('UIStroke')
+singlePlayerStroke.Color = Theme.Background
+singlePlayerStroke.Transparency = 0.55
+singlePlayerStroke.Thickness = 1
+singlePlayerStroke.Parent = singlePlayerButton
+
+local singlePlayerGradient = Instance.new('UIGradient')
+singlePlayerGradient.Rotation = 90
+singlePlayerGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Theme.Accent:Lerp(Color3.new(1, 1, 1), 0.1)),
+    ColorSequenceKeypoint.new(1, Theme.Accent:Lerp(Color3.new(0, 0, 0), 0.12)),
+})
+singlePlayerGradient.Parent = singlePlayerButton
+
 local menuStatusLabel =
     makeTextLabel(menuPanel, UDim2.new(1, 0, 0, 52), Theme.SubtleText, 16, false)
-menuStatusLabel.Text = 'Preparing camp access...'
+menuStatusLabel.Text = string.format('Preparing %s access...', TEMPLE_LABEL)
 
 local placeholders = Instance.new('Frame')
 placeholders.Size = UDim2.new(1, 0, 0, 78)
@@ -215,7 +272,7 @@ local function makePlaceholder(text)
     corner.Parent = button
 end
 
-makePlaceholder('Shop Terminal (Soon)')
+makePlaceholder('Temple Shop (Soon)')
 makePlaceholder('Shared Maze Gate')
 
 local panel = Instance.new('Frame')
@@ -228,9 +285,7 @@ panel.BorderSizePixel = 0
 panel.Visible = false
 panel.Parent = screenGui
 
-local panelCorner = Instance.new('UICorner')
-panelCorner.CornerRadius = UDim.new(0, 16)
-panelCorner.Parent = panel
+applyPanelStyle(panel, 16, 0.84)
 
 local panelPadding = Instance.new('UIPadding')
 panelPadding.PaddingTop = UDim.new(0, 18)
@@ -244,13 +299,13 @@ list.Padding = UDim.new(0, 10)
 list.Parent = panel
 
 local title = makeTextLabel(panel, UDim2.new(1, 0, 0, 36), Theme.Text, 28, true)
-title.Text = 'Camp Status'
+title.Text = string.format('%s Status', TEMPLE_LABEL)
 
 local statusLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 70), Theme.SubtleText, 18, false)
-statusLabel.Text = 'Waiting for camp snapshot...'
+statusLabel.Text = string.format('Waiting for %s snapshot...', TEMPLE_LABEL)
 
 local objectiveLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 64), Theme.Accent, 18, false)
-objectiveLabel.Text = 'Objective: --'
+objectiveLabel.Text = string.format('%s Objective: --', SAND_BOOK_LABEL)
 
 local guideLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 60), Theme.Text, 16, false)
 guideLabel.Text =
@@ -430,6 +485,12 @@ actionInputConnection = UserInputService.InputBegan:Connect(function(input, game
         return
     end
 
+    if input.KeyCode == MOUSE_TOGGLE_KEY then
+        isMouseFree = not isMouseFree
+        syncMouseMode()
+        return
+    end
+
     if input.KeyCode == Enum.KeyCode.C then
         if isRunLaunched then
             isCampPanelVisible = not isCampPanelVisible
@@ -488,7 +549,7 @@ end)
 singlePlayerButton.MouseButton1Click:Connect(function()
     singlePlayerButton.AutoButtonColor = false
     singlePlayerButton.Active = false
-    singlePlayerButton.Text = 'Entering Camp...'
+    singlePlayerButton.Text = string.format('Entering %s...', TEMPLE_LABEL)
 
     Remotes.RunAction:FireServer({
         Type = 'RequestLaunchRun',
@@ -555,7 +616,7 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
             string.format('%s\nMaze Entry: %s', snapshot.Status, buildMazeEntryText(snapshot))
         singlePlayerButton.Active = true
         singlePlayerButton.AutoButtonColor = true
-        singlePlayerButton.Text = 'Single Player'
+        singlePlayerButton.Text = string.format('Enter %s', TEMPLE_LABEL)
         inventoryLabel.Text = 'Inventory: --'
         inventoryDetailLabel.Text = ''
         playerStateLabel.Text = 'Health: --\nStamina: --\nState: --\nMovement: --'
@@ -580,7 +641,7 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
         buildMazeEntryText(snapshot)
     )
 
-    objectiveLabel.Text = string.format('Objective: %s', snapshot.Objective)
+    objectiveLabel.Text = string.format('%s Objective: %s', SAND_BOOK_LABEL, snapshot.Objective)
 
     local inventory = snapshot.Inventory or {}
     visibleBackpackItems = inventory.BackpackItems or {}
@@ -665,7 +726,7 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
         table.insert(rosterLines, string.format('%s%s', rosterEntry.Name, marker))
     end
 
-    rosterLabel.Text = 'Camp roster:\n' .. table.concat(rosterLines, '\n')
+    rosterLabel.Text = string.format('%s roster:\n', TEMPLE_LABEL) .. table.concat(rosterLines, '\n')
 
     local mazeLines = {}
     local activeMazePlayers = snapshot.PlayersInMaze or {}
