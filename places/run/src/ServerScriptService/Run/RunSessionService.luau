@@ -122,7 +122,7 @@ function RunSessionService.new()
         InventoryCapacity = SessionConfig.InventoryCapacity,
     }
     self.CampSession = CampMazeSessionContract.newCampSession({})
-    self.Status = 'Select Enter Camp to enter the camp.'
+    self.Status = 'Select Enter Temple to enter the temple.'
     self.IsLaunched = false
     self.ShouldAutoLaunch = false
     self.GateOpen = false
@@ -324,9 +324,9 @@ function RunSessionService:_applyReturnedPlayersFromTeleportData(players, accept
             returnedPlayer.TeleportData
         )
     elseif #returnedPlayers > 1 then
-        self.Status = 'The crew returned from the maze. Review the camp summaries together.'
+        self.Status = 'The crew returned from the maze. Review the temple summaries together.'
     else
-        self.Status = 'Camp is ready. Gather inside, then head outside when the group is ready.'
+        self.Status = 'Temple is ready. Gather inside, then head outside when the group is ready.'
     end
 end
 
@@ -409,7 +409,7 @@ function RunSessionService:_getPlayerArea(player)
     local character = player.Character
     local rootPart = character and character:FindFirstChild('HumanoidRootPart')
     if not rootPart then
-        return self.GateOpen and 'Camp Threshold' or 'Camp House'
+        return self.GateOpen and 'Temple Threshold' or 'Temple Hall'
     end
 
     if self.LocalDebugMazeWorld then
@@ -429,7 +429,7 @@ function RunSessionService:_getPlayerArea(player)
         return 'Wilderness'
     end
 
-    return 'Camp House'
+    return 'Temple Hall'
 end
 
 function RunSessionService:_buildRoster()
@@ -453,15 +453,15 @@ function RunSessionService:_getObjectiveFor(player)
     local area = self:_getPlayerArea(player)
 
     if area == 'Local Maze Debug' then
-        return 'Explore local debug maze rooms, then use Return To Camp (Local Debug).'
+        return 'Explore local debug maze rooms, then use Return To Temple (Local Debug).'
     end
 
     if not self.GateOpen then
-        return 'Inspect the camp terminals and open the gate when the group is ready.'
+        return 'Inspect the temple terminals and open the gate when the group is ready.'
     end
 
     if self.CampSession.MazeStatus == CampMazeSessionContract.MazeStatus.Completed then
-        return 'The maze run is complete. Review the returned crew summaries in camp.'
+        return 'The maze run is complete. Review the returned crew summaries in the temple.'
     end
 
     if self.CampSession.MazeStatus == CampMazeSessionContract.MazeStatus.Active then
@@ -539,7 +539,7 @@ function RunSessionService:_canManageInventory(player)
     if CampMazeSessionContract.isPlayerInMaze(self.CampSession, player.UserId) then
         self:_setStatus(
             string.format(
-                '%s is already marked inside the maze and cannot change camp inventory.',
+                '%s is already marked inside the maze and cannot change temple inventory.',
                 player.DisplayName
             )
         )
@@ -566,7 +566,7 @@ function RunSessionService:_equipItem(player, itemInstanceId)
         return
     end
 
-    self:_setStatus(string.format('%s equipped %s in camp.', player.DisplayName, result.Name))
+    self:_setStatus(string.format('%s equipped %s in the temple.', player.DisplayName, result.Name))
 end
 
 function RunSessionService:_unequipItem(player)
@@ -602,7 +602,7 @@ function RunSessionService:_openGate(player)
         self.World.OpenGate()
         self:_setStatus(
             string.format(
-                '%s opened the camp gate. The wilderness trail is now accessible.',
+                '%s opened the temple gate. The wilderness trail is now accessible.',
                 player.DisplayName
             )
         )
@@ -611,7 +611,7 @@ function RunSessionService:_openGate(player)
 
     self:_setStatus(
         string.format(
-            '%s checked the camp gate. The wilderness trail is already open.',
+            '%s checked the temple gate. The wilderness trail is already open.',
             player.DisplayName
         )
     )
@@ -648,7 +648,7 @@ function RunSessionService:_bindLocalDebugMazeInteractions()
 
         self:_setStatus(
             string.format(
-                '%s returned from local maze debug mode back to camp.',
+                '%s returned from local maze debug mode back to the temple.',
                 player.DisplayName
             )
         )
@@ -707,7 +707,7 @@ function RunSessionService:_enterMaze(player)
         end
 
         if self.CampSession.MazeStatus == CampMazeSessionContract.MazeStatus.Completed then
-            self:_setStatus('The maze session is already complete for this camp.')
+            self:_setStatus('The maze session is already complete for this temple.')
             return
         end
 
@@ -770,7 +770,7 @@ function RunSessionService:_requestMazeEntry(player, requireDistanceCheck)
     if not self.GateOpen then
         self:_setStatus(
             string.format(
-                '%s checked the maze gate, but the camp gate is still closed.',
+                '%s checked the maze gate, but the temple gate is still closed.',
                 player.DisplayName
             )
         )
@@ -833,9 +833,9 @@ function RunSessionService:_launchRun(_player)
     end
 
     self:_startSnapshotLoop()
-    if self.Status == 'Select Enter Camp to enter the camp.' then
+    if self.Status == 'Select Enter Temple to enter the temple.' then
         self:_setStatus(
-            'Camp is ready. Gather inside, then open the gate when you want to head out.'
+            'Temple is ready. Gather inside, then open the gate when you want to head out.'
         )
     else
         self:_broadcastSnapshot()
@@ -921,7 +921,7 @@ function RunSessionService:_handlePlayerTeleportData(player)
         PreserveMazeEntry = CampMazeSessionContract.isPlayerInMaze(self.CampSession, player.UserId),
     })
     self.GateOpen = self.CampSession.GateOpen
-    self.Status = string.format('%s joined the camp session.', player.DisplayName)
+    self.Status = string.format('%s joined the temple session.', player.DisplayName)
 end
 
 function RunSessionService:_ensureAuthoritativeSessionSeed()
@@ -1002,7 +1002,7 @@ function RunSessionService:start()
         elseif payload.Type == 'RequestStartExpedition' then
             self:_setStatus(
                 string.format(
-                    '%s checked the old deploy action. Use the camp gate to head outside instead.',
+                    '%s checked the old deploy action. Use the temple gate to head outside instead.',
                     player.DisplayName
                 )
             )
