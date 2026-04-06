@@ -121,9 +121,10 @@ end)
 local objectiveLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 66), Theme.Accent, 18, false)
 objectiveLabel.Text = 'Objective: --'
 
-local promptLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 66), Theme.Text, 16, false)
+local promptLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 86), Theme.Text, 16, false)
+-- === 修改：加上了按 F 键使用道具的提示 ===
 promptLabel.Text =
-    'In-world prompts:\n- Loot pickups\n- Blue/Gold return markers -> Run Entrance\n- Double Door controls\nKeyboard: Hold LeftShift to sprint'
+    'In-world prompts:\n- Loot pickups\n- Blue/Gold return markers -> Run Entrance\n- Double Door controls\nKeyboard: Hold LeftShift to sprint\nKeyboard: Press F to use held tool'
 
 if RunService:IsStudio() then
     promptLabel.Text ..= '\nStudio debug: H light damage | J heavy damage'
@@ -155,6 +156,14 @@ actionInputConnection = UserInputService.InputBegan:Connect(function(input, game
     if input.KeyCode == Enum.KeyCode.LeftShift then
         Remotes.MazeAction:FireServer({
             Type = 'RequestSprintStart',
+        })
+        return
+    end
+
+    -- === 新增：监听 F 键并发送 RequestUseTool ===
+    if input.KeyCode == Enum.KeyCode.F then
+        Remotes.MazeAction:FireServer({
+            Type = 'RequestUseTool',
         })
         return
     end
