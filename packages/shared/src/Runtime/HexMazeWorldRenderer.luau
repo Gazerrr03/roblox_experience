@@ -7,6 +7,12 @@ local Gameplay = require(Packages:WaitForChild('Gameplay'))
 local MazeModuleAssetContract = require(script.Parent.MazeModuleAssetContract)
 local MazePassageTemplates = Gameplay.ProcGen.MazePassageTemplates
 
+local bit32_band = bit32.band
+local bit32_lshift = bit32.lshift
+local bit32_bor = bit32.bor
+local math_floor = math.floor
+local math_sqrt = math.sqrt
+
 local HexMazeWorldRenderer = {}
 
 local ROOM_CLEAR_HEIGHT = 14
@@ -818,6 +824,9 @@ function HexMazeWorldRenderer.build(params)
     worldFolder.Name = worldName
     worldFolder.Parent = parent
 
+    local cellSize = roomApothem * 2
+    local spatialHash = {}
+
     local roomCenters = {}
     local roomById = {}
     local roomIds = {}
@@ -843,6 +852,15 @@ function HexMazeWorldRenderer.build(params)
         local roomCenter = room.Position + originOffset
         roomCenters[roomId] = roomCenter
         roomById[roomId] = room
+
+        local cq = math_floor(roomCenter.X / cellSize)
+        local cr = math_floor(roomCenter.Z / cellSize)
+        local key = bit32_bor(bit32_lshift(bit32_band(cq, 0xFFFF), 16), bit32_band(cr, 0xFFFF))
+
+        if not spatialHash[key] then
+            spatialHash[key] = {}
+        end
+        table.insert(spatialHash[key], roomId)
 
         roomFolders[roomId] = buildRoom(worldFolder, room, roomCenter, roomApothem, {
             IncludeRoomMarker = includeRoomMarker,
@@ -906,28 +924,43 @@ function HexMazeWorldRenderer.build(params)
     end
 
     local detectionRadius = roomApothem + detectionBuffer
+    local detectionRadiusSq = detectionRadius * detectionRadius
 
     local function findRoomByPosition(position)
         local nearestRoom = nil
-        local nearestDistance = math.huge
-        local flatPosition = Vector3.new(position.X, 0, position.Z)
+        local nearestDistanceSq = math.huge
 
-        for _, roomId in ipairs(roomIds) do
-            local room = roomById[roomId]
-            local roomCenter = roomCenters[roomId]
-            local flatCenter = Vector3.new(roomCenter.X, 0, roomCenter.Z)
-            local distance = (flatCenter - flatPosition).Magnitude
-            if distance < nearestDistance then
-                nearestDistance = distance
-                nearestRoom = room
+        local px, pz = position.X, position.Z
+        local pq = math_floor(px / cellSize)
+        local pr = math_floor(pz / cellSize)
+
+        for dq = -1, 1 do
+            for dr = -1, 1 do
+                local key = bit32_bor(
+                    bit32_lshift(bit32_band(pq + dq, 0xFFFF), 16),
+                    bit32_band(pr + dr, 0xFFFF)
+                )
+                local cell = spatialHash[key]
+                if cell then
+                    for _, roomId in ipairs(cell) do
+                        local roomCenter = roomCenters[roomId]
+                        local dx = roomCenter.X - px
+                        local dz = roomCenter.Z - pz
+                        local distSq = dx * dx + dz * dz
+                        if distSq < nearestDistanceSq then
+                            nearestDistanceSq = distSq
+                            nearestRoom = roomById[roomId]
+                        end
+                    end
+                end
             end
         end
 
-        if nearestDistance <= detectionRadius then
-            return nearestRoom, nearestDistance
+        if nearestDistanceSq <= detectionRadiusSq then
+            return nearestRoom, math_sqrt(nearestDistanceSq)
         end
 
-        return nil, nearestDistance
+        return nil, math_sqrt(nearestDistanceSq)
     end
 
     local function canTraverseBetweenPositions(fromPosition, toPosition)
