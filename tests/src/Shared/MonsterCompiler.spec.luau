@@ -59,6 +59,27 @@ return function()
         'Compiled runtime should expose the configured patrol speed multiplier'
     )
     assert(
+        runtimeProfile.Components ~= nil and runtimeProfile.Components.Perception ~= nil,
+        'Compiled runtime should include component mapping payload'
+    )
+    assert(
+        runtimeProfile.Components.Perception.SightRange == runtimeProfile.SightRange,
+        'Component perception config should map from runtime sight range'
+    )
+    assert(
+        runtimeProfile.Components.Movement.Speed == runtimeProfile.Speed,
+        'Component movement config should map from runtime speed'
+    )
+    assert(
+        runtimeProfile.Components.Movement.PatrolSpeedMultiplier
+            == runtimeProfile.PatrolSpeedMultiplier,
+        'Component movement config should map patrol speed multiplier'
+    )
+    assert(
+        runtimeProfile.Components.Movement.SpawnOffset == runtimeProfile.SpawnOffset,
+        'Component movement spawn offset should map from runtime spawn offset'
+    )
+    assert(
         runtimeProfile.Behaviors[behaviorCatalog.Behavior.Patrol] == nil,
         'Disabled patrol intents should not reach the maze runtime profile'
     )

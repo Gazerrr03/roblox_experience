@@ -23,6 +23,10 @@ local function defaultComponents()
     }
 end
 
+local function cloneContext(context)
+    return table.clone(context or {})
+end
+
 function Enemy.new(definition, options)
     local enemyOptions = options or {}
     local blackboard = enemyOptions.Blackboard or EnemyBlackboard.new(definition)
@@ -31,6 +35,7 @@ function Enemy.new(definition, options)
 
     return setmetatable({
         Blackboard = blackboard,
+        ComponentConfig = enemyOptions.ComponentConfig or {},
         StateMachine = stateMachine,
         Components = components,
         StageObserver = enemyOptions.StageObserver,
@@ -53,7 +58,9 @@ function Enemy:spawn()
 end
 
 function Enemy:update(dt, context)
-    self.Blackboard:beginTick(context)
+    local blackboardContext = cloneContext(context)
+    blackboardContext.ComponentConfig = self.ComponentConfig
+    self.Blackboard:beginTick(blackboardContext)
 
     self:_emitStage('Perception')
     self.Components.Perception:update(self.Blackboard, dt)
