@@ -35,6 +35,7 @@ local RUN_MAZE_GATE_RETURN_REASONS = table.freeze({
     early_return = true,
     extracted = true,
 })
+local INITIAL_TEMPLE_STATUS = 'Select Enter Temple to enter the temple.'
 
 local function resolvePendingSpawnCFrame(self, pendingSpawnValue)
     if typeof(pendingSpawnValue) == 'CFrame' then
@@ -122,7 +123,7 @@ function RunSessionService.new()
         InventoryCapacity = SessionConfig.InventoryCapacity,
     }
     self.CampSession = CampMazeSessionContract.newCampSession({})
-    self.Status = 'Select Enter Temple to enter the temple.'
+    self.Status = INITIAL_TEMPLE_STATUS
     self.IsLaunched = false
     self.ShouldAutoLaunch = false
     self.GateOpen = false
@@ -833,7 +834,7 @@ function RunSessionService:_launchRun(_player)
     end
 
     self:_startSnapshotLoop()
-    if self.Status == 'Select Enter Temple to enter the temple.' then
+    if self.Status == INITIAL_TEMPLE_STATUS then
         self:_setStatus(
             'Temple is ready. Gather inside, then open the gate when you want to head out.'
         )

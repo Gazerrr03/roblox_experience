@@ -303,8 +303,13 @@ local objectiveLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 64), Theme.Accent
 objectiveLabel.Text = string.format('%s Objective: --', SAND_BOOK_LABEL)
 
 local guideLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 60), Theme.Text, 16, false)
-guideLabel.Text =
-    'In-world prompts:\n- Temple Shop (Soon)\n- Loadout Bench (Soon)\n- Temple Gate / Shared Maze Gate\nKeyboard: Hold LeftShift to sprint, tap C to toggle Temple Status, LeftAlt to free mouse, 1-3 to equip, X to stow'
+guideLabel.Text = string.format(
+    'In-world prompts:\n- %s Shop (Soon)\n- Loadout Bench (Soon)\n- %s Gate / Shared Maze Gate\nKeyboard: Hold LeftShift to sprint, tap C to toggle %s Status, %s to free mouse, 1-3 to equip, X to stow',
+    TEMPLE_LABEL,
+    TEMPLE_LABEL,
+    TEMPLE_LABEL,
+    MOUSE_TOGGLE_KEY.Name
+)
 
 local inventoryLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 44), Theme.Warning, 16, false)
 inventoryLabel.Text = 'Inventory: --'
