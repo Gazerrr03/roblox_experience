@@ -29,7 +29,7 @@ function InteractableObjectsSetup.setupInteractables(outdoorFolder: Folder)
     local climbWall1 = outdoorFolder:FindFirstChild('CaveRuinsZone')
     if climbWall1 then
         for _, child in ipairs(climbWall1:GetDescendants()) do
-            if child:IsA('Part') and (child.Name:find('Wall') or child.Name:find('Climb')) then
+            if child:IsA('Part') and (string.find(child.Name, 'Wall') or string.find(child.Name, 'Climb')) then
                 ItemFunctionality.registerInteractable(child, 'Climbable', {
                     Height = 10,
                 })
@@ -41,7 +41,7 @@ function InteractableObjectsSetup.setupInteractables(outdoorFolder: Folder)
     local climbWall2 = outdoorFolder:FindFirstChild('AncientRuinsZone')
     if climbWall2 then
         for _, child in ipairs(climbWall2:GetDescendants()) do
-            if child:IsA('Part') and child.Name:find('Wall') then
+            if child:IsA('Part') and string.find(child.Name, 'Wall') then
                 ItemFunctionality.registerInteractable(child, 'Climbable', {
                     Height = 8,
                 })
@@ -72,7 +72,7 @@ function InteractableObjectsSetup.setupInteractables(outdoorFolder: Folder)
     local ancientRuins = outdoorFolder:FindFirstChild('AncientRuinsZone')
     if ancientRuins then
         for _, child in ipairs(ancientRuins:GetDescendants()) do
-            if child:IsA('Part') and (child.Name:find('Chest') or child.Name:find('Door')) then
+            if child:IsA('Part') and (string.find(child.Name, 'Chest') or string.find(child.Name, 'Door')) then
                 -- 检查是否已经有锁
                 if child:FindFirstChild('Lock') == nil then
                     -- 添加锁部件
@@ -102,7 +102,7 @@ function InteractableObjectsSetup.setupInteractables(outdoorFolder: Folder)
     local cave = outdoorFolder:FindFirstChild('CaveZone')
     if cave then
         for _, child in ipairs(cave:GetDescendants()) do
-            if child:IsA('Part') and (child.Name:find('Dark') or child.Name:find('Hidden')) then
+            if child:IsA('Part') and (string.find(child.Name, 'Dark') or string.find(child.Name, 'Hidden')) then
                 ItemFunctionality.registerInteractable(child, 'FlashlightRequired', {
                     DarknessLevel = 0.8,
                 })
