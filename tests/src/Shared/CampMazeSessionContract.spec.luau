@@ -82,7 +82,7 @@ return function()
                 Id = 'ugc-42-100',
                 Name = 'Scrap Whisper',
                 Presentation = {
-                    ModelAssetId = 4446576906,
+                    ModelAssetId = 9492320977,
                     RigType = 'R6',
                     AnimationMode = 'defaultR6',
                     ChaseLoopSoundAssetId = 9118823108,
@@ -129,7 +129,7 @@ return function()
     )
     assert(
         pendingUgcPayload.RuntimeProfile ~= nil
-            and pendingUgcPayload.RuntimeProfile.Presentation.ModelAssetId == 4446576906,
+            and pendingUgcPayload.RuntimeProfile.Presentation.ModelAssetId == 9492320977,
         'Pending UGC payload should preserve runtime monster presentation data'
     )
 

@@ -75,7 +75,7 @@ return function()
                 Id = string.format('ugc-%d', index),
                 Name = string.format('UGC-%d', index),
                 Presentation = {
-                    ModelAssetId = 4446576906,
+                    ModelAssetId = 9492320977,
                     RigType = 'R6',
                     AnimationMode = 'defaultR6',
                     ChaseLoopSoundAssetId = 9118823108,

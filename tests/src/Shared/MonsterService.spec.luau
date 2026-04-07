@@ -61,7 +61,7 @@ return function()
         {
             AssetLoader = function(assetId)
                 assert(
-                    assetId == 4446576906,
+                    assetId == 9492320977,
                     'Monster service should request the configured model asset'
                 )
 

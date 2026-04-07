@@ -34,7 +34,7 @@ return function()
     assert(runtimeProfile.Id == 'scrap-wisp', 'Compiled runtime should preserve the monster id')
     assert(runtimeProfile.Name == 'Scrap Wisp', 'Compiled runtime should preserve the monster name')
     assert(
-        runtimeProfile.Presentation.ModelAssetId == 4446576906,
+        runtimeProfile.Presentation.ModelAssetId == 9492320977,
         'Compiled runtime should expose the configured model asset id'
     )
     assert(

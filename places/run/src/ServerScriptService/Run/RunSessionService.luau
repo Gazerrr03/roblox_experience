@@ -350,7 +350,7 @@ end
 function RunSessionService:_buildAssetValidator()
     return function(assetId, assetKind)
         if assetKind == 'ModelAssetId' then
-            return assetId == 4446576906, 'OnlyOfficialModelAssetAllowedInV1'
+            return assetId == 9492320977, 'OnlyOfficialModelAssetAllowedInV1'
         end
 
         if assetKind == 'ChaseLoopSoundAssetId' then

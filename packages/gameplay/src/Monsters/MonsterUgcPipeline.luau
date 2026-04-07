@@ -29,7 +29,7 @@ MonsterUgcPipeline.TuningRange = table.freeze({
 })
 
 local DEFAULT_ASSET_IDS = table.freeze({
-    ModelAssetId = 4446576906,
+    ModelAssetId = 9492320977,
     ChaseLoopSoundAssetId = 9118823108,
 })
 

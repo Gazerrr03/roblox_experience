@@ -29,7 +29,7 @@ return {
         },
         Executable = {
             Presentation = {
-                ModelAssetId = 4446576906,
+                ModelAssetId = 9492320977,
                 RigType = MonsterPresentationCatalog.RigType.R6,
                 AnimationMode = MonsterPresentationCatalog.AnimationMode.DefaultR6,
                 ChaseLoopSoundAssetId = 9118823108,

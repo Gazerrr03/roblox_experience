@@ -46,7 +46,7 @@ return function()
         },
         Preferences = {
             Name = 'Scrap Whisper',
-            ModelAssetId = 4446576906,
+            ModelAssetId = 9492320977,
             ChaseLoopSoundAssetId = 9118823108,
             Tuning = {
                 Speed = 100,
