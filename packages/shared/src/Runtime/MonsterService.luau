@@ -20,14 +20,24 @@ local DEFAULT_R6_ANIMATIONS = table.freeze({
     Idle = 180435571,
     Walk = 180426354,
     Run = 180426354,
+    Attack = 10469493270,
 })
 local DEFAULT_CHASE_LOOP_VOLUME = 0.45
 local DEFAULT_CHASE_LOOP_MIN_DISTANCE = 8
 local DEFAULT_CHASE_LOOP_MAX_DISTANCE = 48
+local DEFAULT_ATTACK_ARC_DEGREES = 100
+local DEFAULT_ATTACK_MARKER_NAME = 'Hit'
+local DEFAULT_ATTACK_MARKER_TIMEOUT_SECONDS = 1.5
 local DEFAULT_VISUAL_SMOOTHING_SPEED = 12
 local DEFAULT_LOGIC_TICK_RATE_HZ = 10
 local DEFAULT_MAX_LOGIC_STEPS_PER_UPDATE = 6
 local DEFAULT_DECISION_LOG_LIMIT = 128
+
+local function defaultOnAttackHit(_player, _damagePips, _hitContext) end
+
+local function defaultRaycast(origin, direction, raycastParams)
+    return Workspace:Raycast(origin, direction, raycastParams)
+end
 
 local function defaultWarn(message)
     warn(message)
@@ -128,6 +138,9 @@ function MonsterService.new(
         ChaseLoopSound = nil,
         IsChaseLoopSoundPlaying = false,
         AnimationTracks = {},
+        AttackAnimationTrack = nil,
+        AttackMarkerConnection = nil,
+        PendingAttack = nil,
         ActiveAnimation = nil,
         Connection = nil,
         LogicalPosition = nil,
@@ -138,9 +151,13 @@ function MonsterService.new(
         LoadAnimationTrack = runtimeOptions.LoadAnimationTrack or defaultLoadAnimationTrack,
         CreateLoopSound = runtimeOptions.CreateLoopSound or defaultCreateLoopSound,
         EnemyFactory = runtimeOptions.EnemyFactory or defaultEnemyFactory,
+        OnAttackHit = runtimeOptions.OnAttackHit or defaultOnAttackHit,
+        Raycast = runtimeOptions.Raycast or defaultRaycast,
         GetPlayers = runtimeOptions.GetPlayers or function()
             return Players:GetPlayers()
         end,
+        AttackMarkerTimeoutSeconds = runtimeOptions.AttackMarkerTimeoutSeconds
+            or DEFAULT_ATTACK_MARKER_TIMEOUT_SECONDS,
         VisualSmoothingSpeed = runtimeOptions.VisualSmoothingSpeed
             or DEFAULT_VISUAL_SMOOTHING_SPEED,
         AutoUpdateOnHeartbeat = if runtimeOptions.AutoUpdateOnHeartbeat == nil
@@ -171,13 +188,23 @@ function MonsterService:destroy()
         self.Connection = nil
     end
 
+    if self.AttackMarkerConnection then
+        self.AttackMarkerConnection:Disconnect()
+        self.AttackMarkerConnection = nil
+    end
+
     for _, track in pairs(self.AnimationTracks) do
         if track.Stop then
             track:Stop(0)
         end
     end
+    if self.AttackAnimationTrack and self.AttackAnimationTrack.Stop then
+        self.AttackAnimationTrack:Stop(0)
+    end
 
     self.AnimationTracks = {}
+    self.AttackAnimationTrack = nil
+    self.PendingAttack = nil
     self.ActiveAnimation = nil
     self.MonsterHumanoid = nil
     self.MonsterPositionPart = nil
@@ -300,7 +327,23 @@ function MonsterService:_loadAnimationTracks(humanoid)
         animationTracks.Run.Priority = Enum.AnimationPriority.Movement
     end
 
+    local attackTrack =
+        self.LoadAnimationTrack(animator, DEFAULT_R6_ANIMATIONS.Attack, 'MonsterAttack')
+    if attackTrack then
+        attackTrack.Looped = false
+        attackTrack.Priority = Enum.AnimationPriority.Action
+        if attackTrack.GetMarkerReachedSignal then
+            local markerSignal = attackTrack:GetMarkerReachedSignal(DEFAULT_ATTACK_MARKER_NAME)
+            if markerSignal then
+                self.AttackMarkerConnection = markerSignal:Connect(function()
+                    self:_onAttackMarkerReached(DEFAULT_ATTACK_MARKER_NAME)
+                end)
+            end
+        end
+    end
+
     self.AnimationTracks = animationTracks
+    self.AttackAnimationTrack = attackTrack
     self.MonsterHumanoid = humanoid
 end
 
@@ -555,6 +598,230 @@ function MonsterService:_recordDecisionTransitions(decision)
     end
 end
 
+function MonsterService:_getAttackFacingDirection()
+    local lookVector = nil
+    if self.MonsterRoot and self.MonsterRoot:IsA('Model') then
+        lookVector = self.MonsterRoot:GetPivot().LookVector
+    elseif self.MonsterPositionPart then
+        lookVector = self.MonsterPositionPart.CFrame.LookVector
+    end
+
+    if typeof(lookVector) ~= 'Vector3' then
+        return Vector3.new(0, 0, -1)
+    end
+
+    local horizontalLook = Vector3.new(lookVector.X, 0, lookVector.Z)
+    if horizontalLook.Magnitude <= 1e-5 then
+        return lookVector.Unit
+    end
+
+    return horizontalLook.Unit
+end
+
+function MonsterService:_isWithinAttackArc(monsterPosition, targetPosition, arcDegrees)
+    local toTarget = targetPosition - monsterPosition
+    local horizontalToTarget = Vector3.new(toTarget.X, 0, toTarget.Z)
+    if horizontalToTarget.Magnitude <= 1e-5 then
+        return true
+    end
+
+    local facingDirection = self:_getAttackFacingDirection()
+    local facingHorizontal = Vector3.new(facingDirection.X, 0, facingDirection.Z)
+    if facingHorizontal.Magnitude <= 1e-5 then
+        return true
+    end
+    facingHorizontal = facingHorizontal.Unit
+
+    local targetDirection = horizontalToTarget.Unit
+    local halfArcCosine = math.cos(math.rad((arcDegrees or DEFAULT_ATTACK_ARC_DEGREES) * 0.5))
+    local dot = facingHorizontal:Dot(targetDirection)
+    return dot + 1e-6 >= halfArcCosine
+end
+
+function MonsterService:_hasLineOfSight(targetPlayer, originPosition, targetPosition)
+    local direction = targetPosition - originPosition
+    if direction.Magnitude <= 1e-5 then
+        return true
+    end
+
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    raycastParams.IgnoreWater = true
+    if self.MonsterRoot then
+        raycastParams.FilterDescendantsInstances = { self.MonsterRoot }
+    end
+
+    local raycastResult = self.Raycast(originPosition, direction, raycastParams)
+    if raycastResult == nil then
+        return true
+    end
+
+    local character = targetPlayer and targetPlayer.Character
+    if
+        character
+        and raycastResult.Instance
+        and raycastResult.Instance:IsDescendantOf(character)
+    then
+        return true
+    end
+
+    return false
+end
+
+function MonsterService:_resolveAttackHitContext(pendingAttack)
+    local targetPlayer = pendingAttack.TargetPlayer
+    if targetPlayer == nil or not self.CanTargetPlayer(targetPlayer) then
+        return {
+            Hit = false,
+            Reason = 'InvalidTarget',
+        }
+    end
+
+    local targetCharacter = targetPlayer.Character
+    local targetRoot = targetCharacter and targetCharacter:FindFirstChild('HumanoidRootPart')
+    if not targetRoot then
+        return {
+            Hit = false,
+            Reason = 'MissingTargetRoot',
+        }
+    end
+
+    local monsterPosition = self:_getCurrentPosition()
+    if typeof(monsterPosition) ~= 'Vector3' then
+        return {
+            Hit = false,
+            Reason = 'MissingMonsterPosition',
+        }
+    end
+
+    local targetPosition = targetRoot.Position
+    local distance = (targetPosition - monsterPosition).Magnitude
+    if distance > pendingAttack.Range then
+        return {
+            Hit = false,
+            Reason = 'OutOfRange',
+        }
+    end
+
+    if not self:_isWithinAttackArc(monsterPosition, targetPosition, pendingAttack.ArcDegrees) then
+        return {
+            Hit = false,
+            Reason = 'OutOfArc',
+        }
+    end
+
+    if not self:_hasLineOfSight(targetPlayer, monsterPosition, targetPosition) then
+        return {
+            Hit = false,
+            Reason = 'BlockedLineOfSight',
+        }
+    end
+
+    return {
+        Hit = true,
+        Reason = 'HitConfirmed',
+        Distance = distance,
+    }
+end
+
+function MonsterService:_playAttackAnimation()
+    local attackTrack = self.AttackAnimationTrack
+    if not attackTrack then
+        return false
+    end
+
+    if attackTrack.Stop then
+        attackTrack:Stop(0)
+    end
+    if attackTrack.Play then
+        attackTrack:Play(0.05)
+    else
+        return false
+    end
+    if attackTrack.AdjustSpeed then
+        attackTrack:AdjustSpeed(1)
+    end
+
+    return true
+end
+
+function MonsterService:_queueAttackIntent(attackIntent)
+    if type(attackIntent) ~= 'table' then
+        return
+    end
+
+    local targetPlayer = attackIntent.TargetPlayer
+    if targetPlayer == nil or not self.CanTargetPlayer(targetPlayer) then
+        return
+    end
+
+    local damagePips = attackIntent.DamagePips
+    if damagePips ~= 1 and damagePips ~= 2 then
+        return
+    end
+
+    local range = attackIntent.Range
+    if type(range) ~= 'number' or range <= 0 then
+        return
+    end
+
+    local markerName = if type(attackIntent.MarkerName) == 'string'
+            and attackIntent.MarkerName ~= ''
+        then attackIntent.MarkerName
+        else DEFAULT_ATTACK_MARKER_NAME
+
+    local hasMarkerConnection = self.AttackMarkerConnection ~= nil
+    if hasMarkerConnection then
+        if self.PendingAttack ~= nil then
+            return
+        end
+
+        self.PendingAttack = {
+            ArcDegrees = attackIntent.ArcDegrees or DEFAULT_ATTACK_ARC_DEGREES,
+            DamagePips = damagePips,
+            MarkerName = markerName,
+            Range = range,
+            RemainingWindowSeconds = self.AttackMarkerTimeoutSeconds,
+            TargetPlayer = targetPlayer,
+        }
+    end
+
+    local animationPlayed = self:_playAttackAnimation()
+    if hasMarkerConnection and not animationPlayed then
+        self.PendingAttack = nil
+    end
+end
+
+function MonsterService:_stepPendingAttack(dt)
+    if self.PendingAttack == nil then
+        return
+    end
+
+    self.PendingAttack.RemainingWindowSeconds -= math.max(0, dt or 0)
+    if self.PendingAttack.RemainingWindowSeconds <= 0 then
+        self.PendingAttack = nil
+    end
+end
+
+function MonsterService:_onAttackMarkerReached(markerName)
+    local pendingAttack = self.PendingAttack
+    if pendingAttack == nil then
+        return
+    end
+
+    if markerName ~= pendingAttack.MarkerName then
+        return
+    end
+
+    self.PendingAttack = nil
+
+    local hitContext = self:_resolveAttackHitContext(pendingAttack)
+    if hitContext.Hit ~= true then
+        return
+    end
+
+    self.OnAttackHit(pendingAttack.TargetPlayer, pendingAttack.DamagePips, hitContext)
+end
 function MonsterService:spawn(patrolPoints, initialPatrolIndex)
     self:destroy()
     self.PatrolPoints = patrolPoints
@@ -634,7 +901,7 @@ function MonsterService:_runLogicStep(dt)
         SightRange = self.Definition.SightRange,
         Speed = self.Definition.Speed,
     }) or {}
-
+    self:_queueAttackIntent(decision.AttackIntent)
     local nextPosition = decision.NextPosition
     if decision.ShouldAdvancePatrol and #self.PatrolPoints > 0 then
         self.PatrolIndex = (self.PatrolIndex % #self.PatrolPoints) + 1
@@ -674,6 +941,7 @@ function MonsterService:update(dt)
     end
 
     local elapsed = if type(dt) == 'number' and dt > 0 then dt else 0
+    self:_stepPendingAttack(elapsed)
     self.LogicAccumulator += elapsed
 
     local maxSteps = self.MaxLogicStepsPerUpdate

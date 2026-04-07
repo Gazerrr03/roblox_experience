@@ -32,6 +32,7 @@ return function()
             Attack = {
                 Range = 4,
                 CooldownSeconds = 1,
+                DamagePips = 1,
             },
         },
     }
@@ -58,5 +59,19 @@ return function()
     assert(
         invalidMovementReason == 'InvalidRuntimeComponentMovementSpeed',
         'Invalid movement component speed should surface a dedicated reason'
+    )
+
+    local invalidAttackDamageProfile = table.clone(componentOnlyProfile)
+    invalidAttackDamageProfile.Components = table.clone(componentOnlyProfile.Components)
+    invalidAttackDamageProfile.Components.Attack =
+        table.clone(componentOnlyProfile.Components.Attack)
+    invalidAttackDamageProfile.Components.Attack.DamagePips = 3
+
+    local invalidDamageOk, invalidDamageReason =
+        runtimeProfileModule.validate(invalidAttackDamageProfile)
+    assert(invalidDamageOk == false, 'Attack damage pips outside 1/2 should fail validation')
+    assert(
+        invalidDamageReason == 'InvalidRuntimeComponentAttackDamagePips',
+        'Invalid attack damage pips should expose a dedicated reason'
     )
 end

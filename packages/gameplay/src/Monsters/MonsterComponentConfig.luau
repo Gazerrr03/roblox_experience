@@ -1,5 +1,8 @@
 local DEFAULT_ATTACK_COOLDOWN_SECONDS = 1
+local DEFAULT_ATTACK_DAMAGE_PIPS = 1
+local DEFAULT_ATTACK_HIT_MARKER_NAME = 'Hit'
 local DEFAULT_ATTACK_RANGE = 4
+local DEFAULT_ATTACK_ARC_DEGREES = 100
 local DEFAULT_PATROL_REACH_DISTANCE = 2
 local DEFAULT_SPAWN_OFFSET = Vector3.new(0, 4, 0)
 
@@ -23,6 +26,16 @@ local function getSpawnOffset(primary, fallback)
         return fallback
     end
     return DEFAULT_SPAWN_OFFSET
+end
+
+local function getAttackDamagePips(value, fallback)
+    if value == 1 or value == 2 then
+        return value
+    end
+    if fallback == 1 or fallback == 2 then
+        return fallback
+    end
+    return DEFAULT_ATTACK_DAMAGE_PIPS
 end
 
 function MonsterComponentConfig.fromRuntimeProfile(runtimeProfile)
@@ -52,12 +65,18 @@ function MonsterComponentConfig.fromRuntimeProfile(runtimeProfile)
             Speed = getPositiveNumber(movement.Speed, profile.Speed, 14),
         }),
         Attack = table.freeze({
+            ArcDegrees = getPositiveNumber(attack.ArcDegrees, nil, DEFAULT_ATTACK_ARC_DEGREES),
             CooldownSeconds = getPositiveNumber(
                 attack.CooldownSeconds,
-                nil,
+                profile.AttackCooldownSeconds,
                 DEFAULT_ATTACK_COOLDOWN_SECONDS
             ),
-            Range = getPositiveNumber(attack.Range, nil, DEFAULT_ATTACK_RANGE),
+            DamagePips = getAttackDamagePips(attack.DamagePips, profile.AttackDamagePips),
+            HitMarkerName = if type(attack.HitMarkerName) == 'string'
+                    and attack.HitMarkerName ~= ''
+                then attack.HitMarkerName
+                else DEFAULT_ATTACK_HIT_MARKER_NAME,
+            Range = getPositiveNumber(attack.Range, profile.AttackRange, DEFAULT_ATTACK_RANGE),
         }),
     }
 

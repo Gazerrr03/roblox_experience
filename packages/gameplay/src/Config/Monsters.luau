@@ -19,6 +19,9 @@ return {
             },
         },
         Tuning = {
+            AttackCooldownSeconds = 1,
+            AttackDamagePips = 1,
+            AttackRange = 4,
             Speed = 14,
             SightRange = 36,
             PatrolSpeedMultiplier = 0.45,
@@ -41,6 +44,9 @@ return {
                 },
                 {
                     Id = MonsterBehaviorCatalog.Behavior.Chase,
+                },
+                {
+                    Id = MonsterBehaviorCatalog.Behavior.Attack,
                 },
                 {
                     Id = MonsterBehaviorCatalog.Behavior.LoseTarget,
