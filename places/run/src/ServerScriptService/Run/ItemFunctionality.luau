@@ -201,13 +201,14 @@ function ItemFunctionality.tetherMonster(player: Player, targetModel: Model): bo
     ropeConstraint.Parent = character.HumanoidRootPart
 
     -- 固定怪物 2 秒
+    local originalWalkSpeed = humanoid.WalkSpeed
     humanoid.PlatformStand = true
     humanoid.WalkSpeed = 0
 
     -- 2 秒后释放
     task.delay(2, function()
         humanoid.PlatformStand = false
-        humanoid.WalkSpeed = 16 -- 恢复默认速度
+        humanoid.WalkSpeed = originalWalkSpeed -- 恢复原始速度
         ropeConstraint:Destroy()
         attachment1:Destroy()
         attachment2:Destroy()

@@ -180,10 +180,19 @@ function ItemService.getInventory(player: Player): {[string]: ItemData}
 end
 
 -- 初始化服务
+-- 处理新加入的玩家
 Players.PlayerAdded:Connect(function(player)
     ItemService.initPlayer(player)
 end)
 
+-- 处理脚本加载时已在场的玩家
+for _, player in ipairs(Players:GetPlayers()) do
+    task.spawn(function()
+        ItemService.initPlayer(player)
+    end)
+end
+
+-- 处理玩家离开
 Players.PlayerRemoving:Connect(function(player)
     ItemService.cleanupPlayer(player)
 end)

@@ -32,6 +32,14 @@ local ItemService = require(script.Parent.ItemService)
 
 local NarrativeInteractionSystem = {}
 
+-- 存储玩家的叙事状态，避免内存泄漏
+local playerNarrativeStates = {}
+
+-- 清理离开的玩家数据
+Players.PlayerRemoving:Connect(function(player)
+    playerNarrativeStates[player.UserId] = nil
+end)
+
 -- 交互点数据
 NarrativeInteractionSystem.InteractionPoints = {}
 
@@ -359,14 +367,17 @@ function NarrativeInteractionSystem.createCrowbarInteraction(folder: Folder)
     chestPrompt.GamepadKeyCode = Enum.KeyCode.ButtonA
     chestPrompt.Parent = chest
 
-    local hasShownNarrative = {}
+    local narrativeKey = 'chest_narrative_shown'
 
     chestPrompt.Triggered:Connect(function(player)
-        if hasShownNarrative[player.UserId] then
+        if playerNarrativeStates[player.UserId] and playerNarrativeStates[player.UserId][narrativeKey] then
             return
         end
 
-        hasShownNarrative[player.UserId] = true
+        if not playerNarrativeStates[player.UserId] then
+            playerNarrativeStates[player.UserId] = {}
+        end
+        playerNarrativeStates[player.UserId][narrativeKey] = true
         Remotes.ShowNarrative:FireClient(player, "覆灭的文明留下了历史残骸", "这个箱子看起来锁住了", "按 R 键尝试打开它")
 
         -- 显示打开提示
