@@ -22,6 +22,12 @@ local function cloneItemEntry(itemEntry)
         Value = itemEntry.Value,
         Color = itemEntry.Color,
         Light = cloneLightConfig(itemEntry.Light),
+        ToolCategory = itemEntry.ToolCategory,
+        StateModel = itemEntry.StateModel,
+        CurrentState = itemEntry.CurrentState,
+        ConsumePerUse = itemEntry.ConsumePerUse,
+        CooldownSeconds = itemEntry.CooldownSeconds,
+        LastUsedAt = itemEntry.LastUsedAt,
     }
 end
 
@@ -61,6 +67,12 @@ function Inventory:_buildItemEntry(itemDef)
         Value = itemDef.Value,
         Color = itemDef.Color,
         Light = cloneLightConfig(itemDef.Light),
+        ToolCategory = itemDef.ToolCategory,
+        StateModel = itemDef.StateModel,
+        CurrentState = itemDef.InitialState,
+        ConsumePerUse = itemDef.ConsumePerUse,
+        CooldownSeconds = itemDef.CooldownSeconds,
+        LastUsedAt = itemDef.LastUsedAt,
     }
 
     self.NextItemInstanceId += 1
@@ -81,6 +93,12 @@ local function normalizeItemEntry(rawItemEntry)
         Value = rawItemEntry.Value or 0,
         Color = rawItemEntry.Color,
         Light = cloneLightConfig(rawItemEntry.Light),
+        ToolCategory = rawItemEntry.ToolCategory,
+        StateModel = rawItemEntry.StateModel,
+        CurrentState = rawItemEntry.CurrentState,
+        ConsumePerUse = rawItemEntry.ConsumePerUse,
+        CooldownSeconds = rawItemEntry.CooldownSeconds,
+        LastUsedAt = rawItemEntry.LastUsedAt,
     }
 end
 
@@ -131,6 +149,34 @@ function Inventory:unequip()
     self.HeldItem = nil
 
     return true, cloneItemEntry(previousHeldItem)
+end
+
+function Inventory:consumeHeldItemState(nowSeconds)
+    local heldItem = self.HeldItem
+    if heldItem == nil then
+        return false, 'NothingHeld'
+    end
+
+    if type(heldItem.CurrentState) ~= 'number' or type(heldItem.ConsumePerUse) ~= 'number' then
+        return false, 'NotConsumable'
+    end
+
+    if heldItem.CurrentState < heldItem.ConsumePerUse then
+        return false, 'Depleted'
+    end
+
+    local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
+    local cooldownSeconds = heldItem.CooldownSeconds
+    if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
+        local lastUsedAt = heldItem.LastUsedAt
+        if type(lastUsedAt) == 'number' and now - lastUsedAt < cooldownSeconds then
+            return false, 'Cooldown', cooldownSeconds - (now - lastUsedAt)
+        end
+    end
+
+    heldItem.CurrentState -= heldItem.ConsumePerUse
+    heldItem.LastUsedAt = now
+    return true, cloneItemEntry(heldItem)
 end
 
 function Inventory:getTotalValue()

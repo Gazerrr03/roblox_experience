@@ -16,6 +16,18 @@ return function()
         Value = 99,
         Color = Color3.fromRGB(255, 140, 140),
     }
+    local toolItem = {
+        Id = 'tool-crowbar',
+        Name = 'Crowbar',
+        Weight = 3,
+        Value = 0,
+        Color = Color3.fromRGB(200, 200, 200),
+        ToolCategory = 'Crowbar',
+        StateModel = 'Durability',
+        InitialState = 10,
+        ConsumePerUse = 1,
+        CooldownSeconds = 0.5,
+    }
 
     local success, firstEntry = inventory:add(items[2])
     assert(success == true, 'Inventory should accept a low-weight item')
@@ -128,6 +140,53 @@ return function()
     assert(
         serviceSummary.HeldItem.Light ~= nil,
         'Runtime inventory should preserve held item effect data'
+    )
+
+    local toolPlayer = {
+        UserId = 202,
+    }
+    inventoryService:addPlayer(toolPlayer)
+    local pickupToolSuccess, pickedToolEntry = inventoryService:pickup(toolPlayer, toolItem)
+    assert(pickupToolSuccess == true, 'Runtime inventory should pick up tool items')
+    local equipToolSuccess = inventoryService:equip(toolPlayer, pickedToolEntry.InstanceId)
+    assert(equipToolSuccess == true, 'Runtime inventory should equip tool items')
+
+    local consumeToolSuccess, consumedHeldTool = inventoryService:consumeHeldItemState(toolPlayer)
+    assert(consumeToolSuccess == true, 'Runtime inventory should consume held tool state')
+    assert(
+        consumedHeldTool.CurrentState == 9,
+        'Consuming a held tool should decrement current state on persisted inventory data'
+    )
+
+    local toolSummary = inventoryService:getSummary(toolPlayer)
+    assert(
+        toolSummary.HeldItem.CurrentState == 9,
+        'Consumed tool state should persist in subsequent inventory snapshots'
+    )
+
+    local cooldownToolPlayer = {
+        UserId = 203,
+    }
+    inventoryService:addPlayer(cooldownToolPlayer)
+    local pickupCooldownToolSuccess, cooldownToolEntry =
+        inventoryService:pickup(cooldownToolPlayer, toolItem)
+    assert(pickupCooldownToolSuccess == true, 'Runtime inventory should pick up cooldown tools')
+    local equipCooldownToolSuccess =
+        inventoryService:equip(cooldownToolPlayer, cooldownToolEntry.InstanceId)
+    assert(equipCooldownToolSuccess == true, 'Runtime inventory should equip cooldown tools')
+
+    local consumeAt100Success = inventoryService:consumeHeldItemState(cooldownToolPlayer, 100)
+    assert(consumeAt100Success == true, 'Tool should be usable before entering cooldown')
+
+    local consumeDuringCooldownSuccess, cooldownReason, remainingSeconds =
+        inventoryService:consumeHeldItemState(cooldownToolPlayer, 100.2)
+    assert(
+        consumeDuringCooldownSuccess == false and cooldownReason == 'Cooldown',
+        'Tool should reject use attempts during cooldown window'
+    )
+    assert(
+        remainingSeconds > 0 and remainingSeconds <= 0.3,
+        'Cooldown rejection should report remaining cooldown seconds'
     )
 
     local restoredInventory = gameplay.Inventory.new(7)
