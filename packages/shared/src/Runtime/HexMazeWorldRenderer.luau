@@ -17,6 +17,7 @@ local math_rad = math.rad
 local math_cos = math.cos
 local math_sin = math.sin
 local math_pi = math.pi
+local math_tan = math.tan
 
 local Vector3_new = Vector3.new
 local CFrame_new = CFrame.new
@@ -394,13 +395,12 @@ local function createHexTiledSlab(parent, name, center, apothem, yOffset, color,
             local cornersInside = true
 
             -- Optimization: Inline corner checks to avoid per-corner function calls and Vector3 allocations
-            if not isInsideHex(x - halfTile, z - halfTile, apothem) then
-                cornersInside = false
-            elseif not isInsideHex(x + halfTile, z - halfTile, apothem) then
-                cornersInside = false
-            elseif not isInsideHex(x - halfTile, z + halfTile, apothem) then
-                cornersInside = false
-            elseif not isInsideHex(x + halfTile, z + halfTile, apothem) then
+            if
+                not isInsideHex(x - halfTile, z - halfTile, apothem)
+                or not isInsideHex(x + halfTile, z - halfTile, apothem)
+                or not isInsideHex(x - halfTile, z + halfTile, apothem)
+                or not isInsideHex(x + halfTile, z + halfTile, apothem)
+            then
                 cornersInside = false
             end
 
