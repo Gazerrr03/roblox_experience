@@ -2,7 +2,7 @@
 --#region Types
 
 export type PlayerData = {
-    Inventory: {[string]: ItemData},
+    Inventory: { [string]: ItemData },
 }
 
 export type ItemData = {
@@ -37,30 +37,30 @@ local ItemService = {}
 -- 道具定义
 ItemService.Items = {
     BurningTorch = {
-        Name = "燃烧的火把",
-        Type = "Tool",
-        Description = "点燃倒塌的灯塔",
+        Name = '燃烧的火把',
+        Type = 'Tool',
+        Description = '点燃倒塌的灯塔',
         IsEquipped = false,
         IsActive = false,
     },
     Flashlight = {
-        Name = "手电筒",
-        Type = "Tool",
-        Description = "照亮黑暗区域",
+        Name = '手电筒',
+        Type = 'Tool',
+        Description = '照亮黑暗区域',
         IsEquipped = false,
         IsActive = false,
     },
     Rope = {
-        Name = "绳索",
-        Type = "Tool",
-        Description = "攀爬高处、跨越断层、固定怪物",
+        Name = '绳索',
+        Type = 'Tool',
+        Description = '攀爬高处、跨越断层、固定怪物',
         IsEquipped = false,
         IsActive = false,
     },
     Crowbar = {
-        Name = "撬棍",
-        Type = "Tool",
-        Description = "撬开锁住的箱子/门",
+        Name = '撬棍',
+        Type = 'Tool',
+        Description = '撬开锁住的箱子/门',
         IsEquipped = false,
         IsActive = false,
     },
@@ -93,7 +93,7 @@ end
 -- 获得道具
 function ItemService.giveItem(player: Player, itemName: string): boolean
     if not ItemService.Items[itemName] then
-        warn("Item not found: " .. itemName)
+        warn('Item not found: ' .. itemName)
         return false
     end
 
@@ -111,7 +111,7 @@ function ItemService.giveItem(player: Player, itemName: string): boolean
     local itemData = table.clone(ItemService.Items[itemName])
     data.Inventory[itemName] = itemData
 
-    print(player.Name .. " 获得了道具: " .. itemName)
+    print(player.Name .. ' 获得了道具: ' .. itemName)
     return true
 end
 
@@ -168,7 +168,7 @@ function ItemService.getItemData(player: Player, itemName: string): ItemData?
 end
 
 -- 获取玩家背包
-function ItemService.getInventory(player: Player): {[string]: ItemData}
+function ItemService.getInventory(player: Player): { [string]: ItemData }
     local data = ItemService.PlayerData[player.UserId]
     if not data then
         return {}
@@ -195,7 +195,7 @@ end)
 -- ==================== 网络事件处理 ====================
 
 -- 获取背包数据
-Remotes.GetInventory.OnServerInvoke = function(player: Player): {[string]: ItemData}
+Remotes.GetInventory.OnServerInvoke = function(player: Player): { [string]: ItemData }
     return ItemService.getInventory(player)
 end
 
@@ -209,12 +209,12 @@ Remotes.EquipItem.OnServerEvent:Connect(function(player: Player, itemName: strin
     if equip then
         local success = ItemService.equipItem(player, itemName)
         if success then
-            print(player.Name .. " 装备了: " .. itemName)
+            print(player.Name .. ' 装备了: ' .. itemName)
         end
     else
         local success = ItemService.unequipItem(player, itemName)
         if success then
-            print(player.Name .. " 卸下了: " .. itemName)
+            print(player.Name .. ' 卸下了: ' .. itemName)
         end
     end
 end)
@@ -225,7 +225,14 @@ Remotes.UseItem.OnServerEvent:Connect(function(player: Player, itemName: string)
     if success then
         local itemData = ItemService.getItemData(player, itemName)
         if itemData then
-            print(player.Name .. " 使用了: " .. itemName .. " (状态: " .. tostring(itemData.IsActive) .. ")")
+            print(
+                player.Name
+                    .. ' 使用了: '
+                    .. itemName
+                    .. ' (状态: '
+                    .. tostring(itemData.IsActive)
+                    .. ')'
+            )
         end
     end
 end)
