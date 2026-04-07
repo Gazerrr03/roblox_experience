@@ -8,6 +8,7 @@ return {
     MazeLightingProfile = require(script.MazeLightingProfile),
     MazeModuleAssetContract = require(script.MazeModuleAssetContract),
     MazeWorldShellBuilder = require(script.MazeWorldShellBuilder),
+    MonsterRuntime = require(script.MonsterRuntime),
     MonsterService = require(script.MonsterService),
     PlayerStateService = require(script.PlayerStateService),
     TeleportInventoryHydrator = require(script.TeleportInventoryHydrator),

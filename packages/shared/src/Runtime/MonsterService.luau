@@ -11,6 +11,7 @@ local MonsterBehaviorCatalog = Gameplay.Monsters.MonsterBehaviorCatalog
 local MonsterComponentConfig = Gameplay.Monsters.MonsterComponentConfig
 local Enemy = Gameplay.Monsters.Enemy
 local MonsterRuntimeProfile = Gameplay.Monsters.MonsterRuntimeProfile
+local EnemyRuntime = require(script.Parent.MonsterRuntime.EnemyRuntime)
 
 local MonsterService = {}
 MonsterService.__index = MonsterService
@@ -121,7 +122,7 @@ function MonsterService.new(
         randomSeed = nil
     end
 
-    return setmetatable({
+    local service = setmetatable({
         Definition = monsterRuntimeProfile,
         IsExpeditionActive = isExpeditionActiveCallback,
         CanTargetPlayer = canTargetPlayerCallback or function()
@@ -180,6 +181,49 @@ function MonsterService.new(
         RandomSource = runtimeOptions.RandomSource
             or if randomSeed ~= nil then Random.new(randomSeed) else Random.new(),
     }, MonsterService)
+
+    service.EnemyRuntime = EnemyRuntime.new({
+        MemoryDurationSeconds = runtimeOptions.MemoryDurationSeconds or 0,
+        Perception = {
+            GetPlayers = function()
+                return service.GetPlayers()
+            end,
+            CanTargetPlayer = function(player)
+                return service.CanTargetPlayer(player)
+            end,
+            GetCurrentPosition = function()
+                return service:_getCurrentPosition()
+            end,
+            PickNearestTarget = MonsterLogic.pickNearestTarget,
+            SightRange = monsterRuntimeProfile.SightRange,
+            EnableSenseNearestTarget = monsterRuntimeProfile.Behaviors[MonsterBehaviorCatalog.Behavior.SenseNearestTarget]
+                == true,
+            GetNow = os.clock,
+        },
+        Movement = {
+            StepToward = MonsterLogic.stepToward,
+            GetCurrentPosition = function()
+                return service:_getCurrentPosition()
+            end,
+            SpawnOffset = monsterRuntimeProfile.SpawnOffset,
+            Speed = monsterRuntimeProfile.Speed,
+            PatrolSpeedMultiplier = monsterRuntimeProfile.PatrolSpeedMultiplier,
+            EnableChase = monsterRuntimeProfile.Behaviors[MonsterBehaviorCatalog.Behavior.Chase]
+                == true,
+            EnablePatrol = monsterRuntimeProfile.Behaviors[MonsterBehaviorCatalog.Behavior.Patrol]
+                == true,
+        },
+        Attack = {
+            AttackRange = monsterRuntimeProfile.AttackRange or 0,
+            CooldownSeconds = monsterRuntimeProfile.AttackCooldownSeconds or 0.8,
+        },
+    })
+
+    return service
+end
+
+function MonsterService:_emitDecisionLog(eventName, fields)
+    self:_recordDecisionEvent(eventName, fields)
 end
 
 function MonsterService:destroy()
@@ -838,6 +882,7 @@ function MonsterService:spawn(patrolPoints, initialPatrolIndex)
     end
 
     self.PatrolIndex = math.clamp(initialPatrolIndex or 1, 1, #patrolPoints)
+    self.EnemyRuntime:reset(self.PatrolPoints, self.PatrolIndex)
     local spawnPosition = patrolPoints[self.PatrolIndex] + self.Definition.SpawnOffset
     local spawnOk, spawnReason = self:_spawnModel(spawnPosition)
     if not spawnOk then
@@ -862,51 +907,33 @@ function MonsterService:spawn(patrolPoints, initialPatrolIndex)
 end
 
 function MonsterService:_runLogicStep(dt)
-    local playerPositions = {}
-
-    for _, player in ipairs(self.GetPlayers()) do
-        if self.CanTargetPlayer(player) then
-            local character = player.Character
-            local rootPart = character and character:FindFirstChild('HumanoidRootPart')
-            if rootPart then
-                playerPositions[player] = rootPart.Position
-            end
-        end
-    end
-
     local currentPosition = self:_getCurrentPosition()
     if currentPosition == nil then
         return
     end
 
-    local patrolTarget = nil
-    if
-        self.Definition.Behaviors[MonsterBehaviorCatalog.Behavior.Patrol]
-        and #self.PatrolPoints > 0
-    then
-        patrolTarget = self.PatrolPoints[self.PatrolIndex] + self.Definition.SpawnOffset
+    local decision = self.EnemyRuntime:update(dt)
+    self.PatrolIndex = self.EnemyRuntime.Context.PatrolIndex
+
+    if decision.TargetChanged then
+        self:_emitDecisionLog('TargetChanged', {
+            MonsterId = self.Definition.Id,
+            State = decision.PerceptionState,
+        })
+    end
+    if decision.StateChanged then
+        self:_emitDecisionLog('StateChanged', {
+            MonsterId = self.Definition.Id,
+            State = decision.PerceptionState,
+        })
+    end
+    if decision.AttackQueued then
+        self:_emitDecisionLog('AttackQueued', {
+            MonsterId = self.Definition.Id,
+        })
     end
 
-    local decision = self.EnemyRuntime:update(dt, {
-        Behaviors = self.Definition.Behaviors,
-        ComponentConfig = self.ComponentConfig,
-        CurrentPosition = currentPosition,
-        NextRandomInteger = function(minimum, maximum, reason)
-            return self:_nextRandomInteger(minimum, maximum, reason)
-        end,
-        PatrolReachDistance = 2,
-        PatrolSpeedMultiplier = self.Definition.PatrolSpeedMultiplier,
-        PatrolTargetPosition = patrolTarget,
-        PlayerPositions = playerPositions,
-        SightRange = self.Definition.SightRange,
-        Speed = self.Definition.Speed,
-    }) or {}
-    self:_queueAttackIntent(decision.AttackIntent)
     local nextPosition = decision.NextPosition
-    if decision.ShouldAdvancePatrol and #self.PatrolPoints > 0 then
-        self.PatrolIndex = (self.PatrolIndex % #self.PatrolPoints) + 1
-    end
-
     if nextPosition and self.CanTraverse(currentPosition, nextPosition) then
         local travelOffset = nextPosition - currentPosition
         self.LogicalPosition = nextPosition
@@ -921,11 +948,8 @@ function MonsterService:_runLogicStep(dt)
             else currentRotation + nextPosition
         self.PendingVisualCFrame = facingCFrame
 
-        self:_setAnimationState(
-            decision.DesiredAnimation or 'Idle',
-            decision.DesiredAnimationSpeed or 1
-        )
-        self:_setChaseLoopSoundPlaying(decision.ShouldPlayChaseLoop)
+        self:_setAnimationState(decision.AnimationName or 'Idle', decision.AnimationSpeed or 1)
+        self:_setChaseLoopSoundPlaying(decision.ShouldPlayChaseLoop == true)
     else
         self.PendingVisualCFrame = nil
         self:_setAnimationState('Idle', 1)
