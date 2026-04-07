@@ -140,17 +140,30 @@ function ItemFunctionality.crossWithRope(player: Player, crossTarget: CFrame): b
         return false
     end
 
+    -- 验证距离(防止远程交互攻击)
+    local characterPosition = character.HumanoidRootPart.Position
+    local targetPosition = crossTarget.Position
+    local distance = (targetPosition - characterPosition).Magnitude
+    local MAX_INTERACTION_DISTANCE = 20 -- 跨越距离可以稍大一些
+
+    if distance > MAX_INTERACTION_DISTANCE then
+        warn(player.Name .. " 尝试从过远的距离使用绳索跨越: " .. tostring(distance))
+        return false
+    end
+
     -- 播放跨越动画
     local humanoid = character:FindFirstChild('Humanoid')
     if humanoid then
         humanoid.PlatformStand = true
     end
 
-    -- 使用 Tween 跨越
+    -- 使用 Tween 跨越,保留原始朝向
+    local currentLookVector = character.HumanoidRootPart.CFrame.LookVector
+    local targetCFrame = CFrame.new(crossTarget.Position, crossTarget.Position + currentLookVector)
     local crossTween = TweenService:Create(
         character.HumanoidRootPart,
         TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
-        {CFrame = crossTarget}
+        {CFrame = targetCFrame}
     )
     crossTween:Play()
 
@@ -179,6 +192,17 @@ function ItemFunctionality.tetherMonster(player: Player, targetModel: Model): bo
     -- 创建绳索视觉效果
     local character = player.Character
     if not character then
+        return false
+    end
+
+    -- 验证距离(防止远程交互攻击)
+    local characterPosition = character.HumanoidRootPart.Position
+    local targetPosition = targetModel.HumanoidRootPart.Position
+    local distance = (targetPosition - characterPosition).Magnitude
+    local MAX_INTERACTION_DISTANCE = 25 -- 套怪物的距离可以稍大一些
+
+    if distance > MAX_INTERACTION_DISTANCE then
+        warn(player.Name .. " 尝试从过远的距离套住怪物: " .. tostring(distance))
         return false
     end
 
@@ -240,6 +264,22 @@ end
 function ItemFunctionality.pryOpen(player: Player, targetPart: BasePart): boolean
     local itemData = ItemService.getItemData(player, 'Crowbar')
     if not itemData or not itemData.IsEquipped then
+        return false
+    end
+
+    -- 验证距离(防止远程交互攻击)
+    local character = player.Character
+    if not character or not character.HumanoidRootPart then
+        return false
+    end
+
+    local characterPosition = character.HumanoidRootPart.Position
+    local targetPosition = targetPart.Position
+    local distance = (targetPosition - characterPosition).Magnitude
+    local MAX_INTERACTION_DISTANCE = 10 -- 撬开的距离需要比较近
+
+    if distance > MAX_INTERACTION_DISTANCE then
+        warn(player.Name .. " 尝试从过远的距离撬开: " .. tostring(distance))
         return false
     end
 
