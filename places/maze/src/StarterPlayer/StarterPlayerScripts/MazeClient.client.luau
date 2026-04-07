@@ -26,6 +26,8 @@ local actionInputConnection
 local sprintInputEndedConnection
 local visibleBackpackItems = {}
 local didReceiveInitialSnapshot = false
+local lastToolUseRequestAt = -math.huge
+local heldToolCooldownSeconds = 0.2
 
 local function readBootstrapDiagnostic()
     local failed = ReplicatedStorage:GetAttribute('MazeBootstrapFailed')
@@ -162,6 +164,12 @@ actionInputConnection = UserInputService.InputBegan:Connect(function(input, game
 
     -- === 新增：监听 F 键并发送 RequestUseTool ===
     if input.KeyCode == Enum.KeyCode.F then
+        local now = os.clock()
+        if now - lastToolUseRequestAt < heldToolCooldownSeconds then
+            return
+        end
+
+        lastToolUseRequestAt = now
         Remotes.MazeAction:FireServer({
             Type = 'RequestUseTool',
         })
@@ -285,6 +293,12 @@ local function connectMazeRemotes(remotes)
         )
 
         local heldItem = inventory.HeldItem
+        if heldItem and type(heldItem.CooldownSeconds) == 'number' then
+            heldToolCooldownSeconds = math.max(heldItem.CooldownSeconds, 0)
+        else
+            heldToolCooldownSeconds = 0.2
+        end
+
         local detailLines = {
             heldItem and string.format(
                 'Held: %s | %d KG | %d value%s',
