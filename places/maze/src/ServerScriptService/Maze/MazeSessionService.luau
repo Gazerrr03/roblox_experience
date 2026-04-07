@@ -886,6 +886,12 @@ function MazeSessionService:_handleUseTool(player)
         return
     end
 
+    local playerState = self.PlayerStateService:getSummary(player)
+    if playerState.IsDead == true then
+        self:_setStatus(string.format('%s cannot use tools while dead.', player.DisplayName))
+        return
+    end
+
     -- 1. 检查手里有没有拿东西
     local inventorySummary = self.InventoryService:getSummary(player)
     local heldItem = inventorySummary and inventorySummary.HeldItem
