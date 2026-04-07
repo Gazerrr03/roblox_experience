@@ -709,6 +709,11 @@ end
 
 function MazeSessionService:_rebuildWorld()
     self:_setBootPhase('RebuildWorld')
+    local shouldRespawnMonster = self.IsLaunched and self.RunTracker:getState() == 'Expedition'
+    if shouldRespawnMonster then
+        self.MonsterService:destroy()
+    end
+
     clearDefaultWorkspaceShell()
     self.World = MazeWorldBuilder.build(self.SessionData.Seed, SessionConfig.ProcGen, {
         SurfacePalette = self.SurfacePalette,
@@ -716,6 +721,11 @@ function MazeSessionService:_rebuildWorld()
     self:_recordWorldBuildMetadata()
     self:_setBootPhase('BindWorldInteractions')
     self:_bindWorldInteractions()
+
+    if shouldRespawnMonster then
+        local patrolPoints, initialPatrolIndex = collectPatrolPointsFromWorld(self.World)
+        self.MonsterService:spawn(patrolPoints, initialPatrolIndex)
+    end
 end
 
 function MazeSessionService:_bindWorldInteractions()
