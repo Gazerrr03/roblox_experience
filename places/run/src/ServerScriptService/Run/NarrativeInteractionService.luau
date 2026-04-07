@@ -1,8 +1,20 @@
--- NarrativeInteractionService
--- 处理荒野叙事交互点的触发逻辑
+--!strict
+--#region Services
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local Players = game:GetService('Players')
+
+--#endregion
+
+--#region Requires
+
+local Packages = ReplicatedStorage:WaitForChild('Packages')
+local Shared = require(Packages:WaitForChild('Shared'))
+local Remotes = Shared.Network.Remotes.waitForScope(Shared.Network.Remotes.Scope.Run)
+
+--#endregion
+
+--#region Module
 
 local NarrativeInteractionService = {}
 
@@ -37,6 +49,11 @@ local NarrativeContent = {
 
 -- 玩家交互记录
 local playerInteractions = {}
+
+-- 清理离开的玩家数据
+Players.PlayerRemoving:Connect(function(player)
+    playerInteractions[player.UserId] = nil
+end)
 
 -- 初始化服务
 function NarrativeInteractionService.initialize(stelePrompt, mirrorPrompt, statuePrompt)
@@ -83,20 +100,12 @@ function NarrativeInteractionService.showNarrativeToClient(player, narrativeId, 
         return
     end
 
-    -- 通过RemoteEvent发送叙事内容到客户端
-    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-    if remotes then
-        local narrativeRemote = remotes:FindFirstChild("ShowNarrative")
-        if narrativeRemote then
-            if layer then
-                narrativeRemote:FireClient(player, content["layer" .. tostring(layer)])
-            else
-                -- 显示所有三层
-                narrativeRemote:FireClient(player, content.layer1, content.layer2, content.layer3)
-            end
-        else
-            warn("ShowNarrative remote not found")
-        end
+    -- 使用统一的 Remotes 模块
+    if layer then
+        Remotes.ShowNarrative:FireClient(player, content["layer" .. tostring(layer)])
+    else
+        -- 显示所有三层
+        Remotes.ShowNarrative:FireClient(player, content.layer1, content.layer2, content.layer3)
     end
 end
 
@@ -125,7 +134,7 @@ function NarrativeInteractionService.getPlayerInteractions(player)
     return playerInteractions[player.UserId] or {}
 end
 
--- 重置玩家交互记录（用于测试）
+-- 重置玩家交互记录(用于测试)
 function NarrativeInteractionService.resetPlayerInteractions(player)
     playerInteractions[player.UserId] = nil
 end
