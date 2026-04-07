@@ -45,6 +45,10 @@ local DEBUG_DAMAGE_BY_ACTION = {
     RequestDebugLightDamage = Gameplay.PlayerState.DamageKind.Light,
     RequestDebugHeavyDamage = Gameplay.PlayerState.DamageKind.Heavy,
 }
+local DAMAGE_KIND_BY_PIPS = table.freeze({
+    [1] = Gameplay.PlayerState.DamageKind.Light,
+    [2] = Gameplay.PlayerState.DamageKind.Heavy,
+})
 
 local MazeMonsterSpawnPolicy = Gameplay.Monsters.MazeMonsterSpawnPolicy
 
@@ -60,6 +64,10 @@ local function formatDiagnosticValue(value)
     end
 
     return tostring(value)
+end
+
+local function damageKindFromPips(damagePips)
+    return DAMAGE_KIND_BY_PIPS[damagePips]
 end
 
 local function buildDiagnosticFieldString(fields)
@@ -301,6 +309,19 @@ function MazeSessionService:_destroyUgcMonsters()
     table.clear(self.UgcMonsterServices)
 end
 
+function MazeSessionService:_buildMonsterRuntimeOptions()
+    return {
+        OnAttackHit = function(player, damagePips)
+            local damageKind = damageKindFromPips(damagePips)
+            if damageKind == nil then
+                return
+            end
+
+            self:_applyPlayerDamage(player, damageKind)
+        end,
+    }
+end
+
 function MazeSessionService:_spawnQueuedUgcMonsters()
     if #self.PendingUgcMonsterPayloads == 0 then
         return
@@ -367,7 +388,7 @@ function MazeSessionService:_spawnQueuedUgcMonsters()
             end
 
             return self.World.CanTraverseBetweenPositions(fromPosition, toPosition)
-        end)
+        end, self:_buildMonsterRuntimeOptions())
         ugcMonsterService:spawn(patrolPoints, initialPatrolIndex)
 
         table.insert(self.UgcMonsterServices, {
@@ -416,13 +437,15 @@ function MazeSessionService.new(options)
             monsterRuntimeProfile,
             isExpeditionActiveCallback,
             canTargetPlayerCallback,
-            canTraverseCallback
+            canTraverseCallback,
+            monsterRuntimeOptions
         )
             return MonsterService.new(
                 monsterRuntimeProfile,
                 isExpeditionActiveCallback,
                 canTargetPlayerCallback,
-                canTraverseCallback
+                canTraverseCallback,
+                monsterRuntimeOptions
             )
         end
     self.MonsterService = self.MonsterServiceFactory(
@@ -439,7 +462,8 @@ function MazeSessionService.new(options)
             end
 
             return self.World.CanTraverseBetweenPositions(fromPosition, toPosition)
-        end
+        end,
+        self:_buildMonsterRuntimeOptions()
     )
     self.UgcMonsterServices = {}
     self.PendingUgcMonsterPayloads = {}

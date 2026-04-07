@@ -5,6 +5,9 @@ local MonsterEffectCatalog = require(script.Parent.MonsterEffectCatalog)
 local MonsterRuntimeProfile = require(script.Parent.MonsterRuntimeProfile)
 
 local DEFAULT_SPAWN_OFFSET = Vector3.new(0, 4, 0)
+local DEFAULT_ATTACK_COOLDOWN_SECONDS = 1
+local DEFAULT_ATTACK_DAMAGE_PIPS = 1
+local DEFAULT_ATTACK_RANGE = 4
 
 local MonsterCompiler = {}
 
@@ -72,6 +75,10 @@ function MonsterCompiler.compileMonsterForMaze(authorProfile)
         Id = normalizedProfile.Id,
         Name = normalizedProfile.Name,
         Presentation = cloneRuntimePresentation(normalizedProfile.Executable.Presentation),
+        AttackCooldownSeconds = normalizedProfile.Tuning.AttackCooldownSeconds
+            or DEFAULT_ATTACK_COOLDOWN_SECONDS,
+        AttackDamagePips = normalizedProfile.Tuning.AttackDamagePips or DEFAULT_ATTACK_DAMAGE_PIPS,
+        AttackRange = normalizedProfile.Tuning.AttackRange or DEFAULT_ATTACK_RANGE,
         Speed = normalizedProfile.Tuning.Speed,
         SightRange = normalizedProfile.Tuning.SightRange,
         PatrolSpeedMultiplier = normalizedProfile.Tuning.PatrolSpeedMultiplier,

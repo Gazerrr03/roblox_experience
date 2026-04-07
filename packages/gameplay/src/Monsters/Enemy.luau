@@ -75,6 +75,7 @@ function Enemy:update(dt, context)
     self.Components.Attack:update(self.Blackboard, dt)
 
     return {
+        AttackIntent = self.Blackboard.Transient.AttackIntent,
         State = self.Blackboard:getState(),
         TargetPlayer = self.Blackboard.Transient.TargetPlayer,
         NextPosition = self.Blackboard.Transient.NextPosition,
