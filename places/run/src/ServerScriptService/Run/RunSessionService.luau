@@ -325,8 +325,9 @@ function RunSessionService:_grantStarterUgcTokenIfNeeded(player, teleportData)
     end
 
     local success, reason = self.InventoryService:pickup(player, itemDef)
-    self.IssuedStarterUgcTokenByUserId[player.UserId] = true
-    if not success then
+    if success then
+        self.IssuedStarterUgcTokenByUserId[player.UserId] = true
+    else
         warn(
             string.format(
                 '[RunSessionService] Failed to grant starter UGC token to %s (%s).',
