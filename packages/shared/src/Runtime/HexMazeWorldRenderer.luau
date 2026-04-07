@@ -10,6 +10,7 @@ local MazePassageTemplates = Gameplay.ProcGen.MazePassageTemplates
 local bit32_band = bit32.band
 local bit32_lshift = bit32.lshift
 local bit32_bor = bit32.bor
+local math_ceil = math.ceil
 local math_floor = math.floor
 local math_sqrt = math.sqrt
 
@@ -925,6 +926,10 @@ function HexMazeWorldRenderer.build(params)
 
     local detectionRadius = roomApothem + detectionBuffer
     local detectionRadiusSq = detectionRadius * detectionRadius
+    local searchRadiusCells = math_ceil(detectionRadius / cellSize)
+    if searchRadiusCells < 1 then
+        searchRadiusCells = 1
+    end
 
     local function findRoomByPosition(position)
         local nearestRoom = nil
@@ -934,8 +939,8 @@ function HexMazeWorldRenderer.build(params)
         local pq = math_floor(px / cellSize)
         local pr = math_floor(pz / cellSize)
 
-        for dq = -1, 1 do
-            for dr = -1, 1 do
+        for dq = -searchRadiusCells, searchRadiusCells do
+            for dr = -searchRadiusCells, searchRadiusCells do
                 local key = bit32_bor(
                     bit32_lshift(bit32_band(pq + dq, 0xFFFF), 16),
                     bit32_band(pr + dr, 0xFFFF)
