@@ -6,6 +6,30 @@ local function isNonEmptyString(value)
     return type(value) == 'string' and value ~= ''
 end
 
+local function isPositiveNumber(value)
+    return type(value) == 'number' and value > 0
+end
+
+local function readComponentTable(profile, name)
+    local components = profile.Components
+    if components == nil then
+        return nil, nil
+    end
+    if type(components) ~= 'table' then
+        return nil, 'InvalidRuntimeComponents'
+    end
+
+    local component = components[name]
+    if component == nil then
+        return nil, nil
+    end
+    if type(component) ~= 'table' then
+        return nil, string.format('InvalidRuntimeComponent%s', name)
+    end
+
+    return component, nil
+end
+
 function MonsterRuntimeProfile.validate(profile)
     if type(profile) ~= 'table' then
         return false, 'MalformedMonsterRuntimeProfile'
@@ -46,19 +70,92 @@ function MonsterRuntimeProfile.validate(profile)
         return false, 'InvalidRuntimeChaseLoopSoundAssetId'
     end
 
-    if type(profile.Speed) ~= 'number' or profile.Speed <= 0 then
+    local perceptionConfig, perceptionConfigErr = readComponentTable(profile, 'Perception')
+    if perceptionConfigErr then
+        return false, perceptionConfigErr
+    end
+    local movementConfig, movementConfigErr = readComponentTable(profile, 'Movement')
+    if movementConfigErr then
+        return false, movementConfigErr
+    end
+    local attackConfig, attackConfigErr = readComponentTable(profile, 'Attack')
+    if attackConfigErr then
+        return false, attackConfigErr
+    end
+
+    if
+        perceptionConfig
+        and perceptionConfig.SightRange ~= nil
+        and not isPositiveNumber(perceptionConfig.SightRange)
+    then
+        return false, 'InvalidRuntimeComponentPerceptionSightRange'
+    end
+
+    if movementConfig then
+        if movementConfig.Speed ~= nil and not isPositiveNumber(movementConfig.Speed) then
+            return false, 'InvalidRuntimeComponentMovementSpeed'
+        end
+        if
+            movementConfig.PatrolSpeedMultiplier ~= nil
+            and not isPositiveNumber(movementConfig.PatrolSpeedMultiplier)
+        then
+            return false, 'InvalidRuntimeComponentMovementPatrolSpeedMultiplier'
+        end
+        if
+            movementConfig.PatrolReachDistance ~= nil
+            and not isPositiveNumber(movementConfig.PatrolReachDistance)
+        then
+            return false, 'InvalidRuntimeComponentMovementPatrolReachDistance'
+        end
+        if
+            movementConfig.SpawnOffset ~= nil
+            and typeof(movementConfig.SpawnOffset) ~= 'Vector3'
+        then
+            return false, 'InvalidRuntimeComponentMovementSpawnOffset'
+        end
+    end
+
+    if attackConfig then
+        if attackConfig.Range ~= nil and not isPositiveNumber(attackConfig.Range) then
+            return false, 'InvalidRuntimeComponentAttackRange'
+        end
+        if
+            attackConfig.CooldownSeconds ~= nil
+            and not isPositiveNumber(attackConfig.CooldownSeconds)
+        then
+            return false, 'InvalidRuntimeComponentAttackCooldown'
+        end
+    end
+
+    local runtimeSpeed = profile.Speed
+    if runtimeSpeed == nil and movementConfig then
+        runtimeSpeed = movementConfig.Speed
+    end
+    if not isPositiveNumber(runtimeSpeed) then
         return false, 'InvalidRuntimeSpeed'
     end
 
-    if type(profile.SightRange) ~= 'number' or profile.SightRange <= 0 then
+    local runtimeSightRange = profile.SightRange
+    if runtimeSightRange == nil and perceptionConfig then
+        runtimeSightRange = perceptionConfig.SightRange
+    end
+    if not isPositiveNumber(runtimeSightRange) then
         return false, 'InvalidRuntimeSightRange'
     end
 
-    if type(profile.PatrolSpeedMultiplier) ~= 'number' or profile.PatrolSpeedMultiplier <= 0 then
+    local runtimePatrolSpeedMultiplier = profile.PatrolSpeedMultiplier
+    if runtimePatrolSpeedMultiplier == nil and movementConfig then
+        runtimePatrolSpeedMultiplier = movementConfig.PatrolSpeedMultiplier
+    end
+    if not isPositiveNumber(runtimePatrolSpeedMultiplier) then
         return false, 'InvalidRuntimePatrolSpeedMultiplier'
     end
 
-    if typeof(profile.SpawnOffset) ~= 'Vector3' then
+    local runtimeSpawnOffset = profile.SpawnOffset
+    if runtimeSpawnOffset == nil and movementConfig then
+        runtimeSpawnOffset = movementConfig.SpawnOffset
+    end
+    if typeof(runtimeSpawnOffset) ~= 'Vector3' then
         return false, 'InvalidRuntimeSpawnOffset'
     end
 

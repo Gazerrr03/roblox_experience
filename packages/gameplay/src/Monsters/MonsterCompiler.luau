@@ -1,5 +1,6 @@
 local MonsterAuthorProfile = require(script.Parent.MonsterAuthorProfile)
 local MonsterBehaviorCatalog = require(script.Parent.MonsterBehaviorCatalog)
+local MonsterComponentConfig = require(script.Parent.MonsterComponentConfig)
 local MonsterEffectCatalog = require(script.Parent.MonsterEffectCatalog)
 local MonsterRuntimeProfile = require(script.Parent.MonsterRuntimeProfile)
 
@@ -67,7 +68,7 @@ function MonsterCompiler.compileMonsterForMaze(authorProfile)
         end
     end
 
-    local runtimeProfile = table.freeze({
+    local runtimeProfile = {
         Id = normalizedProfile.Id,
         Name = normalizedProfile.Name,
         Presentation = cloneRuntimePresentation(normalizedProfile.Executable.Presentation),
@@ -77,7 +78,9 @@ function MonsterCompiler.compileMonsterForMaze(authorProfile)
         SpawnOffset = normalizedProfile.Tuning.SpawnOffset or DEFAULT_SPAWN_OFFSET,
         Behaviors = table.freeze(behaviors),
         Effects = table.freeze(runtimeEffects),
-    })
+    }
+    runtimeProfile.Components = MonsterComponentConfig.fromRuntimeProfile(runtimeProfile)
+    runtimeProfile = table.freeze(runtimeProfile)
 
     local validRuntimeProfile, runtimeReason = MonsterRuntimeProfile.validate(runtimeProfile)
     if not validRuntimeProfile then
