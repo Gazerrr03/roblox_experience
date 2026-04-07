@@ -94,15 +94,29 @@ function ItemFunctionality.climbWithRope(player: Player, climbTarget: BasePart):
         return false
     end
 
+    -- 验证距离(防止远程交互攻击)
+    local characterPosition = character.HumanoidRootPart.Position
+    local distance = (climbTarget.Position - characterPosition).Magnitude
+    local MAX_INTERACTION_DISTANCE = 15 -- 最大交互距离
+
+    if distance > MAX_INTERACTION_DISTANCE then
+        warn(player.Name .. " 尝试从过远的距离使用绳索: " .. tostring(distance))
+        return false
+    end
+
+    -- 获取攀爬高度(使用交互对象的属性而非硬编码)
+    local climbHeight = climbTarget:GetAttribute('Height') or 5
+
     -- 攀爬动画效果
     humanoid:ChangeState(Enum.HumanoidStateType.Climbing)
 
-    -- 使用 TweenService 实现平滑攀爬
-    local targetPosition = climbTarget.Position + Vector3.new(0, 5, 0)
+    -- 使用 TweenService 实现平滑攀爬,保留原始朝向
+    local targetPosition = climbTarget.Position + Vector3.new(0, climbHeight, 0)
+    local targetCFrame = CFrame.new(targetPosition, character.HumanoidRootPart.Position)
     local climbTween = TweenService:Create(
         character.HumanoidRootPart,
         TweenInfo.new(2, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut),
-        {CFrame = CFrame.new(targetPosition)}
+        {CFrame = targetCFrame}
     )
     climbTween:Play()
 

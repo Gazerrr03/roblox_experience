@@ -84,14 +84,8 @@ local function ensureRemote(container, name)
         return remote
     end
 
-    -- 检查是否需要创建RemoteFunction
-    local isFunction = false
-    for _, funcName in ipairs(REMOTE_FUNCTION_NAMES) do
-        if name == funcName then
-            isFunction = true
-            break
-        end
-    end
+    -- 使用 table.find 检查是否需要创建 RemoteFunction
+    local isFunction = table.find(REMOTE_FUNCTION_NAMES, name) ~= nil
 
     if isFunction then
         remote = Instance.new('RemoteFunction')

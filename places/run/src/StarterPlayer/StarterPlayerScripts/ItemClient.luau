@@ -79,7 +79,7 @@ local function setupCrowbarInput()
 
     -- 靠近锁住的对象时自动检测
     RunService.Heartbeat:Connect(function()
-        local currentTime = tick()
+        local currentTime = os.clock()
 
         -- 降低检测频率，避免高频服务器调用
         if currentTime - lastUpdateTime < UPDATE_INTERVAL then
