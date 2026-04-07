@@ -75,7 +75,7 @@ end
 -- 设置撬棍交互
 local function setupCrowbarInput()
     local lastUpdateTime = 0
-    local UPDATE_INTERVAL = 0.5  -- 每0.5秒检测一次，而不是每帧
+    local UPDATE_INTERVAL = 0.5
 
     -- 靠近锁住的对象时自动检测
     RunService.Heartbeat:Connect(function()

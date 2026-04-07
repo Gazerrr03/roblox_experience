@@ -19,12 +19,12 @@ local REMOTE_NAMES_BY_SCOPE = table.freeze({
         'RunState',
         'RunPrivateState',
         'ShowNarrative',
-        'GetInventory',  -- RemoteFunction
+        'GetInventory',
         'EquipItem',
         'UseItem',
         'UseItemFunction',
-        'GetInteractables',  -- RemoteFunction
-        'GetItemData',  -- RemoteFunction
+        'GetInteractables',
+        'GetItemData',
         'ItemUsageFeedback',
     },
     [Remotes.Scope.Maze] = {
@@ -41,12 +41,12 @@ local ALL_REMOTE_NAMES = {
     'RunState',
     'RunPrivateState',
     'ShowNarrative',
-    'GetInventory',  -- RemoteFunction
+    'GetInventory',
     'EquipItem',
     'UseItem',
     'UseItemFunction',
-    'GetInteractables',  -- RemoteFunction
-    'GetItemData',  -- RemoteFunction
+    'GetInteractables',
+    'GetItemData',
     'ItemUsageFeedback',
     'MazeAction',
     'MazeState',
