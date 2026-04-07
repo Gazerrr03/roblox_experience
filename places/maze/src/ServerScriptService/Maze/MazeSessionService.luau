@@ -974,7 +974,7 @@ function MazeSessionService:_handleUseTool(player)
             actionWord,
             updatedHeldItem.Name,
             effectText,
-            updatedHeldItem.StateModel,
+            updatedHeldItem.StateModel or 'state',
             updatedHeldItem.CurrentState
         )
     )
