@@ -22,7 +22,7 @@ local ItemClient = {}
 
 local player = Players.LocalPlayer
 local currentInteractionTarget = nil
-local interactionProximityPrompts = {}
+local _interactionProximityPrompts = {}
 
 -- ====================
 -- 道具功能输入处理
@@ -32,7 +32,9 @@ local interactionProximityPrompts = {}
 local function setupFlashlightInput()
     -- F 键切换手电筒
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
+        if gameProcessed then
+            return
+        end
 
         if input.KeyCode == Enum.KeyCode.F then
             local itemData = Remotes.GetItemData:InvokeServer('Flashlight')
@@ -47,9 +49,13 @@ end
 local function setupRopeInput()
     -- E 键触发绳索交互
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
+        if gameProcessed then
+            return
+        end
 
-        if input.KeyCode == Enum.KeyCode.E and UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+        if
+            input.KeyCode == Enum.KeyCode.E and UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
+        then
             local itemData = Remotes.GetItemData:InvokeServer('Rope')
             if itemData and itemData.IsEquipped then
                 -- 检测最近的交互对象
@@ -91,7 +97,9 @@ local function setupCrowbarInput()
 
         if itemData and itemData.IsEquipped then
             local character = player.Character
-            if not character or not character.HumanoidRootPart then return end
+            if not character or not character.HumanoidRootPart then
+                return
+            end
 
             local interactables = Remotes.GetInteractables:InvokeServer(5)
             local hasPryable = false
@@ -114,7 +122,9 @@ local function setupCrowbarInput()
 
     -- 按键触发撬开
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
+        if gameProcessed then
+            return
+        end
 
         if input.KeyCode == Enum.KeyCode.E and currentInteractionTarget then
             Remotes.UseItemFunction:FireServer('Crowbar', currentInteractionTarget, 'pry')
@@ -127,7 +137,7 @@ end
 -- ====================
 
 -- 显示交互提示
-local function showInteractionPrompt(part: BasePart, promptText: string)
+local function _showInteractionPrompt(_part: BasePart, promptText: string)
     -- 创建屏幕提示
     local playerGui = player:WaitForChild('PlayerGui')
 
@@ -166,7 +176,7 @@ local function showInteractionPrompt(part: BasePart, promptText: string)
 end
 
 -- 显示道具使用提示
-local function showItemUsageFeedback(itemName: string, action: string, success: boolean)
+local function showItemUsageFeedback(itemName: string, _action: string, success: boolean)
     local playerGui = player:WaitForChild('PlayerGui')
 
     local screenGui = Instance.new('ScreenGui')
@@ -190,7 +200,7 @@ local function showItemUsageFeedback(itemName: string, action: string, success: 
     textLabel.Name = 'FeedbackText'
     textLabel.Size = UDim2.new(1, 0, 1, 0)
     textLabel.BackgroundTransparency = 1
-    textLabel.Text = success and (itemName .. " 使用成功!") or (itemName .. " 使用失败!")
+    textLabel.Text = success and (itemName .. ' 使用成功!') or (itemName .. ' 使用失败!')
     textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     textLabel.TextSize = 20
     textLabel.Font = Enum.Font.GothamBold
@@ -200,7 +210,7 @@ local function showItemUsageFeedback(itemName: string, action: string, success: 
     local tween = game:GetService('TweenService'):Create(
         screenGui,
         TweenInfo.new(2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        {BackgroundTransparency = 1}
+        { BackgroundTransparency = 1 }
     )
     tween:Play()
 
@@ -218,12 +228,14 @@ function ItemClient.initialize()
     setupRopeInput()
     setupCrowbarInput()
 
-    print("ItemClient 已初始化")
+    print('ItemClient 已初始化')
 end
 
 -- 监听服务器反馈
-Remotes.ItemUsageFeedback.OnClientEvent:Connect(function(itemName: string, action: string, success: boolean)
-    showItemUsageFeedback(itemName, action, success)
-end)
+Remotes.ItemUsageFeedback.OnClientEvent:Connect(
+    function(itemName: string, _action: string, success: boolean)
+        showItemUsageFeedback(itemName, _action, success)
+    end
+)
 
 return ItemClient

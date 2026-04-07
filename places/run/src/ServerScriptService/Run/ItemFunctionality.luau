@@ -98,7 +98,7 @@ function ItemFunctionality.climbWithRope(player: Player, climbTarget: BasePart):
     local MAX_INTERACTION_DISTANCE = 15 -- 最大交互距离
 
     if distance > MAX_INTERACTION_DISTANCE then
-        warn(player.Name .. " 尝试从过远的距离使用绳索: " .. tostring(distance))
+        warn(player.Name .. ' 尝试从过远的距离使用绳索: ' .. tostring(distance))
         return false
     end
 
@@ -114,7 +114,7 @@ function ItemFunctionality.climbWithRope(player: Player, climbTarget: BasePart):
     local climbTween = TweenService:Create(
         character.HumanoidRootPart,
         TweenInfo.new(2, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut),
-        {CFrame = targetCFrame}
+        { CFrame = targetCFrame }
     )
     climbTween:Play()
 
@@ -145,7 +145,7 @@ function ItemFunctionality.crossWithRope(player: Player, crossTarget: CFrame): b
     local MAX_INTERACTION_DISTANCE = 20 -- 跨越距离可以稍大一些
 
     if distance > MAX_INTERACTION_DISTANCE then
-        warn(player.Name .. " 尝试从过远的距离使用绳索跨越: " .. tostring(distance))
+        warn(player.Name .. ' 尝试从过远的距离使用绳索跨越: ' .. tostring(distance))
         return false
     end
 
@@ -161,7 +161,7 @@ function ItemFunctionality.crossWithRope(player: Player, crossTarget: CFrame): b
     local crossTween = TweenService:Create(
         character.HumanoidRootPart,
         TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
-        {CFrame = targetCFrame}
+        { CFrame = targetCFrame }
     )
     crossTween:Play()
 
@@ -200,7 +200,7 @@ function ItemFunctionality.tetherMonster(player: Player, targetModel: Model): bo
     local MAX_INTERACTION_DISTANCE = 25 -- 套怪物的距离可以稍大一些
 
     if distance > MAX_INTERACTION_DISTANCE then
-        warn(player.Name .. " 尝试从过远的距离套住怪物: " .. tostring(distance))
+        warn(player.Name .. ' 尝试从过远的距离套住怪物: ' .. tostring(distance))
         return false
     end
 
@@ -274,7 +274,7 @@ function ItemFunctionality.pryOpen(player: Player, targetPart: BasePart): boolea
     local MAX_INTERACTION_DISTANCE = 10 -- 撬开的距离需要比较近
 
     if distance > MAX_INTERACTION_DISTANCE then
-        warn(player.Name .. " 尝试从过远的距离撬开: " .. tostring(distance))
+        warn(player.Name .. ' 尝试从过远的距离撬开: ' .. tostring(distance))
         return false
     end
 
@@ -284,11 +284,6 @@ function ItemFunctionality.pryOpen(player: Player, targetPart: BasePart): boolea
     end
 
     -- 撬棍动画
-    local character = player.Character
-    if not character then
-        return false
-    end
-
     -- 创建撬棍视觉提示
     local crowbarVisual = Instance.new('Part')
     crowbarVisual.Name = 'CrowbarAnimation'
@@ -298,15 +293,15 @@ function ItemFunctionality.pryOpen(player: Player, targetPart: BasePart): boolea
     crowbarVisual.CanCollide = false
     crowbarVisual.Anchored = true
 
-    local targetPosition = targetPart.Position + Vector3.new(0, 1, 0)
-    crowbarVisual.CFrame = CFrame.new(targetPosition) * CFrame.Angles(math.rad(45), 0, 0)
+    local pryTargetPosition = targetPart.Position + Vector3.new(0, 1, 0)
+    crowbarVisual.CFrame = CFrame.new(pryTargetPosition) * CFrame.Angles(math.rad(45), 0, 0)
     crowbarVisual.Parent = workspace
 
     -- 撬动动画
     local pryTween = TweenService:Create(
         crowbarVisual,
         TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.InOut),
-        {CFrame = crowbarVisual.CFrame * CFrame.Angles(math.rad(-30), 0, 0)}
+        { CFrame = crowbarVisual.CFrame * CFrame.Angles(math.rad(-30), 0, 0) }
     )
     pryTween:Play()
 
@@ -326,7 +321,11 @@ function ItemFunctionality.pryOpen(player: Player, targetPart: BasePart): boolea
             local openTween = TweenService:Create(
                 targetPart,
                 TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                {CFrame = targetPart.CFrame * CFrame.Angles(math.rad(-45), 0, 0) * CFrame.new(0, 0.5, 0.5)}
+                {
+                    CFrame = targetPart.CFrame
+                        * CFrame.Angles(math.rad(-45), 0, 0)
+                        * CFrame.new(0, 0.5, 0.5),
+                }
             )
             openTween:Play()
         end
@@ -343,7 +342,7 @@ end
 -- ====================
 
 -- 检测玩家周围的交互对象（优化版：使用标签系统）
-function ItemFunctionality.detectInteractableObjects(player: Player, range: number): {BasePart}
+function ItemFunctionality.detectInteractableObjects(player: Player, range: number): { BasePart }
     local interactables = {}
     local character = player.Character
 
@@ -367,7 +366,11 @@ function ItemFunctionality.detectInteractableObjects(player: Player, range: numb
 end
 
 -- 注册可交互对象
-function ItemFunctionality.registerInteractable(part: BasePart, interactionType: string, options: {[string]: any})
+function ItemFunctionality.registerInteractable(
+    part: BasePart,
+    interactionType: string,
+    options: { [string]: any }
+)
     -- 使用标签系统而不是属性，提升性能
     CollectionService:AddTag(part, 'Interactable')
     CollectionService:AddTag(part, interactionType)
@@ -384,32 +387,34 @@ end
 -- ====================
 
 -- 使用道具功能
-Remotes.UseItemFunction.OnServerEvent:Connect(function(player: Player, itemName: string, target: any, actionType: string)
-    local success = false
+Remotes.UseItemFunction.OnServerEvent:Connect(
+    function(player: Player, itemName: string, target: any, actionType: string)
+        local success = false
 
-    if itemName == 'Flashlight' and actionType == 'toggle' then
-        success = ItemFunctionality.toggleFlashlight(player)
-    elseif itemName == 'Rope' then
-        if actionType == 'climb' and target then
-            success = ItemFunctionality.climbWithRope(player, target)
-        elseif actionType == 'cross' and target then
-            success = ItemFunctionality.crossWithRope(player, target)
-        elseif actionType == 'tether' and target then
-            success = ItemFunctionality.tetherMonster(player, target)
+        if itemName == 'Flashlight' and actionType == 'toggle' then
+            success = ItemFunctionality.toggleFlashlight(player)
+        elseif itemName == 'Rope' then
+            if actionType == 'climb' and target then
+                success = ItemFunctionality.climbWithRope(player, target)
+            elseif actionType == 'cross' and target then
+                success = ItemFunctionality.crossWithRope(player, target)
+            elseif actionType == 'tether' and target then
+                success = ItemFunctionality.tetherMonster(player, target)
+            end
+        elseif itemName == 'Crowbar' and actionType == 'pry' and target then
+            success = ItemFunctionality.pryOpen(player, target)
         end
-    elseif itemName == 'Crowbar' and actionType == 'pry' and target then
-        success = ItemFunctionality.pryOpen(player, target)
-    end
 
-    if success then
-        print(player.Name .. " 使用了 " .. itemName .. " 功能: " .. actionType)
-    else
-        warn(player.Name .. " 使用 " .. itemName .. " 功能失败: " .. actionType)
+        if success then
+            print(player.Name .. ' 使用了 ' .. itemName .. ' 功能: ' .. actionType)
+        else
+            warn(player.Name .. ' 使用 ' .. itemName .. ' 功能失败: ' .. actionType)
+        end
     end
-end)
+)
 
 -- 查询附近的可交互对象
-Remotes.GetInteractables.OnServerInvoke = function(player: Player, range: number): {BasePart}
+Remotes.GetInteractables.OnServerInvoke = function(player: Player, range: number): { BasePart }
     return ItemFunctionality.detectInteractableObjects(player, range or 10)
 end
 
