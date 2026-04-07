@@ -5,6 +5,26 @@ local MazePassageTemplates = require(script.Parent.MazePassageTemplates)
 local MazeRoomArchetypes = require(script.Parent.MazeRoomArchetypes)
 local MazeRoomTemplates = require(script.Parent.MazeRoomTemplates)
 
+local bit32_band = bit32.band
+local bit32_bor = bit32.bor
+local bit32_lshift = bit32.lshift
+
+local table_insert = table.insert
+local table_sort = table.sort
+local table_clone = table.clone
+local table_freeze = table.freeze
+local table_create = table.create
+local math_floor = math.floor
+local math_max = math.max
+local math_abs = math.abs
+local string_format = string.format
+
+local HEX_DIRECTION_BITMASKS = HexRoomPrefabs.DirectionBitmasks
+
+local Vector3_new = Vector3.new
+
+local SQRT3 = math.sqrt(3)
+
 local HEX_DIRECTIONS = {
     { Q = 1, R = 0 },
     { Q = 1, R = -1 },
@@ -38,11 +58,11 @@ local function rotateDirection(directionIndex, steps)
 end
 
 local function rotateDirections(directions, steps)
-    local rotated = table.create(#directions)
+    local rotated = table_create(#directions)
     for index, directionIndex in ipairs(directions) do
         rotated[index] = rotateDirection(directionIndex, steps)
     end
-    table.sort(rotated)
+    table_sort(rotated)
     return rotated
 end
 
@@ -57,18 +77,19 @@ for _, typeId in ipairs(RATIO_TYPE_ORDER) do
             local doorMask = HexRoomPrefabs.computeDoorMask(openDirections)
             if not seenMasks[doorMask] then
                 seenMasks[doorMask] = true
-                table.insert(
+                table_insert(
                     variants,
-                    table.freeze({
+                    table_freeze({
+                        TypeId = typeId,
                         RotationSteps = steps,
-                        OpenDirections = table.freeze(openDirections),
+                        OpenDirections = table_freeze(openDirections),
                         DoorMask = doorMask,
                     })
                 )
             end
         end
     end
-    PREFAB_VARIANTS_BY_TYPE[typeId] = table.freeze(variants)
+    PREFAB_VARIANTS_BY_TYPE[typeId] = table_freeze(variants)
 end
 
 local function oppositeDirection(directionIndex)
@@ -76,14 +97,13 @@ local function oppositeDirection(directionIndex)
 end
 
 local function axialKey(q, r)
-    return bit32.bor(bit32.lshift(bit32.band(q, 0xFFFF), 16), bit32.band(r, 0xFFFF))
+    return bit32_bor(bit32_lshift(bit32_band(q, 0xFFFF), 16), bit32_band(r, 0xFFFF))
 end
 
 local function axialToWorld(q, r, roomSpacing)
-    local sqrt3 = math.sqrt(3)
-    local x = roomSpacing * (sqrt3 * q + (sqrt3 / 2) * r)
+    local x = roomSpacing * (SQRT3 * q + (SQRT3 / 2) * r)
     local z = roomSpacing * ((3 / 2) * r)
-    return Vector3.new(x, 0, z)
+    return Vector3_new(x, 0, z)
 end
 
 local function buildDirectionSet(directions)
@@ -103,8 +123,8 @@ local function countEntries(map)
 end
 
 local function cloneSortedArray(values)
-    local cloned = table.clone(values or {})
-    table.sort(cloned)
+    local cloned = table_clone(values or {})
+    table_sort(cloned)
     return cloned
 end
 
@@ -119,27 +139,27 @@ end
 local function sortedRoomIds(rooms)
     local roomIds = {}
     for roomId in pairs(rooms) do
-        table.insert(roomIds, roomId)
+        table_insert(roomIds, roomId)
     end
-    table.sort(roomIds)
+    table_sort(roomIds)
     return roomIds
 end
 
 local function sortedDoorwayIds(doorways)
     local doorwayIds = {}
     for doorwayId in pairs(doorways or {}) do
-        table.insert(doorwayIds, doorwayId)
+        table_insert(doorwayIds, doorwayId)
     end
-    table.sort(doorwayIds)
+    table_sort(doorwayIds)
     return doorwayIds
 end
 
 local function collectSortedNeighborRoomIds(room)
     local neighborRoomIds = {}
     for _, neighborRoomId in pairs(room.Neighbors or {}) do
-        table.insert(neighborRoomIds, neighborRoomId)
+        table_insert(neighborRoomIds, neighborRoomId)
     end
-    table.sort(neighborRoomIds)
+    table_sort(neighborRoomIds)
     return neighborRoomIds
 end
 
@@ -166,27 +186,23 @@ local function createRoom(
         Position = axialToWorld(q, r, roomSpacing),
         DoorMask = doorMask,
         DoorCount = #openDirections,
-        DoorDirections = table.clone(openDirections),
-        OpenDirections = table.clone(openDirections),
+        DoorDirections = table_clone(openDirections),
+        OpenDirections = table_clone(openDirections),
         Neighbors = {},
         ExitDirections = {},
-        PrefabId = definition and definition.PrefabId or string.format('Hex_%s', typeId),
+        PrefabId = definition and definition.PrefabId or string_format('Hex_%s', typeId),
         PrefabTypeId = typeId,
         PrefabRotationSteps = rotationSteps,
     }
 end
 
-local function makeFrontierKey(roomId, directionIndex)
-    return string.format('%s:%d', roomId, directionIndex)
-end
-
 local function addFrontier(frontier, frontierIndexByKey, roomId, directionIndex)
-    local key = makeFrontierKey(roomId, directionIndex)
+    local key = roomId .. ':' .. directionIndex
     if frontierIndexByKey[key] then
         return
     end
 
-    table.insert(frontier, {
+    table_insert(frontier, {
         RoomId = roomId,
         Direction = directionIndex,
     })
@@ -194,7 +210,7 @@ local function addFrontier(frontier, frontierIndexByKey, roomId, directionIndex)
 end
 
 local function removeFrontier(frontier, frontierIndexByKey, roomId, directionIndex)
-    local key = makeFrontierKey(roomId, directionIndex)
+    local key = roomId .. ':' .. directionIndex
     local index = frontierIndexByKey[key]
     if not index then
         return
@@ -207,7 +223,7 @@ local function removeFrontier(frontier, frontierIndexByKey, roomId, directionInd
     frontierIndexByKey[key] = nil
 
     if swapped and index <= #frontier then
-        frontierIndexByKey[makeFrontierKey(swapped.RoomId, swapped.Direction)] = index
+        frontierIndexByKey[swapped.RoomId .. ':' .. swapped.Direction] = index
     end
 end
 
@@ -234,18 +250,18 @@ local function buildPrefabQuotas(roomCount)
 
     for _, typeId in ipairs(RATIO_TYPE_ORDER) do
         local scaled = (roomCount * BASE_RATIO_COUNTS[typeId]) / baseTotal
-        local baseCount = math.floor(scaled)
+        local baseCount = math_floor(scaled)
         quotas[typeId] = baseCount
         assigned += baseCount
 
-        table.insert(remainders, {
+        table_insert(remainders, {
             TypeId = typeId,
             Value = scaled - baseCount,
             Weight = BASE_RATIO_COUNTS[typeId],
         })
     end
 
-    table.sort(remainders, function(left, right)
+    table_sort(remainders, function(left, right)
         if left.Value ~= right.Value then
             return left.Value > right.Value
         end
@@ -318,41 +334,6 @@ local function pickWeightedType(random, quotas, typeIds)
     return typeIds[#typeIds]
 end
 
-local function canPlaceVariant(rooms, roomsByAxialKey, blockedAxialKeys, q, r, openMask)
-    local positionKey = axialKey(q, r)
-    if roomsByAxialKey[positionKey] or blockedAxialKeys[positionKey] then
-        return false
-    end
-
-    for directionIndex, direction in ipairs(HEX_DIRECTIONS) do
-        local neighborQ = q + direction.Q
-        local neighborR = r + direction.R
-        local neighborRoomId = roomsByAxialKey[axialKey(neighborQ, neighborR)]
-        if not neighborRoomId then
-            continue
-        end
-
-        local neighbor = rooms[neighborRoomId]
-        local opposite = OPPOSITE_DIRECTIONS[directionIndex]
-        local selfHasDoor = bit32.band(openMask, HexRoomPrefabs.DirectionBitmasks[directionIndex])
-            ~= 0
-        local neighborHasDoor = bit32.band(
-            neighbor.DoorMask,
-            HexRoomPrefabs.DirectionBitmasks[opposite]
-        ) ~= 0
-
-        if selfHasDoor ~= neighborHasDoor then
-            return false
-        end
-
-        if selfHasDoor and neighbor.Neighbors[opposite] ~= nil then
-            return false
-        end
-    end
-
-    return true
-end
-
 local function enumeratePlacementCandidates(
     random,
     quotas,
@@ -363,9 +344,43 @@ local function enumeratePlacementCandidates(
     targetR,
     requiredDirection
 )
-    local candidates = {}
-    local requiredMask = HexRoomPrefabs.DirectionBitmasks[requiredDirection]
+    local positionKey = axialKey(targetQ, targetR)
+    if roomsByAxialKey[positionKey] or blockedAxialKeys[positionKey] then
+        return nil
+    end
 
+    local requiredMask = HEX_DIRECTION_BITMASKS[requiredDirection]
+    local mustHaveMask = 0
+    local mustNotHaveMask = 0
+
+    -- Pre-calculate door constraints from neighbors once per candidate search
+    for directionIndex, direction in ipairs(HEX_DIRECTIONS) do
+        local neighborQ = targetQ + direction.Q
+        local neighborR = targetR + direction.R
+        local neighborRoomId = roomsByAxialKey[axialKey(neighborQ, neighborR)]
+        if not neighborRoomId then
+            continue
+        end
+
+        local neighbor = rooms[neighborRoomId]
+        local opposite = OPPOSITE_DIRECTIONS[directionIndex]
+        local neighborHasDoor = bit32_band(neighbor.DoorMask, HEX_DIRECTION_BITMASKS[opposite]) ~= 0
+
+        if neighborHasDoor then
+            -- We must have a door to match neighbor, and neighbor must not already be connected
+            if neighbor.Neighbors[opposite] ~= nil then
+                return nil -- Already occupied path
+            end
+            mustHaveMask = bit32_bor(mustHaveMask, HEX_DIRECTION_BITMASKS[directionIndex])
+        else
+            mustNotHaveMask = bit32_bor(mustNotHaveMask, HEX_DIRECTION_BITMASKS[directionIndex])
+        end
+    end
+
+    mustHaveMask = bit32_bor(mustHaveMask, requiredMask)
+
+    -- Optimization: Two-pass selection to avoid temporary candidate table allocations
+    local totalWeight = 0
     for _, typeId in ipairs(RATIO_TYPE_ORDER) do
         local quota = quotas[typeId] or 0
         if quota <= 0 then
@@ -373,50 +388,61 @@ local function enumeratePlacementCandidates(
         end
 
         for _, variant in ipairs(PREFAB_VARIANTS_BY_TYPE[typeId]) do
-            if bit32.band(variant.DoorMask, requiredMask) == 0 then
-                continue
-            end
-
+            local mask = variant.DoorMask
             if
-                canPlaceVariant(
-                    rooms,
-                    roomsByAxialKey,
-                    blockedAxialKeys,
-                    targetQ,
-                    targetR,
-                    variant.DoorMask
-                )
+                bit32_band(mask, mustHaveMask) == mustHaveMask
+                and bit32_band(mask, mustNotHaveMask) == 0
             then
-                table.insert(candidates, {
-                    TypeId = typeId,
-                    RotationSteps = variant.RotationSteps,
-                    OpenDirections = variant.OpenDirections,
-                    DoorMask = variant.DoorMask,
-                    Weight = quota,
-                })
+                totalWeight += quota
             end
         end
     end
 
-    if #candidates == 0 then
+    if totalWeight <= 0 then
         return nil
-    end
-
-    local totalWeight = 0
-    for _, candidate in ipairs(candidates) do
-        totalWeight += candidate.Weight
     end
 
     local roll = random:NextNumber(0, totalWeight)
     local running = 0
-    for _, candidate in ipairs(candidates) do
-        running += candidate.Weight
-        if roll <= running then
-            return candidate
+    for _, typeId in ipairs(RATIO_TYPE_ORDER) do
+        local quota = quotas[typeId] or 0
+        if quota <= 0 then
+            continue
+        end
+
+        for _, variant in ipairs(PREFAB_VARIANTS_BY_TYPE[typeId]) do
+            local mask = variant.DoorMask
+            if
+                bit32_band(mask, mustHaveMask) == mustHaveMask
+                and bit32_band(mask, mustNotHaveMask) == 0
+            then
+                running += quota
+                if roll <= running then
+                    return variant
+                end
+            end
         end
     end
 
-    return candidates[#candidates]
+    -- Fallback for floating point precision issues
+    for _, typeId in ipairs(RATIO_TYPE_ORDER) do
+        local quota = quotas[typeId] or 0
+        if quota <= 0 then
+            continue
+        end
+
+        for _, variant in ipairs(PREFAB_VARIANTS_BY_TYPE[typeId]) do
+            local mask = variant.DoorMask
+            if
+                bit32_band(mask, mustHaveMask) == mustHaveMask
+                and bit32_band(mask, mustNotHaveMask) == 0
+            then
+                return variant
+            end
+        end
+    end
+
+    return nil
 end
 
 local function computeDistances(rooms, startRoomId)
@@ -436,7 +462,7 @@ local function computeDistances(rooms, startRoomId)
         for _, neighborRoomId in ipairs(collectSortedNeighborRoomIds(room)) do
             if distances[neighborRoomId] == nil then
                 distances[neighborRoomId] = distance + 1
-                table.insert(queue, neighborRoomId)
+                table_insert(queue, neighborRoomId)
             end
         end
     end
@@ -483,7 +509,7 @@ local function buildMainPath(rooms, startRoomId, targetRoomId)
             if not visited[neighborRoomId] then
                 visited[neighborRoomId] = true
                 parents[neighborRoomId] = roomId
-                table.insert(queue, neighborRoomId)
+                table_insert(queue, neighborRoomId)
             end
         end
     end
@@ -491,7 +517,7 @@ local function buildMainPath(rooms, startRoomId, targetRoomId)
     local path = {}
     local cursor = targetRoomId
     while cursor do
-        table.insert(path, 1, cursor)
+        table_insert(path, 1, cursor)
         if cursor == startRoomId then
             break
         end
@@ -509,12 +535,12 @@ local function finalizeRoomConnectivity(rooms)
     for _, room in pairs(rooms) do
         local connectedDirections = {}
         for directionIndex in pairs(room.Neighbors or {}) do
-            table.insert(connectedDirections, directionIndex)
+            table_insert(connectedDirections, directionIndex)
         end
-        table.sort(connectedDirections)
+        table_sort(connectedDirections)
 
-        room.OpenDirections = table.clone(connectedDirections)
-        room.DoorDirections = table.clone(connectedDirections)
+        room.OpenDirections = table_clone(connectedDirections)
+        room.DoorDirections = table_clone(connectedDirections)
         room.OpenDirectionSet = buildDirectionSet(connectedDirections)
         room.DoorCount = #connectedDirections
         room.DoorMask = HexRoomPrefabs.computeDoorMask(connectedDirections)
@@ -527,12 +553,11 @@ local function validateRoomConnections(rooms)
     for roomId, room in pairs(rooms) do
         local exitDirectionMask = 0
         for _, directionIndex in ipairs(room.ExitDirections or {}) do
-            exitDirectionMask =
-                bit32.bor(exitDirectionMask, HexRoomPrefabs.DirectionBitmasks[directionIndex])
+            exitDirectionMask = bit32_bor(exitDirectionMask, HEX_DIRECTION_BITMASKS[directionIndex])
         end
 
         for directionIndex, neighborRoomId in pairs(room.Neighbors) do
-            if bit32.band(room.DoorMask, HexRoomPrefabs.DirectionBitmasks[directionIndex]) == 0 then
+            if bit32_band(room.DoorMask, HEX_DIRECTION_BITMASKS[directionIndex]) == 0 then
                 return false, string.format('NeighborOnClosedEdge(%s:%d)', roomId, directionIndex)
             end
 
@@ -546,7 +571,7 @@ local function validateRoomConnections(rooms)
             if neighbor.Neighbors[opposite] ~= roomId then
                 return false, string.format('NonMirrorNeighbor(%s:%s)', roomId, neighborRoomId)
             end
-            if bit32.band(neighbor.DoorMask, HexRoomPrefabs.DirectionBitmasks[opposite]) == 0 then
+            if bit32_band(neighbor.DoorMask, HEX_DIRECTION_BITMASKS[opposite]) == 0 then
                 return false,
                     string.format('NeighborClosedMirrorEdge(%s:%s)', roomId, neighborRoomId)
             end
@@ -567,13 +592,13 @@ local function validateRoomConnections(rooms)
         end
 
         for directionIndex = 1, 6 do
-            local directionBit = HexRoomPrefabs.DirectionBitmasks[directionIndex]
-            if bit32.band(exitDirectionMask, directionBit) ~= 0 then
+            local directionBit = HEX_DIRECTION_BITMASKS[directionIndex]
+            if bit32_band(exitDirectionMask, directionBit) ~= 0 then
                 if room.Neighbors[directionIndex] ~= nil then
                     return false,
                         string.format('ExitCollidesWithNeighbor(%s:%d)', roomId, directionIndex)
                 end
-                if bit32.band(room.DoorMask, directionBit) == 0 then
+                if bit32_band(room.DoorMask, directionBit) == 0 then
                     return false, string.format('ExitOnClosedEdge(%s:%d)', roomId, directionIndex)
                 end
             end
@@ -599,13 +624,11 @@ local function buildLoopMetadata(rooms, doorways, campRoomId)
         for _, neighborRoomId in ipairs(collectSortedNeighborRoomIds(room)) do
             if not visited[neighborRoomId] then
                 visited[neighborRoomId] = true
-                treeEdges[string.format(
-                    '%s|%s',
-                    roomId < neighborRoomId and roomId or neighborRoomId,
-                    roomId < neighborRoomId and neighborRoomId or roomId
-                )] =
-                    true
-                table.insert(queue, neighborRoomId)
+                local edgeKey = if roomId < neighborRoomId
+                    then roomId .. '|' .. neighborRoomId
+                    else neighborRoomId .. '|' .. roomId
+                treeEdges[edgeKey] = true
+                table_insert(queue, neighborRoomId)
             end
         end
     end
@@ -616,7 +639,7 @@ local function buildLoopMetadata(rooms, doorways, campRoomId)
 
     for _, doorwayId in ipairs(sortedDoorwayIds(doorways)) do
         if not treeEdges[doorwayId] then
-            table.insert(loopDoorwayIds, doorwayId)
+            table_insert(loopDoorwayIds, doorwayId)
             loopDoorwaySet[doorwayId] = true
             local doorway = doorways[doorwayId]
             loopRoomSet[doorway.RoomA] = true
@@ -698,7 +721,7 @@ local function assignRoomTemplates(rooms, campRoomId, extractionRoomId, mainPath
                 and countEntries(room.Neighbors) >= 2
         end,
         function(roomId, room)
-            local distanceScore = math.max(0, 10 - math.abs(distances[roomId] - midDepth) * 2)
+            local distanceScore = math_max(0, 10 - math_abs(distances[roomId] - midDepth) * 2)
             local loopBonus = loopMetadata.LoopRoomSet[roomId] and 8 or 0
             local pathBonus = mainPathSet[roomId] and 6 or 0
             return (countEntries(room.Neighbors) * 10) + distanceScore + loopBonus + pathBonus
@@ -733,8 +756,8 @@ local function assignRoomTemplates(rooms, campRoomId, extractionRoomId, mainPath
                 and countEntries(room.Neighbors) >= 2
         end,
         function(roomId, room)
-            local targetDepth = math.max(1, math.floor(maxDistance * 0.45))
-            local depthScore = math.max(0, 18 - math.abs(distances[roomId] - targetDepth) * 6)
+            local targetDepth = math_max(1, math_floor(maxDistance * 0.45))
+            local depthScore = math_max(0, 18 - math_abs(distances[roomId] - targetDepth) * 6)
             local degreeScore = room.DoorCount == 2 and 14 or (room.DoorCount == 3 and 10 or 4)
             return depthScore + degreeScore
         end
@@ -764,11 +787,11 @@ local function assignRoomTemplates(rooms, campRoomId, extractionRoomId, mainPath
     local remainingLootRoomIds = {}
     for _, roomId in ipairs(roomIds) do
         if assignedRoomIds[roomId] ~= true and rooms[roomId].Kind == 'Loot' then
-            table.insert(remainingLootRoomIds, roomId)
+            table_insert(remainingLootRoomIds, roomId)
         end
     end
 
-    table.sort(remainingLootRoomIds, function(left, right)
+    table_sort(remainingLootRoomIds, function(left, right)
         local leftRoom = rooms[left]
         local rightRoom = rooms[right]
         local leftScore = (mainPathSet[left] and 20 or 0)
@@ -785,9 +808,9 @@ local function assignRoomTemplates(rooms, campRoomId, extractionRoomId, mainPath
 
     local transitTarget = 0
     if #remainingLootRoomIds > 1 then
-        transitTarget = math.max(
+        transitTarget = math_max(
             1,
-            math.min(math.floor(#remainingLootRoomIds * 0.35), #remainingLootRoomIds - 1)
+            math.min(math_floor(#remainingLootRoomIds * 0.35), #remainingLootRoomIds - 1)
         )
     end
 
@@ -857,7 +880,7 @@ local function buildMacroGraph(roomIds, rooms, mainPath, loopMetadata, assignmen
     local mainPathSet = buildSet(mainPath)
     for _, roomId in ipairs(roomIds) do
         if mainPathSet[roomId] ~= true then
-            table.insert(branchRoomIds, roomId)
+            table_insert(branchRoomIds, roomId)
         end
     end
 
@@ -869,20 +892,20 @@ local function buildMacroGraph(roomIds, rooms, mainPath, loopMetadata, assignmen
         mainPath[#mainPath],
     }) do
         if roomId ~= nil and not table.find(anchorRoomIds, roomId) then
-            table.insert(anchorRoomIds, roomId)
+            table_insert(anchorRoomIds, roomId)
         end
     end
 
     local loopRoomIds = {}
     for roomId in pairs(loopMetadata.LoopRoomSet) do
-        table.insert(loopRoomIds, roomId)
+        table_insert(loopRoomIds, roomId)
     end
-    table.sort(loopRoomIds)
+    table_sort(loopRoomIds)
 
     local landmarkRoomIds = {}
     for _, roomId in ipairs(roomIds) do
         if (rooms[roomId].LandmarkWeight or 0) >= 3 then
-            table.insert(landmarkRoomIds, roomId)
+            table_insert(landmarkRoomIds, roomId)
         end
     end
 
@@ -906,7 +929,7 @@ local function buildPlacedRooms(roomIds, rooms)
     local placedRooms = {}
     for _, roomId in ipairs(roomIds) do
         local room = rooms[roomId]
-        table.insert(placedRooms, {
+        table_insert(placedRooms, {
             Id = roomId,
             Category = room.RoomCategory,
             RoomTemplateId = room.RoomTemplateId,
@@ -923,7 +946,7 @@ local function buildPlacedPassages(doorways, externalDoorways)
     local placedDoorways = {}
     for _, doorwayId in ipairs(sortedDoorwayIds(doorways)) do
         local doorway = doorways[doorwayId]
-        table.insert(placedDoorways, {
+        table_insert(placedDoorways, {
             Id = doorwayId,
             Kind = 'Doorway',
             RoomA = doorway.RoomA,
@@ -939,8 +962,8 @@ local function buildPlacedPassages(doorways, externalDoorways)
 
     local placedExits = {}
     for _, externalDoorway in ipairs(externalDoorways or {}) do
-        table.insert(placedExits, {
-            Id = string.format('%s_%d', externalDoorway.RoomId, externalDoorway.Direction),
+        table_insert(placedExits, {
+            Id = externalDoorway.RoomId .. '_' .. externalDoorway.Direction,
             Kind = externalDoorway.Kind,
             RoomId = externalDoorway.RoomId,
             Direction = externalDoorway.Direction,
@@ -964,9 +987,9 @@ local function buildSearchDistribution(roomIds, rooms)
     local riskRoomIds = {}
     for _, roomId in ipairs(roomIds) do
         local room = rooms[roomId]
-        table.insert(roomIdsByTemplate[room.RoomTemplateId], roomId)
+        table_insert(roomIdsByTemplate[room.RoomTemplateId], roomId)
         if (room.RiskTier or 0) >= 3 then
-            table.insert(riskRoomIds, roomId)
+            table_insert(riskRoomIds, roomId)
         end
     end
 
@@ -981,7 +1004,7 @@ local function buildLandmarkNodes(roomIds, rooms)
     for _, roomId in ipairs(roomIds) do
         local room = rooms[roomId]
         if (room.LandmarkWeight or 0) >= 3 then
-            table.insert(nodes, {
+            table_insert(nodes, {
                 RoomId = roomId,
                 RoomTemplateId = room.RoomTemplateId,
                 LandmarkWeight = room.LandmarkWeight,
@@ -1009,7 +1032,7 @@ local function buildAttempt(seed, config)
     local function registerRoom(room)
         rooms[room.Id] = room
         roomsByAxialKey[axialKey(room.Grid.Q, room.Grid.R)] = room.Id
-        table.insert(roomIds, room.Id)
+        table_insert(roomIds, room.Id)
     end
 
     local function connectRooms(roomA, directionFromA, roomB)
@@ -1032,7 +1055,7 @@ local function buildAttempt(seed, config)
             edgeDirectionFromA, edgeDirectionFromB = directionFromB, directionFromA
         end
 
-        local edgeKey = string.format('%s|%s', edgeRoomA.Id, edgeRoomB.Id)
+        local edgeKey = edgeRoomA.Id .. '|' .. edgeRoomB.Id
         edgesByKey[edgeKey] = {
             RoomA = edgeRoomA.Id,
             RoomB = edgeRoomB.Id,
@@ -1109,7 +1132,7 @@ local function buildAttempt(seed, config)
             local existingRoom = rooms[existingRoomId]
             if
                 existingRoom
-                and bit32.band(existingRoom.DoorMask, HexRoomPrefabs.DirectionBitmasks[opposite]) ~= 0
+                and bit32_band(existingRoom.DoorMask, HEX_DIRECTION_BITMASKS[opposite]) ~= 0
                 and existingRoom.Neighbors[opposite] == nil
             then
                 connectRooms(sourceRoom, frontierEntry.Direction, existingRoom)
@@ -1132,7 +1155,11 @@ local function buildAttempt(seed, config)
             continue
         end
 
-        local roomId = string.format('Room_%03d', #roomIds + 1)
+        local roomId = if #roomIds < 9
+            then 'Room_00' .. (#roomIds + 1)
+            elseif #roomIds < 99 then 'Room_0' .. (#roomIds + 1)
+            else 'Room_' .. (#roomIds + 1)
+
         local newRoom = createRoom(
             roomId,
             targetQ,
@@ -1159,9 +1186,9 @@ local function buildAttempt(seed, config)
                 local oppositeDirectionIndex = OPPOSITE_DIRECTIONS[directionIndex]
                 if
                     neighborRoom
-                    and bit32.band(
+                    and bit32_band(
                         neighborRoom.DoorMask,
-                        HexRoomPrefabs.DirectionBitmasks[oppositeDirectionIndex]
+                        HEX_DIRECTION_BITMASKS[oppositeDirectionIndex]
                     ) ~= 0
                     and neighborRoom.Neighbors[oppositeDirectionIndex] == nil
                     and newRoom.Neighbors[directionIndex] == nil
@@ -1186,9 +1213,9 @@ local function buildAttempt(seed, config)
 
     local doorwayKeys = {}
     for edgeKey in pairs(edgesByKey) do
-        table.insert(doorwayKeys, edgeKey)
+        table_insert(doorwayKeys, edgeKey)
     end
-    table.sort(doorwayKeys)
+    table_sort(doorwayKeys)
 
     local doorways = {}
     for _, edgeKey in ipairs(doorwayKeys) do
@@ -1243,7 +1270,7 @@ end
 function MazeBuilder.build(seed, config)
     config = config or {}
 
-    local maxAttempts = math.max(1, config.MaxGenerationAttempts or DEFAULT_MAX_ATTEMPTS)
+    local maxAttempts = math_max(1, config.MaxGenerationAttempts or DEFAULT_MAX_ATTEMPTS)
     for attempt = 1, maxAttempts do
         local attemptSeed = seed + ((attempt - 1) * 131)
         local maze, reason = buildAttempt(attemptSeed, config)

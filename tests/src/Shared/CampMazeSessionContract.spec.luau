@@ -72,6 +72,37 @@ return function()
                 },
             },
         },
+        PendingUgcMonsterPayload = {
+            OwnerUserId = 42,
+            MonsterId = 'ugc-42-100',
+            MonsterName = 'Scrap Whisper',
+            Seed = 100,
+            RecipeHash = 'recipe-1234',
+            RuntimeProfile = {
+                Id = 'ugc-42-100',
+                Name = 'Scrap Whisper',
+                Presentation = {
+                    ModelAssetId = 4446576906,
+                    RigType = 'R6',
+                    AnimationMode = 'defaultR6',
+                    ChaseLoopSoundAssetId = 9118823108,
+                },
+                Speed = 14,
+                SightRange = 36,
+                PatrolSpeedMultiplier = 0.45,
+                SpawnOffset = Vector3.new(0, 4, 0),
+                Behaviors = {
+                    SenseNearestTarget = true,
+                    Chase = true,
+                },
+                Effects = {},
+            },
+            Diagnostics = {
+                SkippedBehaviorIds = { 'LoseTarget' },
+                SkippedEffectIds = {},
+                ClampedFields = {},
+            },
+        },
     })
 
     assert(
@@ -90,6 +121,16 @@ return function()
     assert(
         enteringInventory.HeldItem.Id == 'glow-orb',
         'Run -> maze inventory payload should preserve the held glow orb'
+    )
+    local pendingUgcPayload = contract.findPendingUgcMonsterPayload(campToMaze)
+    assert(
+        pendingUgcPayload ~= nil and pendingUgcPayload.OwnerUserId == 42,
+        'Run -> maze payload should preserve pending UGC spawn payloads'
+    )
+    assert(
+        pendingUgcPayload.RuntimeProfile ~= nil
+            and pendingUgcPayload.RuntimeProfile.Presentation.ModelAssetId == 4446576906,
+        'Pending UGC payload should preserve runtime monster presentation data'
     )
 
     local earlyReturn = contract.buildReturnSummary({

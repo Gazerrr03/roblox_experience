@@ -27,6 +27,8 @@ local actionInputConnection
 local sprintInputEndedConnection
 local isMenuMouseUnlockBound = false
 local visibleBackpackItems = {}
+local isUgcGenerating = false
+local isUgcDialogVisible = false
 local MENU_MOUSE_UNLOCK_STEP = 'RunMenuMouseUnlock'
 ensureFirstPersonLock = function()
     disconnectFirstPersonLock = Shared.Client.FirstPersonController.start(localPlayer)
@@ -220,7 +222,7 @@ local panel = Instance.new('Frame')
 panel.Name = 'CampPanel'
 panel.AnchorPoint = Vector2.new(0, 0)
 panel.Position = UDim2.fromScale(0.03, 0.05)
-panel.Size = UDim2.fromOffset(440, 620)
+panel.Size = UDim2.fromOffset(440, 670)
 panel.BackgroundColor3 = Theme.Background
 panel.BorderSizePixel = 0
 panel.Visible = false
@@ -252,7 +254,7 @@ objectiveLabel.Text = 'Objective: --'
 
 local guideLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 60), Theme.Text, 16, false)
 guideLabel.Text =
-    'In-world prompts:\n- Shop Terminal (Soon)\n- Loadout Bench (Soon)\n- Camp Gate / Shared Maze Gate\nKeyboard: Hold LeftShift to sprint, tap C to toggle Camp Status, 1-3 to equip, X to stow'
+    'In-world prompts:\n- Shop Terminal (Soon)\n- Loadout Bench (Soon)\n- UGC Lab Console (Press E)\n- Camp Gate / Shared Maze Gate\nKeyboard: Hold LeftShift to sprint, tap C to toggle Camp Status, 1-3 to equip, X to stow'
 
 local inventoryLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 44), Theme.Warning, 16, false)
 inventoryLabel.Text = 'Inventory: --'
@@ -269,8 +271,136 @@ rosterLabel.Text = ''
 local mazeLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 96), Theme.SubtleText, 16, false)
 mazeLabel.Text = ''
 
+local ugcDialogBackdrop = Instance.new('Frame')
+ugcDialogBackdrop.Name = 'UgcDialogBackdrop'
+ugcDialogBackdrop.Size = UDim2.fromScale(1, 1)
+ugcDialogBackdrop.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+ugcDialogBackdrop.BackgroundTransparency = 0.35
+ugcDialogBackdrop.BorderSizePixel = 0
+ugcDialogBackdrop.Visible = false
+ugcDialogBackdrop.ZIndex = 20
+ugcDialogBackdrop.Parent = screenGui
+
+local ugcDialogPanel = Instance.new('Frame')
+ugcDialogPanel.Name = 'UgcDialog'
+ugcDialogPanel.AnchorPoint = Vector2.new(0.5, 0.5)
+ugcDialogPanel.Position = UDim2.fromScale(0.5, 0.5)
+ugcDialogPanel.Size = UDim2.fromOffset(560, 380)
+ugcDialogPanel.BackgroundColor3 = Theme.Background
+ugcDialogPanel.BorderSizePixel = 0
+ugcDialogPanel.ZIndex = 21
+ugcDialogPanel.Parent = ugcDialogBackdrop
+
+local ugcDialogCorner = Instance.new('UICorner')
+ugcDialogCorner.CornerRadius = UDim.new(0, 16)
+ugcDialogCorner.Parent = ugcDialogPanel
+
+local ugcDialogPadding = Instance.new('UIPadding')
+ugcDialogPadding.PaddingTop = UDim.new(0, 18)
+ugcDialogPadding.PaddingLeft = UDim.new(0, 18)
+ugcDialogPadding.PaddingRight = UDim.new(0, 18)
+ugcDialogPadding.PaddingBottom = UDim.new(0, 18)
+ugcDialogPadding.Parent = ugcDialogPanel
+
+local ugcDialogLayout = Instance.new('UIListLayout')
+ugcDialogLayout.Padding = UDim.new(0, 10)
+ugcDialogLayout.Parent = ugcDialogPanel
+
+local ugcDialogTitle = makeTextLabel(ugcDialogPanel, UDim2.new(1, 0, 0, 34), Theme.Accent, 28, true)
+ugcDialogTitle.ZIndex = 21
+ugcDialogTitle.Text = 'UGC Lab'
+
+local ugcDialogHint =
+    makeTextLabel(ugcDialogPanel, UDim2.new(1, 0, 0, 42), Theme.SubtleText, 16, false)
+ugcDialogHint.ZIndex = 21
+ugcDialogHint.Text =
+    '靠近营地 UGC 控制台按 E 可打开。每次成功生成消耗 1 个 UGC Signal Token。'
+
+local ugcPromptBox = Instance.new('TextBox')
+ugcPromptBox.Size = UDim2.new(1, 0, 0, 140)
+ugcPromptBox.BackgroundColor3 = Theme.Surface
+ugcPromptBox.TextColor3 = Theme.Text
+ugcPromptBox.PlaceholderText =
+    '输入一句怪物需求，例如：做一个会压迫追逐的废铁幽灵'
+ugcPromptBox.PlaceholderColor3 = Theme.SubtleText
+ugcPromptBox.Font = Theme.Font
+ugcPromptBox.TextSize = 16
+ugcPromptBox.ClearTextOnFocus = false
+ugcPromptBox.TextWrapped = true
+ugcPromptBox.TextXAlignment = Enum.TextXAlignment.Left
+ugcPromptBox.TextYAlignment = Enum.TextYAlignment.Top
+ugcPromptBox.MultiLine = true
+ugcPromptBox.ZIndex = 21
+ugcPromptBox.Parent = ugcDialogPanel
+
+local ugcPromptCorner = Instance.new('UICorner')
+ugcPromptCorner.CornerRadius = UDim.new(0, 10)
+ugcPromptCorner.Parent = ugcPromptBox
+
+local ugcGenerateButton = Instance.new('TextButton')
+ugcGenerateButton.Size = UDim2.new(1, 0, 0, 44)
+ugcGenerateButton.BackgroundColor3 = Theme.Accent
+ugcGenerateButton.TextColor3 = Theme.Background
+ugcGenerateButton.Font = Enum.Font.GothamBold
+ugcGenerateButton.TextSize = 18
+ugcGenerateButton.Text = 'Generate UGC Monster'
+ugcGenerateButton.ZIndex = 21
+ugcGenerateButton.Parent = ugcDialogPanel
+
+local ugcGenerateCorner = Instance.new('UICorner')
+ugcGenerateCorner.CornerRadius = UDim.new(0, 10)
+ugcGenerateCorner.Parent = ugcGenerateButton
+
+local ugcStatusLabel =
+    makeTextLabel(ugcDialogPanel, UDim2.new(1, 0, 0, 70), Theme.SubtleText, 15, false)
+ugcStatusLabel.ZIndex = 21
+ugcStatusLabel.Text = '状态：待命（消耗 1 个 UGC Signal Token）。'
+
+local ugcDialogCloseButton = Instance.new('TextButton')
+ugcDialogCloseButton.Size = UDim2.fromOffset(32, 32)
+ugcDialogCloseButton.Position = UDim2.new(1, -42, 0, 10)
+ugcDialogCloseButton.BackgroundColor3 = Theme.Surface
+ugcDialogCloseButton.TextColor3 = Theme.Text
+ugcDialogCloseButton.Font = Enum.Font.GothamBold
+ugcDialogCloseButton.TextSize = 20
+ugcDialogCloseButton.Text = 'X'
+ugcDialogCloseButton.ZIndex = 22
+ugcDialogCloseButton.Parent = ugcDialogBackdrop
+
+local ugcDialogCloseCorner = Instance.new('UICorner')
+ugcDialogCloseCorner.CornerRadius = UDim.new(1, 0)
+ugcDialogCloseCorner.Parent = ugcDialogCloseButton
+
 local function syncCampPanelVisibility()
     panel.Visible = isRunLaunched and isCampPanelVisible
+end
+
+local function syncInputMode()
+    if not isRunLaunched or isUgcDialogVisible then
+        releaseFirstPersonLockForMenu()
+        bindMenuMouseUnlock()
+        return
+    end
+
+    unbindMenuMouseUnlock()
+    ensureFirstPersonLock()
+end
+
+local function closeUgcDialog()
+    isUgcDialogVisible = false
+    ugcDialogBackdrop.Visible = false
+    syncInputMode()
+end
+
+local function openUgcDialog()
+    if not isRunLaunched then
+        return
+    end
+
+    isUgcDialogVisible = true
+    ugcDialogBackdrop.Visible = true
+    ugcPromptBox:CaptureFocus()
+    syncInputMode()
 end
 
 releaseFirstPersonLockForMenu()
@@ -281,6 +411,13 @@ actionInputConnection = UserInputService.InputBegan:Connect(function(input, game
     end
 
     if input.UserInputType ~= Enum.UserInputType.Keyboard then
+        return
+    end
+
+    if isUgcDialogVisible then
+        if input.KeyCode == Enum.KeyCode.Escape then
+            closeUgcDialog()
+        end
         return
     end
 
@@ -358,8 +495,41 @@ singlePlayerButton.MouseButton1Click:Connect(function()
     })
 end)
 
-Remotes.RunPrivateState.OnClientEvent:Connect(function()
-    -- Private role data is intentionally unused in the camp staging run.
+ugcDialogCloseButton.MouseButton1Click:Connect(function()
+    closeUgcDialog()
+end)
+
+ugcGenerateButton.MouseButton1Click:Connect(function()
+    if not isRunLaunched or isUgcGenerating then
+        return
+    end
+
+    local prompt = ugcPromptBox.Text
+    if type(prompt) ~= 'string' or string.match(prompt, '^%s*$') then
+        ugcStatusLabel.Text = '状态：请输入怪物需求。'
+        return
+    end
+
+    isUgcGenerating = true
+    ugcGenerateButton.AutoButtonColor = false
+    ugcGenerateButton.Active = false
+    ugcGenerateButton.Text = 'Generating...'
+    ugcStatusLabel.Text = '状态：正在请求生成...'
+
+    Remotes.RunAction:FireServer({
+        Type = 'RequestGenerateUgcMonster',
+        Prompt = prompt,
+    })
+end)
+
+Remotes.RunPrivateState.OnClientEvent:Connect(function(privateState)
+    if type(privateState) ~= 'table' then
+        return
+    end
+
+    if privateState.Type == 'OpenUgcLabPanel' then
+        openUgcDialog()
+    end
 end)
 
 Remotes.RunState.OnClientEvent:Connect(function(snapshot)
@@ -367,16 +537,19 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
     isRunLaunched = hasLaunched
     if not hasLaunched then
         isCampPanelVisible = true
+        if isUgcDialogVisible then
+            closeUgcDialog()
+        end
     end
 
     menuBackdrop.Visible = not hasLaunched
     syncCampPanelVisibility()
 
     if not hasLaunched then
-        releaseFirstPersonLockForMenu()
-        bindMenuMouseUnlock()
+        syncInputMode()
         canRequestMazeEntry = false
         visibleBackpackItems = {}
+        isUgcGenerating = false
         heldItemController:applyInventory(nil)
         menuStatusLabel.Text =
             string.format('%s\nMaze Entry: %s', snapshot.Status, buildMazeEntryText(snapshot))
@@ -386,11 +559,16 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
         inventoryLabel.Text = 'Inventory: --'
         inventoryDetailLabel.Text = ''
         playerStateLabel.Text = 'Health: --\nStamina: --\nState: --\nMovement: --'
+        ugcGenerateButton.AutoButtonColor = false
+        ugcGenerateButton.Active = false
+        ugcGenerateButton.BackgroundColor3 = Theme.Surface
+        ugcGenerateButton.TextColor3 = Theme.SubtleText
+        ugcGenerateButton.Text = 'Generate UGC Monster'
+        ugcStatusLabel.Text = '状态：进入 Camp 后靠近 UGC Lab 控制台按 E 打开。'
         return
     end
 
-    unbindMenuMouseUnlock()
-    ensureFirstPersonLock()
+    syncInputMode()
     canRequestMazeEntry = snapshot.GateOpen == true
 
     statusLabel.Text = string.format(
@@ -461,6 +639,25 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
         movement.Mode or 'Walk',
         FormalLocomotion.formatStatus(playerState, movement)
     )
+
+    local ugcStatus = snapshot.UgcGenerationStatus or 'Idle'
+    local ugcMessage = snapshot.UgcMessage or ''
+    local ugcHasPendingSpawn = snapshot.UgcHasPendingSpawn == true
+    isUgcGenerating = ugcStatus == 'Generating'
+    ugcGenerateButton.Active = not isUgcGenerating
+    ugcGenerateButton.AutoButtonColor = not isUgcGenerating
+    ugcGenerateButton.BackgroundColor3 = if isUgcGenerating then Theme.Surface else Theme.Accent
+    ugcGenerateButton.TextColor3 = if isUgcGenerating then Theme.SubtleText else Theme.Background
+    ugcGenerateButton.Text = isUgcGenerating and 'Generating...' or 'Generate UGC Monster'
+    if isUgcGenerating then
+        ugcStatusLabel.Text = '状态：正在生成，请稍候...'
+    elseif ugcHasPendingSpawn then
+        ugcStatusLabel.Text = '状态：已排队，进入 Maze 后会自动刷怪。'
+    elseif ugcMessage ~= '' then
+        ugcStatusLabel.Text = string.format('状态：%s', ugcMessage)
+    else
+        ugcStatusLabel.Text = '状态：待命（消耗 1 个 UGC Signal Token）。'
+    end
 
     local rosterLines = {}
     for _, rosterEntry in ipairs(snapshot.Roster) do

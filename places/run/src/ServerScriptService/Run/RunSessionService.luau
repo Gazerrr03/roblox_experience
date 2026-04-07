@@ -1,10 +1,12 @@
 local Players = game:GetService('Players')
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
 local RunService = game:GetService('RunService')
+local ServerStorage = game:GetService('ServerStorage')
 local Workspace = game:GetService('Workspace')
 
 local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
+local Gameplay = require(Packages:WaitForChild('Gameplay'))
 
 local SessionConfig = Shared.Config.SessionConfig
 local Remotes = Shared.Network.Remotes.ensureScope(Shared.Network.Remotes.Scope.Run)
@@ -18,7 +20,7 @@ local PlayerStateService = Shared.Runtime.PlayerStateService
 local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 
 local LocalDebugMazeWorldBuilder = require(script.Parent.LocalDebugMazeWorldBuilder)
-local NarrativeInteractionService = require(script.Parent.NarrativeInteractionService)
+local MonsterBriefGateway = require(script.Parent.MonsterBriefGateway)
 local RunMazePortal = require(script.Parent.RunMazePortal)
 local RunWorldBuilder = require(script.Parent.RunWorldBuilder)
 
@@ -32,10 +34,24 @@ local MAZE_ENTRY_DISTANCE_BUFFER = 2
 local LOCAL_DEBUG_ROOM_DETECTION_RADIUS = 56
 local LOCAL_DEBUG_MAZE_RETURN_REASON = 'local_debug_return'
 local SNAPSHOT_INTERVAL_SECONDS = 0.25
+local UGC_GENERATION_TOKEN_ITEM_ID = 'ugc-gen-token'
+local UGC_GENERATION_DEFAULT_SEED_MAX = 2147483646
+local UGC_LOCAL_GATEWAY_CONFIG_MODULE_NAME = 'MonsterBriefGatewayLocalConfig'
 local RUN_MAZE_GATE_RETURN_REASONS = table.freeze({
     early_return = true,
     extracted = true,
 })
+local UGC_STATUS = table.freeze({
+    Idle = 'Idle',
+    Generating = 'Generating',
+    Ready = 'Ready',
+    Rejected = 'Rejected',
+})
+
+local ITEM_DEFINITION_BY_ID = {}
+for _, itemDef in ipairs(Gameplay.Config.Items) do
+    ITEM_DEFINITION_BY_ID[itemDef.Id] = itemDef
+end
 
 local function resolvePendingSpawnCFrame(self, pendingSpawnValue)
     if typeof(pendingSpawnValue) == 'CFrame' then
@@ -96,6 +112,41 @@ local function cloneArray(input)
     return result
 end
 
+local function buildPlayerContext(player)
+    return {
+        UserId = player.UserId,
+        Name = player.DisplayName,
+    }
+end
+
+local function trimText(value)
+    if type(value) ~= 'string' then
+        return ''
+    end
+
+    return string.match(value, '^%s*(.-)%s*$') or ''
+end
+
+local function buildUgcReadyPayload(generationResult, ownerUserId)
+    local recipe = generationResult.Recipe
+    local runtimeProfile = generationResult.RuntimeProfile
+    local diagnostics = generationResult.Diagnostics
+
+    return {
+        OwnerUserId = ownerUserId,
+        MonsterId = recipe.Id,
+        MonsterName = recipe.Name,
+        Seed = generationResult.Seed,
+        RecipeHash = generationResult.RecipeHash,
+        RuntimeProfile = runtimeProfile,
+        Diagnostics = {
+            SkippedBehaviorIds = table.clone(diagnostics.SkippedBehaviorIds),
+            SkippedEffectIds = table.clone(diagnostics.SkippedEffectIds),
+            ClampedFields = table.clone(diagnostics.ClampedFields),
+        },
+    }
+end
+
 local function runWithCampSessionLock(self, callback)
     while self.CampSessionLock do
         task.wait(CAMP_SESSION_LOCK_WAIT_SECONDS)
@@ -112,7 +163,8 @@ local function runWithCampSessionLock(self, callback)
     return table.unpack(results, 2, results.n)
 end
 
-function RunSessionService.new()
+function RunSessionService.new(options)
+    local runtimeOptions = options or {}
     local self = setmetatable({}, RunSessionService)
 
     self.Remotes = Remotes
@@ -143,6 +195,12 @@ function RunSessionService.new()
     self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
     self.ControlStateService = ControlStateService.new()
     self.PlayerStateService = PlayerStateService.new()
+    self.MonsterBriefGateway = runtimeOptions.MonsterBriefGateway or MonsterBriefGateway.new()
+    self.PendingUgcMonsterByUserId = {}
+    self.PendingUgcConsumeByUserId = {}
+    self.UgcGenerationStateByUserId = {}
+    self.IssuedStarterUgcTokenByUserId = {}
+    self.GenerateRandomSource = runtimeOptions.GenerateRandomSource or Random.new()
 
     return self
 end
@@ -151,12 +209,271 @@ function RunSessionService:_addPlayerState(player)
     self.InventoryService:addPlayer(player)
     self.ControlStateService:addPlayer(player)
     self.PlayerStateService:addPlayer(player)
+    self:_setUgcGenerationState(player, UGC_STATUS.Idle, '')
 end
 
 function RunSessionService:_removePlayerState(player)
     self.InventoryService:removePlayer(player)
     self.ControlStateService:removePlayer(player)
     self.PlayerStateService:removePlayer(player)
+end
+
+function RunSessionService:_setUgcGenerationState(player, status, message)
+    self.UgcGenerationStateByUserId[player.UserId] = {
+        Status = status,
+        Message = message or '',
+    }
+end
+
+function RunSessionService:_applyLocalGatewayConfigIfPresent()
+    local configModule = script.Parent:FindFirstChild(UGC_LOCAL_GATEWAY_CONFIG_MODULE_NAME)
+    if configModule == nil or not configModule:IsA('ModuleScript') then
+        return
+    end
+
+    local ok, config = pcall(require, configModule)
+    if not ok or type(config) ~= 'table' then
+        warn(
+            string.format(
+                '[RunSessionService] Failed to load %s: %s',
+                UGC_LOCAL_GATEWAY_CONFIG_MODULE_NAME,
+                tostring(config)
+            )
+        )
+        return
+    end
+
+    local providerName = string.lower(trimText(config.Provider))
+    local providerConfigs = config.Providers
+    local selectedProviderConfig = if type(providerConfigs) == 'table'
+            and providerName ~= ''
+        then providerConfigs[providerName]
+        else nil
+
+    local function resolveValue(primaryValue, fallbackValue)
+        local text = trimText(primaryValue)
+        if text ~= '' then
+            return text
+        end
+
+        local fallbackText = trimText(fallbackValue)
+        if fallbackText ~= '' then
+            return fallbackText
+        end
+
+        return nil
+    end
+
+    local function setServerAttribute(attributeName, value)
+        if type(value) == 'string' and value ~= '' then
+            ServerStorage:SetAttribute(attributeName, value)
+        end
+    end
+
+    setServerAttribute('MonsterBriefGatewayUrl', config.Endpoint)
+    setServerAttribute('MonsterBriefGatewayApiKey', config.ApiKey)
+
+    local provider =
+        resolveValue(config.Provider, selectedProviderConfig and selectedProviderConfig.Provider)
+    local providerApiKey =
+        resolveValue(config.ApiKey, selectedProviderConfig and selectedProviderConfig.ApiKey)
+    local providerBaseUrl =
+        resolveValue(config.BaseUrl, selectedProviderConfig and selectedProviderConfig.BaseUrl)
+    local providerModel =
+        resolveValue(config.Model, selectedProviderConfig and selectedProviderConfig.Model)
+
+    setServerAttribute('MonsterBriefLlmProvider', provider)
+    setServerAttribute('MonsterBriefLlmApiKey', providerApiKey)
+    setServerAttribute('MonsterBriefLlmBaseUrl', providerBaseUrl)
+    setServerAttribute('MonsterBriefLlmModel', providerModel)
+    setServerAttribute('MonsterBriefGatewayProtocol', config.EndpointProtocol)
+    setServerAttribute('MonsterBriefGatewayModel', config.EndpointModel)
+end
+
+function RunSessionService:_getUgcGenerationState(player)
+    local state = self.UgcGenerationStateByUserId[player.UserId]
+    if type(state) ~= 'table' then
+        return {
+            Status = UGC_STATUS.Idle,
+            Message = '',
+        }
+    end
+
+    return state
+end
+
+function RunSessionService:_grantStarterUgcTokenIfNeeded(player, teleportData)
+    if self.IssuedStarterUgcTokenByUserId[player.UserId] then
+        return
+    end
+
+    if CampMazeSessionContract.findPlayerInventory(teleportData, player.UserId) ~= nil then
+        self.IssuedStarterUgcTokenByUserId[player.UserId] = true
+        return
+    end
+
+    local itemDef = ITEM_DEFINITION_BY_ID[UGC_GENERATION_TOKEN_ITEM_ID]
+    if itemDef == nil then
+        self.IssuedStarterUgcTokenByUserId[player.UserId] = true
+        warn(
+            string.format(
+                '[RunSessionService] Missing starter token item definition for id %s.',
+                UGC_GENERATION_TOKEN_ITEM_ID
+            )
+        )
+        return
+    end
+
+    local success, reason = self.InventoryService:pickup(player, itemDef)
+    if success then
+        self.IssuedStarterUgcTokenByUserId[player.UserId] = true
+    else
+        warn(
+            string.format(
+                '[RunSessionService] Failed to grant starter UGC token to %s (%s).',
+                player.DisplayName,
+                tostring(reason)
+            )
+        )
+    end
+end
+
+function RunSessionService:_hasUgcGenerationToken(player)
+    return self.InventoryService:countByItemId(player, UGC_GENERATION_TOKEN_ITEM_ID) > 0
+end
+
+function RunSessionService:_consumeUgcGenerationToken(player)
+    return self.InventoryService:consumeByItemId(player, UGC_GENERATION_TOKEN_ITEM_ID)
+end
+
+function RunSessionService:_buildAssetValidator()
+    return function(assetId, assetKind)
+        if assetKind == 'ModelAssetId' then
+            return assetId == 4446576906, 'OnlyOfficialModelAssetAllowedInV1'
+        end
+
+        if assetKind == 'ChaseLoopSoundAssetId' then
+            return assetId == 9118823108, 'OnlyOfficialSoundAssetAllowedInV1'
+        end
+
+        return false, 'UnsupportedAssetKind'
+    end
+end
+
+function RunSessionService:_requestGenerateUgcMonster(player, prompt)
+    if not self.IsLaunched then
+        return
+    end
+
+    if type(prompt) ~= 'string' or string.match(prompt, '^%s*$') then
+        self:_setUgcGenerationState(player, UGC_STATUS.Rejected, '请输入怪物需求描述。')
+        self:_broadcastSnapshot()
+        return
+    end
+
+    if self.PendingUgcConsumeByUserId[player.UserId] then
+        return
+    end
+
+    if self.PendingUgcMonsterByUserId[player.UserId] ~= nil then
+        self:_setUgcGenerationState(
+            player,
+            UGC_STATUS.Rejected,
+            '你已有待刷新的 UGC 怪物，进入 Maze 后会自动生成。'
+        )
+        self:_broadcastSnapshot()
+        return
+    end
+
+    if not self:_hasUgcGenerationToken(player) then
+        self:_setUgcGenerationState(
+            player,
+            UGC_STATUS.Rejected,
+            'UGC 生成道具不足。该道具只能在 Maze 内拾取。'
+        )
+        self:_broadcastSnapshot()
+        return
+    end
+
+    self.PendingUgcConsumeByUserId[player.UserId] = true
+    self:_setUgcGenerationState(player, UGC_STATUS.Generating, '正在生成怪物方案...')
+    self:_broadcastSnapshot()
+
+    local gatewayOk, gatewayResult =
+        self.MonsterBriefGateway:generateBrief(prompt, buildPlayerContext(player))
+
+    if not gatewayOk then
+        warn(
+            string.format(
+                '[RunSessionService] UGC generation gateway failed for userId=%d code=%s message=%s',
+                player.UserId,
+                tostring(gatewayResult and gatewayResult.ErrorCode),
+                tostring(gatewayResult and gatewayResult.Message)
+            )
+        )
+        self.PendingUgcConsumeByUserId[player.UserId] = nil
+        self:_setUgcGenerationState(
+            player,
+            UGC_STATUS.Rejected,
+            gatewayResult and gatewayResult.Message or 'LLM 服务调用失败。'
+        )
+        self:_broadcastSnapshot()
+        return
+    end
+
+    if gatewayResult.Status == 'NeedMoreInfo' then
+        self.PendingUgcConsumeByUserId[player.UserId] = nil
+        self:_setUgcGenerationState(
+            player,
+            UGC_STATUS.Rejected,
+            gatewayResult.Question or '请补充更多信息后重试。'
+        )
+        self:_broadcastSnapshot()
+        return
+    end
+
+    local generatedSeed = self.GenerateRandomSource:NextInteger(1, UGC_GENERATION_DEFAULT_SEED_MAX)
+    local generatedOk, generationResult =
+        Gameplay.Monsters.MonsterUgcPipeline.generateForSandbox(gatewayResult.Brief, {
+            Seed = generatedSeed,
+            PlayerUserId = player.UserId,
+            AssetValidator = self:_buildAssetValidator(),
+        })
+
+    if not generatedOk then
+        self.PendingUgcConsumeByUserId[player.UserId] = nil
+        self:_setUgcGenerationState(
+            player,
+            UGC_STATUS.Rejected,
+            generationResult and generationResult.Reason or '怪物方案生成失败。'
+        )
+        self:_broadcastSnapshot()
+        return
+    end
+
+    local consumed, consumeReason = self:_consumeUgcGenerationToken(player)
+    if not consumed then
+        self.PendingUgcConsumeByUserId[player.UserId] = nil
+        self:_setUgcGenerationState(
+            player,
+            UGC_STATUS.Rejected,
+            string.format('生成道具扣除失败：%s', tostring(consumeReason))
+        )
+        self:_broadcastSnapshot()
+        return
+    end
+
+    self.PendingUgcMonsterByUserId[player.UserId] =
+        buildUgcReadyPayload(generationResult, player.UserId)
+    self.PendingUgcConsumeByUserId[player.UserId] = nil
+    self:_setUgcGenerationState(
+        player,
+        UGC_STATUS.Ready,
+        'UGC 怪物已排队，进入 Maze 后会自动刷出。'
+    )
+    self:_setStatus(
+        string.format('%s queued a UGC monster for the next maze entry.', player.DisplayName)
+    )
 end
 
 function RunSessionService:_getMovementSummaryFor(player)
@@ -391,6 +708,12 @@ function RunSessionService:_bindWorldInteractions()
         )
     end)
 
+    if self.World.UgcLabPrompt then
+        self.World.UgcLabPrompt.Triggered:Connect(function(player)
+            self:_openUgcLabPanel(player)
+        end)
+    end
+
     self.World.GatePrompt.Triggered:Connect(function(player)
         self:_openGate(player)
     end)
@@ -517,6 +840,7 @@ function RunSessionService:_broadcastSnapshot()
     local mazeEntryAvailability = self:_resolveMazeEntryAvailability()
 
     for _, player in ipairs(Players:GetPlayers()) do
+        local ugcState = self:_getUgcGenerationState(player)
         self.Remotes.RunState:FireClient(player, {
             IsLaunched = self.IsLaunched,
             Status = self.Status,
@@ -535,10 +859,23 @@ function RunSessionService:_broadcastSnapshot()
             Movement = self:_getMovementSummaryFor(player),
             ControlState = self.ControlStateService:getSummary(player),
             PlayerState = self.PlayerStateService:getSummary(player),
+            UgcGenerationStatus = ugcState.Status,
+            UgcMessage = ugcState.Message,
+            UgcHasPendingSpawn = self.PendingUgcMonsterByUserId[player.UserId] ~= nil,
         })
 
         self.Remotes.RunPrivateState:FireClient(player, nil)
     end
+end
+
+function RunSessionService:_openUgcLabPanel(player)
+    if not self.IsLaunched then
+        return
+    end
+
+    self.Remotes.RunPrivateState:FireClient(player, {
+        Type = 'OpenUgcLabPanel',
+    })
 end
 
 function RunSessionService:_canManageInventory(player)
@@ -732,6 +1069,7 @@ function RunSessionService:_enterMaze(player)
                 Name = player.DisplayName,
             },
             EntryReason = 'maze_gate',
+            PendingUgcMonsterPayload = self.PendingUgcMonsterByUserId[player.UserId],
         })
         if not result.Ok then
             self.CampSession = result.CurrentSession or self.CampSession
@@ -748,6 +1086,8 @@ function RunSessionService:_enterMaze(player)
         self.MazeEntryReasonCode = result.ReasonCode
         self.MazeEntryReason = result.Reason
         self.CampSession = result.NextSession
+        self.PendingUgcMonsterByUserId[player.UserId] = nil
+        self:_setUgcGenerationState(player, UGC_STATUS.Idle, '')
         self:_setStatus(string.format('%s is entering the shared maze run.', player.DisplayName))
     end)
 end
@@ -909,6 +1249,7 @@ end
 function RunSessionService:_handlePlayerTeleportData(player)
     local teleportData = self:_readTeleportData(player)
     if not teleportData then
+        self:_grantStarterUgcTokenIfNeeded(player, nil)
         return
     end
 
@@ -919,6 +1260,7 @@ function RunSessionService:_handlePlayerTeleportData(player)
 
     self:_applySessionConfig(teleportData.SessionConfig)
     self:_hydratePlayerInventory(player, teleportData)
+    self:_grantStarterUgcTokenIfNeeded(player, teleportData)
 
     local summary = CampMazeSessionContract.findReturnSummary(teleportData, player.UserId)
     if summary then
@@ -949,6 +1291,7 @@ function RunSessionService:_ensureAuthoritativeSessionSeed()
 end
 
 function RunSessionService:start()
+    self:_applyLocalGatewayConfigIfPresent()
     self:_loadSessionDataFromJoin()
     self:_ensureAuthoritativeSessionSeed()
     Players.CharacterAutoLoads = false
@@ -956,7 +1299,9 @@ function RunSessionService:start()
     for _, player in ipairs(Players:GetPlayers()) do
         bindCharacterTeleport(self, player)
         self:_addPlayerState(player)
-        self:_hydratePlayerInventory(player, self:_readTeleportData(player))
+        local teleportData = self:_readTeleportData(player)
+        self:_hydratePlayerInventory(player, teleportData)
+        self:_grantStarterUgcTokenIfNeeded(player, teleportData)
 
         if player.Character then
             player.Character:Destroy()
@@ -979,6 +1324,9 @@ function RunSessionService:start()
         self.LastMazeEntryRequestAtByUserId[player.UserId] = nil
         self.PendingSpawnByUserId[player.UserId] = nil
         self.PendingLocalMazeSpawnByUserId[player.UserId] = nil
+        self.PendingUgcMonsterByUserId[player.UserId] = nil
+        self.PendingUgcConsumeByUserId[player.UserId] = nil
+        self.UgcGenerationStateByUserId[player.UserId] = nil
         self.CampSession = CampMazeSessionContract.prunePlayer(self.CampSession, player.UserId, {
             PreserveMazeEntry = CampMazeSessionContract.isPlayerInMaze(
                 self.CampSession,
@@ -1016,6 +1364,12 @@ function RunSessionService:start()
                     player.DisplayName
                 )
             )
+        elseif payload.Type == 'RequestGenerateUgcMonster' then
+            self:_requestGenerateUgcMonster(player, payload.Prompt)
+        elseif payload.Type == 'RequestClearPendingUgcMonster' then
+            self.PendingUgcMonsterByUserId[player.UserId] = nil
+            self:_setUgcGenerationState(player, UGC_STATUS.Idle, '')
+            self:_broadcastSnapshot()
         end
     end)
 
