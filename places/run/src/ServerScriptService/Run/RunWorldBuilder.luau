@@ -74,6 +74,7 @@ function RunWorldBuilder.build()
         OutdoorThresholdZ = OUTDOOR_THRESHOLD_Z,
         ShopPrompt = house.ShopPrompt,
         LoadoutPrompt = house.LoadoutPrompt,
+        UgcLabPrompt = house.UgcLabPrompt,
         GatePrompt = house.GatePrompt,
         MazePrompt = outdoors.MazePrompt,
         OpenGate = house.OpenGate,

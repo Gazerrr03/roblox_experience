@@ -92,4 +92,22 @@ function InventoryService:getSummary(player)
     return inventory:getSummary()
 end
 
+function InventoryService:countByItemId(player, itemId)
+    local inventory = self:get(player)
+    if not inventory then
+        return 0
+    end
+
+    return inventory:countById(itemId)
+end
+
+function InventoryService:consumeByItemId(player, itemId)
+    local inventory = self:get(player)
+    if not inventory then
+        return false, 'MissingInventory'
+    end
+
+    return inventory:consumeById(itemId)
+end
+
 return InventoryService
