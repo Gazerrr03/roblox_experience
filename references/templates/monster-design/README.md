@@ -4,17 +4,17 @@
 
 ## 使用方式
 
-1. 复制 `Monster-Design-Template.md`。
-2. 重命名为 `MXXX-怪物名.md`。
-3. 按模板填完整个战斗链路和关键数值。
-4. 每个怪物单独一份。
+1. 在 `Monster-Current-Baseline.csv` 维护当前已上线怪物的执行基线。
+2. 在 `Monster-Design-Gaps.csv` 记录当前缺口与待补策划项。
+3. 在 `Monster-Next-Batch-Plan.csv` 为下一批怪物预填参数与定位。
+4. 新怪物请使用唯一怪物 ID（例如 `M002`、`M003`）并按行追加。
 5. 你全部设计完成后，我们再统一实现。
 
 ## 推荐命名
 
-- `M001-ScrapWisp.md`
-- `M002-<怪物名>.md`
-- `M003-<怪物名>.md`
+- `scrap-wisp`（当前基线怪物）
+- `M002`（下一批候选）
+- `M003`（下一批候选）
 
 ## 统一执行前检查清单
 
