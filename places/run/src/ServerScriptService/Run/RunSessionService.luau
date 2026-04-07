@@ -21,6 +21,7 @@ local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 
 local LocalDebugMazeWorldBuilder = require(script.Parent.LocalDebugMazeWorldBuilder)
 local MonsterBriefGateway = require(script.Parent.MonsterBriefGateway)
+local NarrativeInteractionService = require(script.Parent.NarrativeInteractionService)
 local RunMazePortal = require(script.Parent.RunMazePortal)
 local RunWorldBuilder = require(script.Parent.RunWorldBuilder)
 
