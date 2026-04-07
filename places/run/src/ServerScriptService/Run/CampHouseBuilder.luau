@@ -131,6 +131,25 @@ function CampHouseBuilder.build(worldFolder, createPart, createPromptPart)
     }, houseFolder)
 
     createPart({
+        Name = 'UgcLabBlockBase',
+        Size = Vector3.new(5, 2, 4),
+        CFrame = CFrame.new(-(HOUSE_WIDTH / 2) + 10, 1, 6),
+        Color = Color3.fromRGB(48, 60, 82),
+        Material = Enum.Material.Metal,
+    }, houseFolder)
+
+    local _, ugcLabPrompt = createPromptPart({
+        Name = 'UgcLabConsole',
+        Size = Vector3.new(4, 3.5, 3),
+        CFrame = CFrame.new(-(HOUSE_WIDTH / 2) + 10, 2.75, 6),
+        Color = Color3.fromRGB(93, 196, 176),
+        Material = Enum.Material.Neon,
+        ActionText = 'Open',
+        ObjectText = 'UGC Lab',
+        KeyboardKeyCode = Enum.KeyCode.E,
+    }, houseFolder)
+
+    createPart({
         Name = 'MeetingTable',
         Size = Vector3.new(10, 1, 5),
         CFrame = CFrame.new(0, 2.5, -4),
@@ -159,6 +178,7 @@ function CampHouseBuilder.build(worldFolder, createPart, createPromptPart)
     return {
         ShopPrompt = shopPrompt,
         LoadoutPrompt = loadoutPrompt,
+        UgcLabPrompt = ugcLabPrompt,
         GatePrompt = gatePrompt,
         OpenGate = openGate,
     }

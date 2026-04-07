@@ -18,6 +18,14 @@ local REMOTE_NAMES_BY_SCOPE = table.freeze({
         'RunAction',
         'RunState',
         'RunPrivateState',
+        'ShowNarrative',
+        'GetInventory',
+        'EquipItem',
+        'UseItem',
+        'UseItemFunction',
+        'GetInteractables',
+        'GetItemData',
+        'ItemUsageFeedback',
     },
     [Remotes.Scope.Maze] = {
         'MazeAction',
@@ -32,6 +40,14 @@ local ALL_REMOTE_NAMES = {
     'RunAction',
     'RunState',
     'RunPrivateState',
+    'ShowNarrative',
+    'GetInventory',
+    'EquipItem',
+    'UseItem',
+    'UseItemFunction',
+    'GetInteractables',
+    'GetItemData',
+    'ItemUsageFeedback',
     'MazeAction',
     'MazeState',
     'MazePrivateState',
@@ -55,13 +71,27 @@ local function ensureContainer()
     return container
 end
 
+-- 需要使用RemoteFunction的remote名称
+local REMOTE_FUNCTION_NAMES = {
+    'GetInventory',
+    'GetInteractables',
+    'GetItemData',
+}
+
 local function ensureRemote(container, name)
     local remote = container:FindFirstChild(name)
     if remote then
         return remote
     end
 
-    remote = Instance.new('RemoteEvent')
+    -- 使用 table.find 检查是否需要创建 RemoteFunction
+    local isFunction = table.find(REMOTE_FUNCTION_NAMES, name) ~= nil
+
+    if isFunction then
+        remote = Instance.new('RemoteFunction')
+    else
+        remote = Instance.new('RemoteEvent')
+    end
     remote.Name = name
     remote.Parent = container
     return remote

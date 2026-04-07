@@ -66,4 +66,41 @@ return function()
         spawnRoomId == 'D',
         'Initial monster spawn should resolve to a room outside the entrance safety buffer'
     )
+
+    local eligibleRoomIds = policy.buildEligibleRoomIds({ 'A', 'B', 'C', 'D' }, roomById, 'A')
+    assert(
+        #eligibleRoomIds == 1 and eligibleRoomIds[1] == 'D',
+        'Eligible spawn rooms should exclude the camp room and adjacent rooms'
+    )
+
+    local fakeRandom = {
+        NextInteger = function(_, minimum, maximum)
+            assert(minimum == 1 and maximum == 1, 'Only one safe room should be selectable')
+            return 1
+        end,
+    }
+    local randomPatrolIndex, randomSpawnRoomId = policy.selectRandomEligiblePatrolIndex(
+        { 'A', 'B', 'C', 'D' },
+        {
+            A = {
+                PatrolAnchors = {},
+            },
+            B = {
+                PatrolAnchors = { 'B-anchor' },
+            },
+            C = {
+                PatrolAnchors = { 'C-anchor' },
+            },
+            D = {
+                PatrolAnchors = { 'D-anchor-1', 'D-anchor-2' },
+            },
+        },
+        roomById,
+        'A',
+        fakeRandom
+    )
+    assert(
+        randomSpawnRoomId == 'D' and randomPatrolIndex == 3,
+        'Random spawn selection should only choose patrol anchors from safe rooms'
+    )
 end

@@ -89,6 +89,56 @@ local function clonePlayerInventories(playerInventories)
     return cloned
 end
 
+local function cloneUgcRuntimeProfile(runtimeProfile)
+    if type(runtimeProfile) ~= 'table' then
+        return nil
+    end
+
+    return {
+        Id = runtimeProfile.Id,
+        Name = runtimeProfile.Name,
+        Presentation = type(runtimeProfile.Presentation) == 'table' and table.clone(
+            runtimeProfile.Presentation
+        ) or nil,
+        Speed = runtimeProfile.Speed,
+        SightRange = runtimeProfile.SightRange,
+        PatrolSpeedMultiplier = runtimeProfile.PatrolSpeedMultiplier,
+        SpawnOffset = runtimeProfile.SpawnOffset,
+        Behaviors = type(runtimeProfile.Behaviors) == 'table' and table.clone(
+            runtimeProfile.Behaviors
+        ) or {},
+        Effects = cloneArray(runtimeProfile.Effects),
+    }
+end
+
+local function cloneUgcDiagnostics(diagnostics)
+    if type(diagnostics) ~= 'table' then
+        return nil
+    end
+
+    return {
+        SkippedBehaviorIds = cloneArray(diagnostics.SkippedBehaviorIds),
+        SkippedEffectIds = cloneArray(diagnostics.SkippedEffectIds),
+        ClampedFields = cloneArray(diagnostics.ClampedFields),
+    }
+end
+
+local function clonePendingUgcMonsterPayload(payload)
+    if type(payload) ~= 'table' then
+        return nil
+    end
+
+    return {
+        OwnerUserId = payload.OwnerUserId,
+        MonsterId = payload.MonsterId,
+        MonsterName = payload.MonsterName,
+        Seed = payload.Seed,
+        RecipeHash = payload.RecipeHash,
+        RuntimeProfile = cloneUgcRuntimeProfile(payload.RuntimeProfile),
+        Diagnostics = cloneUgcDiagnostics(payload.Diagnostics),
+    }
+end
+
 local function sortPlayers(players)
     table.sort(players, function(left, right)
         if left.UserId == right.UserId then
@@ -338,6 +388,9 @@ function CampMazeSessionContract.buildRunToMazeTeleportData(params)
             MazeAccessCode = params.CampSession.MazeAccessCode,
             EntryReason = params.EntryReason or 'camp_gate',
             EnteringPlayer = table.clone(params.EnteringPlayer),
+            PendingUgcMonsterPayload = clonePendingUgcMonsterPayload(
+                params.PendingUgcMonsterPayload
+            ),
         },
         PlayerInventories = clonePlayerInventories(playerInventories),
     }
@@ -391,6 +444,15 @@ function CampMazeSessionContract.findPlayerInventory(teleportData, userId)
     end
 
     return nil
+end
+
+function CampMazeSessionContract.findPendingUgcMonsterPayload(teleportData)
+    local mazeSession = teleportData and teleportData.MazeSession
+    if type(mazeSession) ~= 'table' then
+        return nil
+    end
+
+    return clonePendingUgcMonsterPayload(mazeSession.PendingUgcMonsterPayload)
 end
 
 CampMazeSessionContract.MazeStatus = MAZE_STATUS

@@ -6,6 +6,13 @@ local ToolItems = require(Config:WaitForChild('ToolItems'))
 -- 这是原本的基础物资列表
 local BaseItems = {
     {
+        Id = 'ugc-gen-token',
+        Name = 'UGC Signal Token',
+        Weight = 1,
+        Value = 4,
+        Color = Color3.fromRGB(121, 195, 255),
+    },
+    {
         Id = 'scrap-bolt',
         Name = 'Scrap Bolt',
         Weight = 1,
