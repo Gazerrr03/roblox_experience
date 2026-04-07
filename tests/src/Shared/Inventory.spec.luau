@@ -148,6 +148,31 @@ return function()
         'Consumed tool state should persist in subsequent inventory snapshots'
     )
 
+    local cooldownToolPlayer = {
+        UserId = 203,
+    }
+    inventoryService:addPlayer(cooldownToolPlayer)
+    local pickupCooldownToolSuccess, cooldownToolEntry =
+        inventoryService:pickup(cooldownToolPlayer, toolItem)
+    assert(pickupCooldownToolSuccess == true, 'Runtime inventory should pick up cooldown tools')
+    local equipCooldownToolSuccess =
+        inventoryService:equip(cooldownToolPlayer, cooldownToolEntry.InstanceId)
+    assert(equipCooldownToolSuccess == true, 'Runtime inventory should equip cooldown tools')
+
+    local consumeAt100Success = inventoryService:consumeHeldItemState(cooldownToolPlayer, 100)
+    assert(consumeAt100Success == true, 'Tool should be usable before entering cooldown')
+
+    local consumeDuringCooldownSuccess, cooldownReason, remainingSeconds =
+        inventoryService:consumeHeldItemState(cooldownToolPlayer, 100.2)
+    assert(
+        consumeDuringCooldownSuccess == false and cooldownReason == 'Cooldown',
+        'Tool should reject use attempts during cooldown window'
+    )
+    assert(
+        remainingSeconds > 0 and remainingSeconds <= 0.3,
+        'Cooldown rejection should report remaining cooldown seconds'
+    )
+
     local restoredInventory = gameplay.Inventory.new(7)
     local restored = restoredInventory:loadSummary(serviceSummary)
     assert(

@@ -151,7 +151,7 @@ function Inventory:unequip()
     return true, cloneItemEntry(previousHeldItem)
 end
 
-function Inventory:consumeHeldItemState()
+function Inventory:consumeHeldItemState(nowSeconds)
     local heldItem = self.HeldItem
     if heldItem == nil then
         return false, 'NothingHeld'
@@ -165,7 +165,17 @@ function Inventory:consumeHeldItemState()
         return false, 'Depleted'
     end
 
+    local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
+    local cooldownSeconds = heldItem.CooldownSeconds
+    if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
+        local lastUsedAt = heldItem.LastUsedAt
+        if type(lastUsedAt) == 'number' and now - lastUsedAt < cooldownSeconds then
+            return false, 'Cooldown', cooldownSeconds - (now - lastUsedAt)
+        end
+    end
+
     heldItem.CurrentState -= heldItem.ConsumePerUse
+    heldItem.LastUsedAt = now
     return true, cloneItemEntry(heldItem)
 end
 

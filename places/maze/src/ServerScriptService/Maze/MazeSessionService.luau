@@ -923,16 +923,28 @@ function MazeSessionService:_handleUseTool(player)
     end
 
     -- 4. 真正“使用”它：扣除耐久并同步到实际背包状态
-    local consumeSuccess, consumeResult = self.InventoryService:consumeHeldItemState(player)
+    local consumeSuccess, consumeResult, cooldownRemaining =
+        self.InventoryService:consumeHeldItemState(player, os.clock())
     if not consumeSuccess then
-        self:_setStatus(
-            string.format(
-                '%s could not use %s (%s).',
-                player.DisplayName,
-                heldItem.Name,
-                tostring(consumeResult)
+        if consumeResult == 'Cooldown' then
+            self:_setStatus(
+                string.format(
+                    '%s cannot use %s yet (cooldown %.1fs remaining).',
+                    player.DisplayName,
+                    heldItem.Name,
+                    math.max(cooldownRemaining or 0, 0)
+                )
             )
-        )
+        else
+            self:_setStatus(
+                string.format(
+                    '%s could not use %s (%s).',
+                    player.DisplayName,
+                    heldItem.Name,
+                    tostring(consumeResult)
+                )
+            )
+        end
         return
     end
 

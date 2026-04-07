@@ -54,13 +54,13 @@ function InventoryService:unequip(player)
     return inventory:unequip()
 end
 
-function InventoryService:consumeHeldItemState(player)
+function InventoryService:consumeHeldItemState(player, nowSeconds)
     local inventory = self:get(player)
     if not inventory then
         return false, 'MissingInventory'
     end
 
-    return inventory:consumeHeldItemState()
+    return inventory:consumeHeldItemState(nowSeconds)
 end
 
 function InventoryService:deposit(player)
