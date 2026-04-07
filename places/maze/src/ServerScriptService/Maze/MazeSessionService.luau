@@ -891,45 +891,73 @@ function MazeSessionService:_handleUseTool(player)
     local heldItem = inventorySummary and inventorySummary.HeldItem
 
     if not heldItem then
-        self:_setStatus(string.format('%s tried to use a tool, but hands are empty.', player.DisplayName))
+        self:_setStatus(
+            string.format('%s tried to use a tool, but hands are empty.', player.DisplayName)
+        )
         return
     end
 
     -- 2. 检查这东西有没有“状态/耐久”
     if not heldItem.CurrentState or not heldItem.ConsumePerUse then
-        self:_setStatus(string.format('%s cannot actively "use" %s (it is not a tool).', player.DisplayName, heldItem.Name))
+        self:_setStatus(
+            string.format(
+                '%s cannot actively "use" %s (it is not a tool).',
+                player.DisplayName,
+                heldItem.Name
+            )
+        )
         return
     end
 
     -- 3. 检查有没有没电/报废
     if heldItem.CurrentState < heldItem.ConsumePerUse then
-        self:_setStatus(string.format('%s tried to use %s, but it has no %s left.', player.DisplayName, heldItem.Name, heldItem.StateModel or "power"))
+        self:_setStatus(
+            string.format(
+                '%s tried to use %s, but it has no %s left.',
+                player.DisplayName,
+                heldItem.Name,
+                heldItem.StateModel or 'power'
+            )
+        )
         return
     end
 
-    -- 4. 真正“使用”它：扣除耐久，播报状态
-    heldItem.CurrentState = heldItem.CurrentState - heldItem.ConsumePerUse
-    
-    local actionWord = "used"
-    local effectText = "It worked!"
-    
-    if heldItem.ToolCategory == "Flashlight" then
-        actionWord = "flashed"
-        effectText = "The area is illuminated."
-    elseif heldItem.ToolCategory == "Crowbar" then
-        actionWord = "swung"
-        effectText = "A satisfying swoosh cuts the air!"
+    -- 4. 真正“使用”它：扣除耐久并同步到实际背包状态
+    local consumeSuccess, consumeResult = self.InventoryService:consumeHeldItemState(player)
+    if not consumeSuccess then
+        self:_setStatus(
+            string.format(
+                '%s could not use %s (%s).',
+                player.DisplayName,
+                heldItem.Name,
+                tostring(consumeResult)
+            )
+        )
+        return
+    end
+
+    local updatedHeldItem = consumeResult
+
+    local actionWord = 'used'
+    local effectText = 'It worked!'
+
+    if updatedHeldItem.ToolCategory == 'Flashlight' then
+        actionWord = 'flashed'
+        effectText = 'The area is illuminated.'
+    elseif updatedHeldItem.ToolCategory == 'Crowbar' then
+        actionWord = 'swung'
+        effectText = 'A satisfying swoosh cuts the air!'
     end
 
     self:_setStatus(
         string.format(
-            '%s %s the %s. %s (%s remaining: %d)', 
-            player.DisplayName, 
-            actionWord, 
-            heldItem.Name, 
+            '%s %s the %s. %s (%s remaining: %d)',
+            player.DisplayName,
+            actionWord,
+            updatedHeldItem.Name,
             effectText,
-            heldItem.StateModel,
-            heldItem.CurrentState
+            updatedHeldItem.StateModel,
+            updatedHeldItem.CurrentState
         )
     )
 end
@@ -1264,12 +1292,11 @@ function MazeSessionService:start()
             self:_setPlayerSprinting(player, true)
         elseif payload.Type == 'RequestSprintStop' then
             self:_setPlayerSprinting(player, false)
-        
+
         -- === 新增：监听客户端喊出的那声“我要用道具！” ===
         elseif payload.Type == 'RequestUseTool' then
             self:_handleUseTool(player)
         -- =================================================
-            
         elseif RunService:IsStudio() and DEBUG_DAMAGE_BY_ACTION[payload.Type] then
             self:_applyPlayerDamage(player, DEBUG_DAMAGE_BY_ACTION[payload.Type])
         end

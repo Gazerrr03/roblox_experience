@@ -16,6 +16,18 @@ return function()
         Value = 99,
         Color = Color3.fromRGB(255, 140, 140),
     }
+    local toolItem = {
+        Id = 'tool-crowbar',
+        Name = 'Crowbar',
+        Weight = 3,
+        Value = 0,
+        Color = Color3.fromRGB(200, 200, 200),
+        ToolCategory = 'Crowbar',
+        StateModel = 'Durability',
+        InitialState = 10,
+        ConsumePerUse = 1,
+        CooldownSeconds = 0.5,
+    }
 
     local success, firstEntry = inventory:add(items[2])
     assert(success == true, 'Inventory should accept a low-weight item')
@@ -112,6 +124,28 @@ return function()
     assert(
         serviceSummary.HeldItem.Light ~= nil,
         'Runtime inventory should preserve held item effect data'
+    )
+
+    local toolPlayer = {
+        UserId = 202,
+    }
+    inventoryService:addPlayer(toolPlayer)
+    local pickupToolSuccess, pickedToolEntry = inventoryService:pickup(toolPlayer, toolItem)
+    assert(pickupToolSuccess == true, 'Runtime inventory should pick up tool items')
+    local equipToolSuccess = inventoryService:equip(toolPlayer, pickedToolEntry.InstanceId)
+    assert(equipToolSuccess == true, 'Runtime inventory should equip tool items')
+
+    local consumeToolSuccess, consumedHeldTool = inventoryService:consumeHeldItemState(toolPlayer)
+    assert(consumeToolSuccess == true, 'Runtime inventory should consume held tool state')
+    assert(
+        consumedHeldTool.CurrentState == 9,
+        'Consuming a held tool should decrement current state on persisted inventory data'
+    )
+
+    local toolSummary = inventoryService:getSummary(toolPlayer)
+    assert(
+        toolSummary.HeldItem.CurrentState == 9,
+        'Consumed tool state should persist in subsequent inventory snapshots'
     )
 
     local restoredInventory = gameplay.Inventory.new(7)
