@@ -29,7 +29,7 @@ function InteractableObjectsSetup.setupInteractables(outdoorFolder: Folder)
     local climbWall1 = outdoorFolder:FindFirstChild('CaveRuinsZone')
     if climbWall1 then
         for _, child in ipairs(climbWall1:GetDescendants()) do
-            if child:IsA('Part') and child.Name:find('Wall') or child.Name:find('Climb') then
+            if child:IsA('Part') and (child.Name:find('Wall') or child.Name:find('Climb')) then
                 ItemFunctionality.registerInteractable(child, 'Climbable', {
                     Height = 10,
                 })
@@ -102,7 +102,7 @@ function InteractableObjectsSetup.setupInteractables(outdoorFolder: Folder)
     local cave = outdoorFolder:FindFirstChild('CaveZone')
     if cave then
         for _, child in ipairs(cave:GetDescendants()) do
-            if child:IsA('Part') and child.Name:find('Dark') or child.Name:find('Hidden') then
+            if child:IsA('Part') and (child.Name:find('Dark') or child.Name:find('Hidden')) then
                 ItemFunctionality.registerInteractable(child, 'FlashlightRequired', {
                     DarknessLevel = 0.8,
                 })
