@@ -178,7 +178,7 @@ function RunSessionService.new(options)
     self.CampSession = CampMazeSessionContract.newCampSession({})
     self.Status = 'Select Enter Camp to enter the camp.'
     self.IsLaunched = false
-    self.ShouldAutoLaunch = false
+    self.ShouldAutoLaunch = true
     self.GateOpen = false
     self.World = nil
     self.SnapshotThread = nil
