@@ -7,6 +7,8 @@ local DEFAULT_WORKSPACE_SHELL_NAMES = { 'Baseplate', 'SpawnLocation' }
 local CAMP_SESSION_LOCK_WAIT_SECONDS = 0.05
 local SNAPSHOT_INTERVAL_SECONDS = 0.25
 local UGC_MONSTER_GLOBAL_CAP = 5
+local TELEPORT_DATA_WAIT_SECONDS = 3
+local TELEPORT_DATA_WAIT_STEP_SECONDS = 0.05
 local MAZE_DIAG_PREFIX = '[MazeDiag]'
 local CORPSE_COLOR = Color3.fromRGB(92, 92, 92)
 local CORPSE_MATERIAL = Enum.Material.Slate
@@ -25,6 +27,7 @@ local SharedPackage = Packages:WaitForChild('Shared')
 
 local SessionConfig = Shared.Config.SessionConfig
 local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
+local SessionSeedPolicy = Shared.Session.SessionSeedPolicy
 local Remotes = Shared.Network.Remotes.ensureScope(Shared.Network.Remotes.Scope.Maze)
 local InventoryService =
     require(SharedPackage:WaitForChild('Runtime'):WaitForChild('InventoryService'))
@@ -400,6 +403,8 @@ function MazeSessionService.new(options)
     self.DiagnosticSequence = 0
     self.HasAcceptedTeleportData = false
     self.HasAcceptedTeleportDataBeforeBuild = false
+    self.HasAuthoritativeSessionSeed = false
+    self.SessionSeedRandom = nil
     self.LastAcceptedTeleportData = nil
     self.WorldBuildMetadata = nil
     self.RunTracker = Gameplay.Session.MazeRunTracker.new()
@@ -525,6 +530,7 @@ function MazeSessionService:_mergeTeleportData(teleportData, resetInventoryServi
     if type(incoming) == 'table' then
         if type(incoming.Seed) == 'number' then
             self.SessionData.Seed = incoming.Seed
+            self.HasAuthoritativeSessionSeed = true
         end
         if type(incoming.Quota) == 'number' then
             self.SessionData.Quota = incoming.Quota
@@ -555,6 +561,32 @@ function MazeSessionService:_mergeTeleportData(teleportData, resetInventoryServi
     end
 
     return finalizeResult()
+end
+
+function MazeSessionService:_awaitInitialTeleportData()
+    local deadline = os.clock() + TELEPORT_DATA_WAIT_SECONDS
+    while os.clock() < deadline do
+        if self.HasAcceptedTeleportData == true then
+            return true
+        end
+        task.wait(TELEPORT_DATA_WAIT_STEP_SECONDS)
+    end
+
+    return self.HasAcceptedTeleportData == true
+end
+
+function MazeSessionService:_ensureAuthoritativeSessionSeed()
+    local seed, issuedNewSeed = SessionSeedPolicy.ensureAuthoritativeSeed({
+        CurrentSeed = self.SessionData.Seed,
+        DefaultSeed = SessionConfig.DefaultSeed,
+        HasAuthoritativeSeed = self.HasAuthoritativeSessionSeed,
+        RandomSource = self.SessionSeedRandom or Random.new(),
+    })
+
+    self.SessionData.Seed = seed
+    if issuedNewSeed then
+        self.HasAuthoritativeSessionSeed = true
+    end
 end
 
 function MazeSessionService:_loadSessionDataFromJoin()
@@ -607,6 +639,22 @@ end
 
 function MazeSessionService:_handlePlayerTeleportData(player)
     local mergeResult = self:_mergeTeleportData(self:_readTeleportData(player), false)
+
+    if
+        self.IsLaunched
+        and mergeResult.Merged
+        and mergeResult.PreviousSeed ~= mergeResult.ResultSeed
+        and self.WorldBuildMetadata
+        and self.WorldBuildMetadata.Source == WORLD_BUILD_SOURCE.JoinDataMergedAfterBuild
+        and #Players:GetPlayers() <= 1
+    then
+        self:_emitDiagnostic('LateJoinSeedRebuild', {
+            PreviousSeed = mergeResult.PreviousSeed,
+            ResultSeed = mergeResult.ResultSeed,
+        })
+        self:_rebuildWorld()
+    end
+
     self:_emitDiagnostic('PlayerAddedTeleportData', {
         Accepted = mergeResult.Accepted,
         AcceptedBeforeBuild = mergeResult.AcceptedBeforeBuild,
@@ -1374,6 +1422,16 @@ function MazeSessionService:start()
     self:_setBootPhase('BeforeLaunchMaze')
     task.defer(function()
         local ok, err = pcall(function()
+            self:_setBootPhase('AwaitInitialTeleportData')
+            local mergedBeforeBuild = self:_awaitInitialTeleportData()
+            self:_setBootPhase('EnsureAuthoritativeSeed')
+            self:_ensureAuthoritativeSessionSeed()
+            self:_emitDiagnostic('InitialSeedResolution', {
+                HasAcceptedTeleportData = self.HasAcceptedTeleportData,
+                HasAuthoritativeSessionSeed = self.HasAuthoritativeSessionSeed,
+                MergedBeforeBuild = mergedBeforeBuild,
+                Seed = self.SessionData.Seed,
+            })
             self:_setBootPhase('DeferredLaunchMaze')
             self:_launchMaze()
         end)
