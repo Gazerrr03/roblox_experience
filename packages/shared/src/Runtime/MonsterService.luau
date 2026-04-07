@@ -8,7 +8,7 @@ local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Gameplay = require(Packages:WaitForChild('Gameplay'))
 
 local MonsterBehaviorCatalog = Gameplay.Monsters.MonsterBehaviorCatalog
-local MonsterLogic = Gameplay.Monsters.MonsterLogic
+local Enemy = Gameplay.Monsters.Enemy
 local MonsterRuntimeProfile = Gameplay.Monsters.MonsterRuntimeProfile
 
 local MonsterService = {}
@@ -75,6 +75,10 @@ local function defaultCreateLoopSound(parent, soundAssetId, soundName)
     return sound
 end
 
+local function defaultEnemyFactory(monsterRuntimeProfile, options)
+    return Enemy.new(monsterRuntimeProfile, options)
+end
+
 function MonsterService.new(
     monsterRuntimeProfile,
     isExpeditionActiveCallback,
@@ -109,10 +113,12 @@ function MonsterService.new(
         ActiveAnimation = nil,
         Connection = nil,
         LogicalPosition = nil,
+        EnemyRuntime = nil,
         Warn = runtimeOptions.Warn or defaultWarn,
         LoadMonsterModel = runtimeOptions.AssetLoader or defaultLoadMonsterModel,
         LoadAnimationTrack = runtimeOptions.LoadAnimationTrack or defaultLoadAnimationTrack,
         CreateLoopSound = runtimeOptions.CreateLoopSound or defaultCreateLoopSound,
+        EnemyFactory = runtimeOptions.EnemyFactory or defaultEnemyFactory,
         GetPlayers = runtimeOptions.GetPlayers or function()
             return Players:GetPlayers()
         end,
@@ -138,6 +144,10 @@ function MonsterService:destroy()
     self.MonsterHumanoid = nil
     self.MonsterPositionPart = nil
     self.LogicalPosition = nil
+    if self.EnemyRuntime then
+        self.EnemyRuntime:destroy()
+        self.EnemyRuntime = nil
+    end
 
     if self.ChaseLoopSound then
         if self.ChaseLoopSound.Stop then
@@ -411,13 +421,18 @@ function MonsterService:spawn(patrolPoints, initialPatrolIndex)
         self:_setAnimationState('Idle', 1)
     end
 
+    self.EnemyRuntime = self.EnemyFactory(self.Definition)
+    if self.EnemyRuntime and self.EnemyRuntime.spawn then
+        self.EnemyRuntime:spawn()
+    end
+
     self.Connection = RunService.Heartbeat:Connect(function(dt)
         self:update(dt)
     end)
 end
 
 function MonsterService:update(dt)
-    if not self.MonsterPositionPart or not self.IsExpeditionActive() then
+    if not self.MonsterPositionPart or not self.IsExpeditionActive() or not self.EnemyRuntime then
         return
     end
 
@@ -434,38 +449,27 @@ function MonsterService:update(dt)
     end
 
     local currentPosition = self:_getCurrentPosition()
-    local targetPlayer = nil
-    if self.Definition.Behaviors[MonsterBehaviorCatalog.Behavior.SenseNearestTarget] then
-        targetPlayer = MonsterLogic.pickNearestTarget(
-            currentPosition,
-            playerPositions,
-            self.Definition.SightRange
-        )
-    end
-    local nextPosition
-
-    if targetPlayer and self.Definition.Behaviors[MonsterBehaviorCatalog.Behavior.Chase] then
-        nextPosition = MonsterLogic.stepToward(
-            currentPosition,
-            playerPositions[targetPlayer],
-            self.Definition.Speed,
-            dt
-        )
-    elseif
+    local patrolTarget = nil
+    if
         self.Definition.Behaviors[MonsterBehaviorCatalog.Behavior.Patrol]
         and #self.PatrolPoints > 0
     then
-        local patrolTarget = self.PatrolPoints[self.PatrolIndex] + self.Definition.SpawnOffset
-        nextPosition = MonsterLogic.stepToward(
-            currentPosition,
-            patrolTarget,
-            self.Definition.Speed * self.Definition.PatrolSpeedMultiplier,
-            dt
-        )
+        patrolTarget = self.PatrolPoints[self.PatrolIndex] + self.Definition.SpawnOffset
+    end
 
-        if (nextPosition - patrolTarget).Magnitude <= 2 then
-            self.PatrolIndex = (self.PatrolIndex % #self.PatrolPoints) + 1
-        end
+    local decision = self.EnemyRuntime:update(dt, {
+        Behaviors = self.Definition.Behaviors,
+        CurrentPosition = currentPosition,
+        PatrolReachDistance = 2,
+        PatrolSpeedMultiplier = self.Definition.PatrolSpeedMultiplier,
+        PatrolTargetPosition = patrolTarget,
+        PlayerPositions = playerPositions,
+        SightRange = self.Definition.SightRange,
+        Speed = self.Definition.Speed,
+    })
+    local nextPosition = decision.NextPosition
+    if decision.ShouldAdvancePatrol and #self.PatrolPoints > 0 then
+        self.PatrolIndex = (self.PatrolIndex % #self.PatrolPoints) + 1
     end
 
     if nextPosition and self.CanTraverse(currentPosition, nextPosition) then
@@ -482,16 +486,8 @@ function MonsterService:update(dt)
             else currentRotation + nextPosition
         self:_applyVisualCFrame(facingCFrame, dt)
 
-        if targetPlayer and self.Definition.Behaviors[MonsterBehaviorCatalog.Behavior.Chase] then
-            self:_setAnimationState('Run', 1.15)
-            self:_setChaseLoopSoundPlaying(true)
-        elseif travelOffset.Magnitude > 0 then
-            self:_setAnimationState('Walk', 1)
-            self:_setChaseLoopSoundPlaying(false)
-        else
-            self:_setAnimationState('Idle', 1)
-            self:_setChaseLoopSoundPlaying(false)
-        end
+        self:_setAnimationState(decision.DesiredAnimation, decision.DesiredAnimationSpeed)
+        self:_setChaseLoopSoundPlaying(decision.ShouldPlayChaseLoop)
     else
         self:_setAnimationState('Idle', 1)
         self:_setChaseLoopSoundPlaying(false)
