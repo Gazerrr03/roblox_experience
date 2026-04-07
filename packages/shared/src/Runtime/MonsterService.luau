@@ -25,6 +25,9 @@ local DEFAULT_CHASE_LOOP_VOLUME = 0.45
 local DEFAULT_CHASE_LOOP_MIN_DISTANCE = 8
 local DEFAULT_CHASE_LOOP_MAX_DISTANCE = 48
 local DEFAULT_VISUAL_SMOOTHING_SPEED = 12
+local DEFAULT_LOGIC_TICK_RATE_HZ = 10
+local DEFAULT_MAX_LOGIC_STEPS_PER_UPDATE = 6
+local DEFAULT_DECISION_LOG_LIMIT = 128
 
 local function defaultWarn(message)
     warn(message)
@@ -93,6 +96,20 @@ function MonsterService.new(
     end
 
     local runtimeOptions = options or {}
+    local logicTickRateHz = runtimeOptions.LogicTickRateHz or DEFAULT_LOGIC_TICK_RATE_HZ
+    if type(logicTickRateHz) ~= 'number' or logicTickRateHz <= 0 then
+        logicTickRateHz = DEFAULT_LOGIC_TICK_RATE_HZ
+    end
+
+    local randomSeed = runtimeOptions.RandomSeed
+    if type(randomSeed) == 'number' then
+        randomSeed = math.floor(randomSeed)
+        if randomSeed <= 0 then
+            randomSeed = nil
+        end
+    else
+        randomSeed = nil
+    end
 
     return setmetatable({
         Definition = monsterRuntimeProfile,
@@ -126,6 +143,24 @@ function MonsterService.new(
         end,
         VisualSmoothingSpeed = runtimeOptions.VisualSmoothingSpeed
             or DEFAULT_VISUAL_SMOOTHING_SPEED,
+        AutoUpdateOnHeartbeat = if runtimeOptions.AutoUpdateOnHeartbeat == nil
+            then true
+            else runtimeOptions.AutoUpdateOnHeartbeat == true,
+        LogicTickRateHz = logicTickRateHz,
+        LogicTickSeconds = 1 / logicTickRateHz,
+        MaxLogicStepsPerUpdate = runtimeOptions.MaxLogicStepsPerUpdate
+            or DEFAULT_MAX_LOGIC_STEPS_PER_UPDATE,
+        LogicAccumulator = 0,
+        LogicTickCount = 0,
+        LastState = nil,
+        LastTargetUserId = nil,
+        DecisionLogLimit = runtimeOptions.DecisionLogLimit or DEFAULT_DECISION_LOG_LIMIT,
+        DecisionLog = {},
+        DecisionLogSink = runtimeOptions.DecisionLogSink,
+        DecisionLogSequence = 0,
+        RandomSeed = randomSeed,
+        RandomSource = runtimeOptions.RandomSource
+            or if randomSeed ~= nil then Random.new(randomSeed) else Random.new(),
     }, MonsterService)
 end
 
@@ -146,6 +181,10 @@ function MonsterService:destroy()
     self.MonsterHumanoid = nil
     self.MonsterPositionPart = nil
     self.LogicalPosition = nil
+    self.LogicAccumulator = 0
+    self.LogicTickCount = 0
+    self.LastState = nil
+    self.LastTargetUserId = nil
     if self.EnemyRuntime then
         self.EnemyRuntime:destroy()
         self.EnemyRuntime = nil
@@ -404,10 +443,121 @@ function MonsterService:_applyVisualCFrame(nextCFrame, dt)
     end
 end
 
+function MonsterService:_recordDecisionEvent(eventName, fields)
+    self.DecisionLogSequence += 1
+
+    local entry = {
+        Event = eventName,
+        MonsterId = self.Definition.Id,
+        Sequence = self.DecisionLogSequence,
+        Tick = self.LogicTickCount,
+    }
+
+    for key, value in pairs(fields or {}) do
+        entry[key] = value
+    end
+
+    table.insert(self.DecisionLog, entry)
+    if #self.DecisionLog > self.DecisionLogLimit then
+        table.remove(self.DecisionLog, 1)
+    end
+
+    if self.DecisionLogSink then
+        self.DecisionLogSink(entry)
+    end
+end
+
+function MonsterService:getDecisionLogSnapshot()
+    local snapshot = {}
+    for index, entry in ipairs(self.DecisionLog) do
+        snapshot[index] = table.clone(entry)
+    end
+    return snapshot
+end
+
+function MonsterService:clearDecisionLog()
+    table.clear(self.DecisionLog)
+    self.DecisionLogSequence = 0
+end
+
+function MonsterService:setDeterministicSeed(seed, randomSource)
+    local normalizedSeed = seed
+    if type(normalizedSeed) == 'number' then
+        normalizedSeed = math.floor(normalizedSeed)
+        if normalizedSeed <= 0 then
+            normalizedSeed = nil
+        end
+    else
+        normalizedSeed = nil
+    end
+
+    self.RandomSeed = normalizedSeed
+    self.RandomSource = randomSource
+        or if normalizedSeed ~= nil then Random.new(normalizedSeed) else Random.new()
+    self:_recordDecisionEvent('SeedUpdated', {
+        Seed = self.RandomSeed,
+    })
+end
+
+function MonsterService:_nextRandomInteger(minimum, maximum, reason)
+    local result = self.RandomSource:NextInteger(minimum, maximum)
+    self:_recordDecisionEvent('RandomRoll', {
+        Maximum = maximum,
+        Minimum = minimum,
+        Reason = reason or 'unspecified',
+        Result = result,
+        Seed = self.RandomSeed,
+    })
+    return result
+end
+
+function MonsterService:_resolveTargetUserId(targetPlayer)
+    if targetPlayer == nil then
+        return nil
+    end
+
+    if type(targetPlayer) == 'table' and type(targetPlayer.UserId) == 'number' then
+        return targetPlayer.UserId
+    end
+
+    return tostring(targetPlayer)
+end
+
+function MonsterService:_recordDecisionTransitions(decision)
+    local state = decision.State
+    if type(state) == 'string' and state ~= self.LastState then
+        self:_recordDecisionEvent('StateTransition', {
+            FromState = self.LastState,
+            ToState = state,
+        })
+        self.LastState = state
+    end
+
+    local targetUserId = self:_resolveTargetUserId(decision.TargetPlayer)
+    if targetUserId ~= self.LastTargetUserId then
+        self:_recordDecisionEvent('TargetSwitch', {
+            FromTargetUserId = self.LastTargetUserId,
+            ToTargetUserId = targetUserId,
+        })
+        self.LastTargetUserId = targetUserId
+    end
+
+    if decision.AttackResult ~= nil then
+        self:_recordDecisionEvent('AttackResult', {
+            Result = decision.AttackResult,
+        })
+    end
+end
+
 function MonsterService:spawn(patrolPoints, initialPatrolIndex)
     self:destroy()
     self.PatrolPoints = patrolPoints
     self.PatrolIndex = 1
+    self.LogicAccumulator = 0
+    self.LogicTickCount = 0
+    self.LastState = nil
+    self.LastTargetUserId = nil
+    self:clearDecisionLog()
 
     if #patrolPoints == 0 then
         return
@@ -430,16 +580,14 @@ function MonsterService:spawn(patrolPoints, initialPatrolIndex)
         self.EnemyRuntime:spawn()
     end
 
-    self.Connection = RunService.Heartbeat:Connect(function(dt)
-        self:update(dt)
-    end)
+    if self.AutoUpdateOnHeartbeat then
+        self.Connection = RunService.Heartbeat:Connect(function(dt)
+            self:update(dt)
+        end)
+    end
 end
 
-function MonsterService:update(dt)
-    if not self.MonsterPositionPart or not self.IsExpeditionActive() or not self.EnemyRuntime then
-        return
-    end
-
+function MonsterService:_runLogicStep(dt)
     local playerPositions = {}
 
     for _, player in ipairs(self.GetPlayers()) do
@@ -453,6 +601,10 @@ function MonsterService:update(dt)
     end
 
     local currentPosition = self:_getCurrentPosition()
+    if currentPosition == nil then
+        return
+    end
+
     local patrolTarget = nil
     if
         self.Definition.Behaviors[MonsterBehaviorCatalog.Behavior.Patrol]
@@ -465,13 +617,17 @@ function MonsterService:update(dt)
         Behaviors = self.Definition.Behaviors,
         ComponentConfig = self.ComponentConfig,
         CurrentPosition = currentPosition,
+        NextRandomInteger = function(minimum, maximum, reason)
+            return self:_nextRandomInteger(minimum, maximum, reason)
+        end,
         PatrolReachDistance = 2,
         PatrolSpeedMultiplier = self.Definition.PatrolSpeedMultiplier,
         PatrolTargetPosition = patrolTarget,
         PlayerPositions = playerPositions,
         SightRange = self.Definition.SightRange,
         Speed = self.Definition.Speed,
-    })
+    }) or {}
+
     local nextPosition = decision.NextPosition
     if decision.ShouldAdvancePatrol and #self.PatrolPoints > 0 then
         self.PatrolIndex = (self.PatrolIndex % #self.PatrolPoints) + 1
@@ -491,11 +647,50 @@ function MonsterService:update(dt)
             else currentRotation + nextPosition
         self:_applyVisualCFrame(facingCFrame, dt)
 
-        self:_setAnimationState(decision.DesiredAnimation, decision.DesiredAnimationSpeed)
+        self:_setAnimationState(
+            decision.DesiredAnimation or 'Idle',
+            decision.DesiredAnimationSpeed or 1
+        )
         self:_setChaseLoopSoundPlaying(decision.ShouldPlayChaseLoop)
     else
         self:_setAnimationState('Idle', 1)
         self:_setChaseLoopSoundPlaying(false)
+    end
+
+    self:_recordDecisionTransitions(decision)
+end
+
+function MonsterService:update(dt)
+    if not self.MonsterPositionPart or not self.IsExpeditionActive() or not self.EnemyRuntime then
+        return
+    end
+
+    local elapsed = if type(dt) == 'number' and dt > 0 then dt else self.LogicTickSeconds
+    self.LogicAccumulator += elapsed
+
+    local maxSteps = self.MaxLogicStepsPerUpdate
+    if type(maxSteps) ~= 'number' or maxSteps < 1 then
+        maxSteps = DEFAULT_MAX_LOGIC_STEPS_PER_UPDATE
+    end
+    maxSteps = math.max(1, math.floor(maxSteps))
+
+    local executed = 0
+    while self.LogicAccumulator >= self.LogicTickSeconds and executed < maxSteps do
+        self.LogicAccumulator -= self.LogicTickSeconds
+        self.LogicTickCount += 1
+        executed += 1
+        self:_runLogicStep(self.LogicTickSeconds)
+    end
+
+    if self.LogicAccumulator >= self.LogicTickSeconds then
+        local droppedTime = self.LogicAccumulator - (self.LogicAccumulator % self.LogicTickSeconds)
+        self.LogicAccumulator = self.LogicAccumulator % self.LogicTickSeconds
+        self:_recordDecisionEvent('TickDrop', {
+            DroppedTime = droppedTime,
+            Elapsed = elapsed,
+            ExecutedSteps = executed,
+            MaxStepsPerUpdate = maxSteps,
+        })
     end
 end
 
