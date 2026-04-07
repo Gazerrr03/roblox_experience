@@ -39,11 +39,11 @@ function OutdoorAreaBuilder.build(worldFolder, createPart, createPromptPart)
     templeZone.Name = 'TempleZone'
     templeZone.Parent = outdoorFolder
 
-    -- 做梦祭坛平台
+    -- 做梦祭坛平台（放在神庙后方，不遮挡营地门）
     createPart({
         Name = 'DreamAltarPlatform',
         Size = Vector3.new(12, 1, 12),
-        CFrame = CFrame.new(0, 0.5, 10),
+        CFrame = CFrame.new(0, 0.5, -8),
         Color = Color3.fromRGB(180, 160, 140),
         Material = Enum.Material.Sand,
     }, templeZone)
@@ -52,7 +52,7 @@ function OutdoorAreaBuilder.build(worldFolder, createPart, createPromptPart)
     createPart({
         Name = 'DreamAltar',
         Size = Vector3.new(6, 4, 6),
-        CFrame = CFrame.new(0, 3, 10),
+        CFrame = CFrame.new(0, 3, -8),
         Color = Color3.fromRGB(200, 180, 160),
         Material = Enum.Material.Sandstone,
     }, templeZone)
