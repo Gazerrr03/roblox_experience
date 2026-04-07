@@ -130,6 +130,27 @@ function CampHouseBuilder.build(worldFolder, createPart, createPromptPart)
         ObjectText = 'Loadout Bench (Soon)',
     }, houseFolder)
 
+    local _, sellPrompt = createPromptPart({
+        Name = 'SalvageTerminal',
+        Size = Vector3.new(4, 5, 4),
+        CFrame = CFrame.new((HOUSE_WIDTH / 2) - 9, 2.5, 6),
+        Color = Color3.fromRGB(196, 121, 77),
+        Material = Enum.Material.Metal,
+        ActionText = 'Exchange',
+        ObjectText = 'Salvage Exchange',
+    }, houseFolder)
+
+    local _, objectivePrompt = createPromptPart({
+        Name = 'ObjectiveBoard',
+        Size = Vector3.new(6, 4, 1.5),
+        CFrame = CFrame.new(0, 5, -(HOUSE_DEPTH / 2) + 2),
+        Color = Color3.fromRGB(67, 112, 65),
+        Material = Enum.Material.WoodPlanks,
+        ActionText = 'Review',
+        ObjectText = 'Book of Sand Board',
+        MaxActivationDistance = 12,
+    }, houseFolder)
+
     createPart({
         Name = 'MeetingTable',
         Size = Vector3.new(10, 1, 5),
@@ -158,6 +179,8 @@ function CampHouseBuilder.build(worldFolder, createPart, createPromptPart)
 
     return {
         ShopPrompt = shopPrompt,
+        SellPrompt = sellPrompt,
+        ObjectivePrompt = objectivePrompt,
         LoadoutPrompt = loadoutPrompt,
         GatePrompt = gatePrompt,
         OpenGate = openGate,

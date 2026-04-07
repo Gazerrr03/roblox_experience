@@ -16,7 +16,9 @@ local heldItemController = Shared.Client.HeldItemController.new(localPlayer)
 local Theme = UI.Hud.Theme
 
 local TEMPLE_LABEL = 'Temple'
+local PAGE_LABEL = 'Pages'
 local SAND_BOOK_LABEL = 'Book of Sand'
+local SAND_BOOK_PROGRESS_LABEL = 'Book of Sand Progress'
 
 local disconnectFirstPersonLock
 local ensureFirstPersonLock
@@ -30,6 +32,14 @@ local isMenuMouseUnlockBound = false
 local visibleBackpackItems = {}
 local MENU_MOUSE_UNLOCK_STEP = 'RunMenuMouseUnlock'
 local MOUSE_TOGGLE_KEY = Enum.KeyCode.LeftAlt
+local teamPages = 0
+local goalAmount = 120
+local goalProgress = 0
+local goalReached = false
+local inventorySummary = nil
+local activeShopItems = {}
+local activeSalvageItems = {}
+local activeModal = nil
 ensureFirstPersonLock = function()
     disconnectFirstPersonLock = Shared.Client.FirstPersonController.start(localPlayer)
     ensureFirstPersonLock = function() end
@@ -81,7 +91,7 @@ local function releaseFirstPersonLockForMenu()
 end
 
 local function syncMouseMode()
-    if not isRunLaunched or isMouseFree then
+    if not isRunLaunched or isMouseFree or activeModal ~= nil then
         releaseFirstPersonLockForMenu()
         bindMenuMouseUnlock()
         return
@@ -129,6 +139,49 @@ local function makeTextLabel(parent, size, color, textSize, bold)
     label.TextYAlignment = Enum.TextYAlignment.Top
     label.Parent = parent
     return label
+end
+
+local function makeButton(parent, text, height, backgroundColor)
+    local button = Instance.new('TextButton')
+    button.Size = UDim2.new(1, 0, 0, height)
+    button.BackgroundColor3 = backgroundColor
+    button.TextColor3 = Theme.Background
+    button.Font = Enum.Font.GothamBold
+    button.TextSize = 18
+    button.Text = text
+    button.AutoButtonColor = true
+    button.Parent = parent
+
+    local corner = Instance.new('UICorner')
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = button
+
+    local stroke = Instance.new('UIStroke')
+    stroke.Color = Theme.Background
+    stroke.Transparency = 0.65
+    stroke.Thickness = 1
+    stroke.Parent = button
+
+    local gradient = Instance.new('UIGradient')
+    gradient.Rotation = 90
+    local base = button.BackgroundColor3
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, base:Lerp(Color3.new(1, 1, 1), 0.08)),
+        ColorSequenceKeypoint.new(1, base:Lerp(Color3.new(0, 0, 0), 0.12)),
+    })
+    gradient.Parent = button
+
+    return button
+end
+
+local function clearLayoutChildren(container)
+    for _, child in ipairs(container:GetChildren()) do
+        if child:IsA('TextButton') or child:IsA('TextLabel') or child:IsA('Frame') then
+            if child.Name ~= 'UIListLayout' and child.Name ~= 'UICorner' then
+                child:Destroy()
+            end
+        end
+    end
 end
 
 local function applyPanelStyle(frame, cornerRadius, strokeTransparency)
@@ -304,8 +357,9 @@ objectiveLabel.Text = string.format('%s Objective: --', SAND_BOOK_LABEL)
 
 local guideLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 60), Theme.Text, 16, false)
 guideLabel.Text = string.format(
-    'In-world prompts:\n- %s Shop (Soon)\n- Loadout Bench (Soon)\n- %s Gate / Shared Maze Gate\nKeyboard: Hold LeftShift to sprint, tap C to toggle %s Status, %s to free mouse, 1-3 to equip, X to stow',
+    'In-world prompts:\n- %s Shop\n- Salvage Exchange\n- %s Board\n- %s Gate / Shared Maze Gate\nKeyboard: Hold LeftShift to sprint, tap C to toggle %s Status, %s to free mouse, 1-3 to equip, X to stow',
     TEMPLE_LABEL,
+    SAND_BOOK_LABEL,
     TEMPLE_LABEL,
     TEMPLE_LABEL,
     MOUSE_TOGGLE_KEY.Name
@@ -326,9 +380,271 @@ rosterLabel.Text = ''
 local mazeLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 96), Theme.SubtleText, 16, false)
 mazeLabel.Text = ''
 
+local function createModalPanel(name, size)
+    local modal = Instance.new('Frame')
+    modal.Name = name
+    modal.AnchorPoint = Vector2.new(0.5, 0.5)
+    modal.Position = UDim2.fromScale(0.5, 0.5)
+    modal.Size = size
+    modal.BackgroundColor3 = Theme.Surface
+    modal.BorderSizePixel = 0
+    modal.Visible = false
+    modal.Parent = screenGui
+
+    applyPanelStyle(modal, 16, 0.82)
+
+    local modalPadding = Instance.new('UIPadding')
+    modalPadding.PaddingTop = UDim.new(0, 18)
+    modalPadding.PaddingLeft = UDim.new(0, 18)
+    modalPadding.PaddingRight = UDim.new(0, 18)
+    modalPadding.PaddingBottom = UDim.new(0, 18)
+    modalPadding.Parent = modal
+
+    local modalList = Instance.new('UIListLayout')
+    modalList.Padding = UDim.new(0, 10)
+    modalList.Parent = modal
+
+    return modal, modalList
+end
+
+local modalBackdrop = Instance.new('Frame')
+modalBackdrop.Name = 'ModalBackdrop'
+modalBackdrop.Size = UDim2.fromScale(1, 1)
+modalBackdrop.BackgroundColor3 = Color3.new(0, 0, 0)
+modalBackdrop.BackgroundTransparency = 0.45
+modalBackdrop.Visible = false
+modalBackdrop.Parent = screenGui
+
+local toastLabel = Instance.new('TextLabel')
+toastLabel.Name = 'Toast'
+toastLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+toastLabel.Position = UDim2.fromScale(0.5, 0.08)
+toastLabel.Size = UDim2.fromOffset(420, 42)
+toastLabel.BackgroundColor3 = Theme.Surface
+toastLabel.TextColor3 = Theme.Text
+toastLabel.TextSize = 18
+toastLabel.Font = Theme.Font
+toastLabel.Text = ''
+toastLabel.Visible = false
+toastLabel.Parent = screenGui
+applyPanelStyle(toastLabel, 12, 0.88)
+
+local goalBanner = Instance.new('TextLabel')
+goalBanner.Name = 'GoalBanner'
+goalBanner.AnchorPoint = Vector2.new(0.5, 0.5)
+goalBanner.Position = UDim2.fromScale(0.5, 0.16)
+goalBanner.Size = UDim2.fromOffset(460, 56)
+goalBanner.BackgroundColor3 = Theme.Accent
+goalBanner.TextColor3 = Theme.Background
+goalBanner.TextSize = 22
+goalBanner.Font = Enum.Font.GothamBold
+goalBanner.Text = ''
+goalBanner.Visible = false
+goalBanner.Parent = screenGui
+applyPanelStyle(goalBanner, 12, 0.7)
+
+local shopPanel = createModalPanel('ShopPanel', UDim2.fromOffset(460, 520))
+local shopTitle = makeTextLabel(shopPanel, UDim2.new(1, 0, 0, 32), Theme.Text, 26, true)
+shopTitle.Text = 'Temple Shop'
+
+local shopPageLabel = makeTextLabel(shopPanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
+shopPageLabel.Text = 'Team Pages: 0'
+
+local shopInventoryLabel = makeTextLabel(shopPanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
+shopInventoryLabel.Text = 'Inventory: --'
+
+local shopItemsFrame = Instance.new('Frame')
+shopItemsFrame.Size = UDim2.new(1, 0, 1, -210)
+shopItemsFrame.BackgroundTransparency = 1
+shopItemsFrame.Parent = shopPanel
+
+local shopItemsList = Instance.new('UIListLayout')
+shopItemsList.Padding = UDim.new(0, 8)
+shopItemsList.Parent = shopItemsFrame
+
+local shopCloseButton = makeButton(shopPanel, 'Close', 44, Theme.Warning)
+
+local sellPanel = createModalPanel('SellPanel', UDim2.fromOffset(460, 480))
+local sellTitle = makeTextLabel(sellPanel, UDim2.new(1, 0, 0, 32), Theme.Text, 26, true)
+sellTitle.Text = 'Salvage Exchange'
+
+local sellPageLabel = makeTextLabel(sellPanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
+sellPageLabel.Text = 'Team Pages: 0'
+
+local sellItemsFrame = Instance.new('Frame')
+sellItemsFrame.Size = UDim2.new(1, 0, 1, -160)
+sellItemsFrame.BackgroundTransparency = 1
+sellItemsFrame.Parent = sellPanel
+
+local sellItemsList = Instance.new('UIListLayout')
+sellItemsList.Padding = UDim.new(0, 8)
+sellItemsList.Parent = sellItemsFrame
+
+local sellCloseButton = makeButton(sellPanel, 'Close', 44, Theme.Warning)
+
+local objectivePanel = createModalPanel('ObjectivePanel', UDim2.fromOffset(440, 360))
+local objectiveTitle = makeTextLabel(objectivePanel, UDim2.new(1, 0, 0, 32), Theme.Text, 26, true)
+objectiveTitle.Text = 'Book of Sand Board'
+
+local objectiveGoalLabel =
+    makeTextLabel(objectivePanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
+objectiveGoalLabel.Text = 'Goal: 0 Pages'
+
+local objectiveProgressLabel =
+    makeTextLabel(objectivePanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
+objectiveProgressLabel.Text = 'Progress: 0%'
+
+local progressBarBack = Instance.new('Frame')
+progressBarBack.Size = UDim2.new(1, 0, 0, 18)
+progressBarBack.BackgroundColor3 = Theme.Background
+progressBarBack.BorderSizePixel = 0
+progressBarBack.Parent = objectivePanel
+
+local progressBarFill = Instance.new('Frame')
+progressBarFill.Size = UDim2.new(0, 0, 1, 0)
+progressBarFill.BackgroundColor3 = Theme.Accent
+progressBarFill.BorderSizePixel = 0
+progressBarFill.Parent = progressBarBack
+
+local progressCorner = Instance.new('UICorner')
+progressCorner.CornerRadius = UDim.new(0, 8)
+progressCorner.Parent = progressBarBack
+
+local progressFillCorner = Instance.new('UICorner')
+progressFillCorner.CornerRadius = UDim.new(0, 8)
+progressFillCorner.Parent = progressBarFill
+
+local objectiveCloseButton = makeButton(objectivePanel, 'Close', 44, Theme.Warning)
+
 local function syncCampPanelVisibility()
     panel.Visible = isRunLaunched and isCampPanelVisible
 end
+
+local function setActiveModal(nextModal)
+    activeModal = nextModal
+    local showModal = nextModal ~= nil
+
+    modalBackdrop.Visible = showModal
+    shopPanel.Visible = nextModal == 'Shop'
+    sellPanel.Visible = nextModal == 'Sell'
+    objectivePanel.Visible = nextModal == 'Objective'
+
+    syncMouseMode()
+end
+
+local function updateObjectiveUi()
+    local clampedProgress = math.clamp(goalProgress, 0, 1)
+    objectiveGoalLabel.Text = string.format('Goal: %d %s', goalAmount, PAGE_LABEL)
+    objectiveProgressLabel.Text =
+        string.format('%s: %d%%', SAND_BOOK_PROGRESS_LABEL, math.floor(clampedProgress * 100 + 0.5))
+    progressBarFill.Size = UDim2.new(clampedProgress, 0, 1, 0)
+end
+
+local function updatePageLabels()
+    shopPageLabel.Text = string.format('Team %s: %d', PAGE_LABEL, teamPages)
+    sellPageLabel.Text = string.format('Team %s: %d', PAGE_LABEL, teamPages)
+    updateObjectiveUi()
+
+    if inventorySummary then
+        shopInventoryLabel.Text = string.format(
+            'Inventory: %d total | %d/%d KG | %d value',
+            inventorySummary.Count or 0,
+            inventorySummary.Weight or 0,
+            inventorySummary.Capacity or 0,
+            inventorySummary.Value or 0
+        )
+    else
+        shopInventoryLabel.Text = 'Inventory: --'
+    end
+end
+
+local function showToast(message, tone)
+    local color = Theme.Text
+    if tone == 'Error' then
+        color = Theme.Warning
+    elseif tone == 'Success' then
+        color = Theme.Accent
+    end
+
+    toastLabel.TextColor3 = color
+    toastLabel.Text = message
+    toastLabel.Visible = true
+
+    local token = os.clock()
+    toastLabel:SetAttribute('ToastToken', token)
+
+    task.delay(2.5, function()
+        if toastLabel:GetAttribute('ToastToken') == token then
+            toastLabel.Visible = false
+        end
+    end)
+end
+
+local function showGoalBanner()
+    goalBanner.Text = string.format('Goal reached! Team %s: %d', PAGE_LABEL, teamPages)
+    goalBanner.Visible = true
+
+    task.delay(3, function()
+        goalBanner.Visible = false
+    end)
+end
+
+local function renderShopItems()
+    clearLayoutChildren(shopItemsFrame)
+
+    for _, item in ipairs(activeShopItems) do
+        local label = string.format('%s - %d %s', item.Name, item.Price, PAGE_LABEL)
+        local button = makeButton(shopItemsFrame, label, 40, Theme.Accent)
+        button.MouseButton1Click:Connect(function()
+            Remotes.RunAction:FireServer({
+                Type = 'RequestPurchaseItem',
+                ItemId = item.Id,
+            })
+        end)
+    end
+end
+
+local function renderSellItems()
+    clearLayoutChildren(sellItemsFrame)
+
+    if #activeSalvageItems == 0 then
+        local emptyLabel = makeTextLabel(
+            sellItemsFrame,
+            UDim2.new(1, 0, 0, 24),
+            Theme.SubtleText,
+            16,
+            false
+        )
+        emptyLabel.Text = 'No salvage items available.'
+        return
+    end
+
+    for _, item in ipairs(activeSalvageItems) do
+        local label = string.format('%s +%d %s', item.Name, item.Price, PAGE_LABEL)
+        local button = makeButton(sellItemsFrame, label, 40, Theme.Accent)
+        if item.Color then
+            button.TextColor3 = item.Color
+        end
+        button.MouseButton1Click:Connect(function()
+            Remotes.RunAction:FireServer({
+                Type = 'RequestSellItem',
+                ItemInstanceId = item.InstanceId,
+            })
+        end)
+    end
+end
+
+shopCloseButton.MouseButton1Click:Connect(function()
+    setActiveModal(nil)
+end)
+
+sellCloseButton.MouseButton1Click:Connect(function()
+    setActiveModal(nil)
+end)
+
+objectiveCloseButton.MouseButton1Click:Connect(function()
+    setActiveModal(nil)
+end)
 
 syncMouseMode()
 actionInputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
@@ -420,8 +736,111 @@ singlePlayerButton.MouseButton1Click:Connect(function()
     })
 end)
 
-Remotes.RunPrivateState.OnClientEvent:Connect(function()
-    -- Private role data is intentionally unused in the camp staging run.
+Remotes.RunPrivateState.OnClientEvent:Connect(function(payload)
+    if type(payload) ~= 'table' then
+        return
+    end
+
+    if payload.Type == 'OpenShop' then
+        activeShopItems = payload.Items or {}
+        inventorySummary = payload.Inventory or inventorySummary
+        if type(payload.TeamPages) == 'number' then
+            teamPages = payload.TeamPages
+        end
+        updatePageLabels()
+        renderShopItems()
+        setActiveModal('Shop')
+        return
+    end
+
+    if payload.Type == 'OpenSell' then
+        activeSalvageItems = payload.Items or {}
+        if type(payload.TeamPages) == 'number' then
+            teamPages = payload.TeamPages
+        end
+        updatePageLabels()
+        renderSellItems()
+        setActiveModal('Sell')
+        return
+    end
+
+    if payload.Type == 'OpenObjectiveBoard' then
+        if type(payload.TeamPages) == 'number' then
+            teamPages = payload.TeamPages
+        end
+        if type(payload.BookGoalAmount) == 'number' then
+            goalAmount = payload.BookGoalAmount
+        end
+        if type(payload.BookGoalProgress) == 'number' then
+            goalProgress = payload.BookGoalProgress
+        end
+        goalReached = payload.BookGoalReached == true
+        updatePageLabels()
+        setActiveModal('Objective')
+        return
+    end
+
+    if payload.Type == 'ShopResult' then
+        if payload.Success then
+            showToast('Purchase complete.', 'Success')
+        else
+            local reason = payload.Reason or 'Unknown'
+            if reason == 'InsufficientFunds' then
+                showToast('Not enough pages.', 'Error')
+            elseif reason == 'OverCapacity' or reason == 'InventoryFull' then
+                showToast('Inventory is full.', 'Error')
+            else
+                showToast('Purchase failed.', 'Error')
+            end
+        end
+
+        if type(payload.TeamPages) == 'number' then
+            teamPages = payload.TeamPages
+        end
+        if payload.Inventory then
+            inventorySummary = payload.Inventory
+        end
+        updatePageLabels()
+        return
+    end
+
+    if payload.Type == 'SellResult' then
+        if payload.Success then
+            showToast('Sale complete.', 'Success')
+        else
+            showToast('Sale failed.', 'Error')
+        end
+
+        if type(payload.TeamPages) == 'number' then
+            teamPages = payload.TeamPages
+        end
+        if payload.ItemInstanceId then
+            for index, item in ipairs(activeSalvageItems) do
+                if item.InstanceId == payload.ItemInstanceId then
+                    table.remove(activeSalvageItems, index)
+                    break
+                end
+            end
+            renderSellItems()
+        end
+        updatePageLabels()
+        return
+    end
+
+    if payload.Type == 'GoalReached' then
+        if type(payload.TeamPages) == 'number' then
+            teamPages = payload.TeamPages
+        end
+        showGoalBanner()
+        return
+    end
+
+    if payload.Type == 'Toast' then
+        if type(payload.Message) == 'string' then
+            showToast(payload.Message, payload.Tone)
+        end
+        return
+    end
 end)
 
 Remotes.RunState.OnClientEvent:Connect(function(snapshot)
@@ -430,6 +849,17 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
     if not hasLaunched then
         isCampPanelVisible = true
     end
+
+    if type(snapshot.TeamPages) == 'number' then
+        teamPages = snapshot.TeamPages
+    end
+    if type(snapshot.BookGoalAmount) == 'number' then
+        goalAmount = snapshot.BookGoalAmount
+    end
+    if type(snapshot.BookGoalProgress) == 'number' then
+        goalProgress = snapshot.BookGoalProgress
+    end
+    goalReached = snapshot.BookGoalReached == true
 
     menuBackdrop.Visible = not hasLaunched
     syncCampPanelVisibility()
@@ -465,8 +895,10 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
     objectiveLabel.Text = string.format('%s Objective: %s', SAND_BOOK_LABEL, snapshot.Objective)
 
     local inventory = snapshot.Inventory or {}
+    inventorySummary = inventory
     visibleBackpackItems = inventory.BackpackItems or {}
     heldItemController:applyInventory(inventory)
+    updatePageLabels()
     inventoryLabel.Text = string.format(
         'Inventory: %d total | %d backpack | %d held | %d/%d KG | %d value',
         inventory.Count or 0,

@@ -73,6 +73,8 @@ function RunWorldBuilder.build()
         MazeReturnCFrame = MAZE_RETURN_CFRAME,
         OutdoorThresholdZ = OUTDOOR_THRESHOLD_Z,
         ShopPrompt = house.ShopPrompt,
+        SellPrompt = house.SellPrompt,
+        ObjectivePrompt = house.ObjectivePrompt,
         LoadoutPrompt = house.LoadoutPrompt,
         GatePrompt = house.GatePrompt,
         MazePrompt = outdoors.MazePrompt,
