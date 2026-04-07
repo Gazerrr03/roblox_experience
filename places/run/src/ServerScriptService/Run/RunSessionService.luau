@@ -54,6 +54,46 @@ for _, itemDef in ipairs(Gameplay.Config.Items) do
     ITEM_DEFINITION_BY_ID[itemDef.Id] = itemDef
 end
 
+local INITIAL_TEMPLE_STATUS = 'Select Enter Temple to enter the temple.'
+local BOOK_GOAL_AMOUNT = 120
+local SHOP_ITEMS = {
+    {
+        Id = 'temple_lantern',
+        Name = 'Temple Lantern',
+        Price = 18,
+        Weight = 2,
+        Value = 12,
+        Light = {
+            Brightness = 2,
+            Range = 12,
+            Color = Color3.fromRGB(255, 214, 153),
+        },
+    },
+    {
+        Id = 'sand_relic',
+        Name = 'Sand Relic',
+        Price = 24,
+        Weight = 3,
+        Value = 18,
+        Color = Color3.fromRGB(224, 202, 152),
+    },
+    {
+        Id = 'scribe_compass',
+        Name = 'Scribe Compass',
+        Price = 14,
+        Weight = 1,
+        Value = 9,
+    },
+}
+local SHOP_ITEM_BY_ID = {}
+
+for _, item in ipairs(SHOP_ITEMS) do
+    SHOP_ITEM_BY_ID[item.Id] = item
+end
+
+table.freeze(SHOP_ITEMS)
+table.freeze(SHOP_ITEM_BY_ID)
+
 local function resolvePendingSpawnCFrame(self, pendingSpawnValue)
     if typeof(pendingSpawnValue) == 'CFrame' then
         return pendingSpawnValue
@@ -148,6 +188,63 @@ local function buildUgcReadyPayload(generationResult, ownerUserId)
     }
 end
 
+local function buildShopPayload()
+    local payload = {}
+
+    for _, item in ipairs(SHOP_ITEMS) do
+        table.insert(payload, {
+            Id = item.Id,
+            Name = item.Name,
+            Price = item.Price,
+        })
+    end
+
+    return payload
+end
+
+local function buildSellPayload(inventorySummary)
+    local items = {}
+
+    local function insertItem(itemEntry)
+        if not itemEntry then
+            return
+        end
+
+        table.insert(items, {
+            InstanceId = itemEntry.InstanceId,
+            Name = itemEntry.Name,
+            Price = math.max(1, math.floor((itemEntry.Value or 0) + 0.5)),
+            Color = itemEntry.Color,
+        })
+    end
+
+    for _, itemEntry in ipairs(inventorySummary.BackpackItems or {}) do
+        insertItem(itemEntry)
+    end
+
+    insertItem(inventorySummary.HeldItem)
+
+    return items
+end
+
+local function removeItemFromSummary(summary, itemInstanceId)
+    if summary.HeldItem and summary.HeldItem.InstanceId == itemInstanceId then
+        local removed = summary.HeldItem
+        summary.HeldItem = nil
+        return removed
+    end
+
+    for index, itemEntry in ipairs(summary.BackpackItems or {}) do
+        if itemEntry.InstanceId == itemInstanceId then
+            local removed = itemEntry
+            table.remove(summary.BackpackItems, index)
+            return removed
+        end
+    end
+
+    return nil
+end
+
 local function runWithCampSessionLock(self, callback)
     while self.CampSessionLock do
         task.wait(CAMP_SESSION_LOCK_WAIT_SECONDS)
@@ -176,7 +273,7 @@ function RunSessionService.new(options)
         InventoryCapacity = SessionConfig.InventoryCapacity,
     }
     self.CampSession = CampMazeSessionContract.newCampSession({})
-    self.Status = 'Select Enter Camp to enter the camp.'
+    self.Status = INITIAL_TEMPLE_STATUS
     self.IsLaunched = false
     self.ShouldAutoLaunch = true
     self.GateOpen = false
@@ -193,6 +290,8 @@ function RunSessionService.new(options)
         'Set SessionConfig.PlaceIds.Maze or SessionPlaceIdMaze before using the maze gate.'
     self.MazeEntryReasonCode = MazeEntryAvailability.ReasonCode.MazePlaceIdMissing
     self.LocalDebugMazeWorld = nil
+    self.TeamPages = 0
+    self.BookGoalAmount = BOOK_GOAL_AMOUNT
     self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
     self.ControlStateService = ControlStateService.new()
     self.PlayerStateService = PlayerStateService.new()
@@ -643,9 +742,9 @@ function RunSessionService:_applyReturnedPlayersFromTeleportData(players, accept
             returnedPlayer.TeleportData
         )
     elseif #returnedPlayers > 1 then
-        self.Status = 'The crew returned from the maze. Review the camp summaries together.'
+        self.Status = 'The crew returned from the maze. Review the temple summaries together.'
     else
-        self.Status = 'Camp is ready. Gather inside, then head outside when the group is ready.'
+        self.Status = 'Temple is ready. Gather inside, then head outside when the group is ready.'
     end
 end
 
@@ -691,14 +790,31 @@ function RunSessionService:_bindWorldInteractions()
         return
     end
 
-    self.World.ShopPrompt.Triggered:Connect(function(player)
-        self:_setStatus(
-            string.format(
-                '%s checked the shop terminal. Purchases coming soon.',
-                player.DisplayName
-            )
-        )
-    end)
+    if self.World.ShopPrompt then
+        self.World.ShopPrompt.Triggered:Connect(function(player)
+            if not self:_canManageInventory(player) then
+                return
+            end
+
+            self:_openShop(player)
+        end)
+    end
+
+    if self.World.SellPrompt then
+        self.World.SellPrompt.Triggered:Connect(function(player)
+            if not self:_canManageInventory(player) then
+                return
+            end
+
+            self:_openSell(player)
+        end)
+    end
+
+    if self.World.ObjectivePrompt then
+        self.World.ObjectivePrompt.Triggered:Connect(function(player)
+            self:_openObjectiveBoard(player)
+        end)
+    end
 
     self.World.LoadoutPrompt.Triggered:Connect(function(player)
         self:_setStatus(
@@ -743,7 +859,7 @@ function RunSessionService:_getPlayerArea(player)
     local character = player.Character
     local rootPart = character and character:FindFirstChild('HumanoidRootPart')
     if not rootPart then
-        return self.GateOpen and 'Camp Threshold' or 'Camp House'
+        return self.GateOpen and 'Temple Threshold' or 'Temple Hall'
     end
 
     if self.LocalDebugMazeWorld then
@@ -763,7 +879,7 @@ function RunSessionService:_getPlayerArea(player)
         return 'Wilderness'
     end
 
-    return 'Camp House'
+    return 'Temple Hall'
 end
 
 function RunSessionService:_buildRoster()
@@ -787,15 +903,15 @@ function RunSessionService:_getObjectiveFor(player)
     local area = self:_getPlayerArea(player)
 
     if area == 'Local Maze Debug' then
-        return 'Explore local debug maze rooms, then use Return To Camp (Local Debug).'
+        return 'Explore local debug maze rooms, then use Return To Temple (Local Debug).'
     end
 
     if not self.GateOpen then
-        return 'Inspect the camp terminals and open the gate when the group is ready.'
+        return 'Inspect the temple terminals and open the gate when the group is ready.'
     end
 
     if self.CampSession.MazeStatus == CampMazeSessionContract.MazeStatus.Completed then
-        return 'The maze run is complete. Review the returned crew summaries in camp.'
+        return 'The maze run is complete. Review the returned crew summaries in the temple.'
     end
 
     if self.CampSession.MazeStatus == CampMazeSessionContract.MazeStatus.Active then
@@ -816,6 +932,165 @@ end
 function RunSessionService:_setStatus(status)
     self.Status = status
     self:_broadcastSnapshot()
+end
+
+function RunSessionService:_getBookSnapshot()
+    local progress = 0
+    if self.BookGoalAmount > 0 then
+        progress = math.clamp(self.TeamPages / self.BookGoalAmount, 0, 1)
+    end
+
+    return {
+        TeamPages = self.TeamPages,
+        BookGoalAmount = self.BookGoalAmount,
+        BookGoalProgress = progress,
+        BookGoalReached = self.TeamPages >= self.BookGoalAmount,
+    }
+end
+
+function RunSessionService:_sendPrivate(player, payload)
+    self.Remotes.RunPrivateState:FireClient(player, payload)
+end
+
+function RunSessionService:_broadcastPrivate(payload)
+    for _, player in ipairs(Players:GetPlayers()) do
+        self:_sendPrivate(player, payload)
+    end
+end
+
+function RunSessionService:_toast(player, message, tone)
+    self:_sendPrivate(player, {
+        Type = 'Toast',
+        Message = message,
+        Tone = tone or 'Info',
+    })
+end
+
+function RunSessionService:_openShop(player)
+    self:_sendPrivate(player, {
+        Type = 'OpenShop',
+        Items = buildShopPayload(),
+        TeamPages = self.TeamPages,
+        Inventory = self.InventoryService:getSummary(player),
+    })
+end
+
+function RunSessionService:_openSell(player)
+    local inventorySummary = self.InventoryService:getSummary(player)
+    self:_sendPrivate(player, {
+        Type = 'OpenSell',
+        Items = buildSellPayload(inventorySummary),
+        TeamPages = self.TeamPages,
+    })
+end
+
+function RunSessionService:_openObjectiveBoard(player)
+    local snapshot = self:_getBookSnapshot()
+    self:_sendPrivate(player, {
+        Type = 'OpenObjectiveBoard',
+        BookGoalAmount = snapshot.BookGoalAmount,
+        BookGoalProgress = snapshot.BookGoalProgress,
+        BookGoalReached = snapshot.BookGoalReached,
+        TeamPages = snapshot.TeamPages,
+    })
+end
+
+function RunSessionService:_handlePurchase(player, itemId)
+    if not self:_canManageInventory(player) then
+        return
+    end
+
+    local itemDef = SHOP_ITEM_BY_ID[itemId]
+    if not itemDef then
+        self:_toast(player, 'Unknown item.', 'Error')
+        return
+    end
+
+    if self.TeamPages < itemDef.Price then
+        self:_sendPrivate(player, {
+            Type = 'ShopResult',
+            Success = false,
+            Reason = 'InsufficientFunds',
+        })
+        return
+    end
+
+    local ok, reason = self.InventoryService:pickup(player, itemDef)
+    if not ok then
+        self:_sendPrivate(player, {
+            Type = 'ShopResult',
+            Success = false,
+            Reason = reason or 'InventoryFull',
+        })
+        return
+    end
+
+    local wasBelowGoal = self.TeamPages < self.BookGoalAmount
+    self.TeamPages -= itemDef.Price
+
+    self:_sendPrivate(player, {
+        Type = 'ShopResult',
+        Success = true,
+        ItemId = itemDef.Id,
+        TeamPages = self.TeamPages,
+        Inventory = self.InventoryService:getSummary(player),
+    })
+
+    self:_broadcastSnapshot()
+
+    if wasBelowGoal and self.TeamPages >= self.BookGoalAmount then
+        local snapshot = self:_getBookSnapshot()
+        self:_broadcastPrivate({
+            Type = 'GoalReached',
+            TeamPages = snapshot.TeamPages,
+        })
+    end
+end
+
+function RunSessionService:_handleSell(player, itemInstanceId)
+    if not self:_canManageInventory(player) then
+        return
+    end
+
+    if type(itemInstanceId) ~= 'number' then
+        self:_toast(player, 'Invalid item.', 'Error')
+        return
+    end
+
+    local inventorySummary = self.InventoryService:getSummary(player)
+    local removedItem = removeItemFromSummary(inventorySummary, itemInstanceId)
+    if not removedItem then
+        self:_toast(player, 'Item not found.', 'Error')
+        return
+    end
+
+    local ok, reason = self.InventoryService:loadSummary(player, inventorySummary)
+    if not ok then
+        self:_toast(player, string.format('Could not update inventory (%s).', tostring(reason)), 'Error')
+        return
+    end
+
+    local reward = math.max(1, math.floor((removedItem.Value or 0) + 0.5))
+    local wasBelowGoal = self.TeamPages < self.BookGoalAmount
+    self.TeamPages += reward
+
+    self:_sendPrivate(player, {
+        Type = 'SellResult',
+        Success = true,
+        ItemInstanceId = itemInstanceId,
+        Amount = reward,
+        TeamPages = self.TeamPages,
+    })
+
+    self:_broadcastSnapshot()
+
+    if wasBelowGoal and self.TeamPages >= self.BookGoalAmount then
+        local snapshot = self:_getBookSnapshot()
+        self:_broadcastPrivate({
+            Type = 'GoalReached',
+            TeamPages = snapshot.TeamPages,
+        })
+    end
 end
 
 function RunSessionService:_resolveMazeEntryAvailability()
@@ -839,6 +1114,7 @@ function RunSessionService:_broadcastSnapshot()
     local activeMazeRoster = cloneArray(self.CampSession.PlayersInMaze)
     local returnedSummaries = cloneArray(self.CampSession.ReturnedPlayerSummaries)
     local mazeEntryAvailability = self:_resolveMazeEntryAvailability()
+    local bookSnapshot = self:_getBookSnapshot()
 
     for _, player in ipairs(Players:GetPlayers()) do
         local ugcState = self:_getUgcGenerationState(player)
@@ -856,6 +1132,10 @@ function RunSessionService:_broadcastSnapshot()
             MazeEntryMode = mazeEntryAvailability.Mode,
             MazeEntryReason = mazeEntryAvailability.Reason,
             MazeEntryReasonCode = mazeEntryAvailability.ReasonCode,
+            TeamPages = bookSnapshot.TeamPages,
+            BookGoalAmount = bookSnapshot.BookGoalAmount,
+            BookGoalProgress = bookSnapshot.BookGoalProgress,
+            BookGoalReached = bookSnapshot.BookGoalReached,
             Inventory = self.InventoryService:getSummary(player),
             Movement = self:_getMovementSummaryFor(player),
             ControlState = self.ControlStateService:getSummary(player),
@@ -887,7 +1167,7 @@ function RunSessionService:_canManageInventory(player)
     if CampMazeSessionContract.isPlayerInMaze(self.CampSession, player.UserId) then
         self:_setStatus(
             string.format(
-                '%s is already marked inside the maze and cannot change camp inventory.',
+                '%s is already marked inside the maze and cannot change temple inventory.',
                 player.DisplayName
             )
         )
@@ -914,7 +1194,7 @@ function RunSessionService:_equipItem(player, itemInstanceId)
         return
     end
 
-    self:_setStatus(string.format('%s equipped %s in camp.', player.DisplayName, result.Name))
+    self:_setStatus(string.format('%s equipped %s in the temple.', player.DisplayName, result.Name))
 end
 
 function RunSessionService:_unequipItem(player)
@@ -950,7 +1230,7 @@ function RunSessionService:_openGate(player)
         self.World.OpenGate()
         self:_setStatus(
             string.format(
-                '%s opened the camp gate. The wilderness trail is now accessible.',
+                '%s opened the temple gate. The wilderness trail is now accessible.',
                 player.DisplayName
             )
         )
@@ -959,7 +1239,7 @@ function RunSessionService:_openGate(player)
 
     self:_setStatus(
         string.format(
-            '%s checked the camp gate. The wilderness trail is already open.',
+            '%s checked the temple gate. The wilderness trail is already open.',
             player.DisplayName
         )
     )
@@ -996,7 +1276,7 @@ function RunSessionService:_bindLocalDebugMazeInteractions()
 
         self:_setStatus(
             string.format(
-                '%s returned from local maze debug mode back to camp.',
+                '%s returned from local maze debug mode back to the temple.',
                 player.DisplayName
             )
         )
@@ -1055,7 +1335,7 @@ function RunSessionService:_enterMaze(player)
         end
 
         if self.CampSession.MazeStatus == CampMazeSessionContract.MazeStatus.Completed then
-            self:_setStatus('The maze session is already complete for this camp.')
+            self:_setStatus('The maze session is already complete for this temple.')
             return
         end
 
@@ -1121,7 +1401,7 @@ function RunSessionService:_requestMazeEntry(player, requireDistanceCheck)
     if not self.GateOpen then
         self:_setStatus(
             string.format(
-                '%s checked the maze gate, but the camp gate is still closed.',
+                '%s checked the maze gate, but the temple gate is still closed.',
                 player.DisplayName
             )
         )
@@ -1184,9 +1464,9 @@ function RunSessionService:_launchRun(_player)
     end
 
     self:_startSnapshotLoop()
-    if self.Status == 'Select Enter Camp to enter the camp.' then
+    if self.Status == INITIAL_TEMPLE_STATUS then
         self:_setStatus(
-            'Camp is ready. Gather inside, then open the gate when you want to head out.'
+            'Temple is ready. Gather inside, then open the gate when you want to head out.'
         )
     else
         self:_broadcastSnapshot()
@@ -1274,7 +1554,7 @@ function RunSessionService:_handlePlayerTeleportData(player)
         PreserveMazeEntry = CampMazeSessionContract.isPlayerInMaze(self.CampSession, player.UserId),
     })
     self.GateOpen = self.CampSession.GateOpen
-    self.Status = string.format('%s joined the camp session.', player.DisplayName)
+    self.Status = string.format('%s joined the temple session.', player.DisplayName)
 end
 
 function RunSessionService:_ensureAuthoritativeSessionSeed()
@@ -1350,6 +1630,10 @@ function RunSessionService:start()
             if self:_canProcessMazeEntryRequest(player) then
                 self:_requestMazeEntry(player, true)
             end
+        elseif payload.Type == 'RequestPurchaseItem' then
+            self:_handlePurchase(player, payload.ItemId)
+        elseif payload.Type == 'RequestSellItem' then
+            self:_handleSell(player, payload.ItemInstanceId)
         elseif payload.Type == 'RequestEquipItem' then
             self:_equipItem(player, payload.ItemInstanceId)
         elseif payload.Type == 'RequestUnequipItem' then
@@ -1361,7 +1645,7 @@ function RunSessionService:start()
         elseif payload.Type == 'RequestStartExpedition' then
             self:_setStatus(
                 string.format(
-                    '%s checked the old deploy action. Use the camp gate to head outside instead.',
+                    '%s checked the old deploy action. Use the temple gate to head outside instead.',
                     player.DisplayName
                 )
             )
