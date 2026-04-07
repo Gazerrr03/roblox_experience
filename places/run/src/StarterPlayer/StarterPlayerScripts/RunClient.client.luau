@@ -13,6 +13,9 @@ local UI = require(Packages:WaitForChild('UI'))
 local Remotes = Shared.Network.Remotes.waitForScope(Shared.Network.Remotes.Scope.Run)
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local heldItemController = Shared.Client.HeldItemController.new(localPlayer)
+local NarrativeUI = require(script.Parent.NarrativeUI)
+local _BackpackUI = require(script.Parent.BackpackUI)
+local ItemClient = require(script.Parent.ItemClient)
 local Theme = UI.Hud.Theme
 
 local disconnectFirstPersonLock
@@ -695,3 +698,11 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
     mazeLabel.Text = #mazeLines > 0 and table.concat(mazeLines, '\n')
         or 'Maze summary:\n- No players have entered the maze yet.'
 end)
+
+-- 叙事UI监听
+Remotes.ShowNarrative.OnClientEvent:Connect(function(layer1, layer2, layer3)
+    NarrativeUI.show(layer1, layer2, layer3)
+end)
+
+-- 初始化道具客户端
+ItemClient.initialize()

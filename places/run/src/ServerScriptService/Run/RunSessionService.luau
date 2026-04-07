@@ -21,6 +21,7 @@ local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 
 local LocalDebugMazeWorldBuilder = require(script.Parent.LocalDebugMazeWorldBuilder)
 local MonsterBriefGateway = require(script.Parent.MonsterBriefGateway)
+local NarrativeInteractionService = require(script.Parent.NarrativeInteractionService)
 local RunMazePortal = require(script.Parent.RunMazePortal)
 local RunWorldBuilder = require(script.Parent.RunWorldBuilder)
 
@@ -723,6 +724,15 @@ function RunSessionService:_bindWorldInteractions()
             self:_requestMazeEntry(player, false)
         end
     end)
+
+    -- 初始化叙事交互服务
+    if self.World.StelePrompt and self.World.MirrorPrompt and self.World.StatuePrompt then
+        NarrativeInteractionService.initialize(
+            self.World.StelePrompt,
+            self.World.MirrorPrompt,
+            self.World.StatuePrompt
+        )
+    end
 end
 
 function RunSessionService:_getPlayerArea(player)
