@@ -5,6 +5,7 @@ local Players = game:GetService('Players')
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
 local TweenService = game:GetService('TweenService')
 local Debris = game:GetService('Debris')
+local CollectionService = game:GetService('CollectionService')
 
 --#endregion
 
@@ -174,6 +175,7 @@ function ItemFunctionality.tetherMonster(player: Player, targetModel: Model): bo
     ropeVisual.Material = Enum.Material.Fabric
     ropeVisual.Anchored = true
     ropeVisual.CanCollide = false
+    ropeVisual.Parent = workspace -- 设置父级，使绳索可见
 
     -- 绳索两端的位置
     local startPos = character.HumanoidRootPart.Position
@@ -290,7 +292,7 @@ end
 -- 交互检测系统
 -- ====================
 
--- 检测玩家周围的交互对象
+-- 检测玩家周围的交互对象（优化版：使用标签系统）
 function ItemFunctionality.detectInteractableObjects(player: Player, range: number): {BasePart}
     local interactables = {}
     local character = player.Character
@@ -301,8 +303,9 @@ function ItemFunctionality.detectInteractableObjects(player: Player, range: numb
 
     local playerPos = character.HumanoidRootPart.Position
 
-    for _, object in ipairs(workspace:GetDescendants()) do
-        if object:IsA('BasePart') and object:GetAttribute('Interactable') then
+    -- 使用CollectionService获取所有带有Interactable标签的对象，性能更好
+    for _, object in ipairs(CollectionService:GetTagged('Interactable')) do
+        if object:IsA('BasePart') then
             local distance = (object.Position - playerPos).Magnitude
             if distance <= range then
                 table.insert(interactables, object)
@@ -315,8 +318,9 @@ end
 
 -- 注册可交互对象
 function ItemFunctionality.registerInteractable(part: BasePart, interactionType: string, options: {[string]: any})
-    part:SetAttribute('Interactable', true)
-    part:SetAttribute('InteractionType', interactionType)
+    -- 使用标签系统而不是属性，提升性能
+    CollectionService:AddTag(part, 'Interactable')
+    CollectionService:AddTag(part, interactionType)
 
     if options then
         for key, value in pairs(options) do

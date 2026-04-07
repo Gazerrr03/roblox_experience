@@ -59,7 +59,7 @@ function InteractableObjectsSetup.setupInteractables(outdoorFolder: Folder)
         local gapMarker = gap1:FindFirstChild('GapMarker')
         if gapMarker and gapMarker:IsA('Part') then
             ItemFunctionality.registerInteractable(gapMarker, 'Crossable', {
-                TargetCFrame = CFrame.new(0, 0, 20), -- 跨越后的位置
+                TargetCFrame = gapMarker.CFrame * CFrame.new(0, 0, 20), -- 跨越后的位置（相对于gapMarker）
             })
         end
     end
