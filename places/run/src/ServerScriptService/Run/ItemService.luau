@@ -19,7 +19,6 @@ export type ItemData = {
 
 local Players = game:GetService('Players')
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
-local RunService = game:GetService('RunService')
 
 --#endregion
 
@@ -28,8 +27,6 @@ local RunService = game:GetService('RunService')
 local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
 local Remotes = Shared.Network.Remotes.waitForScope(Shared.Network.Remotes.Scope.Run)
-
-local ItemFunctionality = require(script.Parent.ItemFunctionality)
 
 --#endregion
 
@@ -126,7 +123,7 @@ function ItemService.equipItem(player: Player, itemName: string): boolean
     end
 
     -- 卸下其他已装备的道具
-    for name, item in data.Inventory do
+    for _, item in data.Inventory do
         if item.IsEquipped then
             item.IsEquipped = false
         end

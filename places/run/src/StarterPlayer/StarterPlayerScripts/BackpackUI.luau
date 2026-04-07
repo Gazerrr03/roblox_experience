@@ -19,26 +19,12 @@ local Remotes = Shared.Network.Remotes.waitForScope(Shared.Network.Remotes.Scope
 
 local BackpackUI = {}
 
--- UI 元素
-local ScreenGui = nil
-local BackpackFrame = nil
-local ItemContainer = nil
-local CloseButton = nil
-
--- 道具图标映射
-local ItemIcons = {
-    BurningTorch = "rbxassetid://1234567890", -- 火把图标ID（需要替换）
-    Flashlight = "rbxassetid://1234567891",   -- 手电筒图标ID（需要替换）
-    Rope = "rbxassetid://1234567892",        -- 绳索图标ID（需要替换）
-    Crowbar = "rbxassetid://1234567893",     -- 撬棍图标ID（需要替换）
-}
-
 -- 道具描述映射
 local ItemDescriptions = {
-    BurningTorch = "点燃倒塌的灯塔",
-    Flashlight = "照亮黑暗区域（按F键开关）",
-    Rope = "攀爬高处、跨越断层、固定怪物",
-    Crowbar = "撬开锁住的箱子/门",
+    BurningTorch = '点燃倒塌的灯塔',
+    Flashlight = '照亮黑暗区域（按F键开关）',
+    Rope = '攀爬高处、跨越断层、固定怪物',
+    Crowbar = '撬开锁住的箱子/门',
 }
 
 -- 创建背包 UI
@@ -116,7 +102,7 @@ function BackpackUI.createUI()
 end
 
 -- 创建道具卡片
-function BackpackUI.createItemCard(itemName: string, itemData: {[string]: any}): Frame
+function BackpackUI.createItemCard(itemName: string, itemData: { [string]: any }): Frame
     local card = Instance.new('Frame')
     card.Name = itemName .. 'Card'
     card.Size = UDim2.new(1, -10, 0, 80)
@@ -165,7 +151,8 @@ function BackpackUI.createItemCard(itemName: string, itemData: {[string]: any}):
     statusLabel.Name = 'StatusLabel'
     statusLabel.Size = UDim2.new(0, 80, 0, 30)
     statusLabel.Position = UDim2.new(1, -90, 0, 10)
-    statusLabel.BackgroundColor3 = itemData.IsEquipped and Color3.fromRGB(100, 200, 100) or Color3.fromRGB(80, 80, 90)
+    statusLabel.BackgroundColor3 = itemData.IsEquipped and Color3.fromRGB(100, 200, 100)
+        or Color3.fromRGB(80, 80, 90)
     statusLabel.BorderSizePixel = 0
     statusLabel.Text = itemData.IsEquipped and '已装备' or '未装备'
     statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)

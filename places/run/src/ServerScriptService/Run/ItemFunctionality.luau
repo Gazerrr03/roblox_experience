@@ -1,10 +1,8 @@
 --!strict
 --#region Services
 
-local Players = game:GetService('Players')
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
 local TweenService = game:GetService('TweenService')
-local Debris = game:GetService('Debris')
 local CollectionService = game:GetService('CollectionService')
 
 --#endregion
@@ -216,9 +214,6 @@ function ItemFunctionality.tetherMonster(player: Player, targetModel: Model): bo
     ropeVisual.Parent = workspace -- 设置父级，使绳索可见
 
     -- 绳索两端的位置
-    local startPos = character.HumanoidRootPart.Position
-    local endPos = targetModel.HumanoidRootPart.Position
-
     -- 使用约束连接玩家和目标
     local ropeConstraint = Instance.new('RopeConstraint')
     ropeConstraint.Name = 'TetherConstraint'

@@ -1,19 +1,5 @@
 --!strict
---#region Services
-
-local ReplicatedStorage = game:GetService('ReplicatedStorage')
-
---#endregion
-
---#region Requires
-
-local Packages = ReplicatedStorage:WaitForChild('Packages')
-local Shared = require(Packages:WaitForChild('Shared'))
-local Remotes = Shared.Network.Remotes.waitForScope(Shared.Network.Remotes.Scope.Run)
-
 local ItemFunctionality = require(script.Parent.ItemFunctionality)
-
---#endregion
 
 --#region Module
 
@@ -110,7 +96,7 @@ function InteractableObjectsSetup.setupInteractables(outdoorFolder: Folder)
         end
     end
 
-    print("可交互对象设置完成")
+    print('可交互对象设置完成')
 end
 
 return InteractableObjectsSetup

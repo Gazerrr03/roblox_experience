@@ -6,7 +6,7 @@ export type InteractionPoint = {
     Type: string,
     Description: string,
     Position: Vector3,
-    Completed: {[number]: boolean}, -- 玩家完成状态，key = UserId
+    Completed: { [number]: boolean }, -- 玩家完成状态，key = UserId
 }
 
 --#endregion
@@ -100,7 +100,8 @@ function NarrativeInteractionSystem.createFlashlightInteraction(folder: Folder)
     fireParticle.Lifetime = NumberRange.new(0.5, 1)
     fireParticle.Speed = NumberRange.new(2, 4)
     fireParticle.Size = NumberSequence.new(0.5, 0)
-    fireParticle.Color = ColorSequence.new(Color3.fromRGB(255, 200, 100), Color3.fromRGB(255, 100, 50))
+    fireParticle.Color =
+        ColorSequence.new(Color3.fromRGB(255, 200, 100), Color3.fromRGB(255, 100, 50))
     fireParticle.Transparency = NumberSequence.new(0, 1)
     fireParticle.LightEmission = 1
     fireParticle.Parent = fireAttachment
@@ -132,7 +133,12 @@ function NarrativeInteractionSystem.createFlashlightInteraction(folder: Folder)
         ItemService.giveItem(player, 'BurningTorch')
 
         -- 显示叙事文本
-        Remotes.ShowNarrative:FireClient(player, "火把在燃烧中...", "它的光芒温暖而短暂", "用它点燃那些倒塌的灯塔吧")
+        Remotes.ShowNarrative:FireClient(
+            player,
+            '火把在燃烧中...',
+            '它的光芒温暖而短暂',
+            '用它点燃那些倒塌的灯塔吧'
+        )
 
         -- 隐藏火把（拾取后）
         torch.Transparency = 1
@@ -185,7 +191,12 @@ function NarrativeInteractionSystem.createFlashlightInteraction(folder: Folder)
 
         lighthousePrompt.Triggered:Connect(function(player)
             if not ItemService.hasItem(player, 'BurningTorch') then
-                Remotes.ShowNarrative:FireClient(player, "灯塔曾是荒野的指引", "现在只剩下残垣断壁", "等待光明的重现")
+                Remotes.ShowNarrative:FireClient(
+                    player,
+                    '灯塔曾是荒野的指引',
+                    '现在只剩下残垣断壁',
+                    '等待光明的重现'
+                )
                 return
             end
 
@@ -215,7 +226,8 @@ function NarrativeInteractionSystem.createFlashlightInteraction(folder: Folder)
             lanternParticle.Lifetime = NumberRange.new(1, 2)
             lanternParticle.Speed = NumberRange.new(1, 2)
             lanternParticle.Size = NumberSequence.new(0.8, 0)
-            lanternParticle.Color = ColorSequence.new(Color3.fromRGB(255, 230, 150), Color3.fromRGB(255, 200, 100))
+            lanternParticle.Color =
+                ColorSequence.new(Color3.fromRGB(255, 230, 150), Color3.fromRGB(255, 200, 100))
             lanternParticle.Transparency = NumberSequence.new(0, 0.5)
             lanternParticle.LightEmission = 0.5
             lanternParticle.Parent = lanternAttachment
@@ -235,7 +247,12 @@ function NarrativeInteractionSystem.createFlashlightInteraction(folder: Folder)
                 -- 给予手电筒
                 if not ItemService.hasItem(player, 'Flashlight') then
                     ItemService.giveItem(player, 'Flashlight')
-                    Remotes.ShowNarrative:FireClient(player, "三座灯塔都已点燃", "光芒照亮了荒野", "你获得了手电筒！")
+                    Remotes.ShowNarrative:FireClient(
+                        player,
+                        '三座灯塔都已点燃',
+                        '光芒照亮了荒野',
+                        '你获得了手电筒！'
+                    )
                 end
             end
         end)
@@ -301,14 +318,24 @@ function NarrativeInteractionSystem.createRopeInteraction(folder: Folder)
 
             -- 第一段触发叙事
             if collectedCount == 1 then
-                Remotes.ShowNarrative:FireClient(player, "历史的痕迹从未被抹去", "可历史又从哪里来呢？", "继续寻找其他段落的绳子...")
+                Remotes.ShowNarrative:FireClient(
+                    player,
+                    '历史的痕迹从未被抹去',
+                    '可历史又从哪里来呢？',
+                    '继续寻找其他段落的绳子...'
+                )
             end
 
             -- 三段都拾取后，给予全新绳索
             if collectedCount >= 3 then
                 if not ItemService.hasItem(player, 'Rope') then
                     ItemService.giveItem(player, 'Rope')
-                    Remotes.ShowNarrative:FireClient(player, "三段绳子都已收集", "你将它们编织成了一根完整的绳索", "你获得了绳索！")
+                    Remotes.ShowNarrative:FireClient(
+                        player,
+                        '三段绳子都已收集',
+                        '你将它们编织成了一根完整的绳索',
+                        '你获得了绳索！'
+                    )
                 end
             end
         end)
@@ -370,7 +397,10 @@ function NarrativeInteractionSystem.createCrowbarInteraction(folder: Folder)
     local narrativeKey = 'chest_narrative_shown'
 
     chestPrompt.Triggered:Connect(function(player)
-        if playerNarrativeStates[player.UserId] and playerNarrativeStates[player.UserId][narrativeKey] then
+        if
+            playerNarrativeStates[player.UserId]
+            and playerNarrativeStates[player.UserId][narrativeKey]
+        then
             return
         end
 
@@ -378,7 +408,12 @@ function NarrativeInteractionSystem.createCrowbarInteraction(folder: Folder)
             playerNarrativeStates[player.UserId] = {}
         end
         playerNarrativeStates[player.UserId][narrativeKey] = true
-        Remotes.ShowNarrative:FireClient(player, "覆灭的文明留下了历史残骸", "这个箱子看起来锁住了", "按 R 键尝试打开它")
+        Remotes.ShowNarrative:FireClient(
+            player,
+            '覆灭的文明留下了历史残骸',
+            '这个箱子看起来锁住了',
+            '按 R 键尝试打开它'
+        )
 
         -- 显示打开提示
         local openPrompt = Instance.new('ProximityPrompt')
@@ -390,7 +425,7 @@ function NarrativeInteractionSystem.createCrowbarInteraction(folder: Folder)
         openPrompt.HoldDuration = 0.5
         openPrompt.Parent = chest
 
-        openPrompt.Triggered:Connect(function(opener)
+        openPrompt.Triggered:Connect(function(_opener)
             if chest:GetAttribute('Opened') then
                 return
             end
@@ -429,7 +464,12 @@ function NarrativeInteractionSystem.createCrowbarInteraction(folder: Folder)
                     crowbar.Transparency = 1
                     crowbar.CanCollide = false
                     crowbarPrompt.Enabled = false
-                    Remotes.ShowNarrative:FireClient(picker, "你捡起了撬棍", "它可以用来撬开锁住的箱子", "你获得了撬棍！")
+                    Remotes.ShowNarrative:FireClient(
+                        picker,
+                        '你捡起了撬棍',
+                        '它可以用来撬开锁住的箱子',
+                        '你获得了撬棍！'
+                    )
                 end
             end)
         end)
