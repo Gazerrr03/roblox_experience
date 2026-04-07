@@ -1,12 +1,10 @@
 local Players = game:GetService('Players')
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
 local RunService = game:GetService('RunService')
-local ServerStorage = game:GetService('ServerStorage')
 local Workspace = game:GetService('Workspace')
 
 local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
-local Gameplay = require(Packages:WaitForChild('Gameplay'))
 
 local SessionConfig = Shared.Config.SessionConfig
 local Remotes = Shared.Network.Remotes.ensureScope(Shared.Network.Remotes.Scope.Run)
@@ -20,8 +18,6 @@ local PlayerStateService = Shared.Runtime.PlayerStateService
 local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 
 local LocalDebugMazeWorldBuilder = require(script.Parent.LocalDebugMazeWorldBuilder)
-local MonsterBriefGateway = require(script.Parent.MonsterBriefGateway)
-local NarrativeInteractionService = require(script.Parent.NarrativeInteractionService)
 local RunMazePortal = require(script.Parent.RunMazePortal)
 local RunWorldBuilder = require(script.Parent.RunWorldBuilder)
 
@@ -35,26 +31,49 @@ local MAZE_ENTRY_DISTANCE_BUFFER = 2
 local LOCAL_DEBUG_ROOM_DETECTION_RADIUS = 56
 local LOCAL_DEBUG_MAZE_RETURN_REASON = 'local_debug_return'
 local SNAPSHOT_INTERVAL_SECONDS = 0.25
-local UGC_GENERATION_TOKEN_ITEM_ID = 'ugc-gen-token'
-local UGC_GENERATION_DEFAULT_SEED_MAX = 2147483646
-local UGC_LOCAL_GATEWAY_CONFIG_MODULE_NAME = 'MonsterBriefGatewayLocalConfig'
 local RUN_MAZE_GATE_RETURN_REASONS = table.freeze({
     early_return = true,
     extracted = true,
 })
-local UGC_STATUS = table.freeze({
-    Idle = 'Idle',
-    Generating = 'Generating',
-    Ready = 'Ready',
-    Rejected = 'Rejected',
-})
-local MONSTER_ASSET_IDS = Gameplay.Monsters.MonsterAssetIds
-
-local ITEM_DEFINITION_BY_ID = {}
-for _, itemDef in ipairs(Gameplay.Config.Items) do
-    ITEM_DEFINITION_BY_ID[itemDef.Id] = itemDef
-end
 local INITIAL_TEMPLE_STATUS = 'Select Enter Temple to enter the temple.'
+local BOOK_GOAL_AMOUNT = 120
+local SHOP_ITEMS = {
+    {
+        Id = 'temple_lantern',
+        Name = 'Temple Lantern',
+        Price = 18,
+        Weight = 2,
+        Value = 12,
+        Light = {
+            Brightness = 2,
+            Range = 12,
+            Color = Color3.fromRGB(255, 214, 153),
+        },
+    },
+    {
+        Id = 'sand_relic',
+        Name = 'Sand Relic',
+        Price = 24,
+        Weight = 3,
+        Value = 18,
+        Color = Color3.fromRGB(224, 202, 152),
+    },
+    {
+        Id = 'scribe_compass',
+        Name = 'Scribe Compass',
+        Price = 14,
+        Weight = 1,
+        Value = 9,
+    },
+}
+local SHOP_ITEM_BY_ID = {}
+
+for _, item in ipairs(SHOP_ITEMS) do
+    SHOP_ITEM_BY_ID[item.Id] = item
+end
+
+table.freeze(SHOP_ITEMS)
+table.freeze(SHOP_ITEM_BY_ID)
 
 local function resolvePendingSpawnCFrame(self, pendingSpawnValue)
     if typeof(pendingSpawnValue) == 'CFrame' then
@@ -115,39 +134,61 @@ local function cloneArray(input)
     return result
 end
 
-local function buildPlayerContext(player)
-    return {
-        UserId = player.UserId,
-        Name = player.DisplayName,
-    }
-end
+local function buildShopPayload()
+    local payload = {}
 
-local function trimText(value)
-    if type(value) ~= 'string' then
-        return ''
+    for _, item in ipairs(SHOP_ITEMS) do
+        table.insert(payload, {
+            Id = item.Id,
+            Name = item.Name,
+            Price = item.Price,
+        })
     end
 
-    return string.match(value, '^%s*(.-)%s*$') or ''
+    return payload
 end
 
-local function buildUgcReadyPayload(generationResult, ownerUserId)
-    local recipe = generationResult.Recipe
-    local runtimeProfile = generationResult.RuntimeProfile
-    local diagnostics = generationResult.Diagnostics
+local function buildSellPayload(inventorySummary)
+    local items = {}
 
-    return {
-        OwnerUserId = ownerUserId,
-        MonsterId = recipe.Id,
-        MonsterName = recipe.Name,
-        Seed = generationResult.Seed,
-        RecipeHash = generationResult.RecipeHash,
-        RuntimeProfile = runtimeProfile,
-        Diagnostics = {
-            SkippedBehaviorIds = table.clone(diagnostics.SkippedBehaviorIds),
-            SkippedEffectIds = table.clone(diagnostics.SkippedEffectIds),
-            ClampedFields = table.clone(diagnostics.ClampedFields),
-        },
-    }
+    local function insertItem(itemEntry)
+        if not itemEntry then
+            return
+        end
+
+        table.insert(items, {
+            InstanceId = itemEntry.InstanceId,
+            Name = itemEntry.Name,
+            Price = math.max(1, math.floor((itemEntry.Value or 0) + 0.5)),
+            Color = itemEntry.Color,
+        })
+    end
+
+    for _, itemEntry in ipairs(inventorySummary.BackpackItems or {}) do
+        insertItem(itemEntry)
+    end
+
+    insertItem(inventorySummary.HeldItem)
+
+    return items
+end
+
+local function removeItemFromSummary(summary, itemInstanceId)
+    if summary.HeldItem and summary.HeldItem.InstanceId == itemInstanceId then
+        local removed = summary.HeldItem
+        summary.HeldItem = nil
+        return removed
+    end
+
+    for index, itemEntry in ipairs(summary.BackpackItems or {}) do
+        if itemEntry.InstanceId == itemInstanceId then
+            local removed = itemEntry
+            table.remove(summary.BackpackItems, index)
+            return removed
+        end
+    end
+
+    return nil
 end
 
 local function runWithCampSessionLock(self, callback)
@@ -166,8 +207,7 @@ local function runWithCampSessionLock(self, callback)
     return table.unpack(results, 2, results.n)
 end
 
-function RunSessionService.new(options)
-    local runtimeOptions = options or {}
+function RunSessionService.new()
     local self = setmetatable({}, RunSessionService)
 
     self.Remotes = Remotes
@@ -195,15 +235,11 @@ function RunSessionService.new(options)
         'Set SessionConfig.PlaceIds.Maze or SessionPlaceIdMaze before using the maze gate.'
     self.MazeEntryReasonCode = MazeEntryAvailability.ReasonCode.MazePlaceIdMissing
     self.LocalDebugMazeWorld = nil
+    self.TeamPages = 0
+    self.BookGoalAmount = BOOK_GOAL_AMOUNT
     self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
     self.ControlStateService = ControlStateService.new()
     self.PlayerStateService = PlayerStateService.new()
-    self.MonsterBriefGateway = runtimeOptions.MonsterBriefGateway or MonsterBriefGateway.new()
-    self.PendingUgcMonsterByUserId = {}
-    self.PendingUgcConsumeByUserId = {}
-    self.UgcGenerationStateByUserId = {}
-    self.IssuedStarterUgcTokenByUserId = {}
-    self.GenerateRandomSource = runtimeOptions.GenerateRandomSource or Random.new()
 
     return self
 end
@@ -212,273 +248,12 @@ function RunSessionService:_addPlayerState(player)
     self.InventoryService:addPlayer(player)
     self.ControlStateService:addPlayer(player)
     self.PlayerStateService:addPlayer(player)
-    self:_setUgcGenerationState(player, UGC_STATUS.Idle, '')
 end
 
 function RunSessionService:_removePlayerState(player)
     self.InventoryService:removePlayer(player)
     self.ControlStateService:removePlayer(player)
     self.PlayerStateService:removePlayer(player)
-end
-
-function RunSessionService:_setUgcGenerationState(player, status, message)
-    self.UgcGenerationStateByUserId[player.UserId] = {
-        Status = status,
-        Message = message or '',
-    }
-end
-
-function RunSessionService:_applyLocalGatewayConfigIfPresent()
-    local configModule = script.Parent:FindFirstChild(UGC_LOCAL_GATEWAY_CONFIG_MODULE_NAME)
-    if configModule == nil or not configModule:IsA('ModuleScript') then
-        return
-    end
-
-    local ok, config = pcall(require, configModule)
-    if not ok or type(config) ~= 'table' then
-        warn(
-            string.format(
-                '[RunSessionService] Failed to load %s: %s',
-                UGC_LOCAL_GATEWAY_CONFIG_MODULE_NAME,
-                tostring(config)
-            )
-        )
-        return
-    end
-
-    local providerName = string.lower(trimText(config.Provider))
-    local providerConfigs = config.Providers
-    local selectedProviderConfig = if type(providerConfigs) == 'table'
-            and providerName ~= ''
-        then providerConfigs[providerName]
-        else nil
-
-    local function resolveValue(primaryValue, fallbackValue)
-        local text = trimText(primaryValue)
-        if text ~= '' then
-            return text
-        end
-
-        local fallbackText = trimText(fallbackValue)
-        if fallbackText ~= '' then
-            return fallbackText
-        end
-
-        return nil
-    end
-
-    local function setServerAttribute(attributeName, value)
-        if type(value) == 'string' and value ~= '' then
-            ServerStorage:SetAttribute(attributeName, value)
-        end
-    end
-
-    setServerAttribute('MonsterBriefGatewayUrl', config.Endpoint)
-    setServerAttribute('MonsterBriefGatewayApiKey', config.ApiKey)
-
-    local provider =
-        resolveValue(config.Provider, selectedProviderConfig and selectedProviderConfig.Provider)
-    local providerApiKey =
-        resolveValue(config.ApiKey, selectedProviderConfig and selectedProviderConfig.ApiKey)
-    local providerBaseUrl =
-        resolveValue(config.BaseUrl, selectedProviderConfig and selectedProviderConfig.BaseUrl)
-    local providerModel =
-        resolveValue(config.Model, selectedProviderConfig and selectedProviderConfig.Model)
-
-    setServerAttribute('MonsterBriefLlmProvider', provider)
-    setServerAttribute('MonsterBriefLlmApiKey', providerApiKey)
-    setServerAttribute('MonsterBriefLlmBaseUrl', providerBaseUrl)
-    setServerAttribute('MonsterBriefLlmModel', providerModel)
-    setServerAttribute('MonsterBriefGatewayProtocol', config.EndpointProtocol)
-    setServerAttribute('MonsterBriefGatewayModel', config.EndpointModel)
-end
-
-function RunSessionService:_getUgcGenerationState(player)
-    local state = self.UgcGenerationStateByUserId[player.UserId]
-    if type(state) ~= 'table' then
-        return {
-            Status = UGC_STATUS.Idle,
-            Message = '',
-        }
-    end
-
-    return state
-end
-
-function RunSessionService:_grantStarterUgcTokenIfNeeded(player, teleportData)
-    if self.IssuedStarterUgcTokenByUserId[player.UserId] then
-        return
-    end
-
-    if CampMazeSessionContract.findPlayerInventory(teleportData, player.UserId) ~= nil then
-        self.IssuedStarterUgcTokenByUserId[player.UserId] = true
-        return
-    end
-
-    local itemDef = ITEM_DEFINITION_BY_ID[UGC_GENERATION_TOKEN_ITEM_ID]
-    if itemDef == nil then
-        self.IssuedStarterUgcTokenByUserId[player.UserId] = true
-        warn(
-            string.format(
-                '[RunSessionService] Missing starter token item definition for id %s.',
-                UGC_GENERATION_TOKEN_ITEM_ID
-            )
-        )
-        return
-    end
-
-    local success, reason = self.InventoryService:pickup(player, itemDef)
-    if success then
-        self.IssuedStarterUgcTokenByUserId[player.UserId] = true
-    else
-        warn(
-            string.format(
-                '[RunSessionService] Failed to grant starter UGC token to %s (%s).',
-                player.DisplayName,
-                tostring(reason)
-            )
-        )
-    end
-end
-
-function RunSessionService:_hasUgcGenerationToken(player)
-    return self.InventoryService:countByItemId(player, UGC_GENERATION_TOKEN_ITEM_ID) > 0
-end
-
-function RunSessionService:_consumeUgcGenerationToken(player)
-    return self.InventoryService:consumeByItemId(player, UGC_GENERATION_TOKEN_ITEM_ID)
-end
-
-function RunSessionService:_buildAssetValidator()
-    return function(assetId, assetKind)
-        if assetKind == 'ModelAssetId' then
-            return assetId == MONSTER_ASSET_IDS.DefaultModelAssetId,
-                'OnlyOfficialModelAssetAllowedInV1'
-        end
-
-        if assetKind == 'ChaseLoopSoundAssetId' then
-            return assetId == MONSTER_ASSET_IDS.DefaultChaseLoopSoundAssetId,
-                'OnlyOfficialSoundAssetAllowedInV1'
-        end
-
-        return false, 'UnsupportedAssetKind'
-    end
-end
-
-function RunSessionService:_requestGenerateUgcMonster(player, prompt)
-    if not self.IsLaunched then
-        return
-    end
-
-    if type(prompt) ~= 'string' or string.match(prompt, '^%s*$') then
-        self:_setUgcGenerationState(player, UGC_STATUS.Rejected, '请输入怪物需求描述。')
-        self:_broadcastSnapshot()
-        return
-    end
-
-    if self.PendingUgcConsumeByUserId[player.UserId] then
-        return
-    end
-
-    if self.PendingUgcMonsterByUserId[player.UserId] ~= nil then
-        self:_setUgcGenerationState(
-            player,
-            UGC_STATUS.Rejected,
-            '你已有待刷新的 UGC 怪物，进入 Maze 后会自动生成。'
-        )
-        self:_broadcastSnapshot()
-        return
-    end
-
-    if not self:_hasUgcGenerationToken(player) then
-        self:_setUgcGenerationState(
-            player,
-            UGC_STATUS.Rejected,
-            'UGC 生成道具不足。该道具只能在 Maze 内拾取。'
-        )
-        self:_broadcastSnapshot()
-        return
-    end
-
-    self.PendingUgcConsumeByUserId[player.UserId] = true
-    self:_setUgcGenerationState(player, UGC_STATUS.Generating, '正在生成怪物方案...')
-    self:_broadcastSnapshot()
-
-    local gatewayOk, gatewayResult =
-        self.MonsterBriefGateway:generateBrief(prompt, buildPlayerContext(player))
-
-    if not gatewayOk then
-        warn(
-            string.format(
-                '[RunSessionService] UGC generation gateway failed for userId=%d code=%s message=%s',
-                player.UserId,
-                tostring(gatewayResult and gatewayResult.ErrorCode),
-                tostring(gatewayResult and gatewayResult.Message)
-            )
-        )
-        self.PendingUgcConsumeByUserId[player.UserId] = nil
-        self:_setUgcGenerationState(
-            player,
-            UGC_STATUS.Rejected,
-            gatewayResult and gatewayResult.Message or 'LLM 服务调用失败。'
-        )
-        self:_broadcastSnapshot()
-        return
-    end
-
-    if gatewayResult.Status == 'NeedMoreInfo' then
-        self.PendingUgcConsumeByUserId[player.UserId] = nil
-        self:_setUgcGenerationState(
-            player,
-            UGC_STATUS.Rejected,
-            gatewayResult.Question or '请补充更多信息后重试。'
-        )
-        self:_broadcastSnapshot()
-        return
-    end
-
-    local generatedSeed = self.GenerateRandomSource:NextInteger(1, UGC_GENERATION_DEFAULT_SEED_MAX)
-    local generatedOk, generationResult =
-        Gameplay.Monsters.MonsterUgcPipeline.generateForSandbox(gatewayResult.Brief, {
-            Seed = generatedSeed,
-            PlayerUserId = player.UserId,
-            AssetValidator = self:_buildAssetValidator(),
-        })
-
-    if not generatedOk then
-        self.PendingUgcConsumeByUserId[player.UserId] = nil
-        self:_setUgcGenerationState(
-            player,
-            UGC_STATUS.Rejected,
-            generationResult and generationResult.Reason or '怪物方案生成失败。'
-        )
-        self:_broadcastSnapshot()
-        return
-    end
-
-    local consumed, consumeReason = self:_consumeUgcGenerationToken(player)
-    if not consumed then
-        self.PendingUgcConsumeByUserId[player.UserId] = nil
-        self:_setUgcGenerationState(
-            player,
-            UGC_STATUS.Rejected,
-            string.format('生成道具扣除失败：%s', tostring(consumeReason))
-        )
-        self:_broadcastSnapshot()
-        return
-    end
-
-    self.PendingUgcMonsterByUserId[player.UserId] =
-        buildUgcReadyPayload(generationResult, player.UserId)
-    self.PendingUgcConsumeByUserId[player.UserId] = nil
-    self:_setUgcGenerationState(
-        player,
-        UGC_STATUS.Ready,
-        'UGC 怪物已排队，进入 Maze 后会自动刷出。'
-    )
-    self:_setStatus(
-        string.format('%s queued a UGC monster for the next maze entry.', player.DisplayName)
-    )
 end
 
 function RunSessionService:_getMovementSummaryFor(player)
@@ -695,14 +470,31 @@ function RunSessionService:_bindWorldInteractions()
         return
     end
 
-    self.World.ShopPrompt.Triggered:Connect(function(player)
-        self:_setStatus(
-            string.format(
-                '%s checked the shop terminal. Purchases coming soon.',
-                player.DisplayName
-            )
-        )
-    end)
+    if self.World.ShopPrompt then
+        self.World.ShopPrompt.Triggered:Connect(function(player)
+            if not self:_canManageInventory(player) then
+                return
+            end
+
+            self:_openShop(player)
+        end)
+    end
+
+    if self.World.SellPrompt then
+        self.World.SellPrompt.Triggered:Connect(function(player)
+            if not self:_canManageInventory(player) then
+                return
+            end
+
+            self:_openSell(player)
+        end)
+    end
+
+    if self.World.ObjectivePrompt then
+        self.World.ObjectivePrompt.Triggered:Connect(function(player)
+            self:_openObjectiveBoard(player)
+        end)
+    end
 
     self.World.LoadoutPrompt.Triggered:Connect(function(player)
         self:_setStatus(
@@ -713,12 +505,6 @@ function RunSessionService:_bindWorldInteractions()
         )
     end)
 
-    if self.World.UgcLabPrompt then
-        self.World.UgcLabPrompt.Triggered:Connect(function(player)
-            self:_openUgcLabPanel(player)
-        end)
-    end
-
     self.World.GatePrompt.Triggered:Connect(function(player)
         self:_openGate(player)
     end)
@@ -728,15 +514,6 @@ function RunSessionService:_bindWorldInteractions()
             self:_requestMazeEntry(player, false)
         end
     end)
-
-    -- 初始化叙事交互服务
-    if self.World.StelePrompt and self.World.MirrorPrompt and self.World.StatuePrompt then
-        NarrativeInteractionService.initialize(
-            self.World.StelePrompt,
-            self.World.MirrorPrompt,
-            self.World.StatuePrompt
-        )
-    end
 end
 
 function RunSessionService:_getPlayerArea(player)
@@ -822,6 +599,165 @@ function RunSessionService:_setStatus(status)
     self:_broadcastSnapshot()
 end
 
+function RunSessionService:_getBookSnapshot()
+    local progress = 0
+    if self.BookGoalAmount > 0 then
+        progress = math.clamp(self.TeamPages / self.BookGoalAmount, 0, 1)
+    end
+
+    return {
+        TeamPages = self.TeamPages,
+        BookGoalAmount = self.BookGoalAmount,
+        BookGoalProgress = progress,
+        BookGoalReached = self.TeamPages >= self.BookGoalAmount,
+    }
+end
+
+function RunSessionService:_sendPrivate(player, payload)
+    self.Remotes.RunPrivateState:FireClient(player, payload)
+end
+
+function RunSessionService:_broadcastPrivate(payload)
+    for _, player in ipairs(Players:GetPlayers()) do
+        self:_sendPrivate(player, payload)
+    end
+end
+
+function RunSessionService:_toast(player, message, tone)
+    self:_sendPrivate(player, {
+        Type = 'Toast',
+        Message = message,
+        Tone = tone or 'Info',
+    })
+end
+
+function RunSessionService:_openShop(player)
+    self:_sendPrivate(player, {
+        Type = 'OpenShop',
+        Items = buildShopPayload(),
+        TeamPages = self.TeamPages,
+        Inventory = self.InventoryService:getSummary(player),
+    })
+end
+
+function RunSessionService:_openSell(player)
+    local inventorySummary = self.InventoryService:getSummary(player)
+    self:_sendPrivate(player, {
+        Type = 'OpenSell',
+        Items = buildSellPayload(inventorySummary),
+        TeamPages = self.TeamPages,
+    })
+end
+
+function RunSessionService:_openObjectiveBoard(player)
+    local snapshot = self:_getBookSnapshot()
+    self:_sendPrivate(player, {
+        Type = 'OpenObjectiveBoard',
+        BookGoalAmount = snapshot.BookGoalAmount,
+        BookGoalProgress = snapshot.BookGoalProgress,
+        BookGoalReached = snapshot.BookGoalReached,
+        TeamPages = snapshot.TeamPages,
+    })
+end
+
+function RunSessionService:_handlePurchase(player, itemId)
+    if not self:_canManageInventory(player) then
+        return
+    end
+
+    local itemDef = SHOP_ITEM_BY_ID[itemId]
+    if not itemDef then
+        self:_toast(player, 'Unknown item.', 'Error')
+        return
+    end
+
+    if self.TeamPages < itemDef.Price then
+        self:_sendPrivate(player, {
+            Type = 'ShopResult',
+            Success = false,
+            Reason = 'InsufficientFunds',
+        })
+        return
+    end
+
+    local ok, reason = self.InventoryService:pickup(player, itemDef)
+    if not ok then
+        self:_sendPrivate(player, {
+            Type = 'ShopResult',
+            Success = false,
+            Reason = reason or 'InventoryFull',
+        })
+        return
+    end
+
+    local wasBelowGoal = self.TeamPages < self.BookGoalAmount
+    self.TeamPages -= itemDef.Price
+
+    self:_sendPrivate(player, {
+        Type = 'ShopResult',
+        Success = true,
+        ItemId = itemDef.Id,
+        TeamPages = self.TeamPages,
+        Inventory = self.InventoryService:getSummary(player),
+    })
+
+    self:_broadcastSnapshot()
+
+    if wasBelowGoal and self.TeamPages >= self.BookGoalAmount then
+        local snapshot = self:_getBookSnapshot()
+        self:_broadcastPrivate({
+            Type = 'GoalReached',
+            TeamPages = snapshot.TeamPages,
+        })
+    end
+end
+
+function RunSessionService:_handleSell(player, itemInstanceId)
+    if not self:_canManageInventory(player) then
+        return
+    end
+
+    if type(itemInstanceId) ~= 'number' then
+        self:_toast(player, 'Invalid item.', 'Error')
+        return
+    end
+
+    local inventorySummary = self.InventoryService:getSummary(player)
+    local removedItem = removeItemFromSummary(inventorySummary, itemInstanceId)
+    if not removedItem then
+        self:_toast(player, 'Item not found.', 'Error')
+        return
+    end
+
+    local ok, reason = self.InventoryService:loadSummary(player, inventorySummary)
+    if not ok then
+        self:_toast(player, string.format('Could not update inventory (%s).', tostring(reason)), 'Error')
+        return
+    end
+
+    local reward = math.max(1, math.floor((removedItem.Value or 0) + 0.5))
+    local wasBelowGoal = self.TeamPages < self.BookGoalAmount
+    self.TeamPages += reward
+
+    self:_sendPrivate(player, {
+        Type = 'SellResult',
+        Success = true,
+        ItemInstanceId = itemInstanceId,
+        Amount = reward,
+        TeamPages = self.TeamPages,
+    })
+
+    self:_broadcastSnapshot()
+
+    if wasBelowGoal and self.TeamPages >= self.BookGoalAmount then
+        local snapshot = self:_getBookSnapshot()
+        self:_broadcastPrivate({
+            Type = 'GoalReached',
+            TeamPages = snapshot.TeamPages,
+        })
+    end
+end
+
 function RunSessionService:_resolveMazeEntryAvailability()
     local availability = MazeEntryAvailability.evaluate({
         PlaceIds = SessionConfig.PlaceIds,
@@ -843,9 +779,9 @@ function RunSessionService:_broadcastSnapshot()
     local activeMazeRoster = cloneArray(self.CampSession.PlayersInMaze)
     local returnedSummaries = cloneArray(self.CampSession.ReturnedPlayerSummaries)
     local mazeEntryAvailability = self:_resolveMazeEntryAvailability()
+    local bookSnapshot = self:_getBookSnapshot()
 
     for _, player in ipairs(Players:GetPlayers()) do
-        local ugcState = self:_getUgcGenerationState(player)
         self.Remotes.RunState:FireClient(player, {
             IsLaunched = self.IsLaunched,
             Status = self.Status,
@@ -860,27 +796,18 @@ function RunSessionService:_broadcastSnapshot()
             MazeEntryMode = mazeEntryAvailability.Mode,
             MazeEntryReason = mazeEntryAvailability.Reason,
             MazeEntryReasonCode = mazeEntryAvailability.ReasonCode,
+            TeamPages = bookSnapshot.TeamPages,
+            BookGoalAmount = bookSnapshot.BookGoalAmount,
+            BookGoalProgress = bookSnapshot.BookGoalProgress,
+            BookGoalReached = bookSnapshot.BookGoalReached,
             Inventory = self.InventoryService:getSummary(player),
             Movement = self:_getMovementSummaryFor(player),
             ControlState = self.ControlStateService:getSummary(player),
             PlayerState = self.PlayerStateService:getSummary(player),
-            UgcGenerationStatus = ugcState.Status,
-            UgcMessage = ugcState.Message,
-            UgcHasPendingSpawn = self.PendingUgcMonsterByUserId[player.UserId] ~= nil,
         })
 
         self.Remotes.RunPrivateState:FireClient(player, nil)
     end
-end
-
-function RunSessionService:_openUgcLabPanel(player)
-    if not self.IsLaunched then
-        return
-    end
-
-    self.Remotes.RunPrivateState:FireClient(player, {
-        Type = 'OpenUgcLabPanel',
-    })
 end
 
 function RunSessionService:_canManageInventory(player)
@@ -1074,7 +1001,6 @@ function RunSessionService:_enterMaze(player)
                 Name = player.DisplayName,
             },
             EntryReason = 'maze_gate',
-            PendingUgcMonsterPayload = self.PendingUgcMonsterByUserId[player.UserId],
         })
         if not result.Ok then
             self.CampSession = result.CurrentSession or self.CampSession
@@ -1091,8 +1017,6 @@ function RunSessionService:_enterMaze(player)
         self.MazeEntryReasonCode = result.ReasonCode
         self.MazeEntryReason = result.Reason
         self.CampSession = result.NextSession
-        self.PendingUgcMonsterByUserId[player.UserId] = nil
-        self:_setUgcGenerationState(player, UGC_STATUS.Idle, '')
         self:_setStatus(string.format('%s is entering the shared maze run.', player.DisplayName))
     end)
 end
@@ -1254,7 +1178,6 @@ end
 function RunSessionService:_handlePlayerTeleportData(player)
     local teleportData = self:_readTeleportData(player)
     if not teleportData then
-        self:_grantStarterUgcTokenIfNeeded(player, nil)
         return
     end
 
@@ -1265,7 +1188,6 @@ function RunSessionService:_handlePlayerTeleportData(player)
 
     self:_applySessionConfig(teleportData.SessionConfig)
     self:_hydratePlayerInventory(player, teleportData)
-    self:_grantStarterUgcTokenIfNeeded(player, teleportData)
 
     local summary = CampMazeSessionContract.findReturnSummary(teleportData, player.UserId)
     if summary then
@@ -1296,7 +1218,6 @@ function RunSessionService:_ensureAuthoritativeSessionSeed()
 end
 
 function RunSessionService:start()
-    self:_applyLocalGatewayConfigIfPresent()
     self:_loadSessionDataFromJoin()
     self:_ensureAuthoritativeSessionSeed()
     Players.CharacterAutoLoads = false
@@ -1304,9 +1225,7 @@ function RunSessionService:start()
     for _, player in ipairs(Players:GetPlayers()) do
         bindCharacterTeleport(self, player)
         self:_addPlayerState(player)
-        local teleportData = self:_readTeleportData(player)
-        self:_hydratePlayerInventory(player, teleportData)
-        self:_grantStarterUgcTokenIfNeeded(player, teleportData)
+        self:_hydratePlayerInventory(player, self:_readTeleportData(player))
 
         if player.Character then
             player.Character:Destroy()
@@ -1329,9 +1248,6 @@ function RunSessionService:start()
         self.LastMazeEntryRequestAtByUserId[player.UserId] = nil
         self.PendingSpawnByUserId[player.UserId] = nil
         self.PendingLocalMazeSpawnByUserId[player.UserId] = nil
-        self.PendingUgcMonsterByUserId[player.UserId] = nil
-        self.PendingUgcConsumeByUserId[player.UserId] = nil
-        self.UgcGenerationStateByUserId[player.UserId] = nil
         self.CampSession = CampMazeSessionContract.prunePlayer(self.CampSession, player.UserId, {
             PreserveMazeEntry = CampMazeSessionContract.isPlayerInMaze(
                 self.CampSession,
@@ -1354,6 +1270,10 @@ function RunSessionService:start()
             if self:_canProcessMazeEntryRequest(player) then
                 self:_requestMazeEntry(player, true)
             end
+        elseif payload.Type == 'RequestPurchaseItem' then
+            self:_handlePurchase(player, payload.ItemId)
+        elseif payload.Type == 'RequestSellItem' then
+            self:_handleSell(player, payload.ItemInstanceId)
         elseif payload.Type == 'RequestEquipItem' then
             self:_equipItem(player, payload.ItemInstanceId)
         elseif payload.Type == 'RequestUnequipItem' then
@@ -1369,12 +1289,6 @@ function RunSessionService:start()
                     player.DisplayName
                 )
             )
-        elseif payload.Type == 'RequestGenerateUgcMonster' then
-            self:_requestGenerateUgcMonster(player, payload.Prompt)
-        elseif payload.Type == 'RequestClearPendingUgcMonster' then
-            self.PendingUgcMonsterByUserId[player.UserId] = nil
-            self:_setUgcGenerationState(player, UGC_STATUS.Idle, '')
-            self:_broadcastSnapshot()
         end
     end)
 
