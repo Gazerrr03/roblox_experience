@@ -1,5 +1,3 @@
-local ReplicatedStorage = game:GetService('ReplicatedStorage')
-local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Config = script.Parent
 
 -- 引入探索道具武器库
