@@ -1038,13 +1038,6 @@ function RunSessionService:_handlePurchase(player, itemId)
 
     self:_broadcastSnapshot()
 
-    if wasBelowGoal and self.TeamPages >= self.BookGoalAmount then
-        local snapshot = self:_getBookSnapshot()
-        self:_broadcastPrivate({
-            Type = 'GoalReached',
-            TeamPages = snapshot.TeamPages,
-        })
-    end
 end
 
 function RunSessionService:_handleSell(player, itemInstanceId)
@@ -1080,6 +1073,7 @@ function RunSessionService:_handleSell(player, itemInstanceId)
         ItemInstanceId = itemInstanceId,
         Amount = reward,
         TeamPages = self.TeamPages,
+        Inventory = self.InventoryService:getSummary(player),
     })
 
     self:_broadcastSnapshot()

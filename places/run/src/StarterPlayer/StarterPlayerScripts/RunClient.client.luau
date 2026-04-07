@@ -13,6 +13,8 @@ local UI = require(Packages:WaitForChild('UI'))
 local Remotes = Shared.Network.Remotes.waitForScope(Shared.Network.Remotes.Scope.Run)
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local heldItemController = Shared.Client.HeldItemController.new(localPlayer)
+local NarrativeUI = require(script.Parent.NarrativeUI)
+local ItemClient = require(script.Parent.ItemClient)
 local Theme = UI.Hud.Theme
 
 local TEMPLE_LABEL = 'Temple'
@@ -623,7 +625,8 @@ local function renderSellItems()
         local label = string.format('%s +%d %s', item.Name, item.Price, PAGE_LABEL)
         local button = makeButton(sellItemsFrame, label, 40, Theme.Accent)
         if item.Color then
-            button.TextColor3 = item.Color
+            button.BorderColor3 = item.Color
+            button.BorderSizePixel = 2
         end
         button.MouseButton1Click:Connect(function()
             Remotes.RunAction:FireServer({
@@ -993,3 +996,9 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
     mazeLabel.Text = #mazeLines > 0 and table.concat(mazeLines, '\n')
         or 'Maze summary:\n- No players have entered the maze yet.'
 end)
+
+Remotes.ShowNarrative.OnClientEvent:Connect(function(layer1, layer2, layer3)
+    NarrativeUI.show(layer1, layer2, layer3)
+end)
+
+ItemClient.initialize()

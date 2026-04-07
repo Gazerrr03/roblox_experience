@@ -24,7 +24,7 @@
           "fill": {
             "type": "image",
             "enabled": true,
-            "url": "/Users/qizhi_dong/Projects/roblox_experience/assets/scene-mock.png",
+            "url": "./assets/scene-mock.png",
             "mode": "fill"
           },
           "cornerRadius": 16,
