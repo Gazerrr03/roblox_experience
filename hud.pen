@@ -1,0 +1,2406 @@
+{
+  "version": "2.8",
+  "children": [
+    {
+      "type": "frame",
+      "id": "bi8Au",
+      "x": 0,
+      "y": 0,
+      "name": "Game HUD Drafts",
+      "clip": true,
+      "width": 7700,
+      "height": 1040,
+      "fill": "#09090B",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "XXtvD",
+          "x": 80,
+          "y": 70,
+          "name": "Start HUD",
+          "clip": true,
+          "width": 1440,
+          "height": 900,
+          "fill": "#09090B",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "#27272A"
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "frame",
+              "id": "3JGlc",
+              "x": 96,
+              "y": 116,
+              "width": 440,
+              "height": 240,
+              "fill": "#111114",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "none"
+            },
+            {
+              "type": "frame",
+              "id": "NBNeF",
+              "x": 946,
+              "y": 182,
+              "width": 340,
+              "height": 180,
+              "fill": "#111114",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "none"
+            },
+            {
+              "type": "text",
+              "id": "51rC5",
+              "x": 64,
+              "y": 56,
+              "fill": "#FCD34D",
+              "content": "SCRAPLINE // MVP DEMO",
+              "fontFamily": "JetBrains Mono",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "text",
+              "id": "DCM6C",
+              "x": 64,
+              "y": 220,
+              "fill": "#A1A1AA",
+              "textGrowth": "fixed-width",
+              "width": 760,
+              "content": "A co-op salvage run through unstable maze facilities. Build a room, deploy, collect enough scrap, and survive the return trip.",
+              "lineHeight": 1.5,
+              "fontFamily": "Inter",
+              "fontSize": 16,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "lMstV",
+              "x": 64,
+              "y": 132,
+              "fill": "#FAFAFA",
+              "content": "DESCEND. SCAVENGE. EXTRACT.",
+              "lineHeight": 1.2,
+              "fontFamily": "Inter",
+              "fontSize": 36,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "28AN3",
+              "x": 64,
+              "y": 456,
+              "name": "actions",
+              "width": 500,
+              "layout": "vertical",
+              "gap": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "vW28q",
+                  "width": 300,
+                  "height": 52,
+                  "fill": "#FCD34D",
+                  "cornerRadius": 8,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "JHPoG",
+                      "fill": "#18181B",
+                      "content": "START A ROOM",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "llHNN",
+                  "width": 300,
+                  "height": 52,
+                  "fill": "#18181B",
+                  "cornerRadius": 8,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#27272A"
+                  },
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "fOy0b",
+                      "fill": "#FAFAFA",
+                      "content": "JOIN WITH ROOM CODE",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "bwiS9",
+                  "width": 300,
+                  "height": 52,
+                  "fill": "#18181B",
+                  "cornerRadius": 8,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#27272A"
+                  },
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "HYZqL",
+                      "fill": "#FAFAFA",
+                      "content": "SETTINGS",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "bvcyM",
+              "x": 1048,
+              "y": 636,
+              "name": "status",
+              "width": 328,
+              "fill": "#18181B",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 20,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "9XJaD",
+                  "fill": "#FAFAFA",
+                  "content": "SESSION STATUS",
+                  "fontFamily": "Inter",
+                  "fontSize": 18,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "cElF5",
+                  "fill": "#A1A1AA",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Online services live\nVoice link optional\nOne recommended facility for MVP",
+                  "lineHeight": 1.6,
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "PjaO5",
+              "x": 64,
+              "y": 824,
+              "fill": "#71717A",
+              "content": "Desktop 16:9 / Multiplayer room flow / Maze salvage core loop",
+              "fontFamily": "JetBrains Mono",
+              "fontSize": 10,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "y6Gmn",
+          "x": 1600,
+          "y": 70,
+          "name": "Lobby HUD",
+          "clip": true,
+          "width": 1440,
+          "height": 900,
+          "fill": "#09090B",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "#27272A"
+          },
+          "layout": "vertical",
+          "gap": 24,
+          "padding": 32,
+          "children": [
+            {
+              "type": "frame",
+              "id": "KYrfV",
+              "name": "header",
+              "width": "fill_container",
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "XDDKo",
+                  "name": "title",
+                  "layout": "vertical",
+                  "gap": 8,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "dxQ1a",
+                      "fill": "#FAFAFA",
+                      "content": "ROOM LOBBY",
+                      "fontFamily": "Inter",
+                      "fontSize": 24,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "K8KBz",
+                      "fill": "#A1A1AA",
+                      "content": "Confirm the crew, sync readiness, and launch the run.",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "LYXui",
+                  "fill": "#18181B",
+                  "cornerRadius": 8,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#27272A"
+                  },
+                  "padding": [
+                    10,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "GFsr0",
+                      "fill": "#FCD34D",
+                      "content": "ROOM C-1842",
+                      "fontFamily": "JetBrains Mono",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "MAkI3",
+              "name": "body",
+              "width": "fill_container",
+              "height": "fill_container",
+              "gap": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "ttczE",
+                  "name": "left",
+                  "width": 420,
+                  "height": "fill_container",
+                  "layout": "vertical",
+                  "gap": 16,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "oCjZa",
+                      "name": "roster",
+                      "width": "fill_container",
+                      "fill": "#18181B",
+                      "cornerRadius": 12,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "#27272A"
+                      },
+                      "layout": "vertical",
+                      "gap": 12,
+                      "padding": 20,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "opMNq",
+                          "fill": "#FAFAFA",
+                          "content": "CREW STATUS",
+                          "fontFamily": "Inter",
+                          "fontSize": 18,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "RKaI9",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 8,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "qCbm8",
+                              "width": "fill_container",
+                              "fill": "#111114",
+                              "cornerRadius": 8,
+                              "padding": [
+                                14,
+                                16
+                              ],
+                              "justifyContent": "space_between",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "gV4SK",
+                                  "fill": "#FAFAFA",
+                                  "content": "RAY (HOST)",
+                                  "fontFamily": "JetBrains Mono",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "pBNaj",
+                                  "fill": "#86EFAC",
+                                  "content": "READY",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 12,
+                                  "fontWeight": "600"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "aeWX6",
+                              "width": "fill_container",
+                              "fill": "#111114",
+                              "cornerRadius": 8,
+                              "padding": [
+                                14,
+                                16
+                              ],
+                              "justifyContent": "space_between",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "4UBPj",
+                                  "fill": "#FAFAFA",
+                                  "content": "DONG",
+                                  "fontFamily": "JetBrains Mono",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "8G0gC",
+                                  "fill": "#86EFAC",
+                                  "content": "READY",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 12,
+                                  "fontWeight": "600"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "NLfg1",
+                              "width": "fill_container",
+                              "fill": "#111114",
+                              "cornerRadius": 8,
+                              "padding": [
+                                14,
+                                16
+                              ],
+                              "justifyContent": "space_between",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "q4osW",
+                                  "fill": "#FAFAFA",
+                                  "content": "GUEST-03",
+                                  "fontFamily": "JetBrains Mono",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "2HAiP",
+                                  "fill": "#F97316",
+                                  "content": "NOT READY",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 12,
+                                  "fontWeight": "600"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "3GEVT",
+                              "width": "fill_container",
+                              "fill": "#111114",
+                              "cornerRadius": 8,
+                              "padding": [
+                                14,
+                                16
+                              ],
+                              "justifyContent": "space_between",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "SC853",
+                                  "fill": "#71717A",
+                                  "content": "EMPTY SLOT",
+                                  "fontFamily": "JetBrains Mono",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "UazYg",
+                                  "fill": "#71717A",
+                                  "content": "OPEN",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 12,
+                                  "fontWeight": "500"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "EgV7g",
+                  "name": "right",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "layout": "vertical",
+                  "gap": 16,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "tyOgx",
+                      "name": "brief",
+                      "width": "fill_container",
+                      "fill": "#18181B",
+                      "cornerRadius": 12,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "#27272A"
+                      },
+                      "layout": "vertical",
+                      "gap": 16,
+                      "padding": 24,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "3Zk3G",
+                          "fill": "#FAFAFA",
+                          "content": "RUN BRIEF",
+                          "fontFamily": "Inter",
+                          "fontSize": 20,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "text",
+                          "id": "yk3VK",
+                          "fill": "#FCD34D",
+                          "content": "Mine-09 / Standard / Team quota 1200",
+                          "fontFamily": "JetBrains Mono",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "aHIuY",
+                          "fill": "#A1A1AA",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "This MVP run focuses on one compact facility, one dependable scrap route, and one major hostile threat. The lobby needs to answer only three questions: who is here, who is ready, and whether the room can start.",
+                          "lineHeight": 1.5,
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "iNVv2",
+                      "name": "actions",
+                      "width": "fill_container",
+                      "gap": 16,
+                      "justifyContent": "end",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "XkhxI",
+                          "width": 152,
+                          "height": 44,
+                          "fill": "#18181B",
+                          "cornerRadius": 8,
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1,
+                            "fill": "#27272A"
+                          },
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "FO4dv",
+                              "fill": "#FAFAFA",
+                              "content": "LEAVE ROOM",
+                              "fontFamily": "Inter",
+                              "fontSize": 14,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "EbMwU",
+                          "width": 188,
+                          "height": 44,
+                          "fill": "#FCD34D",
+                          "cornerRadius": 8,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "zHPsj",
+                              "fill": "#18181B",
+                              "content": "START DEPLOYMENT",
+                              "fontFamily": "Inter",
+                              "fontSize": 14,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "nbYHH",
+          "x": 3120,
+          "y": 70,
+          "name": "Match Setup HUD",
+          "clip": true,
+          "width": 1440,
+          "height": 900,
+          "fill": "#09090B",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "#27272A"
+          },
+          "layout": "vertical",
+          "gap": 24,
+          "padding": 32,
+          "children": [
+            {
+              "type": "frame",
+              "id": "pbr3l",
+              "name": "header",
+              "width": "fill_container",
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "gbkhU",
+                  "name": "title",
+                  "layout": "vertical",
+                  "gap": 8,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "StIkN",
+                      "fill": "#FAFAFA",
+                      "content": "MATCH SETUP",
+                      "fontFamily": "Inter",
+                      "fontSize": 24,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "4lcE9",
+                      "fill": "#A1A1AA",
+                      "content": "Lock the facility, difficulty, and quota in one pass.",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "ZQ7s6",
+                  "fill": "#18181B",
+                  "cornerRadius": 8,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#27272A"
+                  },
+                  "padding": [
+                    10,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "gHC5C",
+                      "fill": "#FCD34D",
+                      "content": "MVP CYCLE 01",
+                      "fontFamily": "JetBrains Mono",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "uYQhr",
+              "name": "body",
+              "width": "fill_container",
+              "height": "fill_container",
+              "gap": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "t4tsP",
+                  "name": "left",
+                  "width": 820,
+                  "height": "fill_container",
+                  "layout": "vertical",
+                  "gap": 16,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "qVLnl",
+                      "name": "diff",
+                      "width": "fill_container",
+                      "fill": "#18181B",
+                      "cornerRadius": 12,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "#27272A"
+                      },
+                      "layout": "vertical",
+                      "gap": 12,
+                      "padding": 20,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "4XKLj",
+                          "fill": "#FAFAFA",
+                          "content": "DIFFICULTY",
+                          "fontFamily": "Inter",
+                          "fontSize": 18,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "2o6Wj",
+                          "name": "row",
+                          "width": "fill_container",
+                          "gap": 12,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "8JIzt",
+                              "width": "fill_container",
+                              "fill": "#FCD34D",
+                              "cornerRadius": 8,
+                              "layout": "vertical",
+                              "gap": 8,
+                              "padding": 16,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "mt6QO",
+                                  "fill": "#18181B",
+                                  "content": "STANDARD",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 14,
+                                  "fontWeight": "600"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "oU784",
+                                  "fill": "#453B14",
+                                  "content": "Best fit for the MVP demo",
+                                  "fontFamily": "JetBrains Mono",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "4HIOg",
+                              "width": "fill_container",
+                              "fill": "#111114",
+                              "cornerRadius": 8,
+                              "stroke": {
+                                "align": "inside",
+                                "thickness": 1,
+                                "fill": "#27272A"
+                              },
+                              "layout": "vertical",
+                              "gap": 8,
+                              "padding": 16,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "YeY6s",
+                                  "fill": "#FAFAFA",
+                                  "content": "HARD",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 14,
+                                  "fontWeight": "600"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "kj13u",
+                                  "fill": "#71717A",
+                                  "content": "Higher threat and quota",
+                                  "fontFamily": "JetBrains Mono",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "QsAfI",
+                              "width": "fill_container",
+                              "fill": "#111114",
+                              "cornerRadius": 8,
+                              "stroke": {
+                                "align": "inside",
+                                "thickness": 1,
+                                "fill": "#27272A"
+                              },
+                              "layout": "vertical",
+                              "gap": 8,
+                              "padding": 16,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "fTK3z",
+                                  "fill": "#71717A",
+                                  "content": "ENDLESS",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 14,
+                                  "fontWeight": "500"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "R4ScZ",
+                                  "fill": "#71717A",
+                                  "content": "Not included in MVP",
+                                  "fontFamily": "JetBrains Mono",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "wqn6x",
+                      "name": "map",
+                      "width": "fill_container",
+                      "fill": "#18181B",
+                      "cornerRadius": 12,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "#27272A"
+                      },
+                      "layout": "vertical",
+                      "gap": 12,
+                      "padding": 20,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "uk9wA",
+                          "fill": "#FAFAFA",
+                          "content": "FACILITY",
+                          "fontFamily": "Inter",
+                          "fontSize": 18,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "9g3po",
+                          "width": "fill_container",
+                          "fill": "#111114",
+                          "cornerRadius": 8,
+                          "padding": [
+                            16,
+                            18
+                          ],
+                          "justifyContent": "space_between",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "LWtem",
+                              "fill": "#FAFAFA",
+                              "content": "MINE-09",
+                              "fontFamily": "JetBrains Mono",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "J7ITf",
+                              "fill": "#FCD34D",
+                              "content": "SHORT / LOW COMPLEXITY",
+                              "fontFamily": "JetBrains Mono",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "8pJu5",
+                          "fill": "#A1A1AA",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Use one recommended map for MVP: compact route, one reliable scrap loop, one strong monster pressure point, and a clear extraction return path.",
+                          "lineHeight": 1.5,
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "peEAT",
+                  "name": "right",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "layout": "vertical",
+                  "gap": 16,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "B6X7u",
+                      "name": "summary",
+                      "width": "fill_container",
+                      "fill": "#18181B",
+                      "cornerRadius": 12,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "#27272A"
+                      },
+                      "layout": "vertical",
+                      "gap": 16,
+                      "padding": 24,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "J1d0U",
+                          "fill": "#FAFAFA",
+                          "content": "RUN SUMMARY",
+                          "fontFamily": "Inter",
+                          "fontSize": 20,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "text",
+                          "id": "q0hCU",
+                          "fill": "#FCD34D",
+                          "content": "$ 1,200",
+                          "fontFamily": "Inter",
+                          "fontSize": 36,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "Brwwk",
+                          "fill": "#A1A1AA",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Target quota\nOne major hostile patrol\nReturn to entry elevator to extract",
+                          "lineHeight": 1.6,
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "97AA2",
+                      "name": "actions",
+                      "width": "fill_container",
+                      "gap": 16,
+                      "justifyContent": "end",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "Esli9",
+                          "width": 152,
+                          "height": 44,
+                          "fill": "#18181B",
+                          "cornerRadius": 8,
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1,
+                            "fill": "#27272A"
+                          },
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "Q4aAU",
+                              "fill": "#FAFAFA",
+                              "content": "BACK",
+                              "fontFamily": "Inter",
+                              "fontSize": 14,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "AIibI",
+                          "width": 176,
+                          "height": 44,
+                          "fill": "#FCD34D",
+                          "cornerRadius": 8,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "dOORw",
+                              "fill": "#18181B",
+                              "content": "CONFIRM & DEPLOY",
+                              "fontFamily": "Inter",
+                              "fontSize": 14,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "NWMR7",
+          "x": 4640,
+          "y": 70,
+          "name": "Core Gameplay HUD",
+          "clip": true,
+          "width": 1440,
+          "height": 900,
+          "fill": "#09090B",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "#27272A"
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "frame",
+              "id": "KNEKT",
+              "x": 160,
+              "y": 120,
+              "width": 420,
+              "height": 260,
+              "fill": "#111114",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "none"
+            },
+            {
+              "type": "frame",
+              "id": "geOMf",
+              "x": 910,
+              "y": 214,
+              "width": 260,
+              "height": 180,
+              "fill": "#111114",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "none"
+            },
+            {
+              "type": "frame",
+              "id": "JsVGf",
+              "x": 32,
+              "y": 32,
+              "name": "obj",
+              "width": 360,
+              "fill": "#18181B",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 20,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "44DNi",
+                  "fill": "#FCD34D",
+                  "content": "CURRENT OBJECTIVE",
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "z5aP8",
+                  "fill": "#FAFAFA",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Scout east wing, collect scrap, avoid prolonged contact, and return once quota is secured.",
+                  "lineHeight": 1.4,
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "6lmFw",
+              "x": 610,
+              "y": 32,
+              "name": "quota",
+              "width": 220,
+              "fill": "#18181B",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "vertical",
+              "gap": 8,
+              "padding": 20,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "wKzZa",
+                  "fill": "#A1A1AA",
+                  "content": "TEAM VALUE",
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "fik2q",
+                  "fill": "#FCD34D",
+                  "content": "$ 860 / 1200",
+                  "fontFamily": "Inter",
+                  "fontSize": 24,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "CtDxE",
+              "x": 1096,
+              "y": 32,
+              "name": "crew",
+              "width": 312,
+              "fill": "#18181B",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 20,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ywSvH",
+                  "fill": "#FAFAFA",
+                  "content": "CREW LINK",
+                  "fontFamily": "Inter",
+                  "fontSize": 18,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "ef8au",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 8,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "QETyL",
+                      "width": "fill_container",
+                      "justifyContent": "space_between",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "XBFIj",
+                          "fill": "#FAFAFA",
+                          "content": "RAY",
+                          "fontFamily": "JetBrains Mono",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "NDZTL",
+                          "fill": "#86EFAC",
+                          "content": "SAFE",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "0K90W",
+                      "width": "fill_container",
+                      "justifyContent": "space_between",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "fNaxa",
+                          "fill": "#FAFAFA",
+                          "content": "DONG",
+                          "fontFamily": "JetBrains Mono",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "jB4Hp",
+                          "fill": "#FCD34D",
+                          "content": "INSIDE",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "m5RVM",
+                      "width": "fill_container",
+                      "justifyContent": "space_between",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "IddUU",
+                          "fill": "#FAFAFA",
+                          "content": "GUEST-03",
+                          "fontFamily": "JetBrains Mono",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "z2sBh",
+                          "fill": "#F97316",
+                          "content": "LOST COMMS",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "AxB1x",
+              "x": 32,
+              "y": 820,
+              "name": "vitals",
+              "width": 360,
+              "fill": "#18181B",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "gap": 32,
+              "padding": [
+                16,
+                20
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "TGVLO",
+                  "layout": "vertical",
+                  "gap": 4,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "dLuOA",
+                      "fill": "#71717A",
+                      "content": "HP",
+                      "fontFamily": "JetBrains Mono",
+                      "fontSize": 10,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "PuDoJ",
+                      "fill": "#FAFAFA",
+                      "content": "76",
+                      "fontFamily": "Inter",
+                      "fontSize": 24,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "mhWT1",
+                  "layout": "vertical",
+                  "gap": 4,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "8pYVg",
+                      "fill": "#71717A",
+                      "content": "STAMINA",
+                      "fontFamily": "JetBrains Mono",
+                      "fontSize": 10,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "RQxkm",
+                      "fill": "#FAFAFA",
+                      "content": "54%",
+                      "fontFamily": "Inter",
+                      "fontSize": 24,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "LYQ5C",
+                  "layout": "vertical",
+                  "gap": 4,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "1bK6u",
+                      "fill": "#71717A",
+                      "content": "LOAD",
+                      "fontFamily": "JetBrains Mono",
+                      "fontSize": 10,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "jYo1M",
+                      "fill": "#FAFAFA",
+                      "content": "38 KG",
+                      "fontFamily": "Inter",
+                      "fontSize": 24,
+                      "fontWeight": "600"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "I6O9A",
+              "x": 504,
+              "y": 828,
+              "width": 430,
+              "height": 44,
+              "fill": "#FCD34D",
+              "cornerRadius": 8,
+              "padding": [
+                0,
+                16
+              ],
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "rMEUd",
+                  "fill": "#18181B",
+                  "content": "E",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "UUCnC",
+                  "fill": "#18181B",
+                  "content": "PICK UP METAL VALVE // +$180",
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "pgQqW",
+              "x": 1072,
+              "y": 808,
+              "name": "quick",
+              "width": 336,
+              "fill": "#18181B",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "gap": 12,
+              "padding": 12,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "7aRPm",
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "jxiLW",
+                      "width": 66,
+                      "height": 66,
+                      "fill": "#111114",
+                      "cornerRadius": 8,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "#FCD34D"
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "UHiWe",
+                          "fill": "#FAFAFA",
+                          "content": "1\nFLASH",
+                          "fontFamily": "JetBrains Mono",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "qpgrq",
+                      "width": 66,
+                      "height": 66,
+                      "fill": "#111114",
+                      "cornerRadius": 8,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "#27272A"
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "TchAY",
+                          "fill": "#FAFAFA",
+                          "content": "2\nSCRAP",
+                          "fontFamily": "JetBrains Mono",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "zLAkY",
+                      "width": 66,
+                      "height": 66,
+                      "fill": "#111114",
+                      "cornerRadius": 8,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "#27272A"
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "MyVos",
+                          "fill": "#71717A",
+                          "content": "3\nEMPTY",
+                          "fontFamily": "JetBrains Mono",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "QahJb",
+                      "width": 66,
+                      "height": 66,
+                      "fill": "#111114",
+                      "cornerRadius": 8,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "#27272A"
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Gj7nG",
+                          "fill": "#71717A",
+                          "content": "4\nEMPTY",
+                          "fontFamily": "JetBrains Mono",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "JN8S4",
+              "x": 1142,
+              "y": 328,
+              "width": 266,
+              "fill": "#27140A",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#7C2D12"
+              },
+              "layout": "vertical",
+              "gap": 8,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "fmtJg",
+                  "fill": "#FDBA74",
+                  "content": "WARNING",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "8vmNf",
+                  "fill": "#FED7AA",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Audio spike detected in adjacent room.",
+                  "lineHeight": 1.4,
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "G4Xcg",
+          "x": 6160,
+          "y": 70,
+          "name": "Info Panel HUD",
+          "clip": true,
+          "width": 1440,
+          "height": 900,
+          "fill": "#09090B",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "#27272A"
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "frame",
+              "id": "INWsr",
+              "x": 120,
+              "y": 140,
+              "width": 340,
+              "height": 220,
+              "fill": "#111114",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "none"
+            },
+            {
+              "type": "frame",
+              "id": "TsIC7",
+              "x": 980,
+              "y": 240,
+              "width": 220,
+              "height": 150,
+              "fill": "#111114",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "none"
+            },
+            {
+              "type": "frame",
+              "id": "XbtQk",
+              "x": 0,
+              "y": 0,
+              "width": 1440,
+              "height": 900,
+              "fill": "#050507cc",
+              "layout": "none"
+            },
+            {
+              "type": "frame",
+              "id": "qXMi7",
+              "x": 188,
+              "y": 108,
+              "name": "panel",
+              "width": 1064,
+              "height": 684,
+              "fill": "#18181B",
+              "cornerRadius": 16,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "none",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "nMIRS",
+                  "x": 0,
+                  "y": 0,
+                  "name": "head",
+                  "width": 1064,
+                  "height": 80,
+                  "fill": "#111114",
+                  "cornerRadius": 16,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#27272A"
+                  },
+                  "padding": [
+                    0,
+                    24
+                  ],
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "adIsA",
+                      "fill": "#FAFAFA",
+                      "content": "RUN INTEL / CREW STATUS",
+                      "fontFamily": "Inter",
+                      "fontSize": 20,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "CvInZ",
+                      "fill": "#18181B",
+                      "cornerRadius": 8,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "#27272A"
+                      },
+                      "padding": [
+                        10,
+                        14
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "YAzUv",
+                          "fill": "#A1A1AA",
+                          "content": "TAB TO CLOSE",
+                          "fontFamily": "JetBrains Mono",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "e8ih6",
+                  "x": 24,
+                  "y": 104,
+                  "name": "tabs",
+                  "width": 1016,
+                  "fill": "#111114",
+                  "cornerRadius": 12,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#27272A"
+                  },
+                  "gap": 12,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "eFUQ5",
+                      "fill": "#FCD34D",
+                      "cornerRadius": 8,
+                      "padding": [
+                        10,
+                        16
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "KbOc4",
+                          "fill": "#18181B",
+                          "content": "INFO",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "0DEqq",
+                      "fill": "#18181B",
+                      "cornerRadius": 8,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "#27272A"
+                      },
+                      "padding": [
+                        10,
+                        16
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "erTlm",
+                          "fill": "#FAFAFA",
+                          "content": "CHARACTER",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "xjpxq",
+                  "x": 24,
+                  "y": 172,
+                  "name": "infoCol",
+                  "width": 576,
+                  "fill": "#111114",
+                  "cornerRadius": 12,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#27272A"
+                  },
+                  "layout": "vertical",
+                  "gap": 16,
+                  "padding": 24,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Z7mV7",
+                      "fill": "#FAFAFA",
+                      "content": "MISSION INFO",
+                      "fontFamily": "Inter",
+                      "fontSize": 18,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "c9eoR",
+                      "fill": "#A1A1AA",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Reach quota and extract all surviving crew. Search east wing first, prioritize medium-value scrap, and avoid long chase routes that break team spacing.",
+                      "lineHeight": 1.6,
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "MxL8I",
+                      "width": "fill_container",
+                      "fill": "#18181B",
+                      "cornerRadius": 12,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "#27272A"
+                      },
+                      "layout": "vertical",
+                      "gap": 12,
+                      "padding": 20,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "OMwK8",
+                          "fill": "#FCD34D",
+                          "content": "DISCOVERIES",
+                          "fontFamily": "JetBrains Mono",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "1oQJK",
+                          "fill": "#A1A1AA",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "- Main patrol heard near east corridor\n- One valve worth +$180 marked for pickup\n- Exit route remains stable",
+                          "lineHeight": 1.6,
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "tIdaY",
+                  "x": 624,
+                  "y": 172,
+                  "name": "charCol",
+                  "width": 416,
+                  "fill": "#111114",
+                  "cornerRadius": 12,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#27272A"
+                  },
+                  "layout": "vertical",
+                  "gap": 16,
+                  "padding": 24,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "wlj75",
+                      "fill": "#FAFAFA",
+                      "content": "CHARACTER STATUS",
+                      "fontFamily": "Inter",
+                      "fontSize": 18,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "bWlvd",
+                      "fill": "#FCD34D",
+                      "content": "DONG // SCAVENGER\nHP 76 / LOAD 38 KG / ACTIVE",
+                      "lineHeight": 1.7,
+                      "fontFamily": "JetBrains Mono",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "I6FdA",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 8,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "ByO7m",
+                          "width": "fill_container",
+                          "fill": "#18181B",
+                          "cornerRadius": 8,
+                          "padding": [
+                            12,
+                            16
+                          ],
+                          "justifyContent": "space_between",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "QoXF2",
+                              "fill": "#FAFAFA",
+                              "content": "FLASHLIGHT",
+                              "fontFamily": "JetBrains Mono",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "0L5Rr",
+                              "fill": "#A1A1AA",
+                              "content": "SLOT 1",
+                              "fontFamily": "JetBrains Mono",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "tzbIz",
+                          "width": "fill_container",
+                          "fill": "#18181B",
+                          "cornerRadius": 8,
+                          "padding": [
+                            12,
+                            16
+                          ],
+                          "justifyContent": "space_between",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "4eEWT",
+                              "fill": "#FAFAFA",
+                              "content": "METAL VALVE",
+                              "fontFamily": "JetBrains Mono",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "k3NOE",
+                              "fill": "#86EFAC",
+                              "content": "$180",
+                              "fontFamily": "JetBrains Mono",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "ZNNQy",
+                          "width": "fill_container",
+                          "fill": "#18181B",
+                          "cornerRadius": 8,
+                          "padding": [
+                            12,
+                            16
+                          ],
+                          "justifyContent": "space_between",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "nBKXh",
+                              "fill": "#71717A",
+                              "content": "EMPTY SLOT",
+                              "fontFamily": "JetBrains Mono",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "wNspb",
+                              "fill": "#71717A",
+                              "content": "--",
+                              "fontFamily": "JetBrains Mono",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "d6rIT",
+          "x": 80,
+          "y": 1160,
+          "name": "Scene HUD Preview",
+          "clip": true,
+          "width": 1366,
+          "height": 768,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "./assets/scene-mock.png",
+            "mode": "fill"
+          },
+          "layout": "none"
+        },
+        {
+          "type": "frame",
+          "id": "PfAH1",
+          "x": 7720,
+          "y": 70,
+          "name": "Inventory HUD V1",
+          "clip": true,
+          "width": 1440,
+          "height": 900,
+          "fill": "#09090B",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "#27272A"
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "frame",
+              "id": "lGhrW",
+              "x": 32,
+              "y": 32,
+              "name": "inventory-summary",
+              "width": 360,
+              "fill": "#18181B",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 20,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "jtZu1",
+                  "name": "summaryTitle",
+                  "fill": "#FCD34D",
+                  "content": "INVENTORY SUMMARY",
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "gSZK7",
+                  "name": "summaryBody",
+                  "fill": "#FAFAFA",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "6 items total // 12 KG carried // $412 salvage // capacity 15 KG",
+                  "lineHeight": 1.4,
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "XnD3W",
+              "x": 610,
+              "y": 32,
+              "name": "held-slot",
+              "width": 220,
+              "fill": "#18181B",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "vertical",
+              "gap": 8,
+              "padding": 20,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "skJlI",
+                  "name": "heldTitle",
+                  "fill": "#A1A1AA",
+                  "content": "HELD SLOT",
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "1uwNn",
+                  "name": "heldName",
+                  "fill": "#FCD34D",
+                  "content": "Signal Core",
+                  "fontFamily": "Inter",
+                  "fontSize": 24,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "Y09R4",
+                  "name": "heldMeta",
+                  "fill": "#FAFAFA",
+                  "content": "2 KG // $18",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "KgtN6",
+              "x": 32,
+              "y": 120,
+              "name": "backpack-list",
+              "width": 548,
+              "height": 356,
+              "fill": "#111114",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 20,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "kcJrD",
+                  "name": "backpackTitle",
+                  "fill": "#A1A1AA",
+                  "content": "BACKPACK LIST",
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "00WMW",
+                  "name": "backpackBody",
+                  "fill": "#FAFAFA",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "1 // Signal Core       2 KG // $18\n2 // Scrap Bolt        1 KG // $8\n3 // Reactor Shell     4 KG // $42",
+                  "lineHeight": 1.6,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "wPz0l",
+              "x": 1096,
+              "y": 32,
+              "name": "action-hints",
+              "width": 312,
+              "fill": "#18181B",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 20,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "R7jWF",
+                  "name": "actionsTitle",
+                  "fill": "#FAFAFA",
+                  "content": "ACTION HINTS",
+                  "fontFamily": "Inter",
+                  "fontSize": 18,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "2XAD6",
+                  "name": "actionsBody",
+                  "fill": "#FCD34D",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "1-3  Equip listed backpack items\nX    Unequip current held item\nAUTO Pickup always lands in backpack",
+                  "lineHeight": 1.6,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "lA5fo",
+              "x": 1118,
+              "y": 328,
+              "name": "state-feedback",
+              "width": 290,
+              "fill": "#27140A",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#7C2D12"
+              },
+              "layout": "vertical",
+              "gap": 8,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "wNfrU",
+                  "name": "feedbackTitle",
+                  "fill": "#FDBA74",
+                  "content": "STATE FEEDBACK",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "IkEq9",
+                  "name": "feedbackBody",
+                  "fill": "#FED7AA",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Over-capacity, missing item, and empty-hand states surface here without opening a separate menu.",
+                  "lineHeight": 1.4,
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "yPMGK",
+              "x": 32,
+              "y": 808,
+              "name": "inventory-metrics",
+              "width": 360,
+              "fill": "#18181B",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "vertical",
+              "gap": 8,
+              "padding": [
+                16,
+                20
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "1iGzH",
+                  "name": "metricsBody",
+                  "fill": "#FAFAFA",
+                  "content": "ITEMS 6    HELD 1    CAP 12 / 15 KG",
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 18,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Yg0ue",
+              "x": 464,
+              "y": 828,
+              "name": "equip-bar",
+              "width": 470,
+              "height": 44,
+              "fill": "#FCD34D",
+              "cornerRadius": 8,
+              "padding": [
+                0,
+                16
+              ],
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ejfeZ",
+                  "name": "equipKeys",
+                  "fill": "#18181B",
+                  "content": "1-3",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "QecNp",
+                  "name": "equipHint",
+                  "fill": "#18181B",
+                  "content": "EQUIP BACKPACK ITEM // X UNEQUIP HELD ITEM",
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "33i8d",
+              "x": 1034,
+              "y": 786,
+              "name": "quick-select",
+              "width": 374,
+              "fill": "#18181B",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#27272A"
+              },
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 12,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "vfRn0",
+                  "name": "quickTitle",
+                  "fill": "#A1A1AA",
+                  "content": "QUICK SELECT",
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "wegqw",
+                  "name": "quickBody",
+                  "fill": "#FAFAFA",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "1 // Signal Core\n2 // Scrap Bolt\n3 // Reactor Shell",
+                  "lineHeight": 1.6,
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
