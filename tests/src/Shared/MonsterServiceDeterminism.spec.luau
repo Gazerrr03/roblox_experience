@@ -189,4 +189,57 @@ return function()
     )
     assert(eventNames.TargetSwitch == true, 'Decision log should include target switch events')
     assert(eventNames.AttackResult == true, 'Decision log should include attack result events')
+
+    local zeroDtService = MonsterService.new(
+        runtimeProfile,
+        function()
+            return true
+        end,
+        nil,
+        nil,
+        {
+            AssetLoader = function()
+                return createMonsterModel()
+            end,
+            AutoUpdateOnHeartbeat = false,
+            DecisionLogLimit = 64,
+            EnemyFactory = function()
+                return {
+                    spawn = function() end,
+                    destroy = function() end,
+                    update = function(_, _dt, context)
+                        context.NextRandomInteger(1, 5, 'ZeroDtGuard')
+                        return {
+                            DesiredAnimation = 'Idle',
+                            DesiredAnimationSpeed = 1,
+                            NextPosition = context.CurrentPosition,
+                            ShouldPlayChaseLoop = false,
+                            State = 'Idle',
+                            TargetPlayer = nil,
+                        }
+                    end,
+                }
+            end,
+            LoadAnimationTrack = function()
+                return createTrack()
+            end,
+            RandomSeed = 555555,
+        }
+    )
+
+    zeroDtService:spawn({ Vector3.new(0, 0, 0) }, 1)
+    zeroDtService:update(0)
+    local zeroDtLog = zeroDtService:getDecisionLogSnapshot()
+    zeroDtService:destroy()
+
+    local zeroDtRollCount = 0
+    for _, entry in ipairs(zeroDtLog) do
+        if entry.Event == 'RandomRoll' then
+            zeroDtRollCount += 1
+        end
+    end
+    assert(
+        zeroDtRollCount == 0,
+        'dt=0 should not advance deterministic logic ticks or random roll sequence'
+    )
 end

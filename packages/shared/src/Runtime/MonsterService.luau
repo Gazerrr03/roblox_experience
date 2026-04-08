@@ -154,6 +154,7 @@ function MonsterService.new(
         LogicTickCount = 0,
         LastState = nil,
         LastTargetUserId = nil,
+        PendingVisualCFrame = nil,
         DecisionLogLimit = runtimeOptions.DecisionLogLimit or DEFAULT_DECISION_LOG_LIMIT,
         DecisionLog = {},
         DecisionLogSink = runtimeOptions.DecisionLogSink,
@@ -185,6 +186,7 @@ function MonsterService:destroy()
     self.LogicTickCount = 0
     self.LastState = nil
     self.LastTargetUserId = nil
+    self.PendingVisualCFrame = nil
     if self.EnemyRuntime then
         self.EnemyRuntime:destroy()
         self.EnemyRuntime = nil
@@ -516,6 +518,10 @@ function MonsterService:_resolveTargetUserId(targetPlayer)
         return nil
     end
 
+    if typeof(targetPlayer) == 'Instance' and targetPlayer:IsA('Player') then
+        return targetPlayer.UserId
+    end
+
     if type(targetPlayer) == 'table' and type(targetPlayer.UserId) == 'number' then
         return targetPlayer.UserId
     end
@@ -557,6 +563,7 @@ function MonsterService:spawn(patrolPoints, initialPatrolIndex)
     self.LogicTickCount = 0
     self.LastState = nil
     self.LastTargetUserId = nil
+    self.PendingVisualCFrame = nil
     self:clearDecisionLog()
 
     if #patrolPoints == 0 then
@@ -645,7 +652,7 @@ function MonsterService:_runLogicStep(dt)
         local facingCFrame = if travelOffset.Magnitude > 0
             then CFrame.lookAt(nextPosition, nextPosition + travelOffset.Unit)
             else currentRotation + nextPosition
-        self:_applyVisualCFrame(facingCFrame, dt)
+        self.PendingVisualCFrame = facingCFrame
 
         self:_setAnimationState(
             decision.DesiredAnimation or 'Idle',
@@ -653,6 +660,7 @@ function MonsterService:_runLogicStep(dt)
         )
         self:_setChaseLoopSoundPlaying(decision.ShouldPlayChaseLoop)
     else
+        self.PendingVisualCFrame = nil
         self:_setAnimationState('Idle', 1)
         self:_setChaseLoopSoundPlaying(false)
     end
@@ -665,7 +673,7 @@ function MonsterService:update(dt)
         return
     end
 
-    local elapsed = if type(dt) == 'number' and dt > 0 then dt else self.LogicTickSeconds
+    local elapsed = if type(dt) == 'number' and dt > 0 then dt else 0
     self.LogicAccumulator += elapsed
 
     local maxSteps = self.MaxLogicStepsPerUpdate
@@ -691,6 +699,10 @@ function MonsterService:update(dt)
             ExecutedSteps = executed,
             MaxStepsPerUpdate = maxSteps,
         })
+    end
+
+    if self.PendingVisualCFrame then
+        self:_applyVisualCFrame(self.PendingVisualCFrame, elapsed)
     end
 end
 
