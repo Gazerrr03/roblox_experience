@@ -5,3 +5,7 @@
 ## 2025-05-16 - [Spatial Hash Room Lookup]
 **Learning:** O(N) linear search for spatial queries (like `findRoomByPosition`) is a major bottleneck as the maze size grows. Using a grid-based spatial hash with bit-packed numeric keys (`bit32.bor`) provides O(1) average lookup and avoids string/Vector3 allocations. A 3x3 neighborhood search is required to maintain correctness when the detection radius approaches the cell size.
 **Action:** Implement a spatial hash for all position-based entity lookups in rendering or runtime logic. Use numeric bit-packed keys for grid coordinates to minimize GC pressure in Luau.
+
+## 2025-05-17 - [Hex Tiling Optimization]
+**Learning:** In high-frequency loops creating Roblox parts (e.g., `createHexTiledSlab`), intermediate `Vector3` allocations and repetitive trig/dot-product calculations for containment tests are major bottlenecks. Unrolling containment checks into a single numeric coordinate-based `if` block using pre-calculated side normals significantly reduces GC pressure.
+**Action:** Pre-calculate hex side normals and tangents at module initialization. Use primitive number arithmetic for geometric tests in loops. Pre-extract `Vector3` components into locals to avoid redundant additions and allocations inside construction loops.

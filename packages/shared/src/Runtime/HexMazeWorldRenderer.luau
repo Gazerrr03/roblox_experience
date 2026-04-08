@@ -32,6 +32,12 @@ local CONNECTOR_OVERLAP = 1
 local HEX_CIRCUMRADIUS_MULTIPLIER = 1 / math.cos(math.pi / 6)
 local SIDE_ANGLE_OFFSET_DEGREES = 0
 
+local HEX_SIDE_NORMALS = {}
+for i = 1, 6 do
+    local angle = math.rad((-(i - 1) * 60) + SIDE_ANGLE_OFFSET_DEGREES)
+    HEX_SIDE_NORMALS[i] = { math.cos(angle), math.sin(angle) }
+end
+
 local DEFAULT_SURFACE_PALETTE = table.freeze({
     WallMaterial = Enum.Material.Concrete,
     WallColor = Color3.fromRGB(116, 114, 110),
@@ -353,10 +359,10 @@ local function sideVectors(directionIndex)
     return normal, tangent
 end
 
-local function isInsideHex(offset, apothem)
-    for directionIndex = 1, 6 do
-        local normal = sideVectors(directionIndex)
-        if offset:Dot(normal) > apothem then
+local function isInsideHex(offsetX, offsetZ, apothem)
+    for i = 1, 6 do
+        local normal = HEX_SIDE_NORMALS[i]
+        if (offsetX * normal[1] + offsetZ * normal[2]) > apothem then
             return false
         end
     end
@@ -371,34 +377,27 @@ local function createHexTiledSlab(parent, name, center, apothem, yOffset, color,
 
     local radius = apothem * HEX_CIRCUMRADIUS_MULTIPLIER
     local halfTile = FLOOR_TILE_SIZE / 2
-    local maxOffset = math.ceil(radius / FLOOR_TILE_SIZE) * FLOOR_TILE_SIZE
+    local maxOffset = math_ceil(radius / FLOOR_TILE_SIZE) * FLOOR_TILE_SIZE
     local tileCount = 0
+
+    local cx, cy, cz = center.X, center.Y, center.Z
+    local yPos = cy + yOffset
+    local tileSize = Vector3.new(FLOOR_TILE_SIZE, SLAB_THICKNESS, FLOOR_TILE_SIZE)
 
     for x = -maxOffset, maxOffset, FLOOR_TILE_SIZE do
         for z = -maxOffset, maxOffset, FLOOR_TILE_SIZE do
-            local tileCenterOffset = Vector3.new(x, 0, z)
-            local cornersInside = true
-
-            for _, cornerX in ipairs({ -halfTile, halfTile }) do
-                for _, cornerZ in ipairs({ -halfTile, halfTile }) do
-                    local cornerOffset = tileCenterOffset + Vector3.new(cornerX, 0, cornerZ)
-                    if not isInsideHex(cornerOffset, apothem) then
-                        cornersInside = false
-                        break
-                    end
-                end
-
-                if not cornersInside then
-                    break
-                end
-            end
-
-            if cornersInside then
+            -- Optimization: Unrolled corner checks and no Vector3 allocations for hit-testing
+            if
+                isInsideHex(x - halfTile, z - halfTile, apothem)
+                and isInsideHex(x + halfTile, z - halfTile, apothem)
+                and isInsideHex(x - halfTile, z + halfTile, apothem)
+                and isInsideHex(x + halfTile, z + halfTile, apothem)
+            then
                 tileCount += 1
                 createPart({
-                    Name = string.format('%sTile_%d', name, tileCount),
-                    Size = Vector3.new(FLOOR_TILE_SIZE, SLAB_THICKNESS, FLOOR_TILE_SIZE),
-                    CFrame = CFrame.new(center + tileCenterOffset + Vector3.new(0, yOffset, 0)),
+                    Name = name .. 'Tile_' .. tileCount,
+                    Size = tileSize,
+                    CFrame = CFrame.new(cx + x, yPos, cz + z),
                     Color = color,
                     Material = material,
                 }, slabFolder)
