@@ -17,6 +17,9 @@ local SEMANTIC_FIELDS = table.freeze({
     CounterplayIntent = true,
 })
 local TUNING_FIELDS = table.freeze({
+    AttackCooldownSeconds = true,
+    AttackDamagePips = true,
+    AttackRange = true,
     Speed = true,
     SightRange = true,
     PatrolSpeedMultiplier = true,
@@ -226,6 +229,27 @@ function MonsterAuthorProfile.validate(profile)
 
     if type(tuning.PatrolSpeedMultiplier) ~= 'number' or tuning.PatrolSpeedMultiplier <= 0 then
         return false, 'InvalidPatrolSpeedMultiplier'
+    end
+
+    if
+        tuning.AttackRange ~= nil
+        and (type(tuning.AttackRange) ~= 'number' or tuning.AttackRange <= 0)
+    then
+        return false, 'InvalidAttackRange'
+    end
+
+    if tuning.AttackCooldownSeconds ~= nil then
+        if type(tuning.AttackCooldownSeconds) ~= 'number' or tuning.AttackCooldownSeconds <= 0 then
+            return false, 'InvalidAttackCooldownSeconds'
+        end
+    end
+
+    if
+        tuning.AttackDamagePips ~= nil
+        and tuning.AttackDamagePips ~= 1
+        and tuning.AttackDamagePips ~= 2
+    then
+        return false, 'InvalidAttackDamagePips'
     end
 
     if tuning.SpawnOffset ~= nil and typeof(tuning.SpawnOffset) ~= 'Vector3' then

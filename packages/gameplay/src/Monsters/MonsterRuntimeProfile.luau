@@ -10,6 +10,10 @@ local function isPositiveNumber(value)
     return type(value) == 'number' and value > 0
 end
 
+local function isValidDamagePips(value)
+    return value == 1 or value == 2
+end
+
 local function readComponentTable(profile, name)
     local components = profile.Components
     if components == nil then
@@ -125,6 +129,9 @@ function MonsterRuntimeProfile.validate(profile)
         then
             return false, 'InvalidRuntimeComponentAttackCooldown'
         end
+        if attackConfig.DamagePips ~= nil and not isValidDamagePips(attackConfig.DamagePips) then
+            return false, 'InvalidRuntimeComponentAttackDamagePips'
+        end
     end
 
     local runtimeSpeed = profile.Speed
@@ -157,6 +164,39 @@ function MonsterRuntimeProfile.validate(profile)
     end
     if typeof(runtimeSpawnOffset) ~= 'Vector3' then
         return false, 'InvalidRuntimeSpawnOffset'
+    end
+
+    local runtimeAttackRange = profile.AttackRange
+    if runtimeAttackRange == nil and attackConfig then
+        runtimeAttackRange = attackConfig.Range
+    end
+    if runtimeAttackRange == nil then
+        runtimeAttackRange = 4
+    end
+    if not isPositiveNumber(runtimeAttackRange) then
+        return false, 'InvalidRuntimeAttackRange'
+    end
+
+    local runtimeAttackCooldownSeconds = profile.AttackCooldownSeconds
+    if runtimeAttackCooldownSeconds == nil and attackConfig then
+        runtimeAttackCooldownSeconds = attackConfig.CooldownSeconds
+    end
+    if runtimeAttackCooldownSeconds == nil then
+        runtimeAttackCooldownSeconds = 1
+    end
+    if not isPositiveNumber(runtimeAttackCooldownSeconds) then
+        return false, 'InvalidRuntimeAttackCooldownSeconds'
+    end
+
+    local runtimeAttackDamagePips = profile.AttackDamagePips
+    if runtimeAttackDamagePips == nil and attackConfig then
+        runtimeAttackDamagePips = attackConfig.DamagePips
+    end
+    if runtimeAttackDamagePips == nil then
+        runtimeAttackDamagePips = 1
+    end
+    if not isValidDamagePips(runtimeAttackDamagePips) then
+        return false, 'InvalidRuntimeAttackDamagePips'
     end
 
     if type(profile.Behaviors) ~= 'table' then
