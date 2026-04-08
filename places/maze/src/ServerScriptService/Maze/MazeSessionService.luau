@@ -367,7 +367,9 @@ function MazeSessionService:_spawnQueuedUgcMonsters()
             end
 
             return self.World.CanTraverseBetweenPositions(fromPosition, toPosition)
-        end)
+        end, {
+            RandomSeed = randomSeed,
+        })
         ugcMonsterService:spawn(patrolPoints, initialPatrolIndex)
 
         table.insert(self.UgcMonsterServices, {
@@ -416,13 +418,15 @@ function MazeSessionService.new(options)
             monsterRuntimeProfile,
             isExpeditionActiveCallback,
             canTargetPlayerCallback,
-            canTraverseCallback
+            canTraverseCallback,
+            monsterRuntimeOptions
         )
             return MonsterService.new(
                 monsterRuntimeProfile,
                 isExpeditionActiveCallback,
                 canTargetPlayerCallback,
-                canTraverseCallback
+                canTraverseCallback,
+                monsterRuntimeOptions
             )
         end
     self.MonsterService = self.MonsterServiceFactory(
@@ -439,7 +443,10 @@ function MazeSessionService.new(options)
             end
 
             return self.World.CanTraverseBetweenPositions(fromPosition, toPosition)
-        end
+        end,
+        {
+            RandomSeed = self.SessionData.Seed,
+        }
     )
     self.UgcMonsterServices = {}
     self.PendingUgcMonsterPayloads = {}
@@ -586,6 +593,12 @@ function MazeSessionService:_ensureAuthoritativeSessionSeed()
     self.SessionData.Seed = seed
     if issuedNewSeed then
         self.HasAuthoritativeSessionSeed = true
+    end
+end
+
+function MazeSessionService:_syncMonsterDeterminismSeed()
+    if self.MonsterService and self.MonsterService.setDeterministicSeed then
+        self.MonsterService:setDeterministicSeed(self.SessionData.Seed)
     end
 end
 
@@ -1532,6 +1545,7 @@ function MazeSessionService:start()
             local mergedBeforeBuild = self:_awaitInitialTeleportData()
             self:_setBootPhase('EnsureAuthoritativeSeed')
             self:_ensureAuthoritativeSessionSeed()
+            self:_syncMonsterDeterminismSeed()
             self:_emitDiagnostic('InitialSeedResolution', {
                 HasAcceptedTeleportData = self.HasAcceptedTeleportData,
                 HasAuthoritativeSessionSeed = self.HasAuthoritativeSessionSeed,
