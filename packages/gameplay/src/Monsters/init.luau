@@ -1,6 +1,9 @@
 local MonsterCompiler = require(script.MonsterCompiler)
 
 return {
+    Enemy = require(script.Enemy),
+    EnemyBlackboard = require(script.EnemyBlackboard),
+    EnemyStateMachine = require(script.EnemyStateMachine),
     MonsterAuthorProfile = require(script.MonsterAuthorProfile),
     MonsterBehaviorCatalog = require(script.MonsterBehaviorCatalog),
     MonsterCompiler = MonsterCompiler,
