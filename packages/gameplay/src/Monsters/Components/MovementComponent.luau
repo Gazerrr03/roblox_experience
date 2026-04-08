@@ -11,6 +11,12 @@ end
 function MovementComponent:init(_blackboard) end
 
 function MovementComponent:update(blackboard, dt)
+    local componentConfig = blackboard.Context.ComponentConfig
+    local movementConfig = if type(componentConfig) == 'table'
+            and type(componentConfig.Movement) == 'table'
+        then componentConfig.Movement
+        else {}
+
     local currentPosition = blackboard.Context.CurrentPosition
     if typeof(currentPosition) ~= 'Vector3' then
         blackboard.Transient.NextPosition = nil
@@ -31,8 +37,12 @@ function MovementComponent:update(blackboard, dt)
         and behaviors[MonsterBehaviorCatalog.Behavior.Chase]
         and typeof(targetPosition) == 'Vector3'
     then
-        nextPosition =
-            MonsterLogic.stepToward(currentPosition, targetPosition, blackboard.Context.Speed, dt)
+        nextPosition = MonsterLogic.stepToward(
+            currentPosition,
+            targetPosition,
+            movementConfig.Speed or blackboard.Context.Speed,
+            dt
+        )
     elseif
         behaviors[MonsterBehaviorCatalog.Behavior.Patrol]
         and typeof(blackboard.Context.PatrolTargetPosition) == 'Vector3'
@@ -41,12 +51,14 @@ function MovementComponent:update(blackboard, dt)
         nextPosition = MonsterLogic.stepToward(
             currentPosition,
             patrolTarget,
-            blackboard.Context.Speed * blackboard.Context.PatrolSpeedMultiplier,
+            (movementConfig.Speed or blackboard.Context.Speed)
+                * (movementConfig.PatrolSpeedMultiplier or blackboard.Context.PatrolSpeedMultiplier),
             dt
         )
 
         if
-            (nextPosition - patrolTarget).Magnitude <= (blackboard.Context.PatrolReachDistance or 2)
+            (nextPosition - patrolTarget).Magnitude
+            <= (movementConfig.PatrolReachDistance or blackboard.Context.PatrolReachDistance or 2)
         then
             shouldAdvancePatrol = true
         end

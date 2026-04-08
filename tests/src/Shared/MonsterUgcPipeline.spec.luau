@@ -104,6 +104,16 @@ return function()
         'Out-of-range speed should be clamped into allowed tuning range'
     )
     assert(
+        generationResult.RuntimeProfile.Components.Movement.Speed
+            == generationResult.RuntimeProfile.Speed,
+        'UGC runtime output should map movement speed into component config'
+    )
+    assert(
+        generationResult.RuntimeProfile.Components.Perception.SightRange
+            == generationResult.RuntimeProfile.SightRange,
+        'UGC runtime output should map perception sight range into component config'
+    )
+    assert(
         generationResult.Diagnostics.SkippedBehaviorIds[1] == behaviorCatalog.Behavior.LoseTarget,
         'Known but non-maze behaviors should appear in compile skipped diagnostics'
     )

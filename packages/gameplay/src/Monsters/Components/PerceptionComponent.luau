@@ -11,6 +11,12 @@ end
 function PerceptionComponent:init(_blackboard) end
 
 function PerceptionComponent:update(blackboard, _dt)
+    local componentConfig = blackboard.Context.ComponentConfig
+    local perceptionConfig = if type(componentConfig) == 'table'
+            and type(componentConfig.Perception) == 'table'
+        then componentConfig.Perception
+        else {}
+
     local behaviors = blackboard.Context.Behaviors or {}
     if not behaviors[MonsterBehaviorCatalog.Behavior.SenseNearestTarget] then
         blackboard.Transient.HasTarget = false
@@ -28,7 +34,7 @@ function PerceptionComponent:update(blackboard, _dt)
     end
 
     local playerPositions = blackboard.Context.PlayerPositions or {}
-    local sightRange = blackboard.Context.SightRange
+    local sightRange = perceptionConfig.SightRange or blackboard.Context.SightRange
     local targetPlayer =
         MonsterLogic.pickNearestTarget(currentPosition, playerPositions, sightRange)
 

@@ -8,6 +8,7 @@ local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Gameplay = require(Packages:WaitForChild('Gameplay'))
 
 local MonsterBehaviorCatalog = Gameplay.Monsters.MonsterBehaviorCatalog
+local MonsterComponentConfig = Gameplay.Monsters.MonsterComponentConfig
 local Enemy = Gameplay.Monsters.Enemy
 local MonsterRuntimeProfile = Gameplay.Monsters.MonsterRuntimeProfile
 
@@ -114,6 +115,7 @@ function MonsterService.new(
         Connection = nil,
         LogicalPosition = nil,
         EnemyRuntime = nil,
+        ComponentConfig = MonsterComponentConfig.fromRuntimeProfile(monsterRuntimeProfile),
         Warn = runtimeOptions.Warn or defaultWarn,
         LoadMonsterModel = runtimeOptions.AssetLoader or defaultLoadMonsterModel,
         LoadAnimationTrack = runtimeOptions.LoadAnimationTrack or defaultLoadAnimationTrack,
@@ -421,7 +423,9 @@ function MonsterService:spawn(patrolPoints, initialPatrolIndex)
         self:_setAnimationState('Idle', 1)
     end
 
-    self.EnemyRuntime = self.EnemyFactory(self.Definition)
+    self.EnemyRuntime = self.EnemyFactory(self.Definition, {
+        ComponentConfig = self.ComponentConfig,
+    })
     if self.EnemyRuntime and self.EnemyRuntime.spawn then
         self.EnemyRuntime:spawn()
     end
@@ -459,6 +463,7 @@ function MonsterService:update(dt)
 
     local decision = self.EnemyRuntime:update(dt, {
         Behaviors = self.Definition.Behaviors,
+        ComponentConfig = self.ComponentConfig,
         CurrentPosition = currentPosition,
         PatrolReachDistance = 2,
         PatrolSpeedMultiplier = self.Definition.PatrolSpeedMultiplier,
