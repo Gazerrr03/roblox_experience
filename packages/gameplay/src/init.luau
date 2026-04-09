@@ -1,8 +1,9 @@
 return {
-    ControlState = require(script.ControlState),
     Config = require(script.Config),
+    ControlState = require(script.ControlState),
     Inventory = require(script.Inventory),
     Monsters = require(script.Monsters),
+    Player = require(script.Player),
     PlayerState = require(script.PlayerState),
     ProcGen = require(script.ProcGen),
     Roles = require(script.Roles),
