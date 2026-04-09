@@ -3,10 +3,6 @@ StaminaComponent.__index = StaminaComponent
 
 local DEFAULT_STAMINA_RECOVERY_DELAY_SECONDS = 1.5
 
-local function isPlayerDead(blackboard)
-    return blackboard and blackboard.Transient and blackboard.Transient.IsDead == true
-end
-
 function StaminaComponent.new()
     return setmetatable({}, StaminaComponent)
 end
@@ -18,8 +14,11 @@ function StaminaComponent:init(blackboard)
     self.CurrentStamina = self.MaxStamina
     self.DrainPerSecond = config.DrainPerSecond or 35
     self.RecoveryPerSecond = config.RecoveryPerSecond or 20
-    self.RecoveryDelaySeconds = config.RecoveryDelaySeconds
-        or DEFAULT_STAMINA_RECOVERY_DELAY_SECONDS
+<<<<<<< HEAD
+    self.RecoveryDelaySeconds = config.RecoveryDelaySeconds or DEFAULT_STAMINA_RECOVERY_DELAY_SECONDS
+=======
+    self.RecoveryDelaySeconds = config.RecoveryDelaySeconds or DEFAULT_STAMINA_RECOVERY_DELAY_SECONDS
+>>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
     self.ResumeThreshold = config.ResumeThreshold or 20
 
     self.StaminaRecoveryStartTime = 0
@@ -28,7 +27,11 @@ function StaminaComponent:init(blackboard)
 end
 
 function StaminaComponent:drainStamina(blackboard, amount)
-    if isPlayerDead(blackboard) then
+<<<<<<< HEAD
+    if self.IsDead then
+=======
+    if self.IsDead then
+>>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
         return false, 'Dead'
     end
 
@@ -44,7 +47,11 @@ function StaminaComponent:drainStamina(blackboard, amount)
 end
 
 function StaminaComponent:setSprinting(blackboard, isSprinting)
-    if isPlayerDead(blackboard) then
+<<<<<<< HEAD
+    if self.IsDead then
+=======
+    if self.IsDead then
+>>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
         self.IsSprinting = false
         return false, 'Dead'
     end
@@ -67,7 +74,11 @@ function StaminaComponent:update(blackboard, dt)
     local deltaTime = math.max(0, dt or 0)
     local now = os.clock()
 
-    if isPlayerDead(blackboard) then
+<<<<<<< HEAD
+    if self.IsDead then
+=======
+    if self.IsDead then
+>>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
         blackboard.Transient.CurrentStamina = self.CurrentStamina
         blackboard.Transient.MaxStamina = self.MaxStamina
         blackboard.Transient.CanSprint = false
@@ -84,8 +95,17 @@ function StaminaComponent:update(blackboard, dt)
             self.IsSprinting = false
         end
     elseif now >= self.StaminaRecoveryStartTime then
-        self.CurrentStamina =
-            math.min(self.MaxStamina, self.CurrentStamina + self.RecoveryPerSecond * deltaTime)
+<<<<<<< HEAD
+        self.CurrentStamina = math.min(
+            self.MaxStamina,
+            self.CurrentStamina + self.RecoveryPerSecond * deltaTime
+        )
+=======
+        self.CurrentStamina = math.min(
+            self.MaxStamina,
+            self.CurrentStamina + self.RecoveryPerSecond * deltaTime
+        )
+>>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
 
         if not self.CanSprint and self.CurrentStamina >= self.ResumeThreshold then
             self.CanSprint = true
