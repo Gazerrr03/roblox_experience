@@ -12,7 +12,11 @@ end
 
 function HealthComponent:init(blackboard)
     local config = blackboard.Context.ComponentConfig.Health
-    local maxHealthPips = (if config and config.MaxHealthPips then config.MaxHealthPips else 2)
+<<<<<<< HEAD
+    local maxHealthPips = if config and config.MaxHealthPips then config.MaxHealthPips else 2
+=======
+    local maxHealthPips = if config and config.MaxHealthPips then config.MaxHealthPips else 2
+>>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
 
     self.MaxHealthPips = maxHealthPips
     self.CurrentHealthPips = maxHealthPips
@@ -20,7 +24,11 @@ function HealthComponent:init(blackboard)
     self.CorpseActive = false
 end
 
-function HealthComponent:applyDamage(_blackboard, damageKind)
+<<<<<<< HEAD
+function HealthComponent:applyDamage(blackboard, damageKind)
+=======
+function HealthComponent:applyDamage(blackboard, damageKind)
+>>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
     local pipCost = DAMAGE_PIP_COST[damageKind]
     if pipCost == nil then
         return false, 'UnknownDamageKind'
@@ -36,7 +44,11 @@ function HealthComponent:applyDamage(_blackboard, damageKind)
     return true, self.CurrentHealthPips
 end
 
-function HealthComponent:update(blackboard, _dt)
+<<<<<<< HEAD
+function HealthComponent:update(blackboard, dt)
+=======
+function HealthComponent:update(blackboard, dt)
+>>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
     blackboard.Transient.CurrentHealthPips = self.CurrentHealthPips
     blackboard.Transient.MaxHealthPips = self.MaxHealthPips
     blackboard.Transient.IsDead = self.IsDead
