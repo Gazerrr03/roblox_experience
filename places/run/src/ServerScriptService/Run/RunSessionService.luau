@@ -14,6 +14,7 @@ local SessionSeedPolicy = Shared.Session.SessionSeedPolicy
 local ControlStateService = Shared.Runtime.ControlStateService
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local InventoryService = Shared.Runtime.InventoryService
+local PlayerService = Shared.Runtime.PlayerService
 local PlayerStateService = Shared.Runtime.PlayerStateService
 local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 
@@ -244,6 +245,7 @@ function RunSessionService.new()
     self.BookGoalAmount = BOOK_GOAL_AMOUNT
     self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
     self.ControlStateService = ControlStateService.new()
+    self.PlayerService = PlayerService.new()
     self.PlayerStateService = PlayerStateService.new()
 
     return self
@@ -253,16 +255,18 @@ function RunSessionService:_addPlayerState(player)
     self.InventoryService:addPlayer(player)
     self.ControlStateService:addPlayer(player)
     self.PlayerStateService:addPlayer(player)
+    self.PlayerService:addPlayer(player)
+    self:_setUgcGenerationState(player, UGC_STATUS.Idle, '')
 end
 
 function RunSessionService:_removePlayerState(player)
     self.InventoryService:removePlayer(player)
     self.ControlStateService:removePlayer(player)
-    self.PlayerStateService:removePlayer(player)
+    self.PlayerService:removePlayer(player)
 end
 
 function RunSessionService:_getMovementSummaryFor(player)
-    local playerState = self.PlayerStateService:getSummary(player)
+    local playerState = self.PlayerService:getSummary(player)
     local controlState = self.ControlStateService:getSummary(player)
     return FormalLocomotion.summarize(playerState, controlState)
 end
@@ -278,10 +282,10 @@ function RunSessionService:_applyMovementMode(player)
 end
 
 function RunSessionService:_syncPlayerMovement(player)
-    local playerState = self.PlayerStateService:getSummary(player)
+    local playerState = self.PlayerService:getSummary(player)
     local ok, controlState = self.ControlStateService:syncPlayerState(player, playerState)
     if ok and controlState then
-        self.PlayerStateService:setSprinting(
+        self.PlayerService:setSprinting(
             player,
             controlState.Mode == FormalLocomotion.Mode.Sprint
         )
@@ -799,6 +803,10 @@ function RunSessionService:_broadcastSnapshot()
     local bookSnapshot = self:_getBookSnapshot()
 
     for _, player in ipairs(Players:GetPlayers()) do
+        local playerSummary = self.PlayerService:getSummary(player)
+        local playerStateSummary = if playerSummary and playerSummary.PlayerState ~= nil
+            then playerSummary.PlayerState
+            else self.PlayerStateService:getSummary(player)
         self.Remotes.RunState:FireClient(player, {
             IsLaunched = self.IsLaunched,
             Status = self.Status,
@@ -820,7 +828,7 @@ function RunSessionService:_broadcastSnapshot()
             Inventory = self.InventoryService:getSummary(player),
             Movement = self:_getMovementSummaryFor(player),
             ControlState = self.ControlStateService:getSummary(player),
-            PlayerState = self.PlayerStateService:getSummary(player),
+            PlayerState = playerStateSummary,
         })
 
         self.Remotes.RunPrivateState:FireClient(player, nil)
@@ -1147,6 +1155,18 @@ function RunSessionService:_launchRun(_player)
     end
 end
 
+function RunSessionService:_getPlayerUpdateContext(player)
+    local character = player.Character
+    local humanoid = character and character:FindFirstChildOfClass('Humanoid')
+    local rootPart = humanoid and humanoid.RootPart
+    local currentPosition = rootPart and rootPart.Position or Vector3.zero
+
+    return {
+        CurrentPosition = currentPosition,
+        InputState = {},
+    }
+end
+
 function RunSessionService:_startSnapshotLoop()
     if self.SnapshotThread then
         return
@@ -1160,10 +1180,12 @@ function RunSessionService:_startSnapshotLoop()
 
             if self.IsLaunched then
                 local currentTick = os.clock()
-                self.PlayerStateService:step(currentTick - previousTick)
+                local dt = currentTick - previousTick
                 previousTick = currentTick
 
                 for _, player in ipairs(Players:GetPlayers()) do
+                    local context = self:_getPlayerUpdateContext(player)
+                    self.PlayerService:update(player, dt, context)
                     self:_syncPlayerMovement(player)
                 end
 
@@ -1180,7 +1202,7 @@ function RunSessionService:_setPlayerSprinting(player, isSprinting)
         return
     end
 
-    local playerState = self.PlayerStateService:getSummary(player)
+    local playerState = self.PlayerService:getSummary(player)
     local success, result
     if isSprinting then
         success, result = self.ControlStateService:requestSprintStart(player, playerState)

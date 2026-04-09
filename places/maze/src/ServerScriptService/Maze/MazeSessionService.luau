@@ -35,6 +35,7 @@ local MonsterService = require(SharedPackage:WaitForChild('Runtime'):WaitForChil
 local ControlStateService = Shared.Runtime.ControlStateService
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local PlayerStateService = Shared.Runtime.PlayerStateService
+local PlayerService = Shared.Runtime.PlayerService
 local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 
 local MazeBootstrapStatus = require(script.Parent.MazeBootstrapStatus)
@@ -432,6 +433,7 @@ function MazeSessionService.new(options)
     self.RunTracker = Gameplay.Session.MazeRunTracker.new()
     self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
     self.ControlStateService = ControlStateService.new()
+    self.PlayerService = PlayerService.new()
     self.PlayerStateService = PlayerStateService.new()
     self.MonsterServiceFactory = runtimeOptions.MonsterServiceFactory
         or function(
@@ -734,6 +736,7 @@ function MazeSessionService:_addPlayerState(player)
         Name = player.DisplayName,
     })
     self.ControlStateService:addPlayer(player)
+    self.PlayerService:addPlayer(player)
     self.PlayerStateService:addPlayer(player)
 end
 
@@ -744,11 +747,12 @@ function MazeSessionService:_removePlayerState(player)
         PreserveReturnSummary = true,
     })
     self.ControlStateService:removePlayer(player)
+    self.PlayerService:removePlayer(player)
     self.PlayerStateService:removePlayer(player)
 end
 
 function MazeSessionService:_getMovementSummaryFor(player)
-    local playerState = self.PlayerStateService:getSummary(player)
+    local playerState = self.PlayerService:getSummary(player)
     local controlState = self.ControlStateService:getSummary(player)
     return FormalLocomotion.summarize(playerState, controlState)
 end
@@ -764,10 +768,10 @@ function MazeSessionService:_applyMovementMode(player)
 end
 
 function MazeSessionService:_syncPlayerMovement(player)
-    local playerState = self.PlayerStateService:getSummary(player)
+    local playerState = self.PlayerService:getSummary(player)
     local ok, controlState = self.ControlStateService:syncPlayerState(player, playerState)
     if ok and controlState then
-        self.PlayerStateService:setSprinting(
+        self.PlayerService:setSprinting(
             player,
             controlState.Mode == FormalLocomotion.Mode.Sprint
         )
@@ -778,7 +782,7 @@ end
 
 function MazeSessionService:_clearPlayerMovement(player)
     self.ControlStateService:requestSprintStop(player)
-    self.PlayerStateService:setSprinting(player, false)
+    self.PlayerService:setSprinting(player, false)
     self:_applyMovementMode(player)
 end
 
@@ -858,7 +862,7 @@ function MazeSessionService:_broadcastSnapshot()
             Inventory = self.InventoryService:getSummary(player),
             Movement = self:_getMovementSummaryFor(player),
             ControlState = self.ControlStateService:getSummary(player),
-            PlayerState = self.PlayerStateService:getSummary(player),
+            PlayerState = self.PlayerService:getSummary(player).PlayerState,
             Roster = roster,
             SessionId = self.CampSession.SessionId,
             MazeAccessCode = self.CampSession.MazeAccessCode,
@@ -1051,7 +1055,7 @@ function MazeSessionService:_setPlayerSprinting(player, isSprinting)
         return
     end
 
-    local playerState = self.PlayerStateService:getSummary(player)
+    local playerState = self.PlayerService:getSummary(player)
     local success, result
     if isSprinting then
         success, result = self.ControlStateService:requestSprintStart(player, playerState)
@@ -1120,7 +1124,7 @@ function MazeSessionService:_handleUseTool(player)
         return
     end
 
-    local playerState = self.PlayerStateService:getSummary(player)
+    local playerState = self.PlayerService:getSummary(player).PlayerState
     if playerState.IsDead == true then
         self:_setStatus(string.format('%s cannot use tools while dead.', player.DisplayName))
         return
@@ -1298,7 +1302,7 @@ function MazeSessionService:_applyPlayerDamage(player, damageKind)
         return
     end
 
-    local success, summary = self.PlayerStateService:applyDamage(player, damageKind)
+    local success, summary = self.PlayerService:applyDamage(player, damageKind)
     if not success then
         self:_setStatus(
             string.format('%s could not take damage (%s).', player.DisplayName, tostring(summary))
@@ -1466,6 +1470,18 @@ function MazeSessionService:_launchMaze()
     self:_setBootPhase('Launched')
 end
 
+function MazeSessionService:_getPlayerUpdateContext(player)
+    local character = player.Character
+    local humanoid = character and character:FindFirstChildOfClass('Humanoid')
+    local rootPart = humanoid and humanoid.RootPart
+    local currentPosition = rootPart and rootPart.Position or Vector3.zero
+
+    return {
+        CurrentPosition = currentPosition,
+        InputState = {},
+    }
+end
+
 function MazeSessionService:_startSnapshotLoop()
     if self.SnapshotThread then
         return
@@ -1479,10 +1495,12 @@ function MazeSessionService:_startSnapshotLoop()
 
             if self.IsLaunched then
                 local currentTick = os.clock()
-                self.PlayerStateService:step(currentTick - previousTick)
+                local dt = currentTick - previousTick
                 previousTick = currentTick
 
                 for _, player in ipairs(Players:GetPlayers()) do
+                    local context = self:_getPlayerUpdateContext(player)
+                    self.PlayerService:update(player, dt, context)
                     self:_syncPlayerMovement(player)
                 end
 
