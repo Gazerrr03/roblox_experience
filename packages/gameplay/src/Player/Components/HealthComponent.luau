@@ -20,7 +20,7 @@ function HealthComponent:init(blackboard)
     self.CorpseActive = false
 end
 
-function HealthComponent:applyDamage(blackboard, damageKind)
+function HealthComponent:applyDamage(_blackboard, damageKind)
     local pipCost = DAMAGE_PIP_COST[damageKind]
     if pipCost == nil then
         return false, 'UnknownDamageKind'
