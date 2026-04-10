@@ -45,7 +45,7 @@ function MovementComponent:update(blackboard, dt)
 
         if distance > 0.1 then
             isMoving = true
-            local stepSize = math.min(moveSpeed * dt, distance)
+            local stepSize = math.min(moveSpeed * math.max(0, dt or 0), distance)
             nextPosition = currentPosition + (direction.Unit * stepSize)
         end
     end
