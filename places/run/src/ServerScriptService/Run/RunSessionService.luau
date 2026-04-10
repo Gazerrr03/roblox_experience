@@ -34,6 +34,10 @@ local RUN_MAZE_GATE_RETURN_REASONS = table.freeze({
     extracted = true,
 })
 
+local function isMazeGateReturnReason(returnReason)
+    return RUN_MAZE_GATE_RETURN_REASONS[returnReason] == true
+end
+
 local function resolvePendingSpawnCFrame(self, pendingSpawnValue)
     if typeof(pendingSpawnValue) == 'CFrame' then
         return pendingSpawnValue
@@ -334,7 +338,7 @@ function RunSessionService:_teleportCharactersToSpawn()
 end
 
 function RunSessionService:_getReturnSpawnCFrameForSummary(summary)
-    if RUN_MAZE_GATE_RETURN_REASONS[summary.ReturnReason] then
+    if isMazeGateReturnReason(summary.ReturnReason) then
         return self.World and self.World.MazeReturnCFrame or RunWorldBuilder.MazeReturnCFrame
     end
 
