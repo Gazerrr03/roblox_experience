@@ -53,10 +53,10 @@ function MovementComponent:update(blackboard, dt)
     self.IsMoving = isMoving
 
     blackboard.Transient.NextPosition = nextPosition
-    blackboard.Transient.DesiredAnimation = if isSprinting and isMoving
+    blackboard.Transient.DesiredAnimation = (if isSprinting and isMoving
         then 'Run'
         elseif isMoving then 'Walk'
-        else 'Idle'
+        else 'Idle')
     blackboard.Transient.IsMoving = isMoving
     blackboard.Transient.IsJumping = self.IsJumping
 end
