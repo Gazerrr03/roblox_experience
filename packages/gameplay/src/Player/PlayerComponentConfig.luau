@@ -12,12 +12,9 @@ local DEFAULT_JUMP_VELOCITY = 50
 local DEFAULT_INTERACTION_RANGE = 5
 local DEFAULT_SLOT_COUNT = 8
 
-local function getPositiveNumber(value, fallback, defaultValue)
+local function getPositiveNumber(value, defaultValue)
     if type(value) == 'number' and value > 0 then
         return value
-    end
-    if type(fallback) == 'number' and fallback > 0 then
-        return fallback
     end
     return defaultValue
 end
@@ -32,41 +29,36 @@ function PlayerComponentConfig.fromDefinition(definition)
 
     local componentConfig = {
         Health = table.freeze({
-            MaxHealthPips = getPositiveNumber(health.MaxHealthPips, nil, DEFAULT_MAX_HEALTH_PIPS),
+            MaxHealthPips = getPositiveNumber(health.MaxHealthPips, DEFAULT_MAX_HEALTH_PIPS),
         }),
         Stamina = table.freeze({
-            MaxStamina = getPositiveNumber(stamina.MaxStamina, nil, DEFAULT_MAX_STAMINA),
+            MaxStamina = getPositiveNumber(stamina.MaxStamina, DEFAULT_MAX_STAMINA),
             DrainPerSecond = getPositiveNumber(
                 stamina.DrainPerSecond,
-                nil,
                 DEFAULT_STAMINA_DRAIN_PER_SECOND
             ),
             RecoveryPerSecond = getPositiveNumber(
                 stamina.RecoveryPerSecond,
-                nil,
                 DEFAULT_STAMINA_RECOVERY_PER_SECOND
             ),
             RecoveryDelaySeconds = getPositiveNumber(
                 stamina.RecoveryDelaySeconds,
-                nil,
                 DEFAULT_STAMINA_RECOVERY_DELAY_SECONDS
             ),
             ResumeThreshold = getPositiveNumber(
                 stamina.ResumeThreshold,
-                nil,
                 DEFAULT_SPRINT_RESUME_THRESHOLD
             ),
         }),
         Movement = table.freeze({
-            MaxWalkSpeed = getPositiveNumber(movement.MaxWalkSpeed, nil, DEFAULT_WALK_SPEED),
-            MaxSprintSpeed = getPositiveNumber(movement.MaxSprintSpeed, nil, DEFAULT_SPRINT_SPEED),
-            JumpVelocity = getPositiveNumber(movement.JumpVelocity, nil, DEFAULT_JUMP_VELOCITY),
+            MaxWalkSpeed = getPositiveNumber(movement.MaxWalkSpeed, DEFAULT_WALK_SPEED),
+            MaxSprintSpeed = getPositiveNumber(movement.MaxSprintSpeed, DEFAULT_SPRINT_SPEED),
+            JumpVelocity = getPositiveNumber(movement.JumpVelocity, DEFAULT_JUMP_VELOCITY),
         }),
         Inventory = table.freeze({
-            SlotCount = getPositiveNumber(inventory.SlotCount, nil, DEFAULT_SLOT_COUNT),
+            SlotCount = getPositiveNumber(inventory.SlotCount, DEFAULT_SLOT_COUNT),
             InteractionRange = getPositiveNumber(
                 inventory.InteractionRange,
-                nil,
                 DEFAULT_INTERACTION_RANGE
             ),
         }),
