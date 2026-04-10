@@ -36,10 +36,11 @@ function PerceptionComponent:update(blackboard)
             self.PickNearestTarget(self.GetCurrentPosition(), playerPositions, self.SightRange)
     end
 
+    local previousTarget = blackboard.CurrentTarget
     local now = self.GetNow()
     blackboard:setTarget(targetPlayer, playerPositions[targetPlayer], now)
 
-    return targetPlayer ~= blackboard.PreviousTarget
+    return targetPlayer ~= previousTarget
 end
 
 return PerceptionComponent
