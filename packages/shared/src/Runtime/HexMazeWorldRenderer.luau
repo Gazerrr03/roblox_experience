@@ -409,7 +409,7 @@ local function createHexTiledSlab(parent, name, center, apothem, yOffset, color,
                 createPart({
                     Name = name .. 'Tile_' .. tileCount,
                     Size = Vector3_new(FLOOR_TILE_SIZE, SLAB_THICKNESS, FLOOR_TILE_SIZE),
-                    CFrame = CFrame_new(center + Vector3_new(x, yOffset, z)),
+                    CFrame = CFrame_new(center.X + x, center.Y + yOffset, center.Z + z),
                     Color = color,
                     Material = material,
                 }, slabFolder)
