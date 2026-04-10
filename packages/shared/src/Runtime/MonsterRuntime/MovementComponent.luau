@@ -52,7 +52,7 @@ function MovementComponent:update(context, blackboard, state, dt)
         )
         animationName = 'Walk'
 
-        if (nextPosition - patrolTarget).Magnitude <= 2 then
+        if (nextPosition - patrolTarget).Magnitude <= self.ArrivalThreshold then
             context.PatrolIndex = (context.PatrolIndex % #context.PatrolPoints) + 1
         end
     end
