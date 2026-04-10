@@ -35,7 +35,6 @@ local MOUSE_TOGGLE_KEY = Enum.KeyCode.LeftAlt
 local teamPages = 0
 local goalAmount = 120
 local goalProgress = 0
-local goalReached = false
 local inventorySummary = nil
 local activeShopItems = {}
 local activeSalvageItems = {}
@@ -774,7 +773,6 @@ Remotes.RunPrivateState.OnClientEvent:Connect(function(payload)
         if type(payload.BookGoalProgress) == 'number' then
             goalProgress = payload.BookGoalProgress
         end
-        goalReached = payload.BookGoalReached == true
         updatePageLabels()
         setActiveModal('Objective')
         return
@@ -859,8 +857,6 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
     if type(snapshot.BookGoalProgress) == 'number' then
         goalProgress = snapshot.BookGoalProgress
     end
-    goalReached = snapshot.BookGoalReached == true
-
     menuBackdrop.Visible = not hasLaunched
     syncCampPanelVisibility()
 
