@@ -1,6 +1,7 @@
 local MonsterBehaviorCatalog = require(script.Parent.MonsterBehaviorCatalog)
 local MonsterCompiler = require(script.Parent.MonsterCompiler)
 local MonsterEffectCatalog = require(script.Parent.MonsterEffectCatalog)
+local MonsterAssetIds = require(script.Parent.MonsterAssetIds)
 local MonsterPresentationCatalog = require(script.Parent.MonsterPresentationCatalog)
 
 local MonsterUgcPipeline = {}
@@ -29,8 +30,8 @@ MonsterUgcPipeline.TuningRange = table.freeze({
 })
 
 local DEFAULT_ASSET_IDS = table.freeze({
-    ModelAssetId = 4446576906,
-    ChaseLoopSoundAssetId = 9118823108,
+    ModelAssetId = MonsterAssetIds.DefaultModelAssetId,
+    ChaseLoopSoundAssetId = MonsterAssetIds.DefaultChaseLoopSoundAssetId,
 })
 
 local DEFAULT_PREFAB_ID = 'stalker-hunt'

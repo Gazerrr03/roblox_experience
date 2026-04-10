@@ -6,6 +6,7 @@ return function()
     local ugcPipeline = monsters.MonsterUgcPipeline
     local behaviorCatalog = monsters.MonsterBehaviorCatalog
     local effectCatalog = monsters.MonsterEffectCatalog
+    local monsterAssetIds = monsters.MonsterAssetIds
 
     local briefOk, waitingState = ugcPipeline.evaluateBrief({
         Goal = '',
@@ -46,8 +47,8 @@ return function()
         },
         Preferences = {
             Name = 'Scrap Whisper',
-            ModelAssetId = 4446576906,
-            ChaseLoopSoundAssetId = 9118823108,
+            ModelAssetId = monsterAssetIds.DefaultModelAssetId,
+            ChaseLoopSoundAssetId = monsterAssetIds.DefaultChaseLoopSoundAssetId,
             Tuning = {
                 Speed = 100,
                 SightRange = 34,

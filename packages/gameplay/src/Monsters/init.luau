@@ -6,6 +6,7 @@ return {
     EnemyBlackboard = require(script.EnemyBlackboard),
     EnemyStateMachine = require(script.EnemyStateMachine),
     MonsterAuthorProfile = require(script.MonsterAuthorProfile),
+    MonsterAssetIds = require(script.MonsterAssetIds),
     MonsterBehaviorCatalog = require(script.MonsterBehaviorCatalog),
     MonsterCompiler = MonsterCompiler,
     MonsterEffectCatalog = require(script.MonsterEffectCatalog),

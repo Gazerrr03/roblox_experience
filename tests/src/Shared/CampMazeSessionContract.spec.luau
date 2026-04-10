@@ -1,7 +1,9 @@
 return function()
     local ReplicatedStorage = game:GetService('ReplicatedStorage')
+    local gameplay = require(ReplicatedStorage:WaitForChild('Packages'):WaitForChild('Gameplay'))
     local shared = require(ReplicatedStorage:WaitForChild('Packages'):WaitForChild('Shared'))
     local contract = shared.Session.CampMazeSessionContract
+    local monsterAssetIds = gameplay.Monsters.MonsterAssetIds
 
     local campSession = contract.newCampSession({
         SessionId = 'camp-session-1',
@@ -82,10 +84,10 @@ return function()
                 Id = 'ugc-42-100',
                 Name = 'Scrap Whisper',
                 Presentation = {
-                    ModelAssetId = 4446576906,
+                    ModelAssetId = monsterAssetIds.DefaultModelAssetId,
                     RigType = 'R6',
                     AnimationMode = 'defaultR6',
-                    ChaseLoopSoundAssetId = 9118823108,
+                    ChaseLoopSoundAssetId = monsterAssetIds.DefaultChaseLoopSoundAssetId,
                 },
                 Speed = 14,
                 SightRange = 36,
@@ -129,7 +131,8 @@ return function()
     )
     assert(
         pendingUgcPayload.RuntimeProfile ~= nil
-            and pendingUgcPayload.RuntimeProfile.Presentation.ModelAssetId == 4446576906,
+            and pendingUgcPayload.RuntimeProfile.Presentation.ModelAssetId
+                == monsterAssetIds.DefaultModelAssetId,
         'Pending UGC payload should preserve runtime monster presentation data'
     )
 

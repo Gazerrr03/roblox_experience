@@ -48,6 +48,7 @@ local UGC_STATUS = table.freeze({
     Ready = 'Ready',
     Rejected = 'Rejected',
 })
+local MONSTER_ASSET_IDS = Gameplay.Monsters.MonsterAssetIds
 
 local ITEM_DEFINITION_BY_ID = {}
 for _, itemDef in ipairs(Gameplay.Config.Items) do
@@ -350,11 +351,13 @@ end
 function RunSessionService:_buildAssetValidator()
     return function(assetId, assetKind)
         if assetKind == 'ModelAssetId' then
-            return assetId == 4446576906, 'OnlyOfficialModelAssetAllowedInV1'
+            return assetId == MONSTER_ASSET_IDS.DefaultModelAssetId,
+                'OnlyOfficialModelAssetAllowedInV1'
         end
 
         if assetKind == 'ChaseLoopSoundAssetId' then
-            return assetId == 9118823108, 'OnlyOfficialSoundAssetAllowedInV1'
+            return assetId == MONSTER_ASSET_IDS.DefaultChaseLoopSoundAssetId,
+                'OnlyOfficialSoundAssetAllowedInV1'
         end
 
         return false, 'UnsupportedAssetKind'
