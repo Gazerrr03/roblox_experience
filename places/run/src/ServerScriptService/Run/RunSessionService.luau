@@ -28,6 +28,7 @@ local DEFAULT_WORKSPACE_SHELL_NAMES = { 'Baseplate', 'SpawnLocation' }
 local CAMP_SESSION_LOCK_WAIT_SECONDS = 0.05
 local MAZE_ENTRY_REQUEST_COOLDOWN_SECONDS = 0.35
 local MAZE_ENTRY_DISTANCE_BUFFER = 2
+local TERMINAL_INTERACTION_DISTANCE_BUFFER = 2
 local LOCAL_DEBUG_ROOM_DETECTION_RADIUS = 56
 local LOCAL_DEBUG_MAZE_RETURN_REASON = 'local_debug_return'
 local SNAPSHOT_INTERVAL_SECONDS = 0.25
@@ -664,6 +665,10 @@ function RunSessionService:_handlePurchase(player, itemId)
     if not self:_canManageInventory(player) then
         return
     end
+    if not self:_isPlayerNearTerminalPrompt(player, self.World and self.World.ShopPrompt) then
+        self:_toast(player, 'Move closer to the shop terminal.', 'Error')
+        return
+    end
 
     local itemDef = SHOP_ITEM_BY_ID[itemId]
     if not itemDef then
@@ -714,6 +719,10 @@ end
 
 function RunSessionService:_handleSell(player, itemInstanceId)
     if not self:_canManageInventory(player) then
+        return
+    end
+    if not self:_isPlayerNearTerminalPrompt(player, self.World and self.World.SellPrompt) then
+        self:_toast(player, 'Move closer to the salvage terminal.', 'Error')
         return
     end
 
@@ -1022,11 +1031,15 @@ function RunSessionService:_enterMaze(player)
 end
 
 function RunSessionService:_isPlayerNearMazePrompt(player)
-    if not self.World or not self.World.MazePrompt then
+    return self:_isPlayerNearTerminalPrompt(player, self.World and self.World.MazePrompt, MAZE_ENTRY_DISTANCE_BUFFER)
+end
+
+function RunSessionService:_isPlayerNearTerminalPrompt(player, prompt, distanceBuffer)
+    if not prompt then
         return false
     end
 
-    local promptPart = self.World.MazePrompt.Parent
+    local promptPart = prompt.Parent
     if not promptPart or not promptPart:IsA('BasePart') then
         return false
     end
@@ -1037,7 +1050,7 @@ function RunSessionService:_isPlayerNearMazePrompt(player)
         return false
     end
 
-    local maxDistance = self.World.MazePrompt.MaxActivationDistance + MAZE_ENTRY_DISTANCE_BUFFER
+    local maxDistance = prompt.MaxActivationDistance + (distanceBuffer or TERMINAL_INTERACTION_DISTANCE_BUFFER)
     return (rootPart.Position - promptPart.Position).Magnitude <= maxDistance
 end
 
