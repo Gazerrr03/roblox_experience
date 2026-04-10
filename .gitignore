@@ -10,7 +10,7 @@ tmp_*_latest_luau.log
 .aftman/
 
 # GDD generator output
-references/gdd-output/
+.claude/skills/gdd-generator/references/gdd-output/
 
 # Python venv for GDD generator skill
 .claude/skills/gdd-generator/venv/
