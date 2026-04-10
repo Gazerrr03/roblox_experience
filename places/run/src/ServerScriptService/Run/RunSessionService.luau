@@ -149,6 +149,10 @@ local function buildShopPayload()
     return payload
 end
 
+local function getSellPrice(itemEntry)
+    return math.max(1, math.floor((itemEntry.Value or 0) + 0.5))
+end
+
 local function buildSellPayload(inventorySummary)
     local items = {}
 
@@ -160,7 +164,7 @@ local function buildSellPayload(inventorySummary)
         table.insert(items, {
             InstanceId = itemEntry.InstanceId,
             Name = itemEntry.Name,
-            Price = math.max(1, math.floor((itemEntry.Value or 0) + 0.5)),
+            Price = getSellPrice(itemEntry),
             Color = itemEntry.Color,
         })
     end
@@ -744,7 +748,7 @@ function RunSessionService:_handleSell(player, itemInstanceId)
         return
     end
 
-    local reward = math.max(1, math.floor((removedItem.Value or 0) + 0.5))
+    local reward = getSellPrice(removedItem)
     local wasBelowGoal = self.TeamPages < self.BookGoalAmount
     self.TeamPages += reward
 
