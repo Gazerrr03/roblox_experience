@@ -5,6 +5,7 @@ Canonical registry of all 19 GDD sections with metadata for ordering,
 validation, and document generation. Import this in all generator scripts.
 """
 
+import re
 from typing import TypedDict, List, Optional
 
 
@@ -540,8 +541,6 @@ def validate_data_sensibility(content: dict, *, strict: bool = False) -> List[st
     Returns:
         List of warning strings about unsourced claims and placeholders.
     """
-    import re
-
     warnings = []
     business_sections = {
         "executive_summary", "monetization_strategy", "economy_design",
