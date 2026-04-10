@@ -449,7 +449,8 @@ shopTitle.Text = 'Temple Shop'
 local shopPageLabel = makeTextLabel(shopPanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
 shopPageLabel.Text = 'Team Pages: 0'
 
-local shopInventoryLabel = makeTextLabel(shopPanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
+local shopInventoryLabel =
+    makeTextLabel(shopPanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
 shopInventoryLabel.Text = 'Inventory: --'
 
 local shopItemsFrame = Instance.new('Frame')
@@ -607,13 +608,8 @@ local function renderSellItems()
     clearLayoutChildren(sellItemsFrame)
 
     if #activeSalvageItems == 0 then
-        local emptyLabel = makeTextLabel(
-            sellItemsFrame,
-            UDim2.new(1, 0, 0, 24),
-            Theme.SubtleText,
-            16,
-            false
-        )
+        local emptyLabel =
+            makeTextLabel(sellItemsFrame, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
         emptyLabel.Text = 'No salvage items available.'
         return
     end
@@ -956,7 +952,8 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
         table.insert(rosterLines, string.format('%s%s', rosterEntry.Name, marker))
     end
 
-    rosterLabel.Text = string.format('%s roster:\n', TEMPLE_LABEL) .. table.concat(rosterLines, '\n')
+    rosterLabel.Text = string.format('%s roster:\n', TEMPLE_LABEL)
+        .. table.concat(rosterLines, '\n')
 
     local mazeLines = {}
     local activeMazePlayers = snapshot.PlayersInMaze or {}

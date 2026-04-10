@@ -744,7 +744,11 @@ function RunSessionService:_handleSell(player, itemInstanceId)
 
     local ok, reason = self.InventoryService:loadSummary(player, inventorySummary)
     if not ok then
-        self:_toast(player, string.format('Could not update inventory (%s).', tostring(reason)), 'Error')
+        self:_toast(
+            player,
+            string.format('Could not update inventory (%s).', tostring(reason)),
+            'Error'
+        )
         return
     end
 
@@ -1035,7 +1039,11 @@ function RunSessionService:_enterMaze(player)
 end
 
 function RunSessionService:_isPlayerNearMazePrompt(player)
-    return self:_isPlayerNearTerminalPrompt(player, self.World and self.World.MazePrompt, MAZE_ENTRY_DISTANCE_BUFFER)
+    return self:_isPlayerNearTerminalPrompt(
+        player,
+        self.World and self.World.MazePrompt,
+        MAZE_ENTRY_DISTANCE_BUFFER
+    )
 end
 
 function RunSessionService:_isPlayerNearTerminalPrompt(player, prompt, distanceBuffer)
@@ -1054,7 +1062,8 @@ function RunSessionService:_isPlayerNearTerminalPrompt(player, prompt, distanceB
         return false
     end
 
-    local maxDistance = prompt.MaxActivationDistance + (distanceBuffer or TERMINAL_INTERACTION_DISTANCE_BUFFER)
+    local maxDistance = prompt.MaxActivationDistance
+        + (distanceBuffer or TERMINAL_INTERACTION_DISTANCE_BUFFER)
     return (rootPart.Position - promptPart.Position).Magnitude <= maxDistance
 end
 
