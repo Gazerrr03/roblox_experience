@@ -351,11 +351,13 @@ end
 function RunSessionService:_buildAssetValidator()
     return function(assetId, assetKind)
         if assetKind == 'ModelAssetId' then
-            return assetId == MONSTER_ASSET_IDS.DefaultModelAssetId, 'OnlyOfficialModelAssetAllowedInV1'
+            return assetId == MONSTER_ASSET_IDS.DefaultModelAssetId,
+                'OnlyOfficialModelAssetAllowedInV1'
         end
 
         if assetKind == 'ChaseLoopSoundAssetId' then
-            return assetId == MONSTER_ASSET_IDS.DefaultChaseLoopSoundAssetId, 'OnlyOfficialSoundAssetAllowedInV1'
+            return assetId == MONSTER_ASSET_IDS.DefaultChaseLoopSoundAssetId,
+                'OnlyOfficialSoundAssetAllowedInV1'
         end
 
         return false, 'UnsupportedAssetKind'
