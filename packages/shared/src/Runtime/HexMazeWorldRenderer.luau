@@ -13,6 +13,15 @@ local bit32_bor = bit32.bor
 local math_ceil = math.ceil
 local math_floor = math.floor
 local math_sqrt = math.sqrt
+local math_rad = math.rad
+local math_cos = math.cos
+local math_sin = math.sin
+local math_pi = math.pi
+local math_tan = math.tan
+
+local Vector3_new = Vector3.new
+local CFrame_new = CFrame.new
+local CFrame_lookAt = CFrame.lookAt
 
 local HexMazeWorldRenderer = {}
 
@@ -29,8 +38,18 @@ local DOOR_CLEARANCE = 0
 local ROOM_DETECTION_BUFFER = 18
 local EXIT_CORRIDOR_LENGTH = 6
 local CONNECTOR_OVERLAP = 1
-local HEX_CIRCUMRADIUS_MULTIPLIER = 1 / math.cos(math.pi / 6)
+local HEX_CIRCUMRADIUS_MULTIPLIER = 1 / math_cos(math_pi / 6)
 local SIDE_ANGLE_OFFSET_DEGREES = 0
+
+local HEX_NORMALS = {}
+local HEX_TANGENTS = {}
+for directionIndex = 1, 6 do
+    local angle = math_rad((-(directionIndex - 1) * 60) + SIDE_ANGLE_OFFSET_DEGREES)
+    local normal = Vector3_new(math_cos(angle), 0, math_sin(angle))
+    local tangent = Vector3_new(-normal.Z, 0, normal.X)
+    HEX_NORMALS[directionIndex] = normal
+    HEX_TANGENTS[directionIndex] = tangent
+end
 
 local DEFAULT_SURFACE_PALETTE = table.freeze({
     WallMaterial = Enum.Material.Concrete,
@@ -63,10 +82,10 @@ end
 
 local function edgeKey(roomIdA, roomIdB)
     if roomIdA < roomIdB then
-        return string.format('%s|%s', roomIdA, roomIdB)
+        return roomIdA .. '|' .. roomIdB
     end
 
-    return string.format('%s|%s', roomIdB, roomIdA)
+    return roomIdB .. '|' .. roomIdA
 end
 
 local function createPart(config, parent)
@@ -347,16 +366,13 @@ local function buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem,
 end
 
 local function sideVectors(directionIndex)
-    local angle = math.rad((-(directionIndex - 1) * 60) + SIDE_ANGLE_OFFSET_DEGREES)
-    local normal = Vector3.new(math.cos(angle), 0, math.sin(angle))
-    local tangent = Vector3.new(-normal.Z, 0, normal.X)
-    return normal, tangent
+    return HEX_NORMALS[directionIndex], HEX_TANGENTS[directionIndex]
 end
 
-local function isInsideHex(offset, apothem)
+local function isInsideHex(x, z, apothem)
     for directionIndex = 1, 6 do
-        local normal = sideVectors(directionIndex)
-        if offset:Dot(normal) > apothem then
+        local normal = HEX_NORMALS[directionIndex]
+        if x * normal.X + z * normal.Z > apothem then
             return false
         end
     end
@@ -371,34 +387,29 @@ local function createHexTiledSlab(parent, name, center, apothem, yOffset, color,
 
     local radius = apothem * HEX_CIRCUMRADIUS_MULTIPLIER
     local halfTile = FLOOR_TILE_SIZE / 2
-    local maxOffset = math.ceil(radius / FLOOR_TILE_SIZE) * FLOOR_TILE_SIZE
+    local maxOffset = math_ceil(radius / FLOOR_TILE_SIZE) * FLOOR_TILE_SIZE
     local tileCount = 0
 
     for x = -maxOffset, maxOffset, FLOOR_TILE_SIZE do
         for z = -maxOffset, maxOffset, FLOOR_TILE_SIZE do
-            local tileCenterOffset = Vector3.new(x, 0, z)
             local cornersInside = true
 
-            for _, cornerX in ipairs({ -halfTile, halfTile }) do
-                for _, cornerZ in ipairs({ -halfTile, halfTile }) do
-                    local cornerOffset = tileCenterOffset + Vector3.new(cornerX, 0, cornerZ)
-                    if not isInsideHex(cornerOffset, apothem) then
-                        cornersInside = false
-                        break
-                    end
-                end
-
-                if not cornersInside then
-                    break
-                end
+            -- Optimization: Inline corner checks to avoid per-corner function calls and Vector3 allocations
+            if
+                not isInsideHex(x - halfTile, z - halfTile, apothem)
+                or not isInsideHex(x + halfTile, z - halfTile, apothem)
+                or not isInsideHex(x - halfTile, z + halfTile, apothem)
+                or not isInsideHex(x + halfTile, z + halfTile, apothem)
+            then
+                cornersInside = false
             end
 
             if cornersInside then
                 tileCount += 1
                 createPart({
-                    Name = string.format('%sTile_%d', name, tileCount),
-                    Size = Vector3.new(FLOOR_TILE_SIZE, SLAB_THICKNESS, FLOOR_TILE_SIZE),
-                    CFrame = CFrame.new(center + tileCenterOffset + Vector3.new(0, yOffset, 0)),
+                    Name = name .. 'Tile_' .. tileCount,
+                    Size = Vector3_new(FLOOR_TILE_SIZE, SLAB_THICKNESS, FLOOR_TILE_SIZE),
+                    CFrame = CFrame_new(center.X + x, center.Y + yOffset, center.Z + z),
                     Color = color,
                     Material = material,
                 }, slabFolder)
@@ -419,13 +430,13 @@ local function createHexSideWall(
     surfacePalette
 )
     local normal, tangent = sideVectors(directionIndex)
-    local wallCenter = center + normal * apothem + Vector3.new(0, WALL_HEIGHT / 2, 0)
-    local wallForward = CFrame.lookAt(wallCenter, wallCenter + normal)
+    local wallCenter = center + normal * apothem + Vector3_new(0, WALL_HEIGHT / 2, 0)
+    local wallForward = CFrame_lookAt(wallCenter, wallCenter + normal)
 
     if not hasDoorway then
         createPart({
-            Name = string.format('Wall_%d', directionIndex),
-            Size = Vector3.new(sideLength, WALL_HEIGHT, WALL_THICKNESS),
+            Name = 'Wall_' .. directionIndex,
+            Size = Vector3_new(sideLength, WALL_HEIGHT, WALL_THICKNESS),
             CFrame = wallForward,
             Color = surfacePalette.WallColor,
             Material = surfacePalette.WallMaterial,
@@ -438,8 +449,8 @@ local function createHexSideWall(
 
     for _, sign in ipairs({ -1, 1 }) do
         createPart({
-            Name = string.format('Wall_%d_Segment', directionIndex),
-            Size = Vector3.new(segmentLength, WALL_HEIGHT, WALL_THICKNESS),
+            Name = 'Wall_' .. directionIndex .. '_Segment',
+            Size = Vector3_new(segmentLength, WALL_HEIGHT, WALL_THICKNESS),
             CFrame = wallForward + (tangent * (segmentOffset * sign)),
             Color = surfacePalette.WallColor,
             Material = surfacePalette.WallMaterial,
@@ -449,9 +460,9 @@ local function createHexSideWall(
     local lintelHeight = WALL_HEIGHT - DOORWAY_HEIGHT
     if lintelHeight > 0 then
         createPart({
-            Name = string.format('Wall_%d_Lintel', directionIndex),
-            Size = Vector3.new(DOORWAY_WIDTH, lintelHeight, WALL_THICKNESS),
-            CFrame = wallForward + Vector3.new(0, DOORWAY_HEIGHT + (lintelHeight / 2), 0),
+            Name = 'Wall_' .. directionIndex .. '_Lintel',
+            Size = Vector3_new(DOORWAY_WIDTH, lintelHeight, WALL_THICKNESS),
+            CFrame = wallForward + Vector3_new(0, DOORWAY_HEIGHT + (lintelHeight / 2), 0),
             Color = surfacePalette.WallColor,
             Material = surfacePalette.WallMaterial,
         }, parent)
@@ -496,45 +507,45 @@ local function createDoorwayInstance(
     local leafWidth = (DOORWAY_WIDTH - (DOOR_CLEARANCE * 3)) / 2
     local closedLeftCenter = openingCenter
         - tangent * ((leafWidth / 2) + (DOOR_CLEARANCE / 2))
-        + Vector3.new(0, DOORWAY_HEIGHT / 2, 0)
+        + Vector3_new(0, DOORWAY_HEIGHT / 2, 0)
     local closedRightCenter = openingCenter
         + tangent * ((leafWidth / 2) + (DOOR_CLEARANCE / 2))
-        + Vector3.new(0, DOORWAY_HEIGHT / 2, 0)
+        + Vector3_new(0, DOORWAY_HEIGHT / 2, 0)
 
     local openOffset = (DOORWAY_WIDTH / 2) + (leafWidth / 2) + DOOR_CLEARANCE
     local openLeftCenter = openingCenter
         - tangent * openOffset
-        + Vector3.new(0, DOORWAY_HEIGHT / 2, 0)
+        + Vector3_new(0, DOORWAY_HEIGHT / 2, 0)
     local openRightCenter = openingCenter
         + tangent * openOffset
-        + Vector3.new(0, DOORWAY_HEIGHT / 2, 0)
+        + Vector3_new(0, DOORWAY_HEIGHT / 2, 0)
 
-    local leafOrientation = CFrame.lookAt(Vector3.zero, normal)
-    doorway.ClosedLeftCFrame = CFrame.new(closedLeftCenter) * leafOrientation
-    doorway.ClosedRightCFrame = CFrame.new(closedRightCenter) * leafOrientation
-    doorway.OpenLeftCFrame = CFrame.new(openLeftCenter) * leafOrientation
-    doorway.OpenRightCFrame = CFrame.new(openRightCenter) * leafOrientation
+    local leafOrientation = CFrame_lookAt(Vector3.zero, normal)
+    doorway.ClosedLeftCFrame = CFrame_new(closedLeftCenter) * leafOrientation
+    doorway.ClosedRightCFrame = CFrame_new(closedRightCenter) * leafOrientation
+    doorway.OpenLeftCFrame = CFrame_new(openLeftCenter) * leafOrientation
+    doorway.OpenRightCFrame = CFrame_new(openRightCenter) * leafOrientation
 
     doorway.LeftLeaf = createPart({
-        Name = string.format('Door_%s_Left', doorwayId),
-        Size = Vector3.new(leafWidth, DOORWAY_HEIGHT, DOOR_LEAF_THICKNESS),
+        Name = 'Door_' .. doorwayId .. '_Left',
+        Size = Vector3_new(leafWidth, DOORWAY_HEIGHT, DOOR_LEAF_THICKNESS),
         CFrame = doorway.ClosedLeftCFrame,
         Color = surfacePalette.DoorColor,
         Material = surfacePalette.DoorMaterial,
     }, parent)
 
     doorway.RightLeaf = createPart({
-        Name = string.format('Door_%s_Right', doorwayId),
-        Size = Vector3.new(leafWidth, DOORWAY_HEIGHT, DOOR_LEAF_THICKNESS),
+        Name = 'Door_' .. doorwayId .. '_Right',
+        Size = Vector3_new(leafWidth, DOORWAY_HEIGHT, DOOR_LEAF_THICKNESS),
         CFrame = doorway.ClosedRightCFrame,
         Color = surfacePalette.DoorColor,
         Material = surfacePalette.DoorMaterial,
     }, parent)
 
     local _, prompt = createPromptPart({
-        Name = string.format('DoorPrompt_%s', doorwayId),
-        Size = Vector3.new(2, 2, 2),
-        CFrame = CFrame.new(openingCenter + Vector3.new(0, 2, 0)),
+        Name = 'DoorPrompt_' .. doorwayId,
+        Size = Vector3_new(2, 2, 2),
+        CFrame = CFrame_new(openingCenter + Vector3_new(0, 2, 0)),
         Color = Color3.fromRGB(118, 136, 150),
         Material = Enum.Material.Metal,
         Transparency = 1,
@@ -578,8 +589,8 @@ local function buildRoom(parent, room, roomCenter, roomApothem, options)
         local roomKindColors = options.RoomKindColors or DEFAULT_ROOM_KIND_COLORS
         createPart({
             Name = 'RoomMarker',
-            Size = Vector3.new(floorDiameter - 6, 0.3, floorDiameter - 6),
-            CFrame = CFrame.new(roomCenter + Vector3.new(0, 0.15, 0)),
+            Size = Vector3_new(floorDiameter - 6, 0.3, floorDiameter - 6),
+            CFrame = CFrame_new(roomCenter + Vector3_new(0, 0.15, 0)),
             Color = roomKindColors[room.Kind] or Color3.fromRGB(112, 112, 112),
             Material = Enum.Material.SmoothPlastic,
             Transparency = options.RoomMarkerTransparency or 0.6,
@@ -592,7 +603,7 @@ local function buildRoom(parent, room, roomCenter, roomApothem, options)
         doorwayDirections[directionIndex] = true
     end
 
-    local sideLength = 2 * roomApothem * math.tan(math.pi / 6)
+    local sideLength = 2 * roomApothem * math_tan(math_pi / 6)
     for directionIndex = 1, 6 do
         createHexSideWall(
             roomFolder,
@@ -635,40 +646,40 @@ local function buildPassageMock(
     local wallThickness = WALL_THICKNESS * (passageDefinition.WallThicknessMultiplier or 1)
 
     createPart({
-        Name = string.format('%sFloor', namePrefix),
-        Size = Vector3.new(passageWidth, SLAB_THICKNESS, passageLength),
+        Name = namePrefix .. 'Floor',
+        Size = Vector3_new(passageWidth, SLAB_THICKNESS, passageLength),
         CFrame = corridorForward,
         Color = floorColor or surfacePalette.FloorColor,
         Material = floorMaterial or surfacePalette.FloorMaterial,
     }, passageFolder)
 
     createPart({
-        Name = string.format('%sCeiling', namePrefix),
-        Size = Vector3.new(passageWidth, SLAB_THICKNESS, passageLength),
-        CFrame = corridorForward + Vector3.new(0, passageHeight + SLAB_THICKNESS, 0),
+        Name = namePrefix .. 'Ceiling',
+        Size = Vector3_new(passageWidth, SLAB_THICKNESS, passageLength),
+        CFrame = corridorForward + Vector3_new(0, passageHeight + SLAB_THICKNESS, 0),
         Color = surfacePalette.CeilingColor,
         Material = surfacePalette.CeilingMaterial,
     }, passageFolder)
 
     local normal = corridorForward.LookVector
-    local tangent = Vector3.new(-normal.Z, 0, normal.X)
+    local tangent = Vector3_new(-normal.Z, 0, normal.X)
 
     for _, sign in ipairs({ -1, 1 }) do
         createPart({
-            Name = string.format('%sWall', namePrefix),
-            Size = Vector3.new(wallThickness, passageHeight, passageLength),
+            Name = namePrefix .. 'Wall',
+            Size = Vector3_new(wallThickness, passageHeight, passageLength),
             CFrame = corridorForward
                 + (tangent * ((passageWidth / 2) + (wallThickness / 2)) * sign)
-                + Vector3.new(0, (passageHeight + SLAB_THICKNESS) / 2, 0),
+                + Vector3_new(0, (passageHeight + SLAB_THICKNESS) / 2, 0),
             Color = surfacePalette.WallColor,
             Material = surfacePalette.WallMaterial,
         }, passageFolder)
     end
 
     createPart({
-        Name = string.format('%sAccent', namePrefix),
-        Size = Vector3.new(passageWidth * 0.85, 0.12, 1.5),
-        CFrame = corridorForward + Vector3.new(0, (SLAB_THICKNESS / 2) + 0.06, 0),
+        Name = namePrefix .. 'Accent',
+        Size = Vector3_new(passageWidth * 0.85, 0.12, 1.5),
+        CFrame = corridorForward + Vector3_new(0, (SLAB_THICKNESS / 2) + 0.06, 0),
         Color = passageDefinition.AccentColor,
         Material = Enum.Material.Neon,
         Transparency = 0.5,
@@ -691,9 +702,9 @@ local function buildPassageInstance(
     floorMaterial
 )
     local passageDefinition = resolvePassageDefinition(passageArchetypeId)
-    local passagePivot = CFrame.new(
-        passageCenter + Vector3.new(0, (passageDefinition.Height or ROOM_CLEAR_HEIGHT) / 2, 0)
-    ) * CFrame.lookAt(Vector3.zero, corridorForward.LookVector)
+    local passagePivot = CFrame_new(
+        passageCenter + Vector3_new(0, (passageDefinition.Height or ROOM_CLEAR_HEIGHT) / 2, 0)
+    ) * CFrame_lookAt(Vector3.zero, corridorForward.LookVector)
 
     local passageFolder = Instance.new('Folder')
     passageFolder.Name = folderName
@@ -702,7 +713,7 @@ local function buildPassageInstance(
     local authoringSockets = createConnectorAuthoringSockets(passageFolder, passagePivot)
     local authoredShell = applyShellModel(
         passageFolder,
-        string.format('AuthoredPassageShell_%s', passageArchetypeId),
+        'AuthoredPassageShell_' .. passageArchetypeId,
         MazeModuleAssetContract.getConnectorShellModel(moduleAssetsRoot, passageArchetypeId),
         passagePivot
     )
@@ -748,13 +759,13 @@ local function buildRoomConnector(
         centerDistance - (roomApothem * 2) + (WALL_THICKNESS + CONNECTOR_OVERLAP)
     )
     local connectorCenter = (roomCenterA + roomCenterB) * 0.5
-    local floorCenter = connectorCenter + Vector3.new(0, -(SLAB_THICKNESS / 2), 0)
-    local corridorForward = CFrame.lookAt(floorCenter, floorCenter + normal)
+    local floorCenter = connectorCenter + Vector3_new(0, -(SLAB_THICKNESS / 2), 0)
+    local corridorForward = CFrame_lookAt(floorCenter, floorCenter + normal)
 
     return buildPassageInstance(
         parent,
-        string.format('Connector_%s', doorwayId),
-        string.format('Connector_%s_', doorwayId),
+        'Connector_' .. doorwayId,
+        'Connector_' .. doorwayId .. '_',
         doorwayId,
         connectorCenter,
         corridorForward,
@@ -782,15 +793,15 @@ local function buildExitPassages(
         local passageLength = EXIT_CORRIDOR_LENGTH + WALL_THICKNESS + CONNECTOR_OVERLAP
         local floorCenter = roomCenter
             + (normal * (roomApothem + (EXIT_CORRIDOR_LENGTH / 2)))
-            + Vector3.new(0, -(SLAB_THICKNESS / 2), 0)
-        local passageCenter = floorCenter + Vector3.new(0, SLAB_THICKNESS / 2, 0)
-        local corridorForward = CFrame.lookAt(floorCenter, floorCenter + normal)
-        local passageId = string.format('%s_%d', room.Id, directionIndex)
+            + Vector3_new(0, -(SLAB_THICKNESS / 2), 0)
+        local passageCenter = floorCenter + Vector3_new(0, SLAB_THICKNESS / 2, 0)
+        local corridorForward = CFrame_lookAt(floorCenter, floorCenter + normal)
+        local passageId = room.Id .. '_' .. directionIndex
 
         exitPassages[passageId] = buildPassageInstance(
             parent,
-            string.format('ExitPassage_%s', passageId),
-            string.format('ExitPassage_%s_', passageId),
+            'ExitPassage_' .. passageId,
+            'ExitPassage_' .. passageId .. '_',
             passageId,
             passageCenter,
             corridorForward,
