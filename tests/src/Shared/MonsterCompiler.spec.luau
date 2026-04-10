@@ -51,12 +51,57 @@ return function()
     )
     assert(runtimeProfile.Speed == 14, 'Compiled runtime should expose the configured speed')
     assert(
+        runtimeProfile.AttackRange == 4,
+        'Compiled runtime should expose the configured attack range'
+    )
+    assert(
+        runtimeProfile.AttackCooldownSeconds == 1,
+        'Compiled runtime should expose the configured attack cooldown'
+    )
+    assert(
+        runtimeProfile.AttackDamagePips == 1,
+        'Compiled runtime should expose the configured attack damage pips'
+    )
+    assert(
         runtimeProfile.SightRange == 36,
         'Compiled runtime should expose the configured sight range'
     )
     assert(
         runtimeProfile.PatrolSpeedMultiplier == 0.45,
         'Compiled runtime should expose the configured patrol speed multiplier'
+    )
+    assert(
+        runtimeProfile.Components ~= nil and runtimeProfile.Components.Perception ~= nil,
+        'Compiled runtime should include component mapping payload'
+    )
+    assert(
+        runtimeProfile.Components.Perception.SightRange == runtimeProfile.SightRange,
+        'Component perception config should map from runtime sight range'
+    )
+    assert(
+        runtimeProfile.Components.Movement.Speed == runtimeProfile.Speed,
+        'Component movement config should map from runtime speed'
+    )
+    assert(
+        runtimeProfile.Components.Movement.PatrolSpeedMultiplier
+            == runtimeProfile.PatrolSpeedMultiplier,
+        'Component movement config should map patrol speed multiplier'
+    )
+    assert(
+        runtimeProfile.Components.Movement.SpawnOffset == runtimeProfile.SpawnOffset,
+        'Component movement spawn offset should map from runtime spawn offset'
+    )
+    assert(
+        runtimeProfile.Components.Attack.Range == runtimeProfile.AttackRange,
+        'Component attack range should map from runtime attack range'
+    )
+    assert(
+        runtimeProfile.Components.Attack.CooldownSeconds == runtimeProfile.AttackCooldownSeconds,
+        'Component attack cooldown should map from runtime attack cooldown'
+    )
+    assert(
+        runtimeProfile.Components.Attack.DamagePips == runtimeProfile.AttackDamagePips,
+        'Component attack damage should map from runtime attack damage pips'
     )
     assert(
         runtimeProfile.Behaviors[behaviorCatalog.Behavior.Patrol] == nil,
@@ -69,6 +114,10 @@ return function()
     assert(
         runtimeProfile.Behaviors[behaviorCatalog.Behavior.Chase] == true,
         'Chase should stay enabled in the maze runtime profile'
+    )
+    assert(
+        runtimeProfile.Behaviors[behaviorCatalog.Behavior.Attack] == true,
+        'Attack should stay enabled in the maze runtime profile'
     )
     assert(
         runtimeProfile.Behaviors[behaviorCatalog.Behavior.LoseTarget] == nil,
