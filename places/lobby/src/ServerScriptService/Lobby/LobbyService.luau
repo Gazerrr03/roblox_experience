@@ -6,6 +6,7 @@ local Shared = require(Packages:WaitForChild('Shared'))
 
 local SessionConfig = Shared.Config.SessionConfig
 local Remotes = Shared.Network.Remotes.ensureScope(Shared.Network.Remotes.Scope.Lobby)
+local SessionSeedPolicy = Shared.Session.SessionSeedPolicy
 
 local LobbyRunPortal = require(script.Parent.LobbyRunPortal)
 
@@ -86,7 +87,7 @@ function LobbyService:_teleportToRun()
         end
     end
 
-    self.Seed = Random.new():NextInteger(100000, 999999)
+    self.Seed = SessionSeedPolicy.issueSessionSeed(Random.new(), SessionConfig.DefaultSeed)
 
     local result = LobbyRunPortal.launch({
         Players = players,
