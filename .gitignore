@@ -4,4 +4,7 @@ DevPackages
 *.rbxl.lock
 *.project.user.json
 *.sourcemap.json
+tmp/
+tmp_pr*
+tmp_*_latest_luau.log
 
