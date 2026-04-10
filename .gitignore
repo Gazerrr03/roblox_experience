@@ -7,4 +7,5 @@ DevPackages
 tmp/
 tmp_pr*
 tmp_*_latest_luau.log
+.aftman/
 
