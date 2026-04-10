@@ -14,6 +14,7 @@ function MovementComponent.new(options)
         PatrolSpeedMultiplier = runtimeOptions.PatrolSpeedMultiplier,
         EnableChase = runtimeOptions.EnableChase,
         EnablePatrol = runtimeOptions.EnablePatrol,
+        ArrivalThreshold = runtimeOptions.ArrivalThreshold or 2,
     }, MovementComponent)
 end
 
