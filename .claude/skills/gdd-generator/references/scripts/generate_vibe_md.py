@@ -160,6 +160,7 @@ def parse_gdd_config(config: dict, place: str) -> dict:
 
     return {
         "place_name": place,
+        "PlaceName": place.capitalize(),
         "gameplay_template": high_concept,
         "player_feel": core_fantasy,
         "handoff": "completion or player quit",
