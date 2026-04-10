@@ -10,6 +10,7 @@ return {
     MazeWorldShellBuilder = require(script.MazeWorldShellBuilder),
     MonsterRuntime = require(script.MonsterRuntime),
     MonsterService = require(script.MonsterService),
+    PlayerService = require(script.PlayerService),
     PlayerStateService = require(script.PlayerStateService),
     TeleportInventoryHydrator = require(script.TeleportInventoryHydrator),
 }
