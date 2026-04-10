@@ -1302,15 +1302,21 @@ function MazeSessionService:_applyPlayerDamage(player, damageKind)
         return
     end
 
-    local success, summary = self.PlayerService:applyDamage(player, damageKind)
+    local success, result = self.PlayerService:applyDamage(player, damageKind)
     if not success then
         self:_setStatus(
-            string.format('%s could not take damage (%s).', player.DisplayName, tostring(summary))
+            string.format('%s could not take damage (%s).', player.DisplayName, tostring(result))
         )
         return
     end
 
-    if summary.IsDead then
+    local summary = self.PlayerService:getSummary(player)
+    if not summary then
+        self:_setStatus(string.format('%s summary unavailable after damage.', player.DisplayName))
+        return
+    end
+
+    if summary.Health.IsDead then
         self:_handlePlayerDeath(player, damageKind)
         return
     end
@@ -1322,8 +1328,8 @@ function MazeSessionService:_applyPlayerDamage(player, damageKind)
             '%s took %s damage and now has %d/%d health pips.',
             player.DisplayName,
             string.lower(damageKind),
-            summary.HealthPips,
-            summary.MaxHealthPips
+            summary.Health.CurrentHealthPips,
+            summary.Health.MaxHealthPips
         )
     )
 end
