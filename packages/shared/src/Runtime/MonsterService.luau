@@ -215,7 +215,7 @@ function MonsterService.new(
         },
         Attack = {
             AttackRange = monsterRuntimeProfile.AttackRange or 0,
-            CooldownSeconds = monsterRuntimeProfile.AttackCooldownSeconds or 0.8,
+            CooldownSeconds = monsterRuntimeProfile.AttackCooldownSeconds,
         },
     })
 
