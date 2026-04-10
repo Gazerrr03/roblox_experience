@@ -256,7 +256,6 @@ function RunSessionService:_addPlayerState(player)
     self.ControlStateService:addPlayer(player)
     self.PlayerStateService:addPlayer(player)
     self.PlayerService:addPlayer(player)
-    self:_setUgcGenerationState(player, UGC_STATUS.Idle, '')
 end
 
 function RunSessionService:_removePlayerState(player)
@@ -285,10 +284,7 @@ function RunSessionService:_syncPlayerMovement(player)
     local playerState = self.PlayerService:getSummary(player)
     local ok, controlState = self.ControlStateService:syncPlayerState(player, playerState)
     if ok and controlState then
-        self.PlayerService:setSprinting(
-            player,
-            controlState.Mode == FormalLocomotion.Mode.Sprint
-        )
+        self.PlayerService:setSprinting(player, controlState.Mode == FormalLocomotion.Mode.Sprint)
     end
 
     self:_applyMovementMode(player)

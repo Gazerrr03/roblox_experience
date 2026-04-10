@@ -36,7 +36,7 @@ function HealthComponent:applyDamage(_blackboard, damageKind)
     return true, self.CurrentHealthPips
 end
 
-function HealthComponent:update(blackboard, dt)
+function HealthComponent:update(blackboard, _dt)
     blackboard.Transient.CurrentHealthPips = self.CurrentHealthPips
     blackboard.Transient.MaxHealthPips = self.MaxHealthPips
     blackboard.Transient.IsDead = self.IsDead

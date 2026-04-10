@@ -104,7 +104,7 @@ function InventoryComponent:useItem(blackboard)
     return true, slot
 end
 
-function InventoryComponent:removeItem(blackboard, slotIndex)
+function InventoryComponent:removeItem(_blackboard, slotIndex)
     if slotIndex < 1 or slotIndex > #self.Slots then
         return false, 'InvalidSlot'
     end
@@ -121,7 +121,7 @@ function InventoryComponent:removeItem(blackboard, slotIndex)
     return true
 end
 
-function InventoryComponent:update(blackboard, dt)
+function InventoryComponent:update(blackboard, _dt)
     blackboard.Transient.Slots = self.Slots
     blackboard.Transient.EquippedSlot = self.EquippedSlot
     blackboard.Transient.InteractionRange = self.InteractionRange
