@@ -238,8 +238,11 @@ def main():
     # Generate NOW.md if output specified
     now_output = args.now_output
     if not now_output:
-        # Replace VIBE with NOW in path
-        now_output = args.output.replace("-VIBE.draft.md", "-NOW.draft.md")
+        if "-VIBE.draft.md" in args.output:
+            now_output = args.output.replace("-VIBE.draft.md", "-NOW.draft.md")
+        else:
+            base, ext = os.path.splitext(args.output)
+            now_output = f"{base}-NOW{ext}"
 
     now_content = generate_now_md(data)
     with open(now_output, "w", encoding="utf-8") as f:
