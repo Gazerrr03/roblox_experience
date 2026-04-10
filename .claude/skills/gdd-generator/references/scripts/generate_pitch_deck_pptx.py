@@ -27,6 +27,7 @@ Slide Structure:
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime
 from typing import Dict, List, Any, Optional
@@ -354,7 +355,6 @@ def generate_pitch_deck(
                 )
 
     # Check pitch slide content for SOURCE NEEDED placeholders
-    import re
     source_needed_re = re.compile(r"\bSOURCE NEEDED\b", re.IGNORECASE)
     pitch_slides = game_data.get("pitch_slides", {})
     pitch_warnings = []
