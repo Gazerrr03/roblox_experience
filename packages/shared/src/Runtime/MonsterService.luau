@@ -183,7 +183,7 @@ function MonsterService.new(
     }, MonsterService)
 
     service.EnemyRuntime = EnemyRuntime.new({
-        MemoryDurationSeconds = runtimeOptions.MemoryDurationSeconds or 0,
+        MemoryDurationSeconds = runtimeOptions.MemoryDurationSeconds,
         Perception = {
             GetPlayers = function()
                 return service.GetPlayers()
