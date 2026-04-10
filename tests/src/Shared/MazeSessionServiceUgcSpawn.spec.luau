@@ -1,7 +1,9 @@
 return function()
     local ReplicatedStorage = game:GetService('ReplicatedStorage')
+    local gameplay = require(ReplicatedStorage:WaitForChild('Packages'):WaitForChild('Gameplay'))
     local mazeModules = ReplicatedStorage:WaitForChild('PlaceModules'):WaitForChild('Maze')
     local MazeSessionService = require(mazeModules:WaitForChild('MazeSessionService'))
+    local monsterAssetIds = gameplay.Monsters.MonsterAssetIds
 
     local spawnedRecords = {}
     local monsterServiceFactory = function(runtimeProfile)
@@ -75,10 +77,10 @@ return function()
                 Id = string.format('ugc-%d', index),
                 Name = string.format('UGC-%d', index),
                 Presentation = {
-                    ModelAssetId = 9492320977,
+                    ModelAssetId = monsterAssetIds.DefaultModelAssetId,
                     RigType = 'R6',
                     AnimationMode = 'defaultR6',
-                    ChaseLoopSoundAssetId = 9118823108,
+                    ChaseLoopSoundAssetId = monsterAssetIds.DefaultChaseLoopSoundAssetId,
                 },
                 Speed = 14,
                 SightRange = 36,

@@ -5,6 +5,7 @@ return function()
     local compiler = gameplay.Monsters.compileMonsterForMaze
     local behaviorCatalog = gameplay.Monsters.MonsterBehaviorCatalog
     local effectCatalog = gameplay.Monsters.MonsterEffectCatalog
+    local monsterAssetIds = gameplay.Monsters.MonsterAssetIds
     local authorProfileModule = gameplay.Monsters.MonsterAuthorProfile
     local presentationCatalog = gameplay.Monsters.MonsterPresentationCatalog
     local runtimeProfileModule = gameplay.Monsters.MonsterRuntimeProfile
@@ -34,7 +35,7 @@ return function()
     assert(runtimeProfile.Id == 'scrap-wisp', 'Compiled runtime should preserve the monster id')
     assert(runtimeProfile.Name == 'Scrap Wisp', 'Compiled runtime should preserve the monster name')
     assert(
-        runtimeProfile.Presentation.ModelAssetId == 9492320977,
+        runtimeProfile.Presentation.ModelAssetId == monsterAssetIds.DefaultModelAssetId,
         'Compiled runtime should expose the configured model asset id'
     )
     assert(
@@ -46,7 +47,8 @@ return function()
         'Compiled runtime should preserve the configured animation mode'
     )
     assert(
-        runtimeProfile.Presentation.ChaseLoopSoundAssetId == 9118823108,
+        runtimeProfile.Presentation.ChaseLoopSoundAssetId
+            == monsterAssetIds.DefaultChaseLoopSoundAssetId,
         'Compiled runtime should expose the configured chase loop sound asset id'
     )
     assert(runtimeProfile.Speed == 14, 'Compiled runtime should expose the configured speed')

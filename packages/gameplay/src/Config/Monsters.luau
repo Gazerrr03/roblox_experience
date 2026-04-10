@@ -1,5 +1,6 @@
 local MonsterBehaviorCatalog = require(script.Parent.Parent.Monsters.MonsterBehaviorCatalog)
 local MonsterEffectCatalog = require(script.Parent.Parent.Monsters.MonsterEffectCatalog)
+local MonsterAssetIds = require(script.Parent.Parent.Monsters.MonsterAssetIds)
 local MonsterPresentationCatalog = require(script.Parent.Parent.Monsters.MonsterPresentationCatalog)
 
 return {
@@ -29,10 +30,10 @@ return {
         },
         Executable = {
             Presentation = {
-                ModelAssetId = 9492320977,
+                ModelAssetId = MonsterAssetIds.DefaultModelAssetId,
                 RigType = MonsterPresentationCatalog.RigType.R6,
                 AnimationMode = MonsterPresentationCatalog.AnimationMode.DefaultR6,
-                ChaseLoopSoundAssetId = 9118823108,
+                ChaseLoopSoundAssetId = MonsterAssetIds.DefaultChaseLoopSoundAssetId,
             },
             BehaviorIntents = {
                 {
