@@ -9,6 +9,7 @@ local Gameplay = require(Packages:WaitForChild('Gameplay'))
 
 local MonsterBehaviorCatalog = Gameplay.Monsters.MonsterBehaviorCatalog
 local MonsterComponentConfig = Gameplay.Monsters.MonsterComponentConfig
+local MonsterLogic = Gameplay.Monsters.MonsterLogic
 local Enemy = Gameplay.Monsters.Enemy
 local MonsterRuntimeProfile = Gameplay.Monsters.MonsterRuntimeProfile
 local EnemyRuntime = require(script.Parent.MonsterRuntime.EnemyRuntime)
