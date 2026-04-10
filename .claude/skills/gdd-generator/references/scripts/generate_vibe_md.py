@@ -87,7 +87,7 @@ Boundary interfaces:
 
 - `stylua --check .`
 - `selene .`
-- `rojo build places/{place_name}/default.project.json -o .\\\\tmp\\\\{place_name}.rbxlx`
+- `rojo build places/{place_name}/default.project.json -o ./tmp/{place_name}.rbxlx`
 
 ## Notes
 
