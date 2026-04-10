@@ -3,6 +3,12 @@ StaminaComponent.__index = StaminaComponent
 
 local DEFAULT_STAMINA_RECOVERY_DELAY_SECONDS = 1.5
 
+local function isPlayerDead(blackboard)
+    return blackboard
+        and blackboard.Transient
+        and blackboard.Transient.IsDead == true
+end
+
 function StaminaComponent.new()
     return setmetatable({}, StaminaComponent)
 end
@@ -23,7 +29,7 @@ function StaminaComponent:init(blackboard)
 end
 
 function StaminaComponent:drainStamina(blackboard, amount)
-    if self.IsDead then
+    if isPlayerDead(blackboard) then
         return false, 'Dead'
     end
 
@@ -39,7 +45,7 @@ function StaminaComponent:drainStamina(blackboard, amount)
 end
 
 function StaminaComponent:setSprinting(blackboard, isSprinting)
-    if self.IsDead then
+    if isPlayerDead(blackboard) then
         self.IsSprinting = false
         return false, 'Dead'
     end
@@ -62,7 +68,7 @@ function StaminaComponent:update(blackboard, dt)
     local deltaTime = math.max(0, dt or 0)
     local now = os.clock()
 
-    if self.IsDead then
+    if isPlayerDead(blackboard) then
         blackboard.Transient.CurrentStamina = self.CurrentStamina
         blackboard.Transient.MaxStamina = self.MaxStamina
         blackboard.Transient.CanSprint = false
