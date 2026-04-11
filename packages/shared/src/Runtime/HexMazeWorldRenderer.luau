@@ -17,6 +17,7 @@ local math_rad = math.rad
 local math_cos = math.cos
 local math_sin = math.sin
 local math_tan = math.tan
+local math_abs = math.abs
 local math_pi = math.pi
 
 local Vector3_new = Vector3.new
@@ -45,11 +46,22 @@ local SIDE_ANGLE_OFFSET_DEGREES = 0
 
 local SIDE_NORMALS_X = {}
 local SIDE_NORMALS_Z = {}
+local SIDE_VECTORS_NORMAL = {}
+local SIDE_VECTORS_TANGENT = {}
+
 for directionIndex = 1, 6 do
     local angle = math_rad((-(directionIndex - 1) * 60) + SIDE_ANGLE_OFFSET_DEGREES)
-    SIDE_NORMALS_X[directionIndex] = math_cos(angle)
-    SIDE_NORMALS_Z[directionIndex] = math_sin(angle)
+    local nx = math_cos(angle)
+    local nz = math_sin(angle)
+    SIDE_NORMALS_X[directionIndex] = nx
+    SIDE_NORMALS_Z[directionIndex] = nz
+    SIDE_VECTORS_NORMAL[directionIndex] = Vector3_new(nx, 0, nz)
+    SIDE_VECTORS_TANGENT[directionIndex] = Vector3_new(-nz, 0, nx)
 end
+
+local TILE_BUFFER_A = FLOOR_TILE_SIZE / 2
+local TILE_BUFFER_B = (FLOOR_TILE_SIZE / 2) * (math_cos(math_rad(60)) + math_sin(math_rad(60)))
+local SIN_60 = math_sin(math_rad(60))
 
 local DEFAULT_SURFACE_PALETTE = table.freeze({
     WallMaterial = Enum.Material.Concrete,
@@ -366,32 +378,7 @@ local function buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem,
 end
 
 local function sideVectors(directionIndex)
-    local nx, nz = SIDE_NORMALS_X[directionIndex], SIDE_NORMALS_Z[directionIndex]
-    local normal = Vector3_new(nx, 0, nz)
-    local tangent = Vector3_new(-nz, 0, nx)
-    return normal, tangent
-end
-
-local function isInsideHexNumeric(ox, oz, apothem)
-    if ox * SIDE_NORMALS_X[1] + oz * SIDE_NORMALS_Z[1] > apothem then
-        return false
-    end
-    if ox * SIDE_NORMALS_X[2] + oz * SIDE_NORMALS_Z[2] > apothem then
-        return false
-    end
-    if ox * SIDE_NORMALS_X[3] + oz * SIDE_NORMALS_Z[3] > apothem then
-        return false
-    end
-    if ox * SIDE_NORMALS_X[4] + oz * SIDE_NORMALS_Z[4] > apothem then
-        return false
-    end
-    if ox * SIDE_NORMALS_X[5] + oz * SIDE_NORMALS_Z[5] > apothem then
-        return false
-    end
-    if ox * SIDE_NORMALS_X[6] + oz * SIDE_NORMALS_Z[6] > apothem then
-        return false
-    end
-    return true
+    return SIDE_VECTORS_NORMAL[directionIndex], SIDE_VECTORS_TANGENT[directionIndex]
 end
 
 local function createHexTiledSlab(parent, name, center, apothem, yOffset, color, material)
@@ -400,35 +387,29 @@ local function createHexTiledSlab(parent, name, center, apothem, yOffset, color,
     slabFolder.Parent = parent
 
     local radius = apothem * HEX_CIRCUMRADIUS_MULTIPLIER
-    local halfTile = FLOOR_TILE_SIZE / 2
     local maxOffset = math_ceil(radius / FLOOR_TILE_SIZE) * FLOOR_TILE_SIZE
     local tileCount = 0
 
     local cx, cy, cz = center.X, center.Y, center.Z
+    local tileSizeVector = Vector3_new(FLOOR_TILE_SIZE, SLAB_THICKNESS, FLOOR_TILE_SIZE)
 
     for x = -maxOffset, maxOffset, FLOOR_TILE_SIZE do
         for z = -maxOffset, maxOffset, FLOOR_TILE_SIZE do
-            local cornersInside = true
-
-            -- Unrolled corner check to avoid Vector3 and table allocations
+            -- Optimized single check for whole tile bounding box
             if
-                not isInsideHexNumeric(x - halfTile, z - halfTile, apothem)
-                or not isInsideHexNumeric(x + halfTile, z - halfTile, apothem)
-                or not isInsideHexNumeric(x - halfTile, z + halfTile, apothem)
-                or not isInsideHexNumeric(x + halfTile, z + halfTile, apothem)
+                math_abs(x) + TILE_BUFFER_A <= apothem
+                and math_abs(0.5 * x - SIN_60 * z) + TILE_BUFFER_B <= apothem
+                and math_abs(0.5 * x + SIN_60 * z) + TILE_BUFFER_B <= apothem
             then
-                cornersInside = false
-            end
-
-            if cornersInside then
                 tileCount += 1
-                createPart({
-                    Name = name .. 'Tile_' .. tileCount,
-                    Size = Vector3_new(FLOOR_TILE_SIZE, SLAB_THICKNESS, FLOOR_TILE_SIZE),
-                    CFrame = CFrame_new(cx + x, cy + yOffset, cz + z),
-                    Color = color,
-                    Material = material,
-                }, slabFolder)
+                local part = Instance_new('Part')
+                part.Name = 'Tile'
+                part.Anchored = true
+                part.Size = tileSizeVector
+                part.CFrame = CFrame_new(cx + x, cy + yOffset, cz + z)
+                part.Color = color
+                part.Material = material
+                part.Parent = slabFolder
             end
         end
     end
