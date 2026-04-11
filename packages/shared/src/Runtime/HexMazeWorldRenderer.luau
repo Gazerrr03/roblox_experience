@@ -20,8 +20,6 @@ local math_tan = math.tan
 local math_abs = math.abs
 local math_pi = math.pi
 
-local table_insert = table.insert
-
 local Vector3_new = Vector3.new
 local CFrame_new = CFrame.new
 local CFrame_lookAt = CFrame.lookAt
@@ -64,7 +62,6 @@ end
 local TILE_BUFFER_A = FLOOR_TILE_SIZE / 2
 local TILE_BUFFER_B = (FLOOR_TILE_SIZE / 2) * (math_cos(math_rad(60)) + math_sin(math_rad(60)))
 local SIN_60 = math_sin(math_rad(60))
-local COS_60 = math_cos(math_rad(60))
 
 local DEFAULT_SURFACE_PALETTE = table.freeze({
     WallMaterial = Enum.Material.Concrete,
@@ -382,20 +379,6 @@ end
 
 local function sideVectors(directionIndex)
     return SIDE_VECTORS_NORMAL[directionIndex], SIDE_VECTORS_TANGENT[directionIndex]
-end
-
-local function isInsideHexNumeric(ox, oz, apothem)
-    -- Optimized 3-band absolute value check (utilizing hexagonal symmetry)
-    if math_abs(ox) > apothem then
-        return false
-    end
-    if math_abs(0.5 * ox - SIN_60 * oz) > apothem then
-        return false
-    end
-    if math_abs(0.5 * ox + SIN_60 * oz) > apothem then
-        return false
-    end
-    return true
 end
 
 local function createHexTiledSlab(parent, name, center, apothem, yOffset, color, material)
