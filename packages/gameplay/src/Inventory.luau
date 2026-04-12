@@ -27,6 +27,14 @@ local function cloneItemEntry(itemEntry)
         CurrentState = itemEntry.CurrentState,
         ConsumePerUse = itemEntry.ConsumePerUse,
         CooldownSeconds = itemEntry.CooldownSeconds,
+        SwingRange = itemEntry.SwingRange,
+        SwingArcDegrees = itemEntry.SwingArcDegrees,
+        KnockbackStrength = itemEntry.KnockbackStrength,
+        MeleeDamage = itemEntry.MeleeDamage,
+        ItemKind = itemEntry.ItemKind,
+        ConsumableEffect = itemEntry.ConsumableEffect,
+        MaxCarryPerId = itemEntry.MaxCarryPerId,
+        InitialState = itemEntry.InitialState,
         LastUsedAt = itemEntry.LastUsedAt,
     }
 end
@@ -69,9 +77,17 @@ function Inventory:_buildItemEntry(itemDef)
         Light = cloneLightConfig(itemDef.Light),
         ToolCategory = itemDef.ToolCategory,
         StateModel = itemDef.StateModel,
+        InitialState = itemDef.InitialState,
         CurrentState = itemDef.InitialState,
         ConsumePerUse = itemDef.ConsumePerUse,
         CooldownSeconds = itemDef.CooldownSeconds,
+        SwingRange = itemDef.SwingRange,
+        SwingArcDegrees = itemDef.SwingArcDegrees,
+        KnockbackStrength = itemDef.KnockbackStrength,
+        MeleeDamage = itemDef.MeleeDamage,
+        ItemKind = itemDef.ItemKind,
+        ConsumableEffect = itemDef.ConsumableEffect,
+        MaxCarryPerId = itemDef.MaxCarryPerId,
         LastUsedAt = itemDef.LastUsedAt,
     }
 
@@ -95,16 +111,50 @@ local function normalizeItemEntry(rawItemEntry)
         Light = cloneLightConfig(rawItemEntry.Light),
         ToolCategory = rawItemEntry.ToolCategory,
         StateModel = rawItemEntry.StateModel,
+        InitialState = rawItemEntry.InitialState,
         CurrentState = rawItemEntry.CurrentState,
         ConsumePerUse = rawItemEntry.ConsumePerUse,
         CooldownSeconds = rawItemEntry.CooldownSeconds,
+        SwingRange = rawItemEntry.SwingRange,
+        SwingArcDegrees = rawItemEntry.SwingArcDegrees,
+        KnockbackStrength = rawItemEntry.KnockbackStrength,
+        MeleeDamage = rawItemEntry.MeleeDamage,
+        ItemKind = rawItemEntry.ItemKind,
+        ConsumableEffect = rawItemEntry.ConsumableEffect,
+        MaxCarryPerId = rawItemEntry.MaxCarryPerId,
         LastUsedAt = rawItemEntry.LastUsedAt,
     }
+end
+
+function Inventory:countById(itemId)
+    if type(itemId) ~= 'string' or itemId == '' then
+        return 0
+    end
+
+    local total = 0
+    for _, itemEntry in ipairs(self.BackpackItems) do
+        if itemEntry.Id == itemId then
+            total += 1
+        end
+    end
+
+    if self.HeldItem and self.HeldItem.Id == itemId then
+        total += 1
+    end
+
+    return total
 end
 
 function Inventory:add(itemDef)
     if self.Weight + itemDef.Weight > self.Capacity then
         return false, 'OverCapacity'
+    end
+
+    local maxCarry = itemDef.MaxCarryPerId
+    if type(maxCarry) == 'number' and maxCarry >= 1 and type(itemDef.Id) == 'string' then
+        if self:countById(itemDef.Id) >= maxCarry then
+            return false, 'CarryLimitReached'
+        end
     end
 
     local itemEntry = self:_buildItemEntry(itemDef)
@@ -179,6 +229,40 @@ function Inventory:consumeHeldItemState(nowSeconds)
     return true, cloneItemEntry(heldItem)
 end
 
+function Inventory:consumeById(itemId)
+    if type(itemId) ~= 'string' or itemId == '' then
+        return false, 'InvalidItemId'
+    end
+
+    for index, itemEntry in ipairs(self.BackpackItems) do
+        if itemEntry.Id == itemId then
+            local removed = table.remove(self.BackpackItems, index)
+            self.Weight -= removed.Weight
+            return true, cloneItemEntry(removed)
+        end
+    end
+
+    if self.HeldItem and self.HeldItem.Id == itemId then
+        local removed = self.HeldItem
+        self.HeldItem = nil
+        self.Weight -= removed.Weight
+        return true, cloneItemEntry(removed)
+    end
+
+    return false, 'ItemNotFound'
+end
+
+function Inventory:removeHeldItem()
+    if self.HeldItem == nil then
+        return false, 'NothingHeld'
+    end
+
+    local removed = self.HeldItem
+    self.HeldItem = nil
+    self.Weight -= removed.Weight
+    return true, cloneItemEntry(removed)
+end
+
 function Inventory:getTotalValue()
     local totalValue = 0
 
@@ -249,48 +333,6 @@ function Inventory:clear()
     self.Weight = 0
     table.clear(self.BackpackItems)
     self.HeldItem = nil
-end
-
-function Inventory:countById(itemId)
-    if type(itemId) ~= 'string' or itemId == '' then
-        return 0
-    end
-
-    local count = 0
-    for _, itemEntry in ipairs(self.BackpackItems) do
-        if itemEntry.Id == itemId then
-            count += 1
-        end
-    end
-
-    if self.HeldItem and self.HeldItem.Id == itemId then
-        count += 1
-    end
-
-    return count
-end
-
-function Inventory:consumeById(itemId)
-    if type(itemId) ~= 'string' or itemId == '' then
-        return false, 'MissingItemId'
-    end
-
-    for index, itemEntry in ipairs(self.BackpackItems) do
-        if itemEntry.Id == itemId then
-            local consumed = table.remove(self.BackpackItems, index)
-            self.Weight -= consumed.Weight
-            return true, cloneItemEntry(consumed)
-        end
-    end
-
-    if self.HeldItem and self.HeldItem.Id == itemId then
-        local consumed = self.HeldItem
-        self.HeldItem = nil
-        self.Weight -= consumed.Weight
-        return true, cloneItemEntry(consumed)
-    end
-
-    return false, 'ItemNotFound'
 end
 
 return Inventory

@@ -34,6 +34,9 @@ local DEFAULT_VISUAL_SMOOTHING_SPEED = 12
 local DEFAULT_LOGIC_TICK_RATE_HZ = 10
 local DEFAULT_MAX_LOGIC_STEPS_PER_UPDATE = 6
 local DEFAULT_DECISION_LOG_LIMIT = 128
+local DEFAULT_PLAYER_MELEE_TARGET_MAX_HEALTH = 10
+local DEFAULT_PLAYER_MELEE_SWING_ARC_DEGREES = 70
+local DEFAULT_PLAYER_MELEE_DAMAGE = 1
 
 local function defaultOnAttackHit(_player, _damagePips, _hitContext) end
 
@@ -93,6 +96,45 @@ end
 
 local function defaultEnemyFactory(monsterRuntimeProfile, options)
     return Enemy.new(monsterRuntimeProfile, options)
+end
+
+local function createNavigationEnemyRuntime(service, monsterRuntimeProfile, memoryDurationSeconds)
+    return EnemyRuntime.new({
+        MemoryDurationSeconds = memoryDurationSeconds,
+        Perception = {
+            GetPlayers = function()
+                return service.GetPlayers()
+            end,
+            CanTargetPlayer = function(player)
+                return service.CanTargetPlayer(player)
+            end,
+            GetCurrentPosition = function()
+                return service:_getCurrentPosition()
+            end,
+            PickNearestTarget = MonsterLogic.pickNearestTarget,
+            SightRange = monsterRuntimeProfile.SightRange,
+            EnableSenseNearestTarget = monsterRuntimeProfile.Behaviors[MonsterBehaviorCatalog.Behavior.SenseNearestTarget]
+                == true,
+            GetNow = os.clock,
+        },
+        Movement = {
+            StepToward = MonsterLogic.stepToward,
+            GetCurrentPosition = function()
+                return service:_getCurrentPosition()
+            end,
+            SpawnOffset = monsterRuntimeProfile.SpawnOffset,
+            Speed = monsterRuntimeProfile.Speed,
+            PatrolSpeedMultiplier = monsterRuntimeProfile.PatrolSpeedMultiplier,
+            EnableChase = monsterRuntimeProfile.Behaviors[MonsterBehaviorCatalog.Behavior.Chase]
+                == true,
+            EnablePatrol = monsterRuntimeProfile.Behaviors[MonsterBehaviorCatalog.Behavior.Patrol]
+                == true,
+        },
+        Attack = {
+            AttackRange = monsterRuntimeProfile.AttackRange or 0,
+            CooldownSeconds = monsterRuntimeProfile.AttackCooldownSeconds,
+        },
+    })
 end
 
 function MonsterService.new(
@@ -181,44 +223,16 @@ function MonsterService.new(
         RandomSeed = randomSeed,
         RandomSource = runtimeOptions.RandomSource
             or if randomSeed ~= nil then Random.new(randomSeed) else Random.new(),
+        MemoryDurationSeconds = runtimeOptions.MemoryDurationSeconds,
+        PlayerMeleeHitPointsRemaining = nil,
+        PlayerMeleeHitPointsMax = nil,
     }, MonsterService)
 
-    service.EnemyRuntime = EnemyRuntime.new({
-        MemoryDurationSeconds = runtimeOptions.MemoryDurationSeconds,
-        Perception = {
-            GetPlayers = function()
-                return service.GetPlayers()
-            end,
-            CanTargetPlayer = function(player)
-                return service.CanTargetPlayer(player)
-            end,
-            GetCurrentPosition = function()
-                return service:_getCurrentPosition()
-            end,
-            PickNearestTarget = MonsterLogic.pickNearestTarget,
-            SightRange = monsterRuntimeProfile.SightRange,
-            EnableSenseNearestTarget = monsterRuntimeProfile.Behaviors[MonsterBehaviorCatalog.Behavior.SenseNearestTarget]
-                == true,
-            GetNow = os.clock,
-        },
-        Movement = {
-            StepToward = MonsterLogic.stepToward,
-            GetCurrentPosition = function()
-                return service:_getCurrentPosition()
-            end,
-            SpawnOffset = monsterRuntimeProfile.SpawnOffset,
-            Speed = monsterRuntimeProfile.Speed,
-            PatrolSpeedMultiplier = monsterRuntimeProfile.PatrolSpeedMultiplier,
-            EnableChase = monsterRuntimeProfile.Behaviors[MonsterBehaviorCatalog.Behavior.Chase]
-                == true,
-            EnablePatrol = monsterRuntimeProfile.Behaviors[MonsterBehaviorCatalog.Behavior.Patrol]
-                == true,
-        },
-        Attack = {
-            AttackRange = monsterRuntimeProfile.AttackRange or 0,
-            CooldownSeconds = monsterRuntimeProfile.AttackCooldownSeconds,
-        },
-    })
+    service.EnemyRuntime = createNavigationEnemyRuntime(
+        service,
+        monsterRuntimeProfile,
+        runtimeOptions.MemoryDurationSeconds
+    )
 
     return service
 end
@@ -260,9 +274,14 @@ function MonsterService:destroy()
     self.LastTargetUserId = nil
     self.PendingVisualCFrame = nil
     if self.EnemyRuntime then
-        self.EnemyRuntime:destroy()
+        if type(self.EnemyRuntime.destroy) == 'function' then
+            self.EnemyRuntime:destroy()
+        end
         self.EnemyRuntime = nil
     end
+
+    self.PlayerMeleeHitPointsRemaining = nil
+    self.PlayerMeleeHitPointsMax = nil
 
     if self.ChaseLoopSound then
         if self.ChaseLoopSound.Stop then
@@ -867,6 +886,118 @@ function MonsterService:_onAttackMarkerReached(markerName)
 
     self.OnAttackHit(pendingAttack.TargetPlayer, pendingAttack.DamagePips, hitContext)
 end
+
+function MonsterService:_isWithinPlayerMeleeArc(
+    playerPosition,
+    lookVector,
+    targetPosition,
+    arcDegrees
+)
+    local toTarget = targetPosition - playerPosition
+    local horizontalToTarget = Vector3.new(toTarget.X, 0, toTarget.Z)
+    if horizontalToTarget.Magnitude <= 1e-5 then
+        return true
+    end
+
+    local facingHorizontal = Vector3.new(lookVector.X, 0, lookVector.Z)
+    if facingHorizontal.Magnitude <= 1e-5 then
+        facingHorizontal = Vector3.new(0, 0, -1)
+    else
+        facingHorizontal = facingHorizontal.Unit
+    end
+
+    local targetDirection = horizontalToTarget.Unit
+    local arc = type(arcDegrees) == 'number' and arcDegrees > 0 and arcDegrees
+        or DEFAULT_PLAYER_MELEE_SWING_ARC_DEGREES
+    local halfArcCosine = math.cos(math.rad(arc * 0.5))
+    local dot = facingHorizontal:Dot(targetDirection)
+    return dot + 1e-6 >= halfArcCosine
+end
+
+function MonsterService:tryApplyPlayerMeleeHit(
+    player,
+    originPosition,
+    lookVector,
+    swingRange,
+    swingArcDegrees,
+    meleeDamage
+)
+    if not self.IsExpeditionActive() then
+        return false, { Hit = false, Reason = 'Inactive' }
+    end
+
+    if player == nil or not self.CanTargetPlayer(player) then
+        return false, { Hit = false, Reason = 'InvalidPlayer' }
+    end
+
+    local monsterPosition = self:_getCurrentPosition()
+    if typeof(monsterPosition) ~= 'Vector3' or typeof(originPosition) ~= 'Vector3' then
+        return false, { Hit = false, Reason = 'MissingPosition' }
+    end
+
+    if typeof(lookVector) ~= 'Vector3' then
+        return false, { Hit = false, Reason = 'MissingLook' }
+    end
+
+    local runtimeHealth = self.EnemyRuntime and self.EnemyRuntime.Health
+    local hasRuntimeHealth = type(runtimeHealth) == 'table'
+        and type(runtimeHealth.isAlive) == 'function'
+        and type(runtimeHealth.applyDamage) == 'function'
+    local useBuffer = type(self.PlayerMeleeHitPointsRemaining) == 'number'
+
+    if hasRuntimeHealth then
+        if not runtimeHealth:isAlive() then
+            return false, { Hit = false, Reason = 'AlreadyDefeated' }
+        end
+    elseif useBuffer then
+        if self.PlayerMeleeHitPointsRemaining <= 0 then
+            return false, { Hit = false, Reason = 'AlreadyDefeated' }
+        end
+    else
+        return false, { Hit = false, Reason = 'NoMeleeTarget' }
+    end
+
+    local rangeLimit = type(swingRange) == 'number' and swingRange > 0 and swingRange or 6
+    local distance = (monsterPosition - originPosition).Magnitude
+    if distance > rangeLimit then
+        return true, { Hit = false, Reason = 'OutOfRange' }
+    end
+
+    if
+        not self:_isWithinPlayerMeleeArc(
+            originPosition,
+            lookVector,
+            monsterPosition,
+            swingArcDegrees
+        )
+    then
+        return true, { Hit = false, Reason = 'OutOfArc' }
+    end
+
+    local damage = DEFAULT_PLAYER_MELEE_DAMAGE
+    if type(meleeDamage) == 'number' and meleeDamage > 0 then
+        damage = math.max(1, math.floor(meleeDamage))
+    end
+
+    local killed = false
+    if hasRuntimeHealth then
+        runtimeHealth:applyDamage(damage)
+        killed = not runtimeHealth:isAlive()
+    elseif useBuffer then
+        self.PlayerMeleeHitPointsRemaining =
+            math.max(0, self.PlayerMeleeHitPointsRemaining - damage)
+        killed = self.PlayerMeleeHitPointsRemaining <= 0
+    end
+
+    self:_recordDecisionEvent('PlayerMeleeHit', {
+        Damage = damage,
+        Distance = distance,
+        Killed = killed,
+    })
+
+    return true, { Hit = true, Killed = killed }
+end
+
 function MonsterService:spawn(patrolPoints, initialPatrolIndex)
     self:destroy()
     self.PatrolPoints = patrolPoints
@@ -883,6 +1014,8 @@ function MonsterService:spawn(patrolPoints, initialPatrolIndex)
     end
 
     self.PatrolIndex = math.clamp(initialPatrolIndex or 1, 1, #patrolPoints)
+    self.EnemyRuntime =
+        createNavigationEnemyRuntime(self, self.Definition, self.MemoryDurationSeconds)
     self.EnemyRuntime:reset(self.PatrolPoints, self.PatrolIndex)
     local spawnPosition = patrolPoints[self.PatrolIndex] + self.Definition.SpawnOffset
     local spawnOk, spawnReason = self:_spawnModel(spawnPosition)
@@ -900,6 +1033,19 @@ function MonsterService:spawn(patrolPoints, initialPatrolIndex)
         self.EnemyRuntime:spawn()
     end
 
+    local meleeHealth = self.EnemyRuntime and self.EnemyRuntime.Health
+    if
+        type(meleeHealth) == 'table'
+        and type(meleeHealth.isAlive) == 'function'
+        and type(meleeHealth.applyDamage) == 'function'
+    then
+        self.PlayerMeleeHitPointsRemaining = nil
+        self.PlayerMeleeHitPointsMax = nil
+    else
+        self.PlayerMeleeHitPointsMax = DEFAULT_PLAYER_MELEE_TARGET_MAX_HEALTH
+        self.PlayerMeleeHitPointsRemaining = DEFAULT_PLAYER_MELEE_TARGET_MAX_HEALTH
+    end
+
     if self.AutoUpdateOnHeartbeat then
         self.Connection = RunService.Heartbeat:Connect(function(dt)
             self:update(dt)
@@ -914,18 +1060,25 @@ function MonsterService:_runLogicStep(dt)
     end
 
     local decision = self.EnemyRuntime:update(dt)
-    self.PatrolIndex = self.EnemyRuntime.Context.PatrolIndex
+    if type(self.EnemyRuntime) == 'table' and type(self.EnemyRuntime.Context) == 'table' then
+        local patrolIndex = self.EnemyRuntime.Context.PatrolIndex
+        if type(patrolIndex) == 'number' then
+            self.PatrolIndex = patrolIndex
+        end
+    end
+
+    local perceptionState = decision.PerceptionState or decision.State
 
     if decision.TargetChanged then
         self:_emitDecisionLog('TargetChanged', {
             MonsterId = self.Definition.Id,
-            State = decision.PerceptionState,
+            State = perceptionState,
         })
     end
     if decision.StateChanged then
         self:_emitDecisionLog('StateChanged', {
             MonsterId = self.Definition.Id,
-            State = decision.PerceptionState,
+            State = perceptionState,
         })
     end
     if decision.AttackQueued then
@@ -933,6 +1086,9 @@ function MonsterService:_runLogicStep(dt)
             MonsterId = self.Definition.Id,
         })
     end
+
+    local animationName = decision.AnimationName or decision.DesiredAnimation or 'Idle'
+    local animationSpeed = decision.AnimationSpeed or decision.DesiredAnimationSpeed or 1
 
     local nextPosition = decision.NextPosition
     if nextPosition and self.CanTraverse(currentPosition, nextPosition) then
@@ -949,7 +1105,7 @@ function MonsterService:_runLogicStep(dt)
             else currentRotation + nextPosition
         self.PendingVisualCFrame = facingCFrame
 
-        self:_setAnimationState(decision.AnimationName or 'Idle', decision.AnimationSpeed or 1)
+        self:_setAnimationState(animationName, animationSpeed)
         self:_setChaseLoopSoundPlaying(decision.ShouldPlayChaseLoop == true)
     else
         self.PendingVisualCFrame = nil

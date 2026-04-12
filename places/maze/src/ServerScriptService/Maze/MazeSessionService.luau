@@ -51,6 +51,9 @@ local DAMAGE_KIND_BY_PIPS = table.freeze({
     [2] = Gameplay.PlayerState.DamageKind.Heavy,
 })
 
+local HEALING_POTION_ID = 'consumable-healing-potion'
+local HEALING_POTION_USE_COOLDOWN_SECONDS = 1
+
 local MazeMonsterSpawnPolicy = Gameplay.Monsters.MazeMonsterSpawnPolicy
 
 local MazeSessionService = {}
@@ -471,6 +474,7 @@ function MazeSessionService.new(options)
     self.UgcMonsterServices = {}
     self.PendingUgcMonsterPayloads = {}
     self.CorpsesByUserId = {}
+    self.HealingPotionCooldownUntilByUserId = {}
     self.BootPhase = 'New'
     self.SurfacePalette = Shared.Runtime.MazeLightingProfile.SurfacePalette
 
@@ -741,6 +745,7 @@ function MazeSessionService:_addPlayerState(player)
 end
 
 function MazeSessionService:_removePlayerState(player)
+    self.HealingPotionCooldownUntilByUserId[player.UserId] = nil
     self.RunTracker:removePlayer(player.UserId)
     self.InventoryService:removePlayer(player)
     self.CampSession = CampMazeSessionContract.prunePlayer(self.CampSession, player.UserId, {
@@ -1030,7 +1035,133 @@ function MazeSessionService:_beginFormalExpedition()
     self:_setBootPhase('SpawnMonster')
     self.MonsterService:spawn(patrolPoints, initialPatrolIndex)
     self:_spawnQueuedUgcMonsters()
+    self:_grantAllActivePlayersStartingHealingPotion()
     self:_setStatus('Maze session is live. Explore, loot, and find an extraction point.')
+end
+
+function MazeSessionService:_getHealingPotionItemDef()
+    for _, item in ipairs(Gameplay.Config.Items) do
+        if item.Id == HEALING_POTION_ID then
+            return item
+        end
+    end
+
+    return nil
+end
+
+function MazeSessionService:_grantStartingHealingPotionIfEligible(player)
+    if self.RunTracker:getState() ~= 'Expedition' then
+        return
+    end
+
+    if not self.RunTracker:isPlayerActive(player.UserId) then
+        return
+    end
+
+    if self.InventoryService:get(player) == nil then
+        return
+    end
+
+    if self.InventoryService:countByItemId(player, HEALING_POTION_ID) >= 3 then
+        return
+    end
+
+    local def = self:_getHealingPotionItemDef()
+    if def == nil then
+        warn('[MazeSession] Missing healing potion item definition in Gameplay.Config.Items.')
+        return
+    end
+
+    local ok, reason = self.InventoryService:pickup(player, def)
+    if not ok then
+        self:_setStatus(
+            string.format(
+                '%s could not receive a starting healing potion (%s).',
+                player.DisplayName,
+                tostring(reason)
+            )
+        )
+    end
+end
+
+function MazeSessionService:_grantAllActivePlayersStartingHealingPotion()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        self:_grantStartingHealingPotionIfEligible(plr)
+    end
+end
+
+function MazeSessionService:_useHealingPotion(player)
+    local now = os.clock()
+    local cooldownUntil = self.HealingPotionCooldownUntilByUserId[player.UserId]
+    if type(cooldownUntil) == 'number' and cooldownUntil > now then
+        self:_setStatus(
+            string.format(
+                '%s cannot drink another potion yet (%.1fs remaining).',
+                player.DisplayName,
+                math.max(0, cooldownUntil - now)
+            )
+        )
+        return
+    end
+
+    local summary = self.PlayerService:getSummary(player)
+    if summary == nil then
+        self:_setStatus(string.format('%s has no player state.', player.DisplayName))
+        return
+    end
+
+    if summary.Health.IsDead == true then
+        self:_setStatus(string.format('%s cannot drink a potion while dead.', player.DisplayName))
+        return
+    end
+
+    if summary.Health.CurrentHealthPips >= summary.Health.MaxHealthPips then
+        self:_setStatus(
+            string.format(
+                '%s is already at full health and cannot drink a potion.',
+                player.DisplayName
+            )
+        )
+        return
+    end
+
+    local healed, healReason = self.PlayerService:applyHealPips(player, 1)
+    if healed ~= true then
+        self:_setStatus(
+            string.format(
+                '%s could not drink the potion (%s).',
+                player.DisplayName,
+                tostring(healReason)
+            )
+        )
+        return
+    end
+
+    local removedOk, removeReason = self.InventoryService:removeHeldItem(player)
+    if removedOk ~= true then
+        self:_setStatus(
+            string.format(
+                '%s drank the potion but inventory removal failed (%s).',
+                player.DisplayName,
+                tostring(removeReason)
+            )
+        )
+        return
+    end
+
+    self.HealingPotionCooldownUntilByUserId[player.UserId] = now
+        + HEALING_POTION_USE_COOLDOWN_SECONDS
+
+    local after = self.PlayerService:getSummary(player)
+    self:_setStatus(
+        string.format(
+            '%s drank a healing potion. Health pips: %d/%d.',
+            player.DisplayName,
+            after and after.Health.CurrentHealthPips or 0,
+            after and after.Health.MaxHealthPips or 0
+        )
+    )
+    self:_broadcastSnapshot()
 end
 
 function MazeSessionService:_canManageInventory(player)
@@ -1138,8 +1269,13 @@ function MazeSessionService:_handleUseTool(player)
         return
     end
 
-    -- 2. 检查这东西有没有“状态/耐久”
-    if not heldItem.CurrentState or not heldItem.ConsumePerUse then
+    if heldItem.Id == HEALING_POTION_ID then
+        self:_useHealingPotion(player)
+        return
+    end
+
+    -- 2. 检查这东西有没有“状态/耐久”（ConsumePerUse 允许为 0，表示使用不扣数值）
+    if type(heldItem.CurrentState) ~= 'number' or type(heldItem.ConsumePerUse) ~= 'number' then
         self:_setStatus(
             string.format(
                 '%s cannot actively "use" %s (it is not a tool).',
@@ -1200,6 +1336,26 @@ function MazeSessionService:_handleUseTool(player)
     elseif updatedHeldItem.ToolCategory == 'Crowbar' then
         actionWord = 'swung'
         effectText = 'A satisfying swoosh cuts the air!'
+
+        local character = player.Character
+        local humanoidRoot = character and character:FindFirstChild('HumanoidRootPart')
+        if humanoidRoot then
+            local meleeOk, meleeResult = self.MonsterService:tryApplyPlayerMeleeHit(
+                player,
+                humanoidRoot.Position,
+                humanoidRoot.CFrame.LookVector,
+                updatedHeldItem.SwingRange,
+                updatedHeldItem.SwingArcDegrees,
+                updatedHeldItem.MeleeDamage
+            )
+            if meleeOk == true and type(meleeResult) == 'table' and meleeResult.Hit == true then
+                if meleeResult.Killed == true then
+                    effectText = 'You land a crushing blow. The threat falls silent.'
+                else
+                    effectText = 'Metal bites true. The creature falters.'
+                end
+            end
+        end
     end
 
     self:_setStatus(
@@ -1542,6 +1698,9 @@ function MazeSessionService:start()
         if self.IsLaunched then
             player:LoadCharacter()
             self:_setStatus(string.format('%s joined the shared maze session.', player.DisplayName))
+            if self.RunTracker:getState() == 'Expedition' then
+                self:_grantStartingHealingPotionIfEligible(player)
+            end
             return
         end
 
