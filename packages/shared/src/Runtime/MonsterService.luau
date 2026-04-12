@@ -181,6 +181,8 @@ function MonsterService.new(
         RandomSeed = randomSeed,
         RandomSource = runtimeOptions.RandomSource
             or if randomSeed ~= nil then Random.new(randomSeed) else Random.new(),
+        CombatMaxHealth = 1,
+        CombatCurrentHealth = 1,
     }, MonsterService)
 
     service.EnemyRuntime = EnemyRuntime.new({
@@ -219,6 +221,15 @@ function MonsterService.new(
             CooldownSeconds = monsterRuntimeProfile.AttackCooldownSeconds,
         },
     })
+
+    local combatHp = monsterRuntimeProfile.CombatHitPoints
+    if type(combatHp) ~= 'number' or combatHp < 1 or math.floor(combatHp) ~= combatHp then
+        combatHp = 1
+    else
+        combatHp = math.floor(combatHp)
+    end
+    service.CombatMaxHealth = combatHp
+    service.CombatCurrentHealth = combatHp
 
     return service
 end
@@ -867,6 +878,133 @@ function MonsterService:_onAttackMarkerReached(markerName)
 
     self.OnAttackHit(pendingAttack.TargetPlayer, pendingAttack.DamagePips, hitContext)
 end
+
+function MonsterService:_isWithinPlayerMeleeArc(
+    playerPosition,
+    playerLookUnit,
+    monsterPosition,
+    arcDegrees
+)
+    local toMonster = monsterPosition - playerPosition
+    local horizontalToMonster = Vector3.new(toMonster.X, 0, toMonster.Z)
+    if horizontalToMonster.Magnitude <= 1e-4 then
+        return true
+    end
+
+    local facingHorizontal = Vector3.new(playerLookUnit.X, 0, playerLookUnit.Z)
+    if facingHorizontal.Magnitude <= 1e-4 then
+        return true
+    end
+    facingHorizontal = facingHorizontal.Unit
+
+    local targetDirection = horizontalToMonster.Unit
+    local arc = arcDegrees or DEFAULT_ATTACK_ARC_DEGREES
+    local halfArcCosine = math.cos(math.rad(arc * 0.5))
+    return facingHorizontal:Dot(targetDirection) + 1e-6 >= halfArcCosine
+end
+
+function MonsterService:_hasClearShotFromPlayerToMonster(player, originPosition, monsterPosition)
+    local character = player and player.Character
+    if character == nil then
+        return false
+    end
+
+    local delta = monsterPosition - originPosition
+    local distance = delta.Magnitude
+    if distance <= 1e-3 then
+        return true
+    end
+
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    raycastParams.IgnoreWater = true
+    raycastParams.FilterDescendantsInstances = { character }
+
+    local raycastResult = self.Raycast(originPosition, delta, raycastParams)
+    if raycastResult == nil then
+        return true
+    end
+
+    if
+        self.MonsterRoot
+        and raycastResult.Instance
+        and raycastResult.Instance:IsDescendantOf(self.MonsterRoot)
+    then
+        return true
+    end
+
+    return false
+end
+
+-- Player crowbar (maze): optional CombatHitPoints on runtime profile; UGC services out of scope for this path.
+function MonsterService:tryApplyPlayerMeleeHit(
+    player,
+    rootPosition,
+    lookVector,
+    swingRange,
+    swingArcDegrees,
+    damageAmount
+)
+    if not self.IsExpeditionActive() then
+        return false, 'NotActive'
+    end
+
+    if typeof(rootPosition) ~= 'Vector3' or typeof(lookVector) ~= 'Vector3' then
+        return false, 'InvalidPlayerTransform'
+    end
+
+    if self.CombatCurrentHealth == nil or self.CombatCurrentHealth <= 0 then
+        return true, { Hit = false, Reason = 'AlreadyDead' }
+    end
+
+    if not self.MonsterPositionPart or self:_getCurrentPosition() == nil then
+        return true, { Hit = false, Reason = 'NoMonster' }
+    end
+
+    local monsterPosition = self:_getCurrentPosition()
+
+    local dmg = type(damageAmount) == 'number' and damageAmount or 1
+    if dmg < 1 then
+        dmg = 1
+    end
+
+    local rangeLimit = type(swingRange) == 'number' and swingRange > 0 and swingRange or 6
+    local arcDeg = type(swingArcDegrees) == 'number' and swingArcDegrees > 0 and swingArcDegrees
+        or DEFAULT_ATTACK_ARC_DEGREES
+
+    local horizontalDistance = Vector3.new(
+        monsterPosition.X - rootPosition.X,
+        0,
+        monsterPosition.Z - rootPosition.Z
+    ).Magnitude
+    if horizontalDistance > rangeLimit then
+        return true, { Hit = false, Reason = 'OutOfRange' }
+    end
+
+    if not self:_isWithinPlayerMeleeArc(rootPosition, lookVector, monsterPosition, arcDeg) then
+        return true, { Hit = false, Reason = 'OutOfArc' }
+    end
+
+    if not self.CanTraverse(monsterPosition, rootPosition) then
+        return true, { Hit = false, Reason = 'BlockedPath' }
+    end
+
+    local rayOrigin = rootPosition + Vector3.new(0, 1.5, 0)
+    if not self:_hasClearShotFromPlayerToMonster(player, rayOrigin, monsterPosition) then
+        return true, { Hit = false, Reason = 'BlockedLineOfSight' }
+    end
+
+    local nextHealth = self.CombatCurrentHealth - dmg
+    self.CombatCurrentHealth = math.max(0, nextHealth)
+    local killed = self.CombatCurrentHealth <= 0
+    if killed then
+        self:destroy()
+        return true, { Hit = true, Killed = true, RemainingHealth = 0 }
+    end
+
+    return true, { Hit = true, Killed = false, RemainingHealth = self.CombatCurrentHealth }
+end
+
 function MonsterService:spawn(patrolPoints, initialPatrolIndex)
     self:destroy()
     self.PatrolPoints = patrolPoints
@@ -881,6 +1019,15 @@ function MonsterService:spawn(patrolPoints, initialPatrolIndex)
     if #patrolPoints == 0 then
         return
     end
+
+    local maxHp = self.Definition.CombatHitPoints
+    if type(maxHp) ~= 'number' or maxHp < 1 or math.floor(maxHp) ~= maxHp then
+        maxHp = 1
+    else
+        maxHp = math.floor(maxHp)
+    end
+    self.CombatMaxHealth = maxHp
+    self.CombatCurrentHealth = maxHp
 
     self.PatrolIndex = math.clamp(initialPatrolIndex or 1, 1, #patrolPoints)
     self.EnemyRuntime:reset(self.PatrolPoints, self.PatrolIndex)

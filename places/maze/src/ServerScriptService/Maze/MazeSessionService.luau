@@ -1101,8 +1101,8 @@ function MazeSessionService:_handleUseTool(player)
         return
     end
 
-    -- 2. 检查这东西有没有“状态/耐久”
-    if not heldItem.CurrentState or not heldItem.ConsumePerUse then
+    -- 2. 检查这东西有没有“状态/耐久”（ConsumePerUse 允许为 0，表示使用不扣数值）
+    if type(heldItem.CurrentState) ~= 'number' or type(heldItem.ConsumePerUse) ~= 'number' then
         self:_setStatus(
             string.format(
                 '%s cannot actively "use" %s (it is not a tool).',
@@ -1163,6 +1163,26 @@ function MazeSessionService:_handleUseTool(player)
     elseif updatedHeldItem.ToolCategory == 'Crowbar' then
         actionWord = 'swung'
         effectText = 'A satisfying swoosh cuts the air!'
+
+        local character = player.Character
+        local humanoidRoot = character and character:FindFirstChild('HumanoidRootPart')
+        if humanoidRoot then
+            local meleeOk, meleeResult = self.MonsterService:tryApplyPlayerMeleeHit(
+                player,
+                humanoidRoot.Position,
+                humanoidRoot.CFrame.LookVector,
+                updatedHeldItem.SwingRange,
+                updatedHeldItem.SwingArcDegrees,
+                updatedHeldItem.MeleeDamage
+            )
+            if meleeOk == true and type(meleeResult) == 'table' and meleeResult.Hit == true then
+                if meleeResult.Killed == true then
+                    effectText = 'You land a crushing blow. The threat falls silent.'
+                else
+                    effectText = 'Metal bites true. The creature falters.'
+                end
+            end
+        end
     end
 
     self:_setStatus(
