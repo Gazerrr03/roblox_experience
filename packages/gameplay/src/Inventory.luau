@@ -186,19 +186,20 @@ function Inventory:consumeHeldItemState(nowSeconds)
         if heldItem.CurrentState < heldItem.ConsumePerUse then
             return false, 'Depleted'
         end
-    end
 
-    local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
-    local cooldownSeconds = heldItem.CooldownSeconds
-    if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
-        local lastUsedAt = heldItem.LastUsedAt
-        if type(lastUsedAt) == 'number' and now - lastUsedAt < cooldownSeconds then
-            return false, 'Cooldown', cooldownSeconds - (now - lastUsedAt)
+        local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
+        local cooldownSeconds = heldItem.CooldownSeconds
+        if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
+            local lastUsedAt = heldItem.LastUsedAt
+            if type(lastUsedAt) == 'number' and now - lastUsedAt < cooldownSeconds then
+                return false, 'Cooldown', cooldownSeconds - (now - lastUsedAt)
+            end
         end
+
+        heldItem.CurrentState -= heldItem.ConsumePerUse
+        heldItem.LastUsedAt = now
     end
 
-    heldItem.CurrentState -= heldItem.ConsumePerUse
-    heldItem.LastUsedAt = now
     return true, cloneItemEntry(heldItem)
 end
 
