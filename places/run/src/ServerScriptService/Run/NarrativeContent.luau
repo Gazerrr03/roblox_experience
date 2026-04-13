@@ -461,8 +461,14 @@ function NarrativeContent.getCR04Text(collectedCount: number): string
 			if entry.text then
 				return entry.text
 			else
-				-- 返回完整版（CR-04 在 FRAGMENTS 中的 narrativeText）
-				local fullConfig = NarrativeContent.FRAGMENTS[13] -- CR-04 是第13个
+				-- 返回完整版（CR-04 的 narrativeText）
+				local fullConfig = nil
+				for _, frag in ipairs(NarrativeContent.FRAGMENTS) do
+					if frag.id == 'CR_04' then
+						fullConfig = frag
+						break
+					end
+				end
 				if fullConfig then
 					return fullConfig.narrativeText
 				end

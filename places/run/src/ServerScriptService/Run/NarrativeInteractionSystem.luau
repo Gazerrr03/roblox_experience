@@ -921,7 +921,7 @@ function NarrativeInteractionSystem.createCR_03(folder: Folder)
 	earringPrompt.Triggered:Connect(function(player)
 		if NarrativeInteractionSystem.hasItem(player, 'SilentEarring') then return end
 		-- 先给物品标记
-		playerItems[player.UserId] = playerItems[player.UserId] or {}
+		ensurePlayerData(player)
 		playerItems[player.UserId]['SilentEarring'] = true
 
 		-- 静默耳坠拾取后立即触发碎片（特殊体验：无普通获得提示，被叙事打断）
