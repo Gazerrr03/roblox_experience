@@ -353,7 +353,7 @@ end
 
 function NarrativeInteractionSystem.createAT_03(folder: Folder)
     local atFolder = Instance.new('Folder')
-    atFolder.Name = 'AT_03_ShardedEcho'
+    atFolder.Name = 'AT_03_ShatteredEcho'
     atFolder.Parent = folder
 
     local hammerDef = Content.TRIGGER_ITEMS.ResonanceHammer
@@ -398,7 +398,7 @@ function NarrativeInteractionSystem.createAT_03(folder: Folder)
         target.Color = Color3.fromRGB(90, 95, 100)
         target.Material = Enum.Material.Slate
         target.Shape = Enum.PartType.Ball
-        target.CanCollide = (i ~= 3)
+        target.CanCollide = true
         target.Anchored = true
         target.Parent = atFolder
 
@@ -1056,10 +1056,14 @@ function NarrativeInteractionSystem.createLibraryDoor(folder: Folder)
     doorPart.Anchored = true
     doorPart.Parent = doorFolder
 
-    local doorPrompt = createPrompt(doorPart, 'LibraryDoor', 1)
-
+    local doorPrompt = Instance.new('ProximityPrompt')
+    doorPrompt.Name = 'LibraryDoorPrompt'
     doorPrompt.ActionText = Content.LIBRARY_DOOR.actionText
     doorPrompt.ObjectText = Content.LIBRARY_DOOR.objectText
+    doorPrompt.KeyboardKeyCode = Enum.KeyCode.E
+    doorPrompt.MaxActivationDistance = 6
+    doorPrompt.RequiresLineOfSight = false
+    doorPrompt.Parent = doorPart
 
     -- TODO: 传送逻辑后续按需接入（TeleportService 到 Library Place）
 end
