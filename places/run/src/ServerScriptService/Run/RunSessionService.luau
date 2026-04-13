@@ -18,8 +18,8 @@ local PlayerService = Shared.Runtime.PlayerService
 local PlayerStateService = Shared.Runtime.PlayerStateService
 local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 
-local LocalDebugMazeWorldBuilder = require(script.Parent.LocalDebugMazeWorldBuilder)
-local RunMazePortal = require(script.Parent.RunMazePortal)
+local RunSpawnPoint = require(script.Parent.RunSpawnPoint)
+local RunToMazeTransition = require(script.Parent.RunToMazeTransition)
 local RunWorldBuilder = require(script.Parent.RunWorldBuilder)
 
 local RunSessionService = {}
@@ -30,8 +30,6 @@ local CAMP_SESSION_LOCK_WAIT_SECONDS = 0.05
 local MAZE_ENTRY_REQUEST_COOLDOWN_SECONDS = 0.35
 local MAZE_ENTRY_DISTANCE_BUFFER = 2
 local TERMINAL_INTERACTION_DISTANCE_BUFFER = 2
-local LOCAL_DEBUG_ROOM_DETECTION_RADIUS = 56
-local LOCAL_DEBUG_MAZE_RETURN_REASON = 'local_debug_return'
 local SNAPSHOT_INTERVAL_SECONDS = 0.25
 local RUN_MAZE_GATE_RETURN_REASONS = table.freeze({
     early_return = true,
@@ -82,24 +80,17 @@ local function resolvePendingSpawnCFrame(self, pendingSpawnValue)
         return pendingSpawnValue
     end
 
-    if self.World and self.World.ReturnCFrame then
-        return self.World.ReturnCFrame
+    if type(pendingSpawnValue) == 'string' and self.World then
+        return self.World:getSpawnCFrame(pendingSpawnValue)
     end
 
-    return RunWorldBuilder.ReturnCFrame
+    error(string.format('Unknown run pending spawn target %q.', tostring(pendingSpawnValue)), 0)
 end
 
 local function bindCharacterTeleport(self, player)
     player.CharacterAdded:Connect(function(character)
         task.wait()
         if not character.Parent then
-            return
-        end
-
-        if self.PendingLocalMazeSpawnByUserId[player.UserId] and self.LocalDebugMazeWorld then
-            self.PendingLocalMazeSpawnByUserId[player.UserId] = nil
-            character:PivotTo(self.LocalDebugMazeWorld.SpawnCFrame)
-            self:_applyMovementMode(player)
             return
         end
 
@@ -213,7 +204,8 @@ local function runWithCampSessionLock(self, callback)
     return table.unpack(results, 2, results.n)
 end
 
-function RunSessionService.new()
+function RunSessionService.new(options)
+    local runtimeOptions = options or {}
     local self = setmetatable({}, RunSessionService)
 
     self.Remotes = Remotes
@@ -229,9 +221,9 @@ function RunSessionService.new()
     self.ShouldAutoLaunch = false
     self.GateOpen = false
     self.World = nil
+    self.WorldInteractions = nil
     self.SnapshotThread = nil
     self.PendingSpawnByUserId = {}
-    self.PendingLocalMazeSpawnByUserId = {}
     self.CampSessionLock = false
     self.HasAuthoritativeSessionSeed = false
     self.SessionSeedRandom = nil
@@ -240,13 +232,13 @@ function RunSessionService.new()
     self.MazeEntryReason =
         'Set SessionConfig.PlaceIds.Maze or SessionPlaceIdMaze before using the maze gate.'
     self.MazeEntryReasonCode = MazeEntryAvailability.ReasonCode.MazePlaceIdMissing
-    self.LocalDebugMazeWorld = nil
     self.TeamPages = 0
     self.BookGoalAmount = BOOK_GOAL_AMOUNT
     self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
     self.ControlStateService = ControlStateService.new()
     self.PlayerService = PlayerService.new()
     self.PlayerStateService = PlayerStateService.new()
+    self.RunToMazeTransition = runtimeOptions.RunToMazeTransition or RunToMazeTransition.new()
 
     return self
 end
@@ -410,7 +402,7 @@ function RunSessionService:_applyReturnedPlayersFromTeleportData(players, accept
         local returnSummary = CampMazeSessionContract.findReturnSummary(teleportData, player.UserId)
         if returnSummary then
             self.PendingSpawnByUserId[player.UserId] =
-                self:_getReturnSpawnCFrameForSummary(returnSummary)
+                self:_getReturnSpawnTargetForSummary(returnSummary)
             table.insert(returnedPlayers, {
                 Player = player,
                 Summary = returnSummary,
@@ -452,73 +444,72 @@ function RunSessionService:_teleportCharactersToSpawn()
     end
 end
 
-function RunSessionService:_getReturnSpawnCFrameForSummary(summary)
+function RunSessionService:_getReturnSpawnTargetForSummary(summary)
     if RUN_MAZE_GATE_RETURN_REASONS[summary.ReturnReason] then
-        return self.World and self.World.MazeReturnCFrame or RunWorldBuilder.MazeReturnCFrame
+        return RunSpawnPoint.Kind.MazeReturn
     end
 
-    return self.World and self.World.ReturnCFrame or RunWorldBuilder.ReturnCFrame
+    return RunSpawnPoint.Kind.Return
 end
 
 function RunSessionService:_rebuildWorld()
     clearDefaultWorkspaceShell()
+
+    if self.WorldInteractions then
+        self.WorldInteractions:disconnectAll()
+        self.WorldInteractions = nil
+    end
+
     self.World = RunWorldBuilder.build()
     if self.GateOpen then
-        self.World.OpenGate()
-    end
-    self:_bindWorldInteractions()
-    self:_teleportCharactersToSpawn()
-end
-
-function RunSessionService:_bindWorldInteractions()
-    if not self.World then
-        return
+        self.World:openGate()
     end
 
-    if self.World.ShopPrompt then
-        self.World.ShopPrompt.Triggered:Connect(function(player)
+    self.WorldInteractions = self.World:bindInteractions({
+        OnShop = function(player)
             if not self:_canManageInventory(player) then
                 return
             end
 
             self:_openShop(player)
-        end)
-    end
-
-    if self.World.SellPrompt then
-        self.World.SellPrompt.Triggered:Connect(function(player)
+        end,
+        OnSell = function(player)
             if not self:_canManageInventory(player) then
                 return
             end
 
             self:_openSell(player)
-        end)
-    end
-
-    if self.World.ObjectivePrompt then
-        self.World.ObjectivePrompt.Triggered:Connect(function(player)
+        end,
+        OnObjective = function(player)
             self:_openObjectiveBoard(player)
-        end)
-    end
-
-    self.World.LoadoutPrompt.Triggered:Connect(function(player)
-        self:_setStatus(
-            string.format(
-                '%s checked the loadout bench. Equipment setup is coming soon.',
-                player.DisplayName
+        end,
+        OnLoadout = function(player)
+            self:_setStatus(
+                string.format(
+                    '%s checked the loadout bench. Equipment setup is coming soon.',
+                    player.DisplayName
+                )
             )
-        )
-    end)
+        end,
+        OnUgcLab = function(player)
+            self:_setStatus(
+                string.format(
+                    '%s checked the UGC lab console. Creature forging is coming soon.',
+                    player.DisplayName
+                )
+            )
+        end,
+        OnGate = function(player)
+            self:_openGate(player)
+        end,
+        OnMazePortal = function(player)
+            if self:_canProcessMazeEntryRequest(player) then
+                self:_requestMazeEntry(player, false)
+            end
+        end,
+    })
 
-    self.World.GatePrompt.Triggered:Connect(function(player)
-        self:_openGate(player)
-    end)
-
-    self.World.MazePrompt.Triggered:Connect(function(player)
-        if self:_canProcessMazeEntryRequest(player) then
-            self:_requestMazeEntry(player, false)
-        end
-    end)
+    self:_teleportCharactersToSpawn()
 end
 
 function RunSessionService:_getPlayerArea(player)
@@ -532,24 +523,7 @@ function RunSessionService:_getPlayerArea(player)
         return self.GateOpen and 'Temple Threshold' or 'Temple Hall'
     end
 
-    if self.LocalDebugMazeWorld then
-        local room, distance = self.LocalDebugMazeWorld.FindRoomByPosition(rootPart.Position)
-        if room and distance <= LOCAL_DEBUG_ROOM_DETECTION_RADIUS then
-            return 'Local Maze Debug'
-        end
-
-        for _, entry in ipairs(self.CampSession.PlayersInMaze or {}) do
-            if entry.UserId == player.UserId then
-                return 'Local Maze Debug'
-            end
-        end
-    end
-
-    if rootPart.Position.Z >= self.World.OutdoorThresholdZ then
-        return 'Wilderness'
-    end
-
-    return 'Temple Hall'
+    return self.World:getAreaForPosition(rootPart.Position)
 end
 
 function RunSessionService:_buildRoster()
@@ -571,10 +545,6 @@ end
 
 function RunSessionService:_getObjectiveFor(player)
     local area = self:_getPlayerArea(player)
-
-    if area == 'Local Maze Debug' then
-        return 'Explore local debug maze rooms, then use Return To Temple (Local Debug).'
-    end
 
     if not self.GateOpen then
         return 'Inspect the temple terminals and open the gate when the group is ready.'
@@ -781,7 +751,6 @@ function RunSessionService:_resolveMazeEntryAvailability()
         PlaceId = game.PlaceId,
         GameId = game.GameId,
         IsStudio = RunService:IsStudio(),
-        DebugLocalMazeHandoff = SessionConfig.DebugLocalMazeHandoff,
     })
 
     self.MazeEntryMode = availability.Mode
@@ -899,7 +868,7 @@ function RunSessionService:_openGate(player)
     if not self.GateOpen then
         self.GateOpen = true
         self:_syncCampSession()
-        self.World.OpenGate()
+        self.World:openGate()
         self:_setStatus(
             string.format(
                 '%s opened the temple gate. The wilderness trail is now accessible.',
@@ -912,86 +881,6 @@ function RunSessionService:_openGate(player)
     self:_setStatus(
         string.format(
             '%s checked the temple gate. The wilderness trail is already open.',
-            player.DisplayName
-        )
-    )
-end
-
-function RunSessionService:_bindLocalDebugMazeInteractions()
-    if not self.LocalDebugMazeWorld then
-        return
-    end
-
-    self.LocalDebugMazeWorld.ReturnPrompt.Triggered:Connect(function(player)
-        local previousSession = CampMazeSessionContract.normalizeCampSession(self.CampSession)
-        local summary = CampMazeSessionContract.buildReturnSummary({
-            UserId = player.UserId,
-            Name = player.DisplayName,
-            ReturnReason = LOCAL_DEBUG_MAZE_RETURN_REASON,
-            Value = 0,
-            ItemCount = 0,
-            Weight = 0,
-            WasExtracted = false,
-            WasSettled = false,
-        })
-
-        self.CampSession = CampMazeSessionContract.applyReturn(previousSession, summary, false)
-        self.CampSession.GateOpen = self.GateOpen
-
-        local character = player.Character
-        if character and character.Parent and self.World then
-            character:PivotTo(self.World.ReturnCFrame)
-        else
-            self.PendingSpawnByUserId[player.UserId] = true
-            player:LoadCharacter()
-        end
-
-        self:_setStatus(
-            string.format(
-                '%s returned from local maze debug mode back to the temple.',
-                player.DisplayName
-            )
-        )
-    end)
-end
-
-function RunSessionService:_ensureLocalDebugMazeWorld()
-    if self.LocalDebugMazeWorld then
-        return
-    end
-
-    self.LocalDebugMazeWorld =
-        LocalDebugMazeWorldBuilder.build(self.SessionData.Seed, SessionConfig.ProcGen)
-    self:_bindLocalDebugMazeInteractions()
-end
-
-function RunSessionService:_enterLocalDebugMaze(player)
-    self:_ensureLocalDebugMazeWorld()
-
-    local previousSession = CampMazeSessionContract.normalizeCampSession(self.CampSession)
-    local nextSession = CampMazeSessionContract.markPlayerEntered(previousSession, {
-        UserId = player.UserId,
-        Name = player.DisplayName,
-    })
-    nextSession.GateOpen = self.GateOpen
-    self.CampSession = nextSession
-
-    local character = player.Character
-    if character and character.Parent then
-        character:PivotTo(self.LocalDebugMazeWorld.SpawnCFrame)
-        self.PendingLocalMazeSpawnByUserId[player.UserId] = nil
-    else
-        self.PendingLocalMazeSpawnByUserId[player.UserId] = true
-        player:LoadCharacter()
-    end
-
-    self.MazeEntryMode = MazeEntryAvailability.Mode.LocalDebugFallback
-    self.MazeEntryReasonCode = MazeEntryAvailability.ReasonCode.LocalDebugFallbackEnabled
-    self.MazeEntryReason =
-        'Studio local debug fallback is active. You were moved to an in-place maze sandbox.'
-    self:_setStatus(
-        string.format(
-            '%s entered local maze debug mode (no cross-place teleport).',
             player.DisplayName
         )
     )
@@ -1011,7 +900,7 @@ function RunSessionService:_enterMaze(player)
             return
         end
 
-        local result = RunMazePortal.enter({
+        local result = self.RunToMazeTransition:enter({
             Player = player,
             CampSession = self.CampSession,
             GateOpen = self.GateOpen,
@@ -1045,16 +934,24 @@ end
 function RunSessionService:_isPlayerNearMazePrompt(player)
     return self:_isPlayerNearTerminalPrompt(
         player,
-        self.World and self.World.MazePrompt,
+        self.World and self.World.MazePortal,
         MAZE_ENTRY_DISTANCE_BUFFER
     )
 end
 
-function RunSessionService:_isPlayerNearTerminalPrompt(player, prompt, distanceBuffer)
-    if not prompt then
+function RunSessionService:_isPlayerNearTerminalPrompt(player, terminalOrPrompt, distanceBuffer)
+    if not terminalOrPrompt then
         return false
     end
 
+    if type(terminalOrPrompt.isPlayerNear) == 'function' then
+        return terminalOrPrompt:isPlayerNear(
+            player,
+            distanceBuffer or TERMINAL_INTERACTION_DISTANCE_BUFFER
+        )
+    end
+
+    local prompt = terminalOrPrompt
     local promptPart = prompt.Parent
     if not promptPart or not promptPart:IsA('BasePart') then
         return false
@@ -1093,11 +990,6 @@ function RunSessionService:_requestMazeEntry(player, requireDistanceCheck)
     local availability = self:_resolveMazeEntryAvailability()
     if availability.Mode == MazeEntryAvailability.Mode.Teleport then
         self:_enterMaze(player)
-        return
-    end
-
-    if availability.Mode == MazeEntryAvailability.Mode.LocalDebugFallback then
-        self:_enterLocalDebugMaze(player)
         return
     end
 
@@ -1235,7 +1127,7 @@ function RunSessionService:_handlePlayerTeleportData(player)
 
     local summary = CampMazeSessionContract.findReturnSummary(teleportData, player.UserId)
     if summary then
-        self.PendingSpawnByUserId[player.UserId] = self:_getReturnSpawnCFrameForSummary(summary)
+        self.PendingSpawnByUserId[player.UserId] = self:_getReturnSpawnTargetForSummary(summary)
         self.Status = self:_getReturnStatusText(player.DisplayName, summary, teleportData)
         return
     end
@@ -1291,7 +1183,6 @@ function RunSessionService:start()
     Players.PlayerRemoving:Connect(function(player)
         self.LastMazeEntryRequestAtByUserId[player.UserId] = nil
         self.PendingSpawnByUserId[player.UserId] = nil
-        self.PendingLocalMazeSpawnByUserId[player.UserId] = nil
         self.CampSession = CampMazeSessionContract.prunePlayer(self.CampSession, player.UserId, {
             PreserveMazeEntry = CampMazeSessionContract.isPlayerInMaze(
                 self.CampSession,
@@ -1338,9 +1229,7 @@ function RunSessionService:start()
 
     self:_broadcastSnapshot()
 
-    if self.ShouldAutoLaunch then
-        self:_launchRun(nil)
-    end
+    self:_launchRun(nil)
 end
 
 return RunSessionService

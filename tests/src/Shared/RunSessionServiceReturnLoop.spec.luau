@@ -4,42 +4,30 @@ return function()
     local Shared = require(Packages:WaitForChild('Shared'))
     local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
     local runModules = ReplicatedStorage:WaitForChild('PlaceModules'):WaitForChild('Run')
-    local OutdoorAreaBuilder = require(runModules:WaitForChild('OutdoorAreaBuilder'))
+    local RunSpawnPoint = require(runModules:WaitForChild('RunSpawnPoint'))
     local RunSessionService = require(runModules:WaitForChild('RunSessionService'))
-    local RunWorldBuilder = require(runModules:WaitForChild('RunWorldBuilder'))
 
     local service = RunSessionService.new()
 
     assert(
-        service:_getReturnSpawnCFrameForSummary({
+        service:_getReturnSpawnTargetForSummary({
             ReturnReason = 'early_return',
-        }) == RunWorldBuilder.MazeReturnCFrame,
+        }) == RunSpawnPoint.Kind.MazeReturn,
         'Blue return-pad exits should land back at the run maze entrance'
     )
 
     assert(
-        service:_getReturnSpawnCFrameForSummary({
+        service:_getReturnSpawnTargetForSummary({
             ReturnReason = 'extracted',
-        }) == RunWorldBuilder.MazeReturnCFrame,
+        }) == RunSpawnPoint.Kind.MazeReturn,
         'Gold extraction exits should also land back at the run maze entrance'
     )
 
     assert(
-        service:_getReturnSpawnCFrameForSummary({
+        service:_getReturnSpawnTargetForSummary({
             ReturnReason = 'death',
-        }) == RunWorldBuilder.ReturnCFrame,
+        }) == RunSpawnPoint.Kind.Return,
         'Non-loop returns should keep using the generic run return position'
-    )
-    assert(
-        RunWorldBuilder.MazeReturnCFrame.Position.X
-                == OutdoorAreaBuilder.MazeGateMarkerCFrame.Position.X
-            and RunWorldBuilder.MazeReturnCFrame.Position.Z
-                == OutdoorAreaBuilder.MazeGateMarkerCFrame.Position.Z,
-        'Maze-gate returns should align to the purple run entrance marker on the X/Z plane'
-    )
-    assert(
-        RunWorldBuilder.MazeReturnCFrame.Position.Y == 4,
-        'Maze-gate returns should keep the expected character landing height'
     )
 
     local startupService = RunSessionService.new()
@@ -81,11 +69,11 @@ return function()
     }, startupTeleportData)
 
     assert(
-        startupService.PendingSpawnByUserId[101] == RunWorldBuilder.MazeReturnCFrame,
+        startupService.PendingSpawnByUserId[101] == RunSpawnPoint.Kind.MazeReturn,
         'Startup return processing should keep maze-gate returns at the run maze entrance'
     )
     assert(
-        startupService.PendingSpawnByUserId[202] == RunWorldBuilder.ReturnCFrame,
+        startupService.PendingSpawnByUserId[202] == RunSpawnPoint.Kind.Return,
         'Startup return processing should keep non-loop returns at the generic run return position'
     )
 end

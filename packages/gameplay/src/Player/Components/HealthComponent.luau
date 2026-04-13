@@ -12,7 +12,7 @@ end
 
 function HealthComponent:init(blackboard)
     local config = blackboard.Context.ComponentConfig.Health
-    local maxHealthPips = (if config and config.MaxHealthPips then config.MaxHealthPips else 2)
+    local maxHealthPips = if config and config.MaxHealthPips then config.MaxHealthPips else 2
 
     self.MaxHealthPips = maxHealthPips
     self.CurrentHealthPips = maxHealthPips

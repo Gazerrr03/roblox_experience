@@ -207,6 +207,15 @@ function MonsterRuntimeProfile.validate(profile)
         return false, 'MissingRuntimeEffects'
     end
 
+    local combatHitPoints = profile.CombatHitPoints
+    if
+        type(combatHitPoints) ~= 'number'
+        or combatHitPoints < 1
+        or math.floor(combatHitPoints) ~= combatHitPoints
+    then
+        return false, 'InvalidRuntimeCombatHitPoints'
+    end
+
     return true
 end
 

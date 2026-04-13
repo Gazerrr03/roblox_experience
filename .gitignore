@@ -15,3 +15,9 @@ tmp_*_latest_luau.log
 # Python venv for GDD generator skill
 .claude/skills/gdd-generator/venv/
 
+# GDD generator output
+references/gdd-output/
+
+# Python venv for GDD generator skill
+.claude/skills/gdd-generator/venv/
+

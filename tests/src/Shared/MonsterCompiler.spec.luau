@@ -65,6 +65,10 @@ return function()
         'Compiled runtime should expose the configured attack damage pips'
     )
     assert(
+        runtimeProfile.CombatHitPoints == 3,
+        'Compiled runtime should expose configured combat hit points'
+    )
+    assert(
         runtimeProfile.SightRange == 36,
         'Compiled runtime should expose the configured sight range'
     )
@@ -155,6 +159,21 @@ return function()
             and compileReport.SkippedEffectIds[1] == effectCatalog.Effect.SprintSuppressed,
         'Compiler should report maze-skipped effect intents'
     )
+
+    local noCombatHitPointsProfile = table.clone(scrapWisp)
+    noCombatHitPointsProfile.Tuning = table.clone(scrapWisp.Tuning)
+    noCombatHitPointsProfile.Tuning.CombatHitPoints = nil
+
+    local defaultHpOk, defaultHpRuntime, defaultHpReport = compiler(noCombatHitPointsProfile)
+    assert(
+        defaultHpOk == true,
+        string.format('Expected compiler success, got %s', tostring(defaultHpRuntime))
+    )
+    assert(
+        defaultHpRuntime.CombatHitPoints == 1,
+        'Compiler should default CombatHitPoints when tuning omits the field'
+    )
+    assert(defaultHpReport ~= nil, 'Default combat HP compile should return a report')
 
     local legacyProfile = {
         Id = scrapWisp.Id,
