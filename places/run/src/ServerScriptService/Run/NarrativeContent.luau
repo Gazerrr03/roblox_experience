@@ -899,4 +899,42 @@ NarrativeContent.LIBRARY_TRANSITION = {
     transitionDescription = '你进入了图书馆',
 }
 
+-- ════════════════════════════════════════════════════════════
+-- 十、图书馆传送门（CR-04 入口升级）
+--
+-- 当玩家收集满 13 个碎片后，洞穴入口从"凝视获得碎片"
+-- 变为"进入图书馆"的传送门
+-- ════════════════════════════════════════════════════════════
+
+NarrativeContent.LIBRARY_PORTAL = {
+    -- Prompt 文案变更：满收集后的入口交互提示
+    portalActionText = '进入图书馆',
+    portalObjectText = '发光的入口',
+    portalHoldDuration = 3.0,
+
+    -- 传送前叙事文字
+    preTeleportNarrative = [[门开了。
+里面的光不是火——
+是某种更老的东西在呼吸。
+
+你迈出一步。
+荒野留在了身后。]],
+
+    -- 传送中屏幕文字（客户端显示）
+    teleportingText = '正在传送至图书馆...',
+
+    -- 传送失败提示
+    failNotAllCollected = '入口还没有完全打开。还有些东西你没有找到。',
+    failPlaceNotReady = '图书馆的门暂时无法打开。稍后再试。',
+
+    -- 传送开始时的环境变化描述（用于客户端特效）
+    entranceEffects = {
+        gateGlowColor = Color3.fromRGB(220, 220, 255),
+        gateGlowDuration = 2.0,
+        screenFadeColor = Color3.fromRGB(255, 250, 240), -- 暖白色渐晕
+        screenFadeDuration = 1.5,
+        ambientSound = 'library_entrance_hum', -- 音效名，由音效系统映射
+    },
+}
+
 return NarrativeContent

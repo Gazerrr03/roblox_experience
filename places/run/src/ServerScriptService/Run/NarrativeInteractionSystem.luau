@@ -19,6 +19,9 @@ local Players = game:GetService('Players')
 -- ── 加载纯文案配置 ──
 local Content = require(script.Parent.NarrativeContent)
 
+-- ── 图书馆传送门 ──
+local RunToLibraryPortal = require(script.Parent.RunToLibraryPortal)
+
 -- ── 网络模块 ──
 local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
@@ -1031,7 +1034,44 @@ function NarrativeInteractionSystem.createCR_04(folder: Folder)
         end)
 
         -- 发放碎片（awardFragment 内部会自动调用 getCR04Text 处理渐进显现）
-        NarrativeInteractionSystem.awardFragment(player, 'CR_04')
+        local awarded = NarrativeInteractionSystem.awardFragment(player, 'CR_04')
+
+        if awarded then
+            -- 检查是否已收集满全部碎片（13个）
+            local collectedCount = NarrativeInteractionSystem.getCollectedCount(player)
+            if collectedCount >= 13 then
+                -- 满收集：升级入口为图书馆传送门
+                task.delay(4.0, function()
+                    -- 等待碎片显示叙事文字结束后，安装传送门
+                    RunToLibraryPortal.installPortal(gatePart, function(p: Player)
+                        return NarrativeInteractionSystem.getCollectedCount(p) >= 13
+                    end, function(p: Player)
+                        -- 传送前回调：通知客户端播放过渡特效
+                        Remotes.ShowNarrative:FireClient(
+                            p,
+                            Content.LIBRARY_PORTAL.portalObjectText,
+                            Content.LIBRARY_PORTAL.preTeleportNarrative,
+                            ''
+                        )
+                        -- 入口持续发光
+                        gatePart.Color = Content.LIBRARY_PORTAL.entranceEffects.gateGlowColor
+                    end)
+
+                    -- 更新 Prompt 文案为"进入图书馆"
+                    gatePrompt.ActionText = Content.LIBRARY_PORTAL.portalActionText
+                    gatePrompt.ObjectText = Content.LIBRARY_PORTAL.portalObjectText
+                    gatePrompt.HoldDuration = Content.LIBRARY_PORTAL.portalHoldDuration
+
+                    -- 满收集确认文字
+                    Remotes.ShowNarrative:FireClient(
+                        player,
+                        '',
+                        Content.FRAGMENT_AWARD_TEMPLATES.collectionComplete,
+                        ''
+                    )
+                end)
+            end
+        end
     end)
 end
 

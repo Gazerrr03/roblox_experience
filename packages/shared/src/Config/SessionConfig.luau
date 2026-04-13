@@ -4,10 +4,11 @@ local DEFAULT_PLACE_IDS = {
     Lobby = 99207062749924,
     Maze = 114148445477110,
     Run = 137478567439901,
+    Library = 0, -- TODO: 替换为实际的图书馆 Place ID
 }
 local DEFAULT_DEBUG_LOCAL_MAZE_HANDOFF = false
 
-local PLACE_ID_KEYS = { 'Lobby', 'Maze', 'Run' }
+local PLACE_ID_KEYS = { 'Lobby', 'Maze', 'Run', 'Library' }
 
 local function coercePlaceId(value)
     local numericValue = tonumber(value)
