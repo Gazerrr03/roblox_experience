@@ -102,17 +102,23 @@ return function()
     assert(hrp ~= nil, 'Fake player should expose HumanoidRootPart')
     hrp.CFrame = CFrame.lookAt(Vector3.new(4, 0, 0), Vector3.new(0, 4, 0))
 
-    local ok1, r1 =
-        service:tryApplyPlayerMeleeHit(fakePlayer, hrp.Position, hrp.CFrame.LookVector, 8, 90, 1)
+    local ok1, r1 = service:tryApplyPlayerMeleeHit(fakePlayer, {
+        DamagePips = 1,
+        SwingArcDegrees = 90,
+        SwingRange = 8,
+    })
     assert(
-        ok1 == true and r1.Hit == true and r1.Killed == false and r1.RemainingHealth == 1,
+        ok1 == true and r1.Killed == false and r1.RemainingHitPoints == 1,
         'first melee hit should reduce remaining health without killing'
     )
 
-    local ok2, r2 =
-        service:tryApplyPlayerMeleeHit(fakePlayer, hrp.Position, hrp.CFrame.LookVector, 8, 90, 1)
+    local ok2, r2 = service:tryApplyPlayerMeleeHit(fakePlayer, {
+        DamagePips = 1,
+        SwingArcDegrees = 90,
+        SwingRange = 8,
+    })
     assert(
-        ok2 == true and r2.Hit == true and r2.Killed == true and r2.RemainingHealth == 0,
+        ok2 == true and r2.Killed == true and r2.RemainingHitPoints == 0,
         'second melee hit should kill and report zero remaining health'
     )
 

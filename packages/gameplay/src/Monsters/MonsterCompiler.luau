@@ -8,6 +8,7 @@ local DEFAULT_SPAWN_OFFSET = Vector3.new(0, 4, 0)
 local DEFAULT_ATTACK_COOLDOWN_SECONDS = 1
 local DEFAULT_ATTACK_DAMAGE_PIPS = 1
 local DEFAULT_ATTACK_RANGE = 4
+local DEFAULT_COMBAT_HIT_POINTS = 1
 
 local MonsterCompiler = {}
 
@@ -71,6 +72,15 @@ function MonsterCompiler.compileMonsterForMaze(authorProfile)
         end
     end
 
+    local combatHitPoints = normalizedProfile.Tuning.CombatHitPoints
+    if
+        type(combatHitPoints) ~= 'number'
+        or combatHitPoints < 1
+        or math.floor(combatHitPoints) ~= combatHitPoints
+    then
+        combatHitPoints = DEFAULT_COMBAT_HIT_POINTS
+    end
+
     local runtimeProfile = {
         Id = normalizedProfile.Id,
         Name = normalizedProfile.Name,
@@ -83,6 +93,7 @@ function MonsterCompiler.compileMonsterForMaze(authorProfile)
         SightRange = normalizedProfile.Tuning.SightRange,
         PatrolSpeedMultiplier = normalizedProfile.Tuning.PatrolSpeedMultiplier,
         SpawnOffset = normalizedProfile.Tuning.SpawnOffset or DEFAULT_SPAWN_OFFSET,
+        CombatHitPoints = combatHitPoints,
         Behaviors = table.freeze(behaviors),
         Effects = table.freeze(runtimeEffects),
     }

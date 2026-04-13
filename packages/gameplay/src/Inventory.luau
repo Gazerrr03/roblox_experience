@@ -30,6 +30,7 @@ local function cloneItemEntry(itemEntry)
         CurrentState = itemEntry.CurrentState, -- 记录当前电量/耐久
         ConsumePerUse = itemEntry.ConsumePerUse,
         CooldownSeconds = itemEntry.CooldownSeconds,
+        LastUsedAt = itemEntry.LastUsedAt,
         SwingRange = itemEntry.SwingRange,
         SwingArcDegrees = itemEntry.SwingArcDegrees,
         KnockbackStrength = itemEntry.KnockbackStrength,
@@ -81,6 +82,7 @@ function Inventory:_buildItemEntry(itemDef)
         CurrentState = itemDef.InitialState, -- 刚放进背包时，当前状态等于初始状态 (满电/满耐久)
         ConsumePerUse = itemDef.ConsumePerUse,
         CooldownSeconds = itemDef.CooldownSeconds,
+        LastUsedAt = itemDef.LastUsedAt,
         SwingRange = itemDef.SwingRange,
         SwingArcDegrees = itemDef.SwingArcDegrees,
         KnockbackStrength = itemDef.KnockbackStrength,
@@ -113,6 +115,7 @@ local function normalizeItemEntry(rawItemEntry)
         CurrentState = rawItemEntry.CurrentState,
         ConsumePerUse = rawItemEntry.ConsumePerUse,
         CooldownSeconds = rawItemEntry.CooldownSeconds,
+        LastUsedAt = rawItemEntry.LastUsedAt,
         SwingRange = rawItemEntry.SwingRange,
         SwingArcDegrees = rawItemEntry.SwingArcDegrees,
         KnockbackStrength = rawItemEntry.KnockbackStrength,
@@ -167,6 +170,36 @@ function Inventory:unequip()
     self.HeldItem = nil
 
     return true, cloneItemEntry(previousHeldItem)
+end
+
+function Inventory:consumeHeldItemState(nowSeconds)
+    local heldItem = self.HeldItem
+    if heldItem == nil then
+        return false, 'NothingHeld'
+    end
+
+    if type(heldItem.CurrentState) ~= 'number' or type(heldItem.ConsumePerUse) ~= 'number' then
+        return false, 'NotConsumable'
+    end
+
+    if type(heldItem.ConsumePerUse) == 'number' and heldItem.ConsumePerUse > 0 then
+        if heldItem.CurrentState < heldItem.ConsumePerUse then
+            return false, 'Depleted'
+        end
+    end
+
+    local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
+    local cooldownSeconds = heldItem.CooldownSeconds
+    if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
+        local lastUsedAt = heldItem.LastUsedAt
+        if type(lastUsedAt) == 'number' and now - lastUsedAt < cooldownSeconds then
+            return false, 'Cooldown', cooldownSeconds - (now - lastUsedAt)
+        end
+    end
+
+    heldItem.CurrentState -= heldItem.ConsumePerUse
+    heldItem.LastUsedAt = now
+    return true, cloneItemEntry(heldItem)
 end
 
 function Inventory:getTotalValue()
@@ -239,6 +272,48 @@ function Inventory:clear()
     self.Weight = 0
     table.clear(self.BackpackItems)
     self.HeldItem = nil
+end
+
+function Inventory:countById(itemId)
+    if type(itemId) ~= 'string' or itemId == '' then
+        return 0
+    end
+
+    local count = 0
+    for _, itemEntry in ipairs(self.BackpackItems) do
+        if itemEntry.Id == itemId then
+            count += 1
+        end
+    end
+
+    if self.HeldItem and self.HeldItem.Id == itemId then
+        count += 1
+    end
+
+    return count
+end
+
+function Inventory:consumeById(itemId)
+    if type(itemId) ~= 'string' or itemId == '' then
+        return false, 'MissingItemId'
+    end
+
+    for index, itemEntry in ipairs(self.BackpackItems) do
+        if itemEntry.Id == itemId then
+            local consumed = table.remove(self.BackpackItems, index)
+            self.Weight -= consumed.Weight
+            return true, cloneItemEntry(consumed)
+        end
+    end
+
+    if self.HeldItem and self.HeldItem.Id == itemId then
+        local consumed = self.HeldItem
+        self.HeldItem = nil
+        self.Weight -= consumed.Weight
+        return true, cloneItemEntry(consumed)
+    end
+
+    return false, 'ItemNotFound'
 end
 
 return Inventory

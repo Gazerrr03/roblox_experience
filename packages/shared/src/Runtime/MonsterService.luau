@@ -12,6 +12,7 @@ local MonsterComponentConfig = Gameplay.Monsters.MonsterComponentConfig
 local MonsterLogic = Gameplay.Monsters.MonsterLogic
 local Enemy = Gameplay.Monsters.Enemy
 local MonsterRuntimeProfile = Gameplay.Monsters.MonsterRuntimeProfile
+local PlayerMonsterMelee = Gameplay.Combat.PlayerMonsterMelee
 local EnemyRuntime = require(script.Parent.MonsterRuntime.EnemyRuntime)
 
 local MonsterService = {}
@@ -181,8 +182,7 @@ function MonsterService.new(
         RandomSeed = randomSeed,
         RandomSource = runtimeOptions.RandomSource
             or if randomSeed ~= nil then Random.new(randomSeed) else Random.new(),
-        CombatMaxHealth = 1,
-        CombatCurrentHealth = 1,
+        CombatHitPointsRemaining = nil,
     }, MonsterService)
 
     service.EnemyRuntime = EnemyRuntime.new({
@@ -263,6 +263,7 @@ function MonsterService:destroy()
     self.PendingAttack = nil
     self.ActiveAnimation = nil
     self.MonsterHumanoid = nil
+    self.CombatHitPointsRemaining = nil
     self.MonsterPositionPart = nil
     self.LogicalPosition = nil
     self.LogicAccumulator = 0
@@ -449,9 +450,33 @@ function MonsterService:_spawnModel(spawnPosition)
     self.MonsterRoot = preparedModel
     self.MonsterPositionPart = rootPart
     self.LogicalPosition = spawnPosition
+    if self.MonsterHumanoid == nil then
+        self.MonsterHumanoid = humanoid
+    end
     self:_attachChaseLoopSound(rootPart)
 
     return true
+end
+
+function MonsterService:_applyDefinitionCombatHealth()
+    local maxPips = self.Definition.CombatHitPoints
+    if type(maxPips) ~= 'number' or maxPips < 1 or math.floor(maxPips) ~= maxPips then
+        maxPips = 1
+    end
+
+    self.CombatMaxHealth = maxPips
+
+    local humanoid = self.MonsterHumanoid
+    if humanoid then
+        humanoid.MaxHealth = maxPips
+        humanoid.Health = maxPips
+        self.CombatCurrentHealth = maxPips
+        self.CombatHitPointsRemaining = nil
+        return
+    end
+
+    self.CombatHitPointsRemaining = maxPips
+    self.CombatCurrentHealth = maxPips
 end
 
 function MonsterService:_setAnimationState(animationName, speedMultiplier)
@@ -879,56 +904,31 @@ function MonsterService:_onAttackMarkerReached(markerName)
     self.OnAttackHit(pendingAttack.TargetPlayer, pendingAttack.DamagePips, hitContext)
 end
 
-function MonsterService:_isWithinPlayerMeleeArc(
-    playerPosition,
-    playerLookUnit,
-    monsterPosition,
-    arcDegrees
-)
-    local toMonster = monsterPosition - playerPosition
-    local horizontalToMonster = Vector3.new(toMonster.X, 0, toMonster.Z)
-    if horizontalToMonster.Magnitude <= 1e-4 then
-        return true
-    end
-
-    local facingHorizontal = Vector3.new(playerLookUnit.X, 0, playerLookUnit.Z)
-    if facingHorizontal.Magnitude <= 1e-4 then
-        return true
-    end
-    facingHorizontal = facingHorizontal.Unit
-
-    local targetDirection = horizontalToMonster.Unit
-    local arc = arcDegrees or DEFAULT_ATTACK_ARC_DEGREES
-    local halfArcCosine = math.cos(math.rad(arc * 0.5))
-    return facingHorizontal:Dot(targetDirection) + 1e-6 >= halfArcCosine
-end
-
-function MonsterService:_hasClearShotFromPlayerToMonster(player, originPosition, monsterPosition)
-    local character = player and player.Character
-    if character == nil then
-        return false
-    end
-
-    local delta = monsterPosition - originPosition
-    local distance = delta.Magnitude
+function MonsterService:_playerMeleeLineOfSightClear(player, playerPosition, monsterPosition)
+    local offset = monsterPosition - playerPosition
+    local distance = offset.Magnitude
     if distance <= 1e-3 then
         return true
     end
 
+    local character = player and player.Character
     local raycastParams = RaycastParams.new()
     raycastParams.FilterType = Enum.RaycastFilterType.Exclude
     raycastParams.IgnoreWater = true
-    raycastParams.FilterDescendantsInstances = { character }
+    if character then
+        raycastParams.FilterDescendantsInstances = { character }
+    end
 
-    local raycastResult = self.Raycast(originPosition, delta, raycastParams)
-    if raycastResult == nil then
+    local direction = offset.Unit * (distance + 0.25)
+    local result = self.Raycast(playerPosition, direction, raycastParams)
+    if result == nil then
         return true
     end
 
     if
         self.MonsterRoot
-        and raycastResult.Instance
-        and raycastResult.Instance:IsDescendantOf(self.MonsterRoot)
+        and result.Instance
+        and result.Instance:IsDescendantOf(self.MonsterRoot)
     then
         return true
     end
@@ -936,73 +936,113 @@ function MonsterService:_hasClearShotFromPlayerToMonster(player, originPosition,
     return false
 end
 
--- Player crowbar (maze): optional CombatHitPoints on runtime profile; UGC services out of scope for this path.
-function MonsterService:tryApplyPlayerMeleeHit(
-    player,
-    rootPosition,
-    lookVector,
-    swingRange,
-    swingArcDegrees,
-    damageAmount
-)
+function MonsterService:tryApplyPlayerMeleeHit(player, meleeOptions)
     if not self.IsExpeditionActive() then
-        return false, 'NotActive'
+        return false, 'ExpeditionInactive'
     end
 
-    if typeof(rootPosition) ~= 'Vector3' or typeof(lookVector) ~= 'Vector3' then
-        return false, 'InvalidPlayerTransform'
+    if self.MonsterRoot == nil then
+        return false, 'NoMonster'
     end
 
-    if self.CombatCurrentHealth == nil or self.CombatCurrentHealth <= 0 then
-        return true, { Hit = false, Reason = 'AlreadyDead' }
+    local isPlayerInstance = typeof(player) == 'Instance' and player:IsA('Player')
+    local isTestStub = type(player) == 'table' and type(player.UserId) == 'number'
+    if not isPlayerInstance and not isTestStub then
+        return false, 'InvalidPlayer'
     end
 
-    if not self.MonsterPositionPart or self:_getCurrentPosition() == nil then
-        return true, { Hit = false, Reason = 'NoMonster' }
+    local character = player.Character
+    if character == nil then
+        return false, 'NoCharacter'
     end
+
+    local humanoidRoot = character:FindFirstChild('HumanoidRootPart')
+    if humanoidRoot == nil or not humanoidRoot:IsA('BasePart') then
+        return false, 'MissingHumanoidRoot'
+    end
+
+    local options = meleeOptions or {}
+    local swingRange = options.SwingRange
+    if type(swingRange) ~= 'number' or swingRange <= 0 then
+        swingRange = 6
+    end
+
+    local swingArcDegrees = options.SwingArcDegrees
+    if type(swingArcDegrees) ~= 'number' or swingArcDegrees <= 0 then
+        swingArcDegrees = 70
+    end
+
+    local damagePips = options.DamagePips
+    if type(damagePips) ~= 'number' or damagePips < 1 then
+        damagePips = 1
+    end
+    damagePips = math.floor(damagePips)
 
     local monsterPosition = self:_getCurrentPosition()
-
-    local dmg = type(damageAmount) == 'number' and damageAmount or 1
-    if dmg < 1 then
-        dmg = 1
+    if typeof(monsterPosition) ~= 'Vector3' then
+        return false, 'MissingMonsterPosition'
     end
 
-    local rangeLimit = type(swingRange) == 'number' and swingRange > 0 and swingRange or 6
-    local arcDeg = type(swingArcDegrees) == 'number' and swingArcDegrees > 0 and swingArcDegrees
-        or DEFAULT_ATTACK_ARC_DEGREES
+    local playerPosition = humanoidRoot.Position
+    local playerLook = humanoidRoot.CFrame.LookVector
 
-    local horizontalDistance = Vector3.new(
-        monsterPosition.X - rootPosition.X,
-        0,
-        monsterPosition.Z - rootPosition.Z
-    ).Magnitude
-    if horizontalDistance > rangeLimit then
-        return true, { Hit = false, Reason = 'OutOfRange' }
+    local geometryOk, geometryReason = PlayerMonsterMelee.evaluateSwing(
+        playerPosition,
+        playerLook,
+        monsterPosition,
+        swingRange,
+        swingArcDegrees
+    )
+    if geometryOk ~= true then
+        return false, geometryReason
     end
 
-    if not self:_isWithinPlayerMeleeArc(rootPosition, lookVector, monsterPosition, arcDeg) then
-        return true, { Hit = false, Reason = 'OutOfArc' }
+    if not self.CanTraverse(playerPosition, monsterPosition) then
+        return false, 'PathBlocked'
     end
 
-    if not self.CanTraverse(monsterPosition, rootPosition) then
-        return true, { Hit = false, Reason = 'BlockedPath' }
+    if not self:_playerMeleeLineOfSightClear(player, playerPosition, monsterPosition) then
+        return false, 'BlockedLineOfSight'
     end
 
-    local rayOrigin = rootPosition + Vector3.new(0, 1.5, 0)
-    if not self:_hasClearShotFromPlayerToMonster(player, rayOrigin, monsterPosition) then
-        return true, { Hit = false, Reason = 'BlockedLineOfSight' }
+    local monsterHumanoid = self.MonsterHumanoid
+    local killed = false
+    local remainingHitPoints
+
+    if monsterHumanoid then
+        local nextHealth = math.max(0, monsterHumanoid.Health - damagePips)
+        monsterHumanoid.Health = nextHealth
+        remainingHitPoints = math.ceil(nextHealth)
+        self.CombatCurrentHealth = remainingHitPoints
+        if nextHealth <= 0 then
+            killed = true
+        end
+    elseif type(self.CombatHitPointsRemaining) == 'number' then
+        self.CombatHitPointsRemaining -= damagePips
+        remainingHitPoints = math.max(0, self.CombatHitPointsRemaining)
+        self.CombatCurrentHealth = remainingHitPoints
+        if remainingHitPoints <= 0 then
+            killed = true
+        end
+    else
+        return false, 'MonsterCombatStateMissing'
     end
 
-    local nextHealth = self.CombatCurrentHealth - dmg
-    self.CombatCurrentHealth = math.max(0, nextHealth)
-    local killed = self.CombatCurrentHealth <= 0
+    self:_recordDecisionEvent('PlayerMeleeHit', {
+        DamagePips = damagePips,
+        Killed = killed,
+        RemainingHitPoints = remainingHitPoints,
+        TargetUserId = player.UserId,
+    })
+
     if killed then
         self:destroy()
-        return true, { Hit = true, Killed = true, RemainingHealth = 0 }
     end
 
-    return true, { Hit = true, Killed = false, RemainingHealth = self.CombatCurrentHealth }
+    return true, {
+        Killed = killed,
+        RemainingHitPoints = remainingHitPoints,
+    }
 end
 
 function MonsterService:spawn(patrolPoints, initialPatrolIndex)
@@ -1020,15 +1060,6 @@ function MonsterService:spawn(patrolPoints, initialPatrolIndex)
         return
     end
 
-    local maxHp = self.Definition.CombatHitPoints
-    if type(maxHp) ~= 'number' or maxHp < 1 or math.floor(maxHp) ~= maxHp then
-        maxHp = 1
-    else
-        maxHp = math.floor(maxHp)
-    end
-    self.CombatMaxHealth = maxHp
-    self.CombatCurrentHealth = maxHp
-
     self.PatrolIndex = math.clamp(initialPatrolIndex or 1, 1, #patrolPoints)
     self.EnemyRuntime:reset(self.PatrolPoints, self.PatrolIndex)
     local spawnPosition = patrolPoints[self.PatrolIndex] + self.Definition.SpawnOffset
@@ -1039,6 +1070,8 @@ function MonsterService:spawn(patrolPoints, initialPatrolIndex)
     else
         self:_setAnimationState('Idle', 1)
     end
+
+    self:_applyDefinitionCombatHealth()
 
     self.EnemyRuntime = self.EnemyFactory(self.Definition, {
         ComponentConfig = self.ComponentConfig,

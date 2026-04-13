@@ -1,4 +1,5 @@
 return {
+    Combat = require(script.Combat),
     Config = require(script.Config),
     ControlState = require(script.ControlState),
     Inventory = require(script.Inventory),

@@ -99,6 +99,7 @@ return function()
             SightRange = 36,
             SpawnOffset = Vector3.new(0, 4, 0),
             Speed = 14,
+            CombatHitPoints = 2,
         },
     })
     service:_spawnQueuedUgcMonsters()
