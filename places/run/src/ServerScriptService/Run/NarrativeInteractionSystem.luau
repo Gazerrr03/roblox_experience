@@ -175,7 +175,8 @@ end
 local function createPrompt(
     parent: Instance,
     promptKey: string,
-    maxDistance: number?
+    maxDistance: number?,
+    keyCode: KeyCode?
 ): ProximityPrompt
     local promptConfig = Content.PROMPTS[promptKey]
     if not promptConfig then
@@ -186,7 +187,7 @@ local function createPrompt(
     prompt.Name = promptConfig.actionText .. 'Prompt'
     prompt.ActionText = promptConfig.actionText
     prompt.ObjectText = promptConfig.objectText
-    prompt.KeyboardKeyCode = Enum.KeyCode.E
+    prompt.KeyboardKeyCode = keyCode or Enum.KeyCode.E
     prompt.HoldDuration = promptConfig.holdDuration
     prompt.MaxActivationDistance = maxDistance or 6
     prompt.RequiresLineOfSight = false
