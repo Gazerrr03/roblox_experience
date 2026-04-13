@@ -217,7 +217,6 @@ function NarrativeInteractionSystem.createAT_01(folder: Folder)
 	atFolder.Parent = folder
 
 	local itemDef = Content.TRIGGER_ITEMS.KindlingStone
-	local promptPickup = Content.PROMPTS.AT_01_PickupStone
 
 	-- 步骤1：引火石（碎石堆旁）
 	local kindlingStone = Instance.new('Part')
