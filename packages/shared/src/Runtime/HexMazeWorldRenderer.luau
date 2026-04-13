@@ -388,7 +388,6 @@ local function createHexTiledSlab(parent, name, center, apothem, yOffset, color,
 
     local radius = apothem * HEX_CIRCUMRADIUS_MULTIPLIER
     local maxOffset = math_ceil(radius / FLOOR_TILE_SIZE) * FLOOR_TILE_SIZE
-    local tileCount = 0
 
     local cx, cy, cz = center.X, center.Y, center.Z
     local tileSizeVector = Vector3_new(FLOOR_TILE_SIZE, SLAB_THICKNESS, FLOOR_TILE_SIZE)
@@ -401,7 +400,6 @@ local function createHexTiledSlab(parent, name, center, apothem, yOffset, color,
                 and math_abs(0.5 * x - SIN_60 * z) + TILE_BUFFER_B <= apothem
                 and math_abs(0.5 * x + SIN_60 * z) + TILE_BUFFER_B <= apothem
             then
-                tileCount += 1
                 local part = Instance_new('Part')
                 part.Name = 'Tile'
                 part.Anchored = true
