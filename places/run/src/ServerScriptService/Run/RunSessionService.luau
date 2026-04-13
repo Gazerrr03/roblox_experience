@@ -1338,9 +1338,7 @@ function RunSessionService:start()
 
     self:_broadcastSnapshot()
 
-    if self.ShouldAutoLaunch then
-        self:_launchRun(nil)
-    end
+    self:_launchRun(nil)
 end
 
 return RunSessionService
