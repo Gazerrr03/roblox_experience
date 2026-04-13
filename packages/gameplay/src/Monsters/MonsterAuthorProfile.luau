@@ -256,6 +256,16 @@ function MonsterAuthorProfile.validate(profile)
         return false, 'InvalidSpawnOffset'
     end
 
+    if tuning.CombatHitPoints ~= nil then
+        if
+            type(tuning.CombatHitPoints) ~= 'number'
+            or tuning.CombatHitPoints < 1
+            or math.floor(tuning.CombatHitPoints) ~= tuning.CombatHitPoints
+        then
+            return false, 'InvalidCombatHitPoints'
+        end
+    end
+
     if type(executable.BehaviorIntents) ~= 'table' or #executable.BehaviorIntents == 0 then
         return false, 'MissingBehaviorIntents'
     end

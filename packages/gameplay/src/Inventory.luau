@@ -22,12 +22,19 @@ local function cloneItemEntry(itemEntry)
         Value = itemEntry.Value,
         Color = itemEntry.Color,
         Light = cloneLightConfig(itemEntry.Light),
+
+        -- === 新增：探索道具扩展字段 ===
         ToolCategory = itemEntry.ToolCategory,
         StateModel = itemEntry.StateModel,
-        CurrentState = itemEntry.CurrentState,
+        InitialState = itemEntry.InitialState,
+        CurrentState = itemEntry.CurrentState, -- 记录当前电量/耐久
         ConsumePerUse = itemEntry.ConsumePerUse,
         CooldownSeconds = itemEntry.CooldownSeconds,
         LastUsedAt = itemEntry.LastUsedAt,
+        SwingRange = itemEntry.SwingRange,
+        SwingArcDegrees = itemEntry.SwingArcDegrees,
+        KnockbackStrength = itemEntry.KnockbackStrength,
+        MeleeDamage = itemEntry.MeleeDamage,
     }
 end
 
@@ -67,12 +74,19 @@ function Inventory:_buildItemEntry(itemDef)
         Value = itemDef.Value,
         Color = itemDef.Color,
         Light = cloneLightConfig(itemDef.Light),
+
+        -- === 新增：探索道具扩展字段 ===
         ToolCategory = itemDef.ToolCategory,
         StateModel = itemDef.StateModel,
-        CurrentState = itemDef.InitialState,
+        InitialState = itemDef.InitialState,
+        CurrentState = itemDef.InitialState, -- 刚放进背包时，当前状态等于初始状态 (满电/满耐久)
         ConsumePerUse = itemDef.ConsumePerUse,
         CooldownSeconds = itemDef.CooldownSeconds,
         LastUsedAt = itemDef.LastUsedAt,
+        SwingRange = itemDef.SwingRange,
+        SwingArcDegrees = itemDef.SwingArcDegrees,
+        KnockbackStrength = itemDef.KnockbackStrength,
+        MeleeDamage = itemDef.MeleeDamage,
     }
 
     self.NextItemInstanceId += 1
@@ -93,12 +107,19 @@ local function normalizeItemEntry(rawItemEntry)
         Value = rawItemEntry.Value or 0,
         Color = rawItemEntry.Color,
         Light = cloneLightConfig(rawItemEntry.Light),
+
+        -- === 新增：探索道具扩展字段 ===
         ToolCategory = rawItemEntry.ToolCategory,
         StateModel = rawItemEntry.StateModel,
+        InitialState = rawItemEntry.InitialState,
         CurrentState = rawItemEntry.CurrentState,
         ConsumePerUse = rawItemEntry.ConsumePerUse,
         CooldownSeconds = rawItemEntry.CooldownSeconds,
         LastUsedAt = rawItemEntry.LastUsedAt,
+        SwingRange = rawItemEntry.SwingRange,
+        SwingArcDegrees = rawItemEntry.SwingArcDegrees,
+        KnockbackStrength = rawItemEntry.KnockbackStrength,
+        MeleeDamage = rawItemEntry.MeleeDamage,
     }
 end
 
@@ -161,21 +182,24 @@ function Inventory:consumeHeldItemState(nowSeconds)
         return false, 'NotConsumable'
     end
 
-    if heldItem.CurrentState < heldItem.ConsumePerUse then
-        return false, 'Depleted'
-    end
-
-    local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
-    local cooldownSeconds = heldItem.CooldownSeconds
-    if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
-        local lastUsedAt = heldItem.LastUsedAt
-        if type(lastUsedAt) == 'number' and now - lastUsedAt < cooldownSeconds then
-            return false, 'Cooldown', cooldownSeconds - (now - lastUsedAt)
+    if type(heldItem.ConsumePerUse) == 'number' and heldItem.ConsumePerUse > 0 then
+        if heldItem.CurrentState < heldItem.ConsumePerUse then
+            return false, 'Depleted'
         end
+
+        local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
+        local cooldownSeconds = heldItem.CooldownSeconds
+        if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
+            local lastUsedAt = heldItem.LastUsedAt
+            if type(lastUsedAt) == 'number' and now - lastUsedAt < cooldownSeconds then
+                return false, 'Cooldown', cooldownSeconds - (now - lastUsedAt)
+            end
+        end
+
+        heldItem.CurrentState -= heldItem.ConsumePerUse
+        heldItem.LastUsedAt = now
     end
 
-    heldItem.CurrentState -= heldItem.ConsumePerUse
-    heldItem.LastUsedAt = now
     return true, cloneItemEntry(heldItem)
 end
 

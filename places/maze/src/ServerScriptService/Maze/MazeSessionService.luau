@@ -1101,8 +1101,8 @@ function MazeSessionService:_handleUseTool(player)
         return
     end
 
-    -- 2. 检查这东西有没有“状态/耐久”
-    if not heldItem.CurrentState or not heldItem.ConsumePerUse then
+    -- 2. 检查这东西有没有“状态/耐久”（ConsumePerUse 允许为 0 表示不消耗型工具）
+    if type(heldItem.CurrentState) ~= 'number' or type(heldItem.ConsumePerUse) ~= 'number' then
         self:_setStatus(
             string.format(
                 '%s cannot actively "use" %s (it is not a tool).',
@@ -1113,8 +1113,8 @@ function MazeSessionService:_handleUseTool(player)
         return
     end
 
-    -- 3. 检查有没有没电/报废
-    if heldItem.CurrentState < heldItem.ConsumePerUse then
+    -- 3. 检查有没有没电/报废（仅当每次使用会扣耐久时）
+    if heldItem.ConsumePerUse > 0 and heldItem.CurrentState < heldItem.ConsumePerUse then
         self:_setStatus(
             string.format(
                 '%s tried to use %s, but it has no %s left.',
@@ -1163,6 +1163,27 @@ function MazeSessionService:_handleUseTool(player)
     elseif updatedHeldItem.ToolCategory == 'Crowbar' then
         actionWord = 'swung'
         effectText = 'A satisfying swoosh cuts the air!'
+
+        local damagePips = 1
+        if type(updatedHeldItem.MeleeDamage) == 'number' and updatedHeldItem.MeleeDamage >= 1 then
+            damagePips = math.floor(updatedHeldItem.MeleeDamage)
+        end
+
+        local meleeOk, meleeResult = self.MonsterService:tryApplyPlayerMeleeHit(player, {
+            DamagePips = damagePips,
+            SwingArcDegrees = updatedHeldItem.SwingArcDegrees,
+            SwingRange = updatedHeldItem.SwingRange,
+        })
+        if meleeOk then
+            if meleeResult and meleeResult.Killed then
+                effectText = 'The crowbar connects — the threat goes down!'
+            elseif meleeResult and type(meleeResult.RemainingHitPoints) == 'number' then
+                effectText = string.format(
+                    'The crowbar connects! Foe stamina: ~%d.',
+                    meleeResult.RemainingHitPoints
+                )
+            end
+        end
     end
 
     self:_setStatus(
