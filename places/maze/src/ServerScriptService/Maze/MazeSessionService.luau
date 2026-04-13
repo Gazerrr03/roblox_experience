@@ -1125,25 +1125,29 @@ function MazeSessionService:_useHealingPotion(player)
         return
     end
 
-    local healed, healReason = self.PlayerService:applyHealPips(player, 1)
-    if healed ~= true then
+    local removedOk, removeReason = self.InventoryService:removeHeldItem(player)
+    if removedOk ~= true then
         self:_setStatus(
             string.format(
-                '%s could not drink the potion (%s).',
+                '%s could not consume the held potion (%s).',
                 player.DisplayName,
-                tostring(healReason)
+                tostring(removeReason)
             )
         )
         return
     end
 
-    local removedOk, removeReason = self.InventoryService:removeHeldItem(player)
-    if removedOk ~= true then
+    local healed, healReason = self.PlayerService:applyHealPips(player, 1)
+    if healed ~= true then
+        local def = self:_getHealingPotionItemDef()
+        if def ~= nil then
+            self.InventoryService:pickup(player, def)
+        end
         self:_setStatus(
             string.format(
-                '%s drank the potion but inventory removal failed (%s).',
+                '%s could not drink the potion (%s).',
                 player.DisplayName,
-                tostring(removeReason)
+                tostring(healReason)
             )
         )
         return
