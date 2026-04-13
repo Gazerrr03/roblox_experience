@@ -27,6 +27,9 @@ local DEFAULT_ROOM_KIND = 'Loot'
 local DEFAULT_RETURN_ACTION_TEXT = 'Return'
 local DEFAULT_RETURN_OBJECT_TEXT = 'Run Entrance'
 
+local NEIGHBOR_DISTANCE_THRESHOLD = 50
+local DEFAULT_DETECTION_RADIUS = 18
+
 local SCAN_CONFIG = {
     RoomTagPrefix = 'RoomType/',
     HasMonsterSpawnerTag = 'HasMonsterSpawner',
@@ -319,7 +322,7 @@ function MazeWorldScanner.Scan(scanRoot)
             local roomB = roomById[idB]
             if idA ~= idB then
                 local distance = (roomB.Position - roomA.Position).Magnitude
-                if distance < 50 then
+                if distance < NEIGHBOR_DISTANCE_THRESHOLD then
                     table.insert(roomA.Neighbors, idB)
                     table.insert(roomAffordances[idA].TraversalMask.NeighborRoomIds, idB)
                 end
@@ -560,7 +563,7 @@ function MazeWorldScanner.BuildStaticWorld(scanRoot)
         end
 
         local room = world.RoomById[nearestRoomId]
-        if nearestDistance > (room.DetectionRadius or 18) then
+        if nearestDistance > (room.DetectionRadius or DEFAULT_DETECTION_RADIUS) then
             return nil
         end
 

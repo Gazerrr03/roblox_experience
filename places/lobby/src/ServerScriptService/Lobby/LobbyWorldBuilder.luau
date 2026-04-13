@@ -6,13 +6,7 @@ local STATIC_WORLD_ROOT_NAME = 'LobbyStaticWorld'
 local DEFAULT_SPAWN_CFRAME = CFrame.new(0, 4, 0)
 
 local function findNamedDescendant(root, name)
-    for _, descendant in ipairs(root:GetDescendants()) do
-        if descendant.Name == name then
-            return descendant
-        end
-    end
-
-    return nil
+    return root:FindFirstChild(name, true)
 end
 
 local function findPromptOnPart(root, partName)
