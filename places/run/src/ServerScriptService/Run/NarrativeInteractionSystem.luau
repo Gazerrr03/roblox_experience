@@ -368,7 +368,7 @@ function NarrativeInteractionSystem.createAT_03(folder: Folder)
     hammer.Material = hammerDef.material
     hammer.CanCollide = false
     hammer.Anchored = true
-    hammer.Transparency = 1  -- 初始完全透明（被碎石堆掩埋）
+    hammer.Transparency = 1 -- 初始完全透明（被碎石堆掩埋）
     hammer.Parent = atFolder
 
     -- 锤子的 Prompt 初始禁用，挖掘后启用
@@ -383,10 +383,10 @@ function NarrativeInteractionSystem.createAT_03(folder: Folder)
 
     -- 敲击目标碎石堆（索引 3 是特殊的可挖掘碎石堆）
     local rubblePositions = {
-        Vector3.new(-45, 1.5, 52),   -- 1: 普通
-        Vector3.new(-55, 1, 47),       -- 2: 普通
-        Vector3.new(-65, 2, 37),       -- 3: 可挖掘（锤子在里面）
-        Vector3.new(-75, 1.3, 27),     -- 4: 普通
+        Vector3.new(-45, 1.5, 52), -- 1: 普通
+        Vector3.new(-55, 1, 47), -- 2: 普通
+        Vector3.new(-65, 2, 37), -- 3: 可挖掘（锤子在里面）
+        Vector3.new(-75, 1.3, 27), -- 4: 普通
     }
     local totalNormalTargets = 3
     local progressFormat = Content.PROGRESS_FEEDBACK.AT_03_RubbleProgress.format
@@ -425,11 +425,12 @@ function NarrativeInteractionSystem.createAT_03(folder: Folder)
                 for _ = 1, 4 do
                     local debris = Instance.new('Part')
                     debris.Size = Vector3.new(0.4, 0.4, 0.4)
-                    debris.Position = pos + Vector3.new(
-                        math.random(-10, 10) / 10,
-                        math.random(0, 10) / 10,
-                        math.random(-10, 10) / 10
-                    )
+                    debris.Position = pos
+                        + Vector3.new(
+                            math.random(-10, 10) / 10,
+                            math.random(0, 10) / 10,
+                            math.random(-10, 10) / 10
+                        )
                     debris.Color = Color3.fromRGB(90, 95, 100)
                     debris.Material = Enum.Material.Slate
                     debris.CanCollide = false
@@ -451,60 +452,60 @@ function NarrativeInteractionSystem.createAT_03(folder: Folder)
             end)
         else
             local targetPrompt = createPrompt(target, 'AT_03_HitRubble')
-        targetPrompt.Triggered:Connect(function(player)
-            if NarrativeInteractionSystem.hasCollected(player, 'AT_03') then
-                return
-            end
-            if not NarrativeInteractionSystem.hasItem(player, 'ResonanceHammer') then
-                return
-            end
+            targetPrompt.Triggered:Connect(function(player)
+                if NarrativeInteractionSystem.hasCollected(player, 'AT_03') then
+                    return
+                end
+                if not NarrativeInteractionSystem.hasItem(player, 'ResonanceHammer') then
+                    return
+                end
 
-            local hitKey = 'HitBy' .. player.UserId
-            if target:GetAttribute(hitKey) then
-                return
-            end
-            target:SetAttribute(hitKey, true)
+                local hitKey = 'HitBy' .. player.UserId
+                if target:GetAttribute(hitKey) then
+                    return
+                end
+                target:SetAttribute(hitKey, true)
 
-            -- 敲击视觉反馈（全局可见）
-            target.Color = Color3.fromRGB(200, 180, 150)
-            task.delay(0.5, function()
-                target.Color = Color3.fromRGB(90, 95, 100)
-            end)
-
-            -- 按玩家独立计数
-            local uid = player.UserId
-            if not playerProgress[uid] then
-                playerProgress[uid] = {}
-            end
-            if not playerProgress[uid]['AT_03'] then
-                playerProgress[uid]['AT_03'] = 0
-            end
-            playerProgress[uid]['AT_03'] += 1
-            local currentCount = playerProgress[uid]['AT_03']
-
-            if currentCount >= totalNormalTargets then
-                local progressText = string.format(progressFormat, currentCount)
-                    .. '\n\n'
-                    .. Content.PROGRESS_FEEDBACK.AT_03_RubbleProgress.completedEffect
-                Remotes.ShowNarrative:FireClient(player, progressText, '', '')
+                -- 敲击视觉反馈（全局可见）
+                target.Color = Color3.fromRGB(200, 180, 150)
                 task.delay(0.5, function()
-                    if NarrativeInteractionSystem.awardFragment(player, 'AT_03') then
-                        NarrativeInteractionSystem.consumeItem(player, 'ResonanceHammer')
-                    end
+                    target.Color = Color3.fromRGB(90, 95, 100)
                 end)
-            else
-                -- 显示进度
-                Remotes.ShowNarrative:FireClient(
-                    player,
-                    string.format(progressFormat, currentCount),
-                    '',
-                    ''
-                )
-            end
-        end)  -- targetPrompt.Triggered
-        end  -- else (normal rubble)
-    end  -- for loop
-end  -- createAT_03
+
+                -- 按玩家独立计数
+                local uid = player.UserId
+                if not playerProgress[uid] then
+                    playerProgress[uid] = {}
+                end
+                if not playerProgress[uid]['AT_03'] then
+                    playerProgress[uid]['AT_03'] = 0
+                end
+                playerProgress[uid]['AT_03'] += 1
+                local currentCount = playerProgress[uid]['AT_03']
+
+                if currentCount >= totalNormalTargets then
+                    local progressText = string.format(progressFormat, currentCount)
+                        .. '\n\n'
+                        .. Content.PROGRESS_FEEDBACK.AT_03_RubbleProgress.completedEffect
+                    Remotes.ShowNarrative:FireClient(player, progressText, '', '')
+                    task.delay(0.5, function()
+                        if NarrativeInteractionSystem.awardFragment(player, 'AT_03') then
+                            NarrativeInteractionSystem.consumeItem(player, 'ResonanceHammer')
+                        end
+                    end)
+                else
+                    -- 显示进度
+                    Remotes.ShowNarrative:FireClient(
+                        player,
+                        string.format(progressFormat, currentCount),
+                        '',
+                        ''
+                    )
+                end
+            end) -- targetPrompt.Triggered
+        end -- else (normal rubble)
+    end -- for loop
+end -- createAT_03
 
 -- ════════════════════════════════════════════════════════════
 -- AR-01: 石碑的无字面（观测透镜 + 石碑1）
