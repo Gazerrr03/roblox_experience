@@ -20,7 +20,7 @@ function HealthComponent:init(blackboard)
     self.CorpseActive = false
 end
 
-function HealthComponent:applyDamage(blackboard, damageKind)
+function HealthComponent:applyDamage(_blackboard, damageKind)
     local pipCost = DAMAGE_PIP_COST[damageKind]
     if pipCost == nil then
         return false, 'UnknownDamageKind'
@@ -36,7 +36,7 @@ function HealthComponent:applyDamage(blackboard, damageKind)
     return true, self.CurrentHealthPips
 end
 
-function HealthComponent:update(blackboard, dt)
+function HealthComponent:update(blackboard, _dt)
     blackboard.Transient.CurrentHealthPips = self.CurrentHealthPips
     blackboard.Transient.MaxHealthPips = self.MaxHealthPips
     blackboard.Transient.IsDead = self.IsDead

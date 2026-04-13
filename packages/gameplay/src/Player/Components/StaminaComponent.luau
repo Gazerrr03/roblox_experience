@@ -22,7 +22,7 @@ function StaminaComponent:init(blackboard)
     self.CanSprint = true
 end
 
-function StaminaComponent:drainStamina(blackboard, amount)
+function StaminaComponent:drainStamina(_blackboard, amount)
     if self.IsDead then
         return false, 'Dead'
     end
@@ -38,7 +38,7 @@ function StaminaComponent:drainStamina(blackboard, amount)
     return true, self.CurrentStamina
 end
 
-function StaminaComponent:setSprinting(blackboard, isSprinting)
+function StaminaComponent:setSprinting(_blackboard, isSprinting)
     if self.IsDead then
         self.IsSprinting = false
         return false, 'Dead'

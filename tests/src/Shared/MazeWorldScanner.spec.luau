@@ -14,7 +14,7 @@ return function()
     -- ============================================
     -- Helper: 创建模拟房间 Instance
     -- ============================================
-    local function createMockRoom(name, roomType, attributes, tags, children)
+    local function createMockRoom(name, _roomType, attributes, tags, children)
         local room = Instance.new('Model')
         room.Name = name
 
