@@ -45,11 +45,7 @@ function MovementComponent:update(blackboard, dt)
 
         if distance > 0.1 then
             isMoving = true
-<<<<<<< HEAD
             local stepSize = math.min(moveSpeed * dt, distance)
-=======
-            local stepSize = math.min(moveSpeed * dt, distance)
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
             nextPosition = currentPosition + (direction.Unit * stepSize)
         end
     end
@@ -57,17 +53,10 @@ function MovementComponent:update(blackboard, dt)
     self.IsMoving = isMoving
 
     blackboard.Transient.NextPosition = nextPosition
-<<<<<<< HEAD
     blackboard.Transient.DesiredAnimation = if isSprinting and isMoving
         then 'Run'
         elseif isMoving then 'Walk'
         else 'Idle'
-=======
-    blackboard.Transient.DesiredAnimation = if isSprinting and isMoving
-        then 'Run'
-        elseif isMoving then 'Walk'
-        else 'Idle'
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
     blackboard.Transient.IsMoving = isMoving
     blackboard.Transient.IsJumping = self.IsJumping
 end
