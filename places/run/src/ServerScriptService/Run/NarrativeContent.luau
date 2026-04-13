@@ -11,7 +11,7 @@
 local NarrativeContent = {}
 
 -- ════════════════════════════════════════════════════════════
--- 一、13个碎片数据定义（叙事文字 + 情报内容 + 元信息）
+-- 一、12个碎片数据定义（叙事文字 + 情报内容 + 元信息）
 -- ════════════════════════════════════════════════════════════
 
 NarrativeContent.FRAGMENTS = {
@@ -331,156 +331,10 @@ Boss房间 在生成时会偏向
 进入传送门前确保装备齐全。]],
         triggerItem = 'SilentEarring',
     },
-
-    {
-        id = 'CR_04',
-        region = 'CaveRuins',
-        title = '最后的警告',
-        -- 注意：CR-04 的 narrativeText 由 CR04_GRADIENT_TEXT 动态选择
-        -- 此处存储完整版（13/13 满收）
-        narrativeText = [[你站在入口。
-纹路在你身上流转——
-
-熄灭的守望者、
-墙上的最后一行、
-碎裂的回声、
-石碑的无字面、
-失衡的天平、
-共鸣石的频率、
-树洞里的眼睛、
-足迹的终点、
-不存在的果实、
-矿物的脉搏、
-机关的沉默、
-深渊的低语。
-
-所有的碎片拼在一起，
-你说不出完整的句子，
-但你明白了完整的意思：
-
-"你正走进一本已经被写好的书。
-
-而你——
-
-你是书里的字，
-
-还是翻书的手？"
-
-门开了。
-答案在里面。]],
-        intelType = 'environment',
-        intelContent = [[📋 【终极情报 — 全类型汇总】
-
-═══════════════════════════════
- 最终战准备清单
- （建议收集全部13个碎片后再进入
-  最终阶段 / 31-40书页）
-═══════════════════════════════
-
-▸ 环境：
-  · 地图深层必有书页房间，但需要耐心探索 (CR-01)
-  · 对称结构中隐藏主路 (AT-01)
-  · 可破坏墙壁存在于困难+地图 (AT-03)
-  · 隐藏入口在"空白区域"中心 (WF-03)
-
-▸ 资源：
-  · 边缘小房间藏稀有书页，别只走主路 (AT-02)
-  · Boss房在最远处，优先向远离入口探索 (WF-02)
-  · 书页房间深度≥3，耐心走 (CR-01)
-
-▸ 危险：
-  · 时间窗口撤离可能有假出口 (AR-02)
-  · 噩梦避免长时间停留同一位置 (WF-01)
-  · 陷阱房间会伪装成撤离点 (CR-02)
-  · 传送门可能跳级 (CR-03)
-
-▸ 机制：
-  · 谜题答案在观察细节中 (AR-01)
-  · 机关顺序藏在环境线索里 (AR-03)
-
-═══════════════════════════════
- 以上情报在收集齐 40 页书页、
- 面对最终选择前最为关键。
-═══════════════════════════════]],
-        triggerItem = nil,
-    },
 }
 
 -- ════════════════════════════════════════════════════════════
--- 二、CR-04 渐进显现文案（根据已收集碎片数量显示不同版本）
--- ════════════════════════════════════════════════════════════
-
-NarrativeContent.CR04_GRADIENT_TEXT = {
-    -- 收集 1-4 个碎片时：简短引导版
-    {
-        minCollected = 0,
-        maxCollected = 4,
-        text = [[你站在入口。
-有些事情你还不知道。
-继续走吧。]],
-    },
-
-    -- 收集 5-8 个碎片时：中等版，列举部分碎片名称
-    {
-        minCollected = 5,
-        maxCollected = 8,
-        text = [[你站在入口。
-熄灭的守望者、墙上的最后一行……
-有些碎片已经开始拼合。
-但还不够。还不够。]],
-    },
-
-    -- 收集 9-12 个碎片时：接近完整版
-    {
-        minCollected = 9,
-        maxCollected = 12,
-        text = [[你站在入口。
-纹路在你身上流转——
-熄灭的守望者、墙上的最后一行、
-碎裂的回声、石碑的无字面、
-失衡的天平、共鸣石的频率、
-树洞里的眼睛、足迹的终点、
-不存在的果实、矿物的脉搏、
-机关的沉默、深渊的低语……
-还差一点。就差一点。]],
-    },
-
-    -- 收集全部 12 个碎片后（本次获得第13个）：完整收束版
-    -- 此文本与 FRAGMENTS[CR-04].narrativeText 相同，由系统自动使用
-    {
-        minCollected = 13,
-        maxCollected = 13,
-        text = nil, -- 使用 FRAGMENTS 表中的完整版 narrativeText
-    },
-}
-
--- 根据已收集数量返回对应的叙事文字
-function NarrativeContent.getCR04Text(collectedCount: number): string
-    for _, entry in ipairs(NarrativeContent.CR04_GRADIENT_TEXT) do
-        if collectedCount >= entry.minCollected and collectedCount <= entry.maxCollected then
-            if entry.text then
-                return entry.text
-            else
-                -- 返回完整版（CR-04 的 narrativeText）
-                local fullConfig = nil
-                for _, frag in ipairs(NarrativeContent.FRAGMENTS) do
-                    if frag.id == 'CR_04' then
-                        fullConfig = frag
-                        break
-                    end
-                end
-                if fullConfig then
-                    return fullConfig.narrativeText
-                end
-            end
-        end
-    end
-    -- fallback：返回简短版
-    return NarrativeContent.CR04_GRADIENT_TEXT[1].text
-end
-
--- ════════════════════════════════════════════════════════════
--- 三、可触发物品定义（8个物品）
+-- 二、可触发物品定义（8个物品）
 -- ════════════════════════════════════════════════════════════
 
 NarrativeContent.TRIGGER_ITEMS = {
@@ -735,11 +589,11 @@ NarrativeContent.PROMPTS = {
         holdDuration = 0.5,
     },
 
-    -- ── CR-04: 入口凝视 ──
-    CR_04_GazeEntrance = {
-        actionText = '凝视入口',
-        objectText = '洞穴入口',
-        holdDuration = 2.0,
+    -- ── 图书馆入口门 ──
+    LibraryDoor = {
+        actionText = '推开门',
+        objectText = '一扇厚重的木门',
+        holdDuration = 1.0,
     },
 }
 
@@ -788,9 +642,9 @@ NarrativeContent.PROGRESS_FEEDBACK = {
         completedEffect = '三座灯塔同时发出的光芒在空中交汇成一瞬间的图案',
     },
 
-    -- AT-03 敲击碎石堆进度
+    -- AT-03 敲击碎石堆进度（3个普通 + 1个可挖掘）
     AT_03_RubbleProgress = {
-        format = '%d / 4', -- "1 / 4", "2 / 4", ...
+        format = '%d / 3', -- "1 / 3", "2 / 3", "3 / 3"
         completedEffect = '四个碎石堆同时发出强烈共鸣',
     },
 
@@ -864,20 +718,21 @@ NarrativeContent.FRAGMENT_AWARD_TEMPLATES = {
     -- 获得确认标题行
     awardHeader = '★ 叙事碎片已记录：%s', -- %s = title
     -- 进度行
-    progressLine = '进度：%d / 13', -- %d = 已收集数
+    progressLine = '进度：%d / 12', -- %d = 已收集数
 
     -- 物品状态行（消耗品 vs 持久工具）
     itemConsumed = '%s 已消耗', -- %s = 物品displayName
     itemKept = '%s 已保留（持久工具）',
 
-    -- 特殊标记（CR-04 满收集）
+    -- 全部碎片收集完成
     collectionComplete = [[
 ═══════════════════════════════
 
  ✦ 所有荒野叙事碎片已收集完成 ✦
 
- 你已经准备好进入图书馆了。
- 情报日志已更新——
+ 荒野的故事已经拼完整了。
+ 门就在那里，随时可以进去。
+═══════════════════════════════]]
  进入图书馆前可在神庙查看。
 
 ═══════════════════════════════]],
@@ -900,41 +755,12 @@ NarrativeContent.LIBRARY_TRANSITION = {
 }
 
 -- ════════════════════════════════════════════════════════════
--- 十、图书馆传送门（CR-04 入口升级）
---
--- 当玩家收集满 13 个碎片后，洞穴入口从"凝视获得碎片"
--- 变为"进入图书馆"的传送门
+-- 十、图书馆入口门（普通门，无碎片/无前置条件）
 -- ════════════════════════════════════════════════════════════
 
-NarrativeContent.LIBRARY_PORTAL = {
-    -- Prompt 文案变更：满收集后的入口交互提示
-    portalActionText = '进入图书馆',
-    portalObjectText = '发光的入口',
-    portalHoldDuration = 3.0,
-
-    -- 传送前叙事文字
-    preTeleportNarrative = [[门开了。
-里面的光不是火——
-是某种更老的东西在呼吸。
-
-你迈出一步。
-荒野留在了身后。]],
-
-    -- 传送中屏幕文字（客户端显示）
-    teleportingText = '正在传送至图书馆...',
-
-    -- 传送失败提示
-    failNotAllCollected = '入口还没有完全打开。还有些东西你没有找到。',
-    failPlaceNotReady = '图书馆的门暂时无法打开。稍后再试。',
-
-    -- 传送开始时的环境变化描述（用于客户端特效）
-    entranceEffects = {
-        gateGlowColor = Color3.fromRGB(220, 220, 255),
-        gateGlowDuration = 2.0,
-        screenFadeColor = Color3.fromRGB(255, 250, 240), -- 暖白色渐晕
-        screenFadeDuration = 1.5,
-        ambientSound = 'library_entrance_hum', -- 音效名，由音效系统映射
-    },
+NarrativeContent.LIBRARY_DOOR = {
+    actionText = '推开门',
+    objectText = '一扇厚重的木门',
 }
 
 return NarrativeContent
