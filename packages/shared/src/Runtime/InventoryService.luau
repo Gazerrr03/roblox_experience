@@ -119,6 +119,15 @@ function InventoryService:consumeByItemId(player, itemId)
     return inventory:consumeById(itemId)
 end
 
+function InventoryService:sell(player, itemId)
+    local inventory = self:get(player)
+    if not inventory then
+        return false, 'MissingInventory'
+    end
+
+    return inventory:sell(itemId)
+end
+
 function InventoryService:removeHeldItem(player)
     local inventory = self:get(player)
     if not inventory then
