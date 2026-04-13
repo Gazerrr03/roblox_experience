@@ -13,26 +13,39 @@ local function cloneLightConfig(lightConfig)
     }
 end
 
+-- ItemEntry field groups aligned to OOP framework:
+-- Core (must-have): InstanceId (handled separately), Id, Name, Value
+-- Optional — Weight
+-- Optional — Tool state: InitialState, CurrentState, ConsumePerUse, CooldownSeconds, LastUsedAt, ToolCategory, StateModel
+-- Optional — Light: Color (Light handled separately via cloneLightConfig)
+-- Optional — Melee tool: SwingRange, SwingArcDegrees, SwingKnockback, MeleeDamage
+-- Optional — Consumable: ItemKind, ConsumableEffect, MaxCarryPerId
 local ITEM_COPY_FIELDS = table.freeze({
+    -- Core
     'Id',
     'Name',
-    'Weight',
     'Value',
-    'Color',
-    'ToolCategory',
-    'StateModel',
+    -- Optional: Weight
+    'Weight',
+    -- Optional: Tool state
     'InitialState',
     'CurrentState',
     'ConsumePerUse',
     'CooldownSeconds',
+    'LastUsedAt',
+    'ToolCategory',
+    'StateModel',
+    -- Optional: Light
+    'Color',
+    -- Optional: Melee tool
     'SwingRange',
     'SwingArcDegrees',
-    'KnockbackStrength',
+    'SwingKnockback',
     'MeleeDamage',
+    -- Optional: Consumable
     'ItemKind',
     'ConsumableEffect',
     'MaxCarryPerId',
-    'LastUsedAt',
 })
 
 local function copyItemFields(source, target)
@@ -185,21 +198,24 @@ function Inventory:consumeHeldItemState(nowSeconds)
         return false, 'NotConsumable'
     end
 
-    if heldItem.CurrentState < heldItem.ConsumePerUse then
-        return false, 'Depleted'
-    end
-
-    local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
-    local cooldownSeconds = heldItem.CooldownSeconds
-    if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
-        local lastUsedAt = heldItem.LastUsedAt
-        if type(lastUsedAt) == 'number' and now - lastUsedAt < cooldownSeconds then
-            return false, 'Cooldown', cooldownSeconds - (now - lastUsedAt)
+    if type(heldItem.ConsumePerUse) == 'number' and heldItem.ConsumePerUse > 0 then
+        if heldItem.CurrentState < heldItem.ConsumePerUse then
+            return false, 'Depleted'
         end
+
+        local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
+        local cooldownSeconds = heldItem.CooldownSeconds
+        if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
+            local lastUsedAt = heldItem.LastUsedAt
+            if type(lastUsedAt) == 'number' and now - lastUsedAt < cooldownSeconds then
+                return false, 'Cooldown', cooldownSeconds - (now - lastUsedAt)
+            end
+        end
+
+        heldItem.CurrentState -= heldItem.ConsumePerUse
+        heldItem.LastUsedAt = now
     end
 
-    heldItem.CurrentState -= heldItem.ConsumePerUse
-    heldItem.LastUsedAt = now
     return true, cloneItemEntry(heldItem)
 end
 
@@ -307,6 +323,29 @@ function Inventory:clear()
     self.Weight = 0
     table.clear(self.BackpackItems)
     self.HeldItem = nil
+end
+
+function Inventory:sell(itemId)
+    if type(itemId) ~= 'string' or itemId == '' then
+        return false, 'MissingItemId'
+    end
+
+    for index, itemEntry in ipairs(self.BackpackItems) do
+        if itemEntry.Id == itemId then
+            local sold = table.remove(self.BackpackItems, index)
+            self.Weight -= sold.Weight or 0
+            return true, cloneItemEntry(sold), sold.Value or 0
+        end
+    end
+
+    if self.HeldItem and self.HeldItem.Id == itemId then
+        local sold = self.HeldItem
+        self.HeldItem = nil
+        self.Weight -= sold.Weight or 0
+        return true, cloneItemEntry(sold), sold.Value or 0
+    end
+
+    return false, 'ItemNotFound'
 end
 
 return Inventory
