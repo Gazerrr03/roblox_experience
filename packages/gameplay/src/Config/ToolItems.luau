@@ -35,7 +35,7 @@ local ToolItems = {
         -- 战斗参数
         SwingRange = 6,
         SwingArcDegrees = 70,
-        KnockbackStrength = 15,
+        SwingKnockback = 15,
         MeleeDamage = 1,
     },
 }
