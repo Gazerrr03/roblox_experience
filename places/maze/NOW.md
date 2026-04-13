@@ -8,8 +8,6 @@
 
 ## Open Questions
 
-- Whether to introduce a dedicated maze portal adapter module, following the
-  direction explored on `origin/contract`
 - When to stop reusing the run-flavored remote surface and define a clearer maze
   transport contract
 

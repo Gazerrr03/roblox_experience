@@ -39,7 +39,7 @@ local PlayerService = Shared.Runtime.PlayerService
 local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 
 local MazeBootstrapStatus = require(script.Parent.MazeBootstrapStatus)
-local MazeRunPortal = require(script.Parent.MazeRunPortal)
+local MazeToRunTransition = require(script.Parent.MazeToRunTransition)
 local MazeWorldBuilder = require(script.Parent.MazeWorldBuilder)
 
 local DEBUG_DAMAGE_BY_ACTION = {
@@ -174,34 +174,6 @@ local function buildMazeMonsterRuntimeProfile(monsterAuthorProfile)
     end
 
     return runtimeProfileOrReason
-end
-
-local function collectPatrolPointsFromWorld(world)
-    local patrolPoints = world and world.PatrolPoints or {}
-    local initialPatrolIndex = world and world.InitialMonsterPatrolIndex or nil
-
-    if #patrolPoints > 0 then
-        return patrolPoints, initialPatrolIndex
-    end
-
-    patrolPoints = {}
-
-    if world and world.RoomAffordances then
-        for _, roomId in ipairs(world.RoomIds or {}) do
-            local affordance = world.RoomAffordances[roomId]
-            if affordance then
-                for _, patrolAnchor in ipairs(affordance.PatrolAnchors or {}) do
-                    table.insert(patrolPoints, patrolAnchor)
-                end
-            end
-        end
-    end
-
-    if #patrolPoints > 0 then
-        return patrolPoints, initialPatrolIndex
-    end
-
-    return world and world.PatrolPoints or {}, initialPatrolIndex
 end
 
 local function cloneUgcPendingPayload(payload)
@@ -419,6 +391,7 @@ function MazeSessionService.new(options)
     })
     self.Status = 'Direct boot: maze session is live. Explore, loot, and find an extraction point.'
     self.World = nil
+    self.WorldInteractions = nil
     self.IsDirectBoot = true
     self.IsLaunched = false
     self.SnapshotThread = nil
@@ -435,6 +408,7 @@ function MazeSessionService.new(options)
     self.ControlStateService = ControlStateService.new()
     self.PlayerService = PlayerService.new()
     self.PlayerStateService = PlayerStateService.new()
+    self.MazeToRunTransition = runtimeOptions.MazeToRunTransition or MazeToRunTransition.new()
     self.MonsterServiceFactory = runtimeOptions.MonsterServiceFactory
         or function(
             monsterRuntimeProfile,
@@ -820,7 +794,7 @@ function MazeSessionService:_getPlayerArea(player)
         return 'Maze Staging'
     end
 
-    local room = self.World.FindRoomByPosition(rootPart.Position)
+    local room = self.World:findRoomByPosition(rootPart.Position)
     if not room then
         return 'Maze Staging'
     end
@@ -891,58 +865,47 @@ function MazeSessionService:_rebuildWorld()
     end
 
     clearDefaultWorkspaceShell()
-    self.World = MazeWorldBuilder.build(self.SessionData.Seed, SessionConfig.ProcGen, {
-        SurfacePalette = self.SurfacePalette,
-    })
+
+    if self.WorldInteractions then
+        self.WorldInteractions:disconnectAll()
+        self.WorldInteractions = nil
+    end
+
+    self.World = MazeWorldBuilder.build()
     self:_recordWorldBuildMetadata()
     self:_setBootPhase('BindWorldInteractions')
-    self:_bindWorldInteractions()
+    self.WorldInteractions = self.World:bindInteractions({
+        OnReturnHold = function(player)
+            self:_returnPlayerToRunEntrance(player, 'early_return')
+        end,
+        OnExtraction = function(player, extractionNodeId)
+            self:_returnPlayerToRunEntrance(player, 'extracted', extractionNodeId)
+        end,
+        OnLoot = function(player, roomId)
+            self:_pickupLoot(player, roomId)
+        end,
+        OnDoor = function(player, doorwayId)
+            self:_toggleDoor(player, doorwayId)
+        end,
+    })
 
     if shouldRespawnMonster then
-        local patrolPoints, initialPatrolIndex = collectPatrolPointsFromWorld(self.World)
+        local patrolPoints, initialPatrolIndex = self.World:getPatrolPoints()
         self.MonsterService:spawn(patrolPoints, initialPatrolIndex)
     end
 end
 
-function MazeSessionService:_bindWorldInteractions()
-    if self.World.ReturnHoldPad and self.World.ReturnHoldPad.Prompt then
-        self.World.ReturnHoldPad.Prompt.Triggered:Connect(function(player)
-            self:_returnPlayerToRunEntrance(player, 'early_return')
-        end)
-    end
-
-    for extractionNodeId, extractionNode in pairs(self.World.ExtractionNodes or {}) do
-        extractionNode.Prompt.Triggered:Connect(function(player)
-            self:_returnPlayerToRunEntrance(player, 'extracted', extractionNodeId)
-        end)
-    end
-
-    for roomId, lootEntry in pairs(self.World.LootNodes or {}) do
-        lootEntry.Prompt.Triggered:Connect(function(player)
-            self:_pickupLoot(player, roomId)
-        end)
-    end
-
-    for doorwayId, doorway in pairs(self.World.Doorways or {}) do
-        if doorway.Prompt then
-            doorway.Prompt.Triggered:Connect(function(player)
-                self:_toggleDoor(player, doorwayId)
-            end)
-        end
-    end
-end
-
 function MazeSessionService:_toggleDoor(player, doorwayId)
-    if not self.World or not self.World.ToggleDoor then
+    if not self.World then
         return
     end
 
-    local toggled = self.World.ToggleDoor(doorwayId)
+    local toggled = self.World:toggleDoor(doorwayId)
     if not toggled then
         return
     end
 
-    local doorway = self.World.Doorways and self.World.Doorways[doorwayId]
+    local doorway = self.World:getDoor(doorwayId)
     if doorway then
         local stateText = doorway.IsOpen and 'opened' or 'closed'
         self:_setStatus(
@@ -998,7 +961,7 @@ function MazeSessionService:_teleportToCamp(players, summaries, mazeCompleted)
 
         -- Teleports yield, so keep the camp-side handoff serialized per maze server.
         local mergedSummaries = mergeSummaries(self.RunTracker:getReturnedSummaries(), summaries)
-        local result = MazeRunPortal.returnPlayers({
+        local result = self.MazeToRunTransition:returnPlayers({
             Players = players,
             SessionConfig = self.SessionData,
             CampSession = self.CampSession,
@@ -1026,7 +989,7 @@ function MazeSessionService:_beginFormalExpedition()
         return
     end
 
-    local patrolPoints, initialPatrolIndex = collectPatrolPointsFromWorld(self.World)
+    local patrolPoints, initialPatrolIndex = self.World:getPatrolPoints()
     self:_setBootPhase('SpawnMonster')
     self.MonsterService:spawn(patrolPoints, initialPatrolIndex)
     self:_spawnQueuedUgcMonsters()
@@ -1347,7 +1310,7 @@ function MazeSessionService:_pickupLoot(player, roomId)
         return
     end
 
-    local lootEntry = self.World.LootNodes[roomId]
+    local lootEntry = self.World:getLootNode(roomId)
     if not lootEntry or lootEntry.Collected then
         return
     end
@@ -1365,11 +1328,7 @@ function MazeSessionService:_pickupLoot(player, roomId)
         return
     end
 
-    lootEntry.Collected = true
-    local promptPart = lootEntry.Prompt.Parent
-    if promptPart then
-        promptPart:Destroy()
-    end
+    lootEntry:markCollected()
 
     local inventorySummary = self.InventoryService:getSummary(player)
     self:_setStatus(
