@@ -9,3 +9,7 @@
 ## 2025-05-17 - [Hex Tiling Optimization]
 **Learning:** High-frequency procedural geometry loops (like hex tiling) suffer significantly from `Vector3` and table allocations in Luau. Unrolling loops and using pure numeric coordinates with pre-calculated normals can yield a >15x speedup. Selene's `if_same_then_else` rule requires combining identical conditional branches using logical `or` to maintain clean linting.
 **Action:** Always prefer numeric coordinate math over `Vector3` methods in tight loops. Pre-calculate constant math expressions (e.g., `math.tan(math.pi / 6)`) and hex normals at the module level.
+
+## 2026-04-11 - [Hex Tiling Math & Allocation Optimization]
+**Learning:** Checking the 4 corners of a tile for hex containment is redundant. By utilizing hexagonal symmetry, a tile bounding-box can be verified against the hexagon using 3 directional bands and pre-calculated buffers. Inlining `Instance.new` calls in hot loops further reduces GC pressure by eliminating temporary configuration tables.
+**Action:** Use the 3-band bounding-box check for tiling procedural geometry. Inline part creation in high-frequency loops to avoid table allocations.
