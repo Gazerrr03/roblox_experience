@@ -19,8 +19,10 @@ local math_sin = math.sin
 local math_tan = math.tan
 local math_abs = math.abs
 local math_pi = math.pi
+local math_huge = math.huge
 
 local Vector3_new = Vector3.new
+local Vector3_zero = Vector3.zero
 local CFrame_new = CFrame.new
 local CFrame_lookAt = CFrame.lookAt
 local Instance_new = Instance.new
@@ -511,7 +513,7 @@ local function createDoorwayInstance(
         + tangent * openOffset
         + Vector3_new(0, DOORWAY_HEIGHT / 2, 0)
 
-    local leafOrientation = CFrame_lookAt(Vector3.zero, normal)
+    local leafOrientation = CFrame_lookAt(Vector3_zero, normal)
     doorway.ClosedLeftCFrame = CFrame_new(closedLeftCenter) * leafOrientation
     doorway.ClosedRightCFrame = CFrame_new(closedRightCenter) * leafOrientation
     doorway.OpenLeftCFrame = CFrame_new(openLeftCenter) * leafOrientation
@@ -695,7 +697,7 @@ local function buildPassageInstance(
     local passageDefinition = resolvePassageDefinition(passageArchetypeId)
     local passagePivot = CFrame_new(
         passageCenter + Vector3_new(0, (passageDefinition.Height or ROOM_CLEAR_HEIGHT) / 2, 0)
-    ) * CFrame_lookAt(Vector3.zero, corridorForward.LookVector)
+    ) * CFrame_lookAt(Vector3_zero, corridorForward.LookVector)
 
     local passageFolder = Instance_new('Folder')
     passageFolder.Name = folderName
@@ -811,7 +813,7 @@ end
 function HexMazeWorldRenderer.build(params)
     local worldName = params.WorldName or 'GeneratedMazeWorld'
     local layout = params.Layout
-    local originOffset = params.OriginOffset or Vector3.zero
+    local originOffset = params.OriginOffset or Vector3_zero
     local roomApothem = math.max(8, params.RoomApothem or ROOM_APOTHEM_DEFAULT)
     local includeRoomMarker = params.IncludeRoomMarker ~= false
     local parent = params.Parent or Workspace
@@ -926,15 +928,17 @@ function HexMazeWorldRenderer.build(params)
         doorway.DirectionFromB = doorwayLayout.DirectionFromB
         doorways[doorwayId] = doorway
 
-        -- Bolt: Use nested table for O(1) doorway lookups without string concatenation
-        if not doorwayByRoomIds[doorway.RoomA] then
-            doorwayByRoomIds[doorway.RoomA] = {}
+        local roomAId = doorwayLayout.RoomA
+        local roomBId = doorwayLayout.RoomB
+
+        if not doorwayByRoomIds[roomAId] then
+            doorwayByRoomIds[roomAId] = {}
         end
-        if not doorwayByRoomIds[doorway.RoomB] then
-            doorwayByRoomIds[doorway.RoomB] = {}
+        if not doorwayByRoomIds[roomBId] then
+            doorwayByRoomIds[roomBId] = {}
         end
-        doorwayByRoomIds[doorway.RoomA][doorway.RoomB] = doorway
-        doorwayByRoomIds[doorway.RoomB][doorway.RoomA] = doorway
+        doorwayByRoomIds[roomAId][roomBId] = doorway
+        doorwayByRoomIds[roomBId][roomAId] = doorway
     end
 
     local detectionRadius = roomApothem + detectionBuffer
@@ -946,7 +950,7 @@ function HexMazeWorldRenderer.build(params)
 
     local function findRoomByPosition(position)
         local nearestRoom = nil
-        local nearestDistanceSq = math.huge
+        local nearestDistanceSq = math_huge
 
         local px, pz = position.X, position.Z
         local pq = math_floor(px / cellSize)
@@ -989,7 +993,10 @@ function HexMazeWorldRenderer.build(params)
             return true
         end
 
-        if fromRoom.Id == toRoom.Id then
+        local fromRoomId = fromRoom.Id
+        local toRoomId = toRoom.Id
+
+        if fromRoomId == toRoomId then
             return true
         end
 
@@ -998,7 +1005,7 @@ function HexMazeWorldRenderer.build(params)
         if not doorway then
             return false
         end
-        if doorway and doorway.HasDoorLeaves and not doorway.IsOpen then
+        if doorway.HasDoorLeaves and not doorway.IsOpen then
             return false
         end
 
