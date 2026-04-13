@@ -13,30 +13,40 @@ local function cloneLightConfig(lightConfig)
     }
 end
 
+local ITEM_COPY_FIELDS = table.freeze({
+    'Id',
+    'Name',
+    'Weight',
+    'Value',
+    'Color',
+    'ToolCategory',
+    'StateModel',
+    'InitialState',
+    'CurrentState',
+    'ConsumePerUse',
+    'CooldownSeconds',
+    'SwingRange',
+    'SwingArcDegrees',
+    'KnockbackStrength',
+    'MeleeDamage',
+    'ItemKind',
+    'ConsumableEffect',
+    'MaxCarryPerId',
+    'LastUsedAt',
+})
+
+local function copyItemFields(source, target)
+    for _, field in ipairs(ITEM_COPY_FIELDS) do
+        target[field] = source[field]
+    end
+    target.Light = cloneLightConfig(source.Light)
+    return target
+end
+
 local function cloneItemEntry(itemEntry)
-    return {
+    return copyItemFields(itemEntry, {
         InstanceId = itemEntry.InstanceId,
-        Id = itemEntry.Id,
-        Name = itemEntry.Name,
-        Weight = itemEntry.Weight,
-        Value = itemEntry.Value,
-        Color = itemEntry.Color,
-        Light = cloneLightConfig(itemEntry.Light),
-        ToolCategory = itemEntry.ToolCategory,
-        StateModel = itemEntry.StateModel,
-        CurrentState = itemEntry.CurrentState,
-        ConsumePerUse = itemEntry.ConsumePerUse,
-        CooldownSeconds = itemEntry.CooldownSeconds,
-        SwingRange = itemEntry.SwingRange,
-        SwingArcDegrees = itemEntry.SwingArcDegrees,
-        KnockbackStrength = itemEntry.KnockbackStrength,
-        MeleeDamage = itemEntry.MeleeDamage,
-        ItemKind = itemEntry.ItemKind,
-        ConsumableEffect = itemEntry.ConsumableEffect,
-        MaxCarryPerId = itemEntry.MaxCarryPerId,
-        InitialState = itemEntry.InitialState,
-        LastUsedAt = itemEntry.LastUsedAt,
-    }
+    })
 end
 
 local function cloneArray(items)
@@ -67,29 +77,10 @@ function Inventory:getCount()
 end
 
 function Inventory:_buildItemEntry(itemDef)
-    local itemEntry = {
+    local itemEntry = copyItemFields(itemDef, {
         InstanceId = self.NextItemInstanceId,
-        Id = itemDef.Id,
-        Name = itemDef.Name,
-        Weight = itemDef.Weight,
-        Value = itemDef.Value,
-        Color = itemDef.Color,
-        Light = cloneLightConfig(itemDef.Light),
-        ToolCategory = itemDef.ToolCategory,
-        StateModel = itemDef.StateModel,
-        InitialState = itemDef.InitialState,
-        CurrentState = itemDef.InitialState,
-        ConsumePerUse = itemDef.ConsumePerUse,
-        CooldownSeconds = itemDef.CooldownSeconds,
-        SwingRange = itemDef.SwingRange,
-        SwingArcDegrees = itemDef.SwingArcDegrees,
-        KnockbackStrength = itemDef.KnockbackStrength,
-        MeleeDamage = itemDef.MeleeDamage,
-        ItemKind = itemDef.ItemKind,
-        ConsumableEffect = itemDef.ConsumableEffect,
-        MaxCarryPerId = itemDef.MaxCarryPerId,
-        LastUsedAt = itemDef.LastUsedAt,
-    }
+    })
+    itemEntry.CurrentState = itemDef.InitialState
 
     self.NextItemInstanceId += 1
 
@@ -101,29 +92,12 @@ local function normalizeItemEntry(rawItemEntry)
         return nil
     end
 
-    return {
+    local normalized = copyItemFields(rawItemEntry, {
         InstanceId = rawItemEntry.InstanceId,
-        Id = rawItemEntry.Id,
-        Name = rawItemEntry.Name,
-        Weight = rawItemEntry.Weight or 0,
-        Value = rawItemEntry.Value or 0,
-        Color = rawItemEntry.Color,
-        Light = cloneLightConfig(rawItemEntry.Light),
-        ToolCategory = rawItemEntry.ToolCategory,
-        StateModel = rawItemEntry.StateModel,
-        InitialState = rawItemEntry.InitialState,
-        CurrentState = rawItemEntry.CurrentState,
-        ConsumePerUse = rawItemEntry.ConsumePerUse,
-        CooldownSeconds = rawItemEntry.CooldownSeconds,
-        SwingRange = rawItemEntry.SwingRange,
-        SwingArcDegrees = rawItemEntry.SwingArcDegrees,
-        KnockbackStrength = rawItemEntry.KnockbackStrength,
-        MeleeDamage = rawItemEntry.MeleeDamage,
-        ItemKind = rawItemEntry.ItemKind,
-        ConsumableEffect = rawItemEntry.ConsumableEffect,
-        MaxCarryPerId = rawItemEntry.MaxCarryPerId,
-        LastUsedAt = rawItemEntry.LastUsedAt,
-    }
+    })
+    normalized.Weight = rawItemEntry.Weight or 0
+    normalized.Value = rawItemEntry.Value or 0
+    return normalized
 end
 
 function Inventory:countById(itemId)
