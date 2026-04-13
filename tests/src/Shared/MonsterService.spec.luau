@@ -3,6 +3,7 @@ return function()
     local packages = ReplicatedStorage:WaitForChild('Packages')
     local gameplay = require(packages:WaitForChild('Gameplay'))
     local shared = require(packages:WaitForChild('Shared'))
+    local monsterAssetIds = gameplay.Monsters.MonsterAssetIds
 
     local monsterServiceModule = shared.Runtime.MonsterService
     local compileMonsterForMaze = gameplay.Monsters.compileMonsterForMaze
@@ -61,7 +62,7 @@ return function()
         {
             AssetLoader = function(assetId)
                 assert(
-                    assetId == 4446576906,
+                    assetId == monsterAssetIds.DefaultModelAssetId,
                     'Monster service should request the configured model asset'
                 )
 
@@ -132,7 +133,10 @@ return function()
     assert(loadedTracks.MonsterRun ~= nil, 'Monster should create a run animation track')
     assert(#warnings == 0, 'Successful model loads should not emit fallback warnings')
     assert(#sounds == 1, 'Configured chase audio should create one looped sound')
-    assert(sounds[1].AssetId == 9118823108, 'Monster should use the configured chase loop asset id')
+    assert(
+        sounds[1].AssetId == monsterAssetIds.DefaultChaseLoopSoundAssetId,
+        'Monster should use the configured chase loop asset id'
+    )
 
     local spawnPosition = service.MonsterPositionPart.Position
     service:update(0.5)

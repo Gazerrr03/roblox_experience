@@ -13,22 +13,53 @@ local function cloneLightConfig(lightConfig)
     }
 end
 
+-- ItemEntry field groups aligned to OOP framework:
+-- Core (must-have): InstanceId (handled separately), Id, Name, Value
+-- Optional — Weight
+-- Optional — Tool state: InitialState, CurrentState, ConsumePerUse, CooldownSeconds, LastUsedAt, ToolCategory, StateModel
+-- Optional — Light: Color (Light handled separately via cloneLightConfig)
+-- Optional — Melee tool: SwingRange, SwingArcDegrees, SwingKnockback, MeleeDamage
+-- Optional — Consumable: ItemKind, ConsumableEffect, MaxCarryPerId
+local ITEM_COPY_FIELDS = table.freeze({
+    -- Core
+    'Id',
+    'Name',
+    'Value',
+    -- Optional: Weight
+    'Weight',
+    -- Optional: Tool state
+    'InitialState',
+    'CurrentState',
+    'ConsumePerUse',
+    'CooldownSeconds',
+    'LastUsedAt',
+    'ToolCategory',
+    'StateModel',
+    -- Optional: Light
+    'Color',
+    -- Optional: Melee tool
+    'SwingRange',
+    'SwingArcDegrees',
+    'SwingKnockback',
+    'MeleeDamage',
+    -- Optional: Consumable
+    'ItemKind',
+    'ConsumableEffect',
+    'MaxCarryPerId',
+})
+
+local function copyItemFields(source, target)
+    for _, field in ipairs(ITEM_COPY_FIELDS) do
+        target[field] = source[field]
+    end
+    target.Light = cloneLightConfig(source.Light)
+    return target
+end
+
 local function cloneItemEntry(itemEntry)
-    return {
+    return copyItemFields(itemEntry, {
         InstanceId = itemEntry.InstanceId,
-        Id = itemEntry.Id,
-        Name = itemEntry.Name,
-        Weight = itemEntry.Weight,
-        Value = itemEntry.Value,
-        Color = itemEntry.Color,
-        Light = cloneLightConfig(itemEntry.Light),
-        ToolCategory = itemEntry.ToolCategory,
-        StateModel = itemEntry.StateModel,
-        CurrentState = itemEntry.CurrentState,
-        ConsumePerUse = itemEntry.ConsumePerUse,
-        CooldownSeconds = itemEntry.CooldownSeconds,
-        LastUsedAt = itemEntry.LastUsedAt,
-    }
+    })
 end
 
 local function cloneArray(items)
@@ -59,21 +90,10 @@ function Inventory:getCount()
 end
 
 function Inventory:_buildItemEntry(itemDef)
-    local itemEntry = {
+    local itemEntry = copyItemFields(itemDef, {
         InstanceId = self.NextItemInstanceId,
-        Id = itemDef.Id,
-        Name = itemDef.Name,
-        Weight = itemDef.Weight,
-        Value = itemDef.Value,
-        Color = itemDef.Color,
-        Light = cloneLightConfig(itemDef.Light),
-        ToolCategory = itemDef.ToolCategory,
-        StateModel = itemDef.StateModel,
-        CurrentState = itemDef.InitialState,
-        ConsumePerUse = itemDef.ConsumePerUse,
-        CooldownSeconds = itemDef.CooldownSeconds,
-        LastUsedAt = itemDef.LastUsedAt,
-    }
+    })
+    itemEntry.CurrentState = itemDef.InitialState
 
     self.NextItemInstanceId += 1
 
@@ -85,21 +105,12 @@ local function normalizeItemEntry(rawItemEntry)
         return nil
     end
 
-    return {
+    local normalized = copyItemFields(rawItemEntry, {
         InstanceId = rawItemEntry.InstanceId,
-        Id = rawItemEntry.Id,
-        Name = rawItemEntry.Name,
-        Weight = rawItemEntry.Weight or 0,
-        Value = rawItemEntry.Value or 0,
-        Color = rawItemEntry.Color,
-        Light = cloneLightConfig(rawItemEntry.Light),
-        ToolCategory = rawItemEntry.ToolCategory,
-        StateModel = rawItemEntry.StateModel,
-        CurrentState = rawItemEntry.CurrentState,
-        ConsumePerUse = rawItemEntry.ConsumePerUse,
-        CooldownSeconds = rawItemEntry.CooldownSeconds,
-        LastUsedAt = rawItemEntry.LastUsedAt,
-    }
+    })
+    normalized.Weight = rawItemEntry.Weight or 0
+    normalized.Value = rawItemEntry.Value or 0
+    return normalized
 end
 
 function Inventory:add(itemDef)
@@ -161,21 +172,24 @@ function Inventory:consumeHeldItemState(nowSeconds)
         return false, 'NotConsumable'
     end
 
-    if heldItem.CurrentState < heldItem.ConsumePerUse then
-        return false, 'Depleted'
-    end
-
-    local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
-    local cooldownSeconds = heldItem.CooldownSeconds
-    if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
-        local lastUsedAt = heldItem.LastUsedAt
-        if type(lastUsedAt) == 'number' and now - lastUsedAt < cooldownSeconds then
-            return false, 'Cooldown', cooldownSeconds - (now - lastUsedAt)
+    if type(heldItem.ConsumePerUse) == 'number' and heldItem.ConsumePerUse > 0 then
+        if heldItem.CurrentState < heldItem.ConsumePerUse then
+            return false, 'Depleted'
         end
+
+        local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
+        local cooldownSeconds = heldItem.CooldownSeconds
+        if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
+            local lastUsedAt = heldItem.LastUsedAt
+            if type(lastUsedAt) == 'number' and now - lastUsedAt < cooldownSeconds then
+                return false, 'Cooldown', cooldownSeconds - (now - lastUsedAt)
+            end
+        end
+
+        heldItem.CurrentState -= heldItem.ConsumePerUse
+        heldItem.LastUsedAt = now
     end
 
-    heldItem.CurrentState -= heldItem.ConsumePerUse
-    heldItem.LastUsedAt = now
     return true, cloneItemEntry(heldItem)
 end
 
@@ -288,6 +302,29 @@ function Inventory:consumeById(itemId)
         self.HeldItem = nil
         self.Weight -= consumed.Weight
         return true, cloneItemEntry(consumed)
+    end
+
+    return false, 'ItemNotFound'
+end
+
+function Inventory:sell(itemId)
+    if type(itemId) ~= 'string' or itemId == '' then
+        return false, 'MissingItemId'
+    end
+
+    for index, itemEntry in ipairs(self.BackpackItems) do
+        if itemEntry.Id == itemId then
+            local sold = table.remove(self.BackpackItems, index)
+            self.Weight -= sold.Weight or 0
+            return true, cloneItemEntry(sold), sold.Value or 0
+        end
+    end
+
+    if self.HeldItem and self.HeldItem.Id == itemId then
+        local sold = self.HeldItem
+        self.HeldItem = nil
+        self.Weight -= sold.Weight or 0
+        return true, cloneItemEntry(sold), sold.Value or 0
     end
 
     return false, 'ItemNotFound'

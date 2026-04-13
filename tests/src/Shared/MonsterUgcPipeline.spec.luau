@@ -6,6 +6,7 @@ return function()
     local ugcPipeline = monsters.MonsterUgcPipeline
     local behaviorCatalog = monsters.MonsterBehaviorCatalog
     local effectCatalog = monsters.MonsterEffectCatalog
+    local monsterAssetIds = monsters.MonsterAssetIds
 
     local briefOk, waitingState = ugcPipeline.evaluateBrief({
         Goal = '',
@@ -46,8 +47,8 @@ return function()
         },
         Preferences = {
             Name = 'Scrap Whisper',
-            ModelAssetId = 4446576906,
-            ChaseLoopSoundAssetId = 9118823108,
+            ModelAssetId = monsterAssetIds.DefaultModelAssetId,
+            ChaseLoopSoundAssetId = monsterAssetIds.DefaultChaseLoopSoundAssetId,
             Tuning = {
                 Speed = 100,
                 SightRange = 34,
@@ -102,6 +103,16 @@ return function()
     assert(
         generationResult.RuntimeProfile.Speed == ugcPipeline.TuningRange.Speed.Max,
         'Out-of-range speed should be clamped into allowed tuning range'
+    )
+    assert(
+        generationResult.RuntimeProfile.Components.Movement.Speed
+            == generationResult.RuntimeProfile.Speed,
+        'UGC runtime output should map movement speed into component config'
+    )
+    assert(
+        generationResult.RuntimeProfile.Components.Perception.SightRange
+            == generationResult.RuntimeProfile.SightRange,
+        'UGC runtime output should map perception sight range into component config'
     )
     assert(
         generationResult.Diagnostics.SkippedBehaviorIds[1] == behaviorCatalog.Behavior.LoseTarget,

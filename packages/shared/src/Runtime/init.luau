@@ -7,8 +7,11 @@ return {
     MazeFormalWorldComposer = require(script.MazeFormalWorldComposer),
     MazeLightingProfile = require(script.MazeLightingProfile),
     MazeModuleAssetContract = require(script.MazeModuleAssetContract),
+    MazeWorldScanner = require(script.MazeWorldScanner),
     MazeWorldShellBuilder = require(script.MazeWorldShellBuilder),
+    MonsterRuntime = require(script.MonsterRuntime),
     MonsterService = require(script.MonsterService),
+    PlayerService = require(script.PlayerService),
     PlayerStateService = require(script.PlayerStateService),
     TeleportInventoryHydrator = require(script.TeleportInventoryHydrator),
 }

@@ -1,5 +1,6 @@
 local MonsterBehaviorCatalog = require(script.Parent.Parent.Monsters.MonsterBehaviorCatalog)
 local MonsterEffectCatalog = require(script.Parent.Parent.Monsters.MonsterEffectCatalog)
+local MonsterAssetIds = require(script.Parent.Parent.Monsters.MonsterAssetIds)
 local MonsterPresentationCatalog = require(script.Parent.Parent.Monsters.MonsterPresentationCatalog)
 
 return {
@@ -19,6 +20,10 @@ return {
             },
         },
         Tuning = {
+            AttackCooldownSeconds = 1,
+            AttackDamagePips = 1,
+            AttackRange = 4,
+            CombatHitPoints = 3,
             Speed = 14,
             SightRange = 36,
             PatrolSpeedMultiplier = 0.45,
@@ -26,10 +31,10 @@ return {
         },
         Executable = {
             Presentation = {
-                ModelAssetId = 4446576906,
+                ModelAssetId = MonsterAssetIds.DefaultModelAssetId,
                 RigType = MonsterPresentationCatalog.RigType.R6,
                 AnimationMode = MonsterPresentationCatalog.AnimationMode.DefaultR6,
-                ChaseLoopSoundAssetId = 9118823108,
+                ChaseLoopSoundAssetId = MonsterAssetIds.DefaultChaseLoopSoundAssetId,
             },
             BehaviorIntents = {
                 {
@@ -41,6 +46,9 @@ return {
                 },
                 {
                     Id = MonsterBehaviorCatalog.Behavior.Chase,
+                },
+                {
+                    Id = MonsterBehaviorCatalog.Behavior.Attack,
                 },
                 {
                     Id = MonsterBehaviorCatalog.Behavior.LoseTarget,

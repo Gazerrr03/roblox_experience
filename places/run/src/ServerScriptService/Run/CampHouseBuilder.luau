@@ -107,7 +107,7 @@ function CampHouseBuilder.build(worldFolder, createPart, createPromptPart)
         Color = Color3.fromRGB(93, 196, 176),
         Material = Enum.Material.Metal,
         ActionText = 'Open Gate',
-        ObjectText = 'Camp Gate',
+        ObjectText = 'Temple Gate',
     }, houseFolder)
 
     local _, shopPrompt = createPromptPart({
@@ -117,7 +117,7 @@ function CampHouseBuilder.build(worldFolder, createPart, createPromptPart)
         Color = Color3.fromRGB(77, 147, 196),
         Material = Enum.Material.Metal,
         ActionText = 'Inspect',
-        ObjectText = 'Shop Terminal (Soon)',
+        ObjectText = 'Temple Shop (Soon)',
     }, houseFolder)
 
     local _, loadoutPrompt = createPromptPart({
@@ -128,6 +128,27 @@ function CampHouseBuilder.build(worldFolder, createPart, createPromptPart)
         Material = Enum.Material.WoodPlanks,
         ActionText = 'Inspect',
         ObjectText = 'Loadout Bench (Soon)',
+    }, houseFolder)
+
+    local _, sellPrompt = createPromptPart({
+        Name = 'SalvageTerminal',
+        Size = Vector3.new(4, 5, 4),
+        CFrame = CFrame.new((HOUSE_WIDTH / 2) - 9, 2.5, 6),
+        Color = Color3.fromRGB(196, 121, 77),
+        Material = Enum.Material.Metal,
+        ActionText = 'Exchange',
+        ObjectText = 'Salvage Exchange',
+    }, houseFolder)
+
+    local _, objectivePrompt = createPromptPart({
+        Name = 'ObjectiveBoard',
+        Size = Vector3.new(6, 4, 1.5),
+        CFrame = CFrame.new(0, 5, -(HOUSE_DEPTH / 2) + 2),
+        Color = Color3.fromRGB(67, 112, 65),
+        Material = Enum.Material.WoodPlanks,
+        ActionText = 'Review',
+        ObjectText = 'Book of Sand Board',
+        MaxActivationDistance = 12,
     }, houseFolder)
 
     createPart({
@@ -177,6 +198,8 @@ function CampHouseBuilder.build(worldFolder, createPart, createPromptPart)
 
     return {
         ShopPrompt = shopPrompt,
+        SellPrompt = sellPrompt,
+        ObjectivePrompt = objectivePrompt,
         LoadoutPrompt = loadoutPrompt,
         UgcLabPrompt = ugcLabPrompt,
         GatePrompt = gatePrompt,

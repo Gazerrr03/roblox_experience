@@ -35,16 +35,21 @@ local MonsterService = require(SharedPackage:WaitForChild('Runtime'):WaitForChil
 local ControlStateService = Shared.Runtime.ControlStateService
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local PlayerStateService = Shared.Runtime.PlayerStateService
+local PlayerService = Shared.Runtime.PlayerService
 local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 
 local MazeBootstrapStatus = require(script.Parent.MazeBootstrapStatus)
-local MazeRunPortal = require(script.Parent.MazeRunPortal)
+local MazeToRunTransition = require(script.Parent.MazeToRunTransition)
 local MazeWorldBuilder = require(script.Parent.MazeWorldBuilder)
 
 local DEBUG_DAMAGE_BY_ACTION = {
     RequestDebugLightDamage = Gameplay.PlayerState.DamageKind.Light,
     RequestDebugHeavyDamage = Gameplay.PlayerState.DamageKind.Heavy,
 }
+local DAMAGE_KIND_BY_PIPS = table.freeze({
+    [1] = Gameplay.PlayerState.DamageKind.Light,
+    [2] = Gameplay.PlayerState.DamageKind.Heavy,
+})
 
 local MazeMonsterSpawnPolicy = Gameplay.Monsters.MazeMonsterSpawnPolicy
 
@@ -60,6 +65,10 @@ local function formatDiagnosticValue(value)
     end
 
     return tostring(value)
+end
+
+local function damageKindFromPips(damagePips)
+    return DAMAGE_KIND_BY_PIPS[damagePips]
 end
 
 local function buildDiagnosticFieldString(fields)
@@ -165,34 +174,6 @@ local function buildMazeMonsterRuntimeProfile(monsterAuthorProfile)
     end
 
     return runtimeProfileOrReason
-end
-
-local function collectPatrolPointsFromWorld(world)
-    local patrolPoints = world and world.PatrolPoints or {}
-    local initialPatrolIndex = world and world.InitialMonsterPatrolIndex or nil
-
-    if #patrolPoints > 0 then
-        return patrolPoints, initialPatrolIndex
-    end
-
-    patrolPoints = {}
-
-    if world and world.RoomAffordances then
-        for _, roomId in ipairs(world.RoomIds or {}) do
-            local affordance = world.RoomAffordances[roomId]
-            if affordance then
-                for _, patrolAnchor in ipairs(affordance.PatrolAnchors or {}) do
-                    table.insert(patrolPoints, patrolAnchor)
-                end
-            end
-        end
-    end
-
-    if #patrolPoints > 0 then
-        return patrolPoints, initialPatrolIndex
-    end
-
-    return world and world.PatrolPoints or {}, initialPatrolIndex
 end
 
 local function cloneUgcPendingPayload(payload)
@@ -301,6 +282,20 @@ function MazeSessionService:_destroyUgcMonsters()
     table.clear(self.UgcMonsterServices)
 end
 
+function MazeSessionService:_buildMonsterRuntimeOptions(randomSeed)
+    return {
+        RandomSeed = randomSeed,
+        OnAttackHit = function(player, damagePips)
+            local damageKind = damageKindFromPips(damagePips)
+            if damageKind == nil then
+                return
+            end
+
+            self:_applyPlayerDamage(player, damageKind)
+        end,
+    }
+end
+
 function MazeSessionService:_spawnQueuedUgcMonsters()
     if #self.PendingUgcMonsterPayloads == 0 then
         return
@@ -367,7 +362,7 @@ function MazeSessionService:_spawnQueuedUgcMonsters()
             end
 
             return self.World.CanTraverseBetweenPositions(fromPosition, toPosition)
-        end)
+        end, self:_buildMonsterRuntimeOptions(randomSeed))
         ugcMonsterService:spawn(patrolPoints, initialPatrolIndex)
 
         table.insert(self.UgcMonsterServices, {
@@ -396,6 +391,7 @@ function MazeSessionService.new(options)
     })
     self.Status = 'Direct boot: maze session is live. Explore, loot, and find an extraction point.'
     self.World = nil
+    self.WorldInteractions = nil
     self.IsDirectBoot = true
     self.IsLaunched = false
     self.SnapshotThread = nil
@@ -410,19 +406,23 @@ function MazeSessionService.new(options)
     self.RunTracker = Gameplay.Session.MazeRunTracker.new()
     self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
     self.ControlStateService = ControlStateService.new()
+    self.PlayerService = PlayerService.new()
     self.PlayerStateService = PlayerStateService.new()
+    self.MazeToRunTransition = runtimeOptions.MazeToRunTransition or MazeToRunTransition.new()
     self.MonsterServiceFactory = runtimeOptions.MonsterServiceFactory
         or function(
             monsterRuntimeProfile,
             isExpeditionActiveCallback,
             canTargetPlayerCallback,
-            canTraverseCallback
+            canTraverseCallback,
+            monsterRuntimeOptions
         )
             return MonsterService.new(
                 monsterRuntimeProfile,
                 isExpeditionActiveCallback,
                 canTargetPlayerCallback,
-                canTraverseCallback
+                canTraverseCallback,
+                monsterRuntimeOptions
             )
         end
     self.MonsterService = self.MonsterServiceFactory(
@@ -439,7 +439,8 @@ function MazeSessionService.new(options)
             end
 
             return self.World.CanTraverseBetweenPositions(fromPosition, toPosition)
-        end
+        end,
+        self:_buildMonsterRuntimeOptions(self.SessionData.Seed)
     )
     self.UgcMonsterServices = {}
     self.PendingUgcMonsterPayloads = {}
@@ -589,6 +590,12 @@ function MazeSessionService:_ensureAuthoritativeSessionSeed()
     end
 end
 
+function MazeSessionService:_syncMonsterDeterminismSeed()
+    if self.MonsterService and self.MonsterService.setDeterministicSeed then
+        self.MonsterService:setDeterministicSeed(self.SessionData.Seed)
+    end
+end
+
 function MazeSessionService:_loadSessionDataFromJoin()
     local players = Players:GetPlayers()
     local sawTeleportData = false
@@ -703,6 +710,7 @@ function MazeSessionService:_addPlayerState(player)
         Name = player.DisplayName,
     })
     self.ControlStateService:addPlayer(player)
+    self.PlayerService:addPlayer(player)
     self.PlayerStateService:addPlayer(player)
 end
 
@@ -713,11 +721,12 @@ function MazeSessionService:_removePlayerState(player)
         PreserveReturnSummary = true,
     })
     self.ControlStateService:removePlayer(player)
+    self.PlayerService:removePlayer(player)
     self.PlayerStateService:removePlayer(player)
 end
 
 function MazeSessionService:_getMovementSummaryFor(player)
-    local playerState = self.PlayerStateService:getSummary(player)
+    local playerState = self.PlayerService:getSummary(player)
     local controlState = self.ControlStateService:getSummary(player)
     return FormalLocomotion.summarize(playerState, controlState)
 end
@@ -733,13 +742,10 @@ function MazeSessionService:_applyMovementMode(player)
 end
 
 function MazeSessionService:_syncPlayerMovement(player)
-    local playerState = self.PlayerStateService:getSummary(player)
+    local playerState = self.PlayerService:getSummary(player)
     local ok, controlState = self.ControlStateService:syncPlayerState(player, playerState)
     if ok and controlState then
-        self.PlayerStateService:setSprinting(
-            player,
-            controlState.Mode == FormalLocomotion.Mode.Sprint
-        )
+        self.PlayerService:setSprinting(player, controlState.Mode == FormalLocomotion.Mode.Sprint)
     end
 
     self:_applyMovementMode(player)
@@ -747,7 +753,7 @@ end
 
 function MazeSessionService:_clearPlayerMovement(player)
     self.ControlStateService:requestSprintStop(player)
-    self.PlayerStateService:setSprinting(player, false)
+    self.PlayerService:setSprinting(player, false)
     self:_applyMovementMode(player)
 end
 
@@ -788,7 +794,7 @@ function MazeSessionService:_getPlayerArea(player)
         return 'Maze Staging'
     end
 
-    local room = self.World.FindRoomByPosition(rootPart.Position)
+    local room = self.World:findRoomByPosition(rootPart.Position)
     if not room then
         return 'Maze Staging'
     end
@@ -827,7 +833,7 @@ function MazeSessionService:_broadcastSnapshot()
             Inventory = self.InventoryService:getSummary(player),
             Movement = self:_getMovementSummaryFor(player),
             ControlState = self.ControlStateService:getSummary(player),
-            PlayerState = self.PlayerStateService:getSummary(player),
+            PlayerState = self.PlayerService:getSummary(player).PlayerState,
             Roster = roster,
             SessionId = self.CampSession.SessionId,
             MazeAccessCode = self.CampSession.MazeAccessCode,
@@ -859,58 +865,47 @@ function MazeSessionService:_rebuildWorld()
     end
 
     clearDefaultWorkspaceShell()
-    self.World = MazeWorldBuilder.build(self.SessionData.Seed, SessionConfig.ProcGen, {
-        SurfacePalette = self.SurfacePalette,
-    })
+
+    if self.WorldInteractions then
+        self.WorldInteractions:disconnectAll()
+        self.WorldInteractions = nil
+    end
+
+    self.World = MazeWorldBuilder.build()
     self:_recordWorldBuildMetadata()
     self:_setBootPhase('BindWorldInteractions')
-    self:_bindWorldInteractions()
+    self.WorldInteractions = self.World:bindInteractions({
+        OnReturnHold = function(player)
+            self:_returnPlayerToRunEntrance(player, 'early_return')
+        end,
+        OnExtraction = function(player, extractionNodeId)
+            self:_returnPlayerToRunEntrance(player, 'extracted', extractionNodeId)
+        end,
+        OnLoot = function(player, roomId)
+            self:_pickupLoot(player, roomId)
+        end,
+        OnDoor = function(player, doorwayId)
+            self:_toggleDoor(player, doorwayId)
+        end,
+    })
 
     if shouldRespawnMonster then
-        local patrolPoints, initialPatrolIndex = collectPatrolPointsFromWorld(self.World)
+        local patrolPoints, initialPatrolIndex = self.World:getPatrolPoints()
         self.MonsterService:spawn(patrolPoints, initialPatrolIndex)
     end
 end
 
-function MazeSessionService:_bindWorldInteractions()
-    if self.World.ReturnHoldPad and self.World.ReturnHoldPad.Prompt then
-        self.World.ReturnHoldPad.Prompt.Triggered:Connect(function(player)
-            self:_returnPlayerToRunEntrance(player, 'early_return')
-        end)
-    end
-
-    for extractionNodeId, extractionNode in pairs(self.World.ExtractionNodes or {}) do
-        extractionNode.Prompt.Triggered:Connect(function(player)
-            self:_returnPlayerToRunEntrance(player, 'extracted', extractionNodeId)
-        end)
-    end
-
-    for roomId, lootEntry in pairs(self.World.LootNodes or {}) do
-        lootEntry.Prompt.Triggered:Connect(function(player)
-            self:_pickupLoot(player, roomId)
-        end)
-    end
-
-    for doorwayId, doorway in pairs(self.World.Doorways or {}) do
-        if doorway.Prompt then
-            doorway.Prompt.Triggered:Connect(function(player)
-                self:_toggleDoor(player, doorwayId)
-            end)
-        end
-    end
-end
-
 function MazeSessionService:_toggleDoor(player, doorwayId)
-    if not self.World or not self.World.ToggleDoor then
+    if not self.World then
         return
     end
 
-    local toggled = self.World.ToggleDoor(doorwayId)
+    local toggled = self.World:toggleDoor(doorwayId)
     if not toggled then
         return
     end
 
-    local doorway = self.World.Doorways and self.World.Doorways[doorwayId]
+    local doorway = self.World:getDoor(doorwayId)
     if doorway then
         local stateText = doorway.IsOpen and 'opened' or 'closed'
         self:_setStatus(
@@ -966,7 +961,7 @@ function MazeSessionService:_teleportToCamp(players, summaries, mazeCompleted)
 
         -- Teleports yield, so keep the camp-side handoff serialized per maze server.
         local mergedSummaries = mergeSummaries(self.RunTracker:getReturnedSummaries(), summaries)
-        local result = MazeRunPortal.returnPlayers({
+        local result = self.MazeToRunTransition:returnPlayers({
             Players = players,
             SessionConfig = self.SessionData,
             CampSession = self.CampSession,
@@ -994,7 +989,7 @@ function MazeSessionService:_beginFormalExpedition()
         return
     end
 
-    local patrolPoints, initialPatrolIndex = collectPatrolPointsFromWorld(self.World)
+    local patrolPoints, initialPatrolIndex = self.World:getPatrolPoints()
     self:_setBootPhase('SpawnMonster')
     self.MonsterService:spawn(patrolPoints, initialPatrolIndex)
     self:_spawnQueuedUgcMonsters()
@@ -1020,7 +1015,7 @@ function MazeSessionService:_setPlayerSprinting(player, isSprinting)
         return
     end
 
-    local playerState = self.PlayerStateService:getSummary(player)
+    local playerState = self.PlayerService:getSummary(player)
     local success, result
     if isSprinting then
         success, result = self.ControlStateService:requestSprintStart(player, playerState)
@@ -1089,7 +1084,7 @@ function MazeSessionService:_handleUseTool(player)
         return
     end
 
-    local playerState = self.PlayerStateService:getSummary(player)
+    local playerState = self.PlayerService:getSummary(player).PlayerState
     if playerState.IsDead == true then
         self:_setStatus(string.format('%s cannot use tools while dead.', player.DisplayName))
         return
@@ -1106,8 +1101,8 @@ function MazeSessionService:_handleUseTool(player)
         return
     end
 
-    -- 2. 检查这东西有没有“状态/耐久”
-    if not heldItem.CurrentState or not heldItem.ConsumePerUse then
+    -- 2. 检查这东西有没有“状态/耐久”（ConsumePerUse 允许为 0 表示不消耗型工具）
+    if type(heldItem.CurrentState) ~= 'number' or type(heldItem.ConsumePerUse) ~= 'number' then
         self:_setStatus(
             string.format(
                 '%s cannot actively "use" %s (it is not a tool).',
@@ -1118,8 +1113,8 @@ function MazeSessionService:_handleUseTool(player)
         return
     end
 
-    -- 3. 检查有没有没电/报废
-    if heldItem.CurrentState < heldItem.ConsumePerUse then
+    -- 3. 检查有没有没电/报废（仅当每次使用会扣耐久时）
+    if heldItem.ConsumePerUse > 0 and heldItem.CurrentState < heldItem.ConsumePerUse then
         self:_setStatus(
             string.format(
                 '%s tried to use %s, but it has no %s left.',
@@ -1168,6 +1163,27 @@ function MazeSessionService:_handleUseTool(player)
     elseif updatedHeldItem.ToolCategory == 'Crowbar' then
         actionWord = 'swung'
         effectText = 'A satisfying swoosh cuts the air!'
+
+        local damagePips = 1
+        if type(updatedHeldItem.MeleeDamage) == 'number' and updatedHeldItem.MeleeDamage >= 1 then
+            damagePips = math.floor(updatedHeldItem.MeleeDamage)
+        end
+
+        local meleeOk, meleeResult = self.MonsterService:tryApplyPlayerMeleeHit(player, {
+            DamagePips = damagePips,
+            SwingArcDegrees = updatedHeldItem.SwingArcDegrees,
+            SwingRange = updatedHeldItem.SwingRange,
+        })
+        if meleeOk then
+            if meleeResult and meleeResult.Killed then
+                effectText = 'The crowbar connects — the threat goes down!'
+            elseif meleeResult and type(meleeResult.RemainingHitPoints) == 'number' then
+                effectText = string.format(
+                    'The crowbar connects! Foe stamina: ~%d.',
+                    meleeResult.RemainingHitPoints
+                )
+            end
+        end
     end
 
     self:_setStatus(
@@ -1267,15 +1283,21 @@ function MazeSessionService:_applyPlayerDamage(player, damageKind)
         return
     end
 
-    local success, summary = self.PlayerStateService:applyDamage(player, damageKind)
+    local success, result = self.PlayerService:applyDamage(player, damageKind)
     if not success then
         self:_setStatus(
-            string.format('%s could not take damage (%s).', player.DisplayName, tostring(summary))
+            string.format('%s could not take damage (%s).', player.DisplayName, tostring(result))
         )
         return
     end
 
-    if summary.IsDead then
+    local summary = self.PlayerService:getSummary(player)
+    if not summary then
+        self:_setStatus(string.format('%s summary unavailable after damage.', player.DisplayName))
+        return
+    end
+
+    if summary.Health.IsDead then
         self:_handlePlayerDeath(player, damageKind)
         return
     end
@@ -1287,8 +1309,8 @@ function MazeSessionService:_applyPlayerDamage(player, damageKind)
             '%s took %s damage and now has %d/%d health pips.',
             player.DisplayName,
             string.lower(damageKind),
-            summary.HealthPips,
-            summary.MaxHealthPips
+            summary.Health.CurrentHealthPips,
+            summary.Health.MaxHealthPips
         )
     )
 end
@@ -1309,7 +1331,7 @@ function MazeSessionService:_pickupLoot(player, roomId)
         return
     end
 
-    local lootEntry = self.World.LootNodes[roomId]
+    local lootEntry = self.World:getLootNode(roomId)
     if not lootEntry or lootEntry.Collected then
         return
     end
@@ -1327,11 +1349,7 @@ function MazeSessionService:_pickupLoot(player, roomId)
         return
     end
 
-    lootEntry.Collected = true
-    local promptPart = lootEntry.Prompt.Parent
-    if promptPart then
-        promptPart:Destroy()
-    end
+    lootEntry:markCollected()
 
     local inventorySummary = self.InventoryService:getSummary(player)
     self:_setStatus(
@@ -1435,6 +1453,18 @@ function MazeSessionService:_launchMaze()
     self:_setBootPhase('Launched')
 end
 
+function MazeSessionService:_getPlayerUpdateContext(player)
+    local character = player.Character
+    local humanoid = character and character:FindFirstChildOfClass('Humanoid')
+    local rootPart = humanoid and humanoid.RootPart
+    local currentPosition = rootPart and rootPart.Position or Vector3.zero
+
+    return {
+        CurrentPosition = currentPosition,
+        InputState = {},
+    }
+end
+
 function MazeSessionService:_startSnapshotLoop()
     if self.SnapshotThread then
         return
@@ -1448,10 +1478,12 @@ function MazeSessionService:_startSnapshotLoop()
 
             if self.IsLaunched then
                 local currentTick = os.clock()
-                self.PlayerStateService:step(currentTick - previousTick)
+                local dt = currentTick - previousTick
                 previousTick = currentTick
 
                 for _, player in ipairs(Players:GetPlayers()) do
+                    local context = self:_getPlayerUpdateContext(player)
+                    self.PlayerService:update(player, dt, context)
                     self:_syncPlayerMovement(player)
                 end
 
@@ -1532,6 +1564,7 @@ function MazeSessionService:start()
             local mergedBeforeBuild = self:_awaitInitialTeleportData()
             self:_setBootPhase('EnsureAuthoritativeSeed')
             self:_ensureAuthoritativeSessionSeed()
+            self:_syncMonsterDeterminismSeed()
             self:_emitDiagnostic('InitialSeedResolution', {
                 HasAcceptedTeleportData = self.HasAcceptedTeleportData,
                 HasAuthoritativeSessionSeed = self.HasAuthoritativeSessionSeed,

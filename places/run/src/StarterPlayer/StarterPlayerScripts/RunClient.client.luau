@@ -13,23 +13,32 @@ local UI = require(Packages:WaitForChild('UI'))
 local Remotes = Shared.Network.Remotes.waitForScope(Shared.Network.Remotes.Scope.Run)
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local heldItemController = Shared.Client.HeldItemController.new(localPlayer)
-local NarrativeUI = require(script.Parent.NarrativeUI)
-local _BackpackUI = require(script.Parent.BackpackUI)
-local ItemClient = require(script.Parent.ItemClient)
 local Theme = UI.Hud.Theme
+
+local TEMPLE_LABEL = 'Temple'
+local PAGE_LABEL = 'Pages'
+local SAND_BOOK_LABEL = 'Book of Sand'
+local SAND_BOOK_PROGRESS_LABEL = 'Book of Sand Progress'
 
 local disconnectFirstPersonLock
 local ensureFirstPersonLock
 local canRequestMazeEntry = false
 local isRunLaunched = false
 local isCampPanelVisible = true
+local isMouseFree = false
 local actionInputConnection
 local sprintInputEndedConnection
 local isMenuMouseUnlockBound = false
 local visibleBackpackItems = {}
-local isUgcGenerating = false
-local isUgcDialogVisible = false
 local MENU_MOUSE_UNLOCK_STEP = 'RunMenuMouseUnlock'
+local MOUSE_TOGGLE_KEY = Enum.KeyCode.LeftAlt
+local teamPages = 0
+local goalAmount = 120
+local goalProgress = 0
+local inventorySummary = nil
+local activeShopItems = {}
+local activeSalvageItems = {}
+local activeModal = nil
 ensureFirstPersonLock = function()
     disconnectFirstPersonLock = Shared.Client.FirstPersonController.start(localPlayer)
     ensureFirstPersonLock = function() end
@@ -80,6 +89,17 @@ local function releaseFirstPersonLockForMenu()
     UserInputService.MouseIconEnabled = true
 end
 
+local function syncMouseMode()
+    if not isRunLaunched or isMouseFree or activeModal ~= nil then
+        releaseFirstPersonLockForMenu()
+        bindMenuMouseUnlock()
+        return
+    end
+
+    unbindMenuMouseUnlock()
+    ensureFirstPersonLock()
+end
+
 script.Destroying:Connect(function()
     if disconnectFirstPersonLock ~= nil then
         disconnectFirstPersonLock()
@@ -120,6 +140,70 @@ local function makeTextLabel(parent, size, color, textSize, bold)
     return label
 end
 
+local function makeButton(parent, text, height, backgroundColor)
+    local button = Instance.new('TextButton')
+    button.Size = UDim2.new(1, 0, 0, height)
+    button.BackgroundColor3 = backgroundColor
+    button.TextColor3 = Theme.Background
+    button.Font = Enum.Font.GothamBold
+    button.TextSize = 18
+    button.Text = text
+    button.AutoButtonColor = true
+    button.Parent = parent
+
+    local corner = Instance.new('UICorner')
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = button
+
+    local stroke = Instance.new('UIStroke')
+    stroke.Color = Theme.Background
+    stroke.Transparency = 0.65
+    stroke.Thickness = 1
+    stroke.Parent = button
+
+    local gradient = Instance.new('UIGradient')
+    gradient.Rotation = 90
+    local base = button.BackgroundColor3
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, base:Lerp(Color3.new(1, 1, 1), 0.08)),
+        ColorSequenceKeypoint.new(1, base:Lerp(Color3.new(0, 0, 0), 0.12)),
+    })
+    gradient.Parent = button
+
+    return button
+end
+
+local function clearLayoutChildren(container)
+    for _, child in ipairs(container:GetChildren()) do
+        if child:IsA('TextButton') or child:IsA('TextLabel') or child:IsA('Frame') then
+            if child.Name ~= 'UIListLayout' and child.Name ~= 'UICorner' then
+                child:Destroy()
+            end
+        end
+    end
+end
+
+local function applyPanelStyle(frame, cornerRadius, strokeTransparency)
+    local corner = Instance.new('UICorner')
+    corner.CornerRadius = UDim.new(0, cornerRadius)
+    corner.Parent = frame
+
+    local stroke = Instance.new('UIStroke')
+    stroke.Color = Theme.Text
+    stroke.Transparency = strokeTransparency or 0.86
+    stroke.Thickness = 1
+    stroke.Parent = frame
+
+    local gradient = Instance.new('UIGradient')
+    gradient.Rotation = 90
+    local base = frame.BackgroundColor3
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, base:Lerp(Color3.new(1, 1, 1), 0.03)),
+        ColorSequenceKeypoint.new(1, base:Lerp(Color3.new(0, 0, 0), 0.08)),
+    })
+    gradient.Parent = frame
+end
+
 local function buildMazeEntryText(snapshot)
     local mode = snapshot.MazeEntryMode or 'Blocked'
     local reasonCode = snapshot.MazeEntryReasonCode or 'Unknown'
@@ -137,6 +221,14 @@ menuBackdrop.Size = UDim2.fromScale(1, 1)
 menuBackdrop.BackgroundColor3 = Theme.Background
 menuBackdrop.Parent = screenGui
 
+local menuBackdropGradient = Instance.new('UIGradient')
+menuBackdropGradient.Rotation = 120
+menuBackdropGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Theme.Background:Lerp(Color3.new(1, 1, 1), 0.02)),
+    ColorSequenceKeypoint.new(1, Theme.Background:Lerp(Color3.new(0, 0, 0), 0.12)),
+})
+menuBackdropGradient.Parent = menuBackdrop
+
 local menuPanel = Instance.new('Frame')
 menuPanel.Name = 'Panel'
 menuPanel.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -146,9 +238,7 @@ menuPanel.BackgroundColor3 = Theme.Surface
 menuPanel.BorderSizePixel = 0
 menuPanel.Parent = menuBackdrop
 
-local menuCorner = Instance.new('UICorner')
-menuCorner.CornerRadius = UDim.new(0, 18)
-menuCorner.Parent = menuPanel
+applyPanelStyle(menuPanel, 18, 0.8)
 
 local menuPadding = Instance.new('UIPadding')
 menuPadding.PaddingTop = UDim.new(0, 28)
@@ -162,14 +252,14 @@ menuList.Padding = UDim.new(0, 14)
 menuList.Parent = menuPanel
 
 local eyebrow = makeTextLabel(menuPanel, UDim2.new(1, 0, 0, 20), Theme.Accent, 16, true)
-eyebrow.Text = 'CAMP STAGING PROTOTYPE'
+eyebrow.Text = 'TEMPLE STAGING PROTOTYPE'
 
 local menuTitle = makeTextLabel(menuPanel, UDim2.new(1, 0, 0, 72), Theme.Text, 34, true)
-menuTitle.Text = 'Enter the expedition camp'
+menuTitle.Text = string.format('Enter the %s', TEMPLE_LABEL)
 
 local menuBody = makeTextLabel(menuPanel, UDim2.new(1, 0, 0, 78), Theme.SubtleText, 18, false)
 menuBody.Text =
-    'Start inside the camp house, meet up with the crew, and open the main gate when you are ready to step into the wilderness and the shared maze gate.'
+    'Start inside the temple hall, meet up with the crew, and open the main gate when you are ready to step into the wilderness and the shared maze gate.'
 
 local singlePlayerButton = Instance.new('TextButton')
 singlePlayerButton.Size = UDim2.new(1, 0, 0, 52)
@@ -177,16 +267,30 @@ singlePlayerButton.BackgroundColor3 = Theme.Accent
 singlePlayerButton.TextColor3 = Theme.Background
 singlePlayerButton.Font = Enum.Font.GothamBold
 singlePlayerButton.TextSize = 20
-singlePlayerButton.Text = 'Enter Camp'
+singlePlayerButton.Text = string.format('Enter %s', TEMPLE_LABEL)
 singlePlayerButton.Parent = menuPanel
 
 local singlePlayerCorner = Instance.new('UICorner')
 singlePlayerCorner.CornerRadius = UDim.new(0, 12)
 singlePlayerCorner.Parent = singlePlayerButton
 
+local singlePlayerStroke = Instance.new('UIStroke')
+singlePlayerStroke.Color = Theme.Background
+singlePlayerStroke.Transparency = 0.55
+singlePlayerStroke.Thickness = 1
+singlePlayerStroke.Parent = singlePlayerButton
+
+local singlePlayerGradient = Instance.new('UIGradient')
+singlePlayerGradient.Rotation = 90
+singlePlayerGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Theme.Accent:Lerp(Color3.new(1, 1, 1), 0.1)),
+    ColorSequenceKeypoint.new(1, Theme.Accent:Lerp(Color3.new(0, 0, 0), 0.12)),
+})
+singlePlayerGradient.Parent = singlePlayerButton
+
 local menuStatusLabel =
     makeTextLabel(menuPanel, UDim2.new(1, 0, 0, 52), Theme.SubtleText, 16, false)
-menuStatusLabel.Text = 'Preparing camp access...'
+menuStatusLabel.Text = string.format('Preparing %s access...', TEMPLE_LABEL)
 
 local placeholders = Instance.new('Frame')
 placeholders.Size = UDim2.new(1, 0, 0, 78)
@@ -215,22 +319,20 @@ local function makePlaceholder(text)
     corner.Parent = button
 end
 
-makePlaceholder('Shop Terminal (Soon)')
+makePlaceholder('Temple Shop (Soon)')
 makePlaceholder('Shared Maze Gate')
 
 local panel = Instance.new('Frame')
 panel.Name = 'CampPanel'
 panel.AnchorPoint = Vector2.new(0, 0)
 panel.Position = UDim2.fromScale(0.03, 0.05)
-panel.Size = UDim2.fromOffset(440, 670)
+panel.Size = UDim2.fromOffset(440, 620)
 panel.BackgroundColor3 = Theme.Background
 panel.BorderSizePixel = 0
 panel.Visible = false
 panel.Parent = screenGui
 
-local panelCorner = Instance.new('UICorner')
-panelCorner.CornerRadius = UDim.new(0, 16)
-panelCorner.Parent = panel
+applyPanelStyle(panel, 16, 0.84)
 
 local panelPadding = Instance.new('UIPadding')
 panelPadding.PaddingTop = UDim.new(0, 18)
@@ -244,17 +346,23 @@ list.Padding = UDim.new(0, 10)
 list.Parent = panel
 
 local title = makeTextLabel(panel, UDim2.new(1, 0, 0, 36), Theme.Text, 28, true)
-title.Text = 'Camp Status'
+title.Text = string.format('%s Status', TEMPLE_LABEL)
 
 local statusLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 70), Theme.SubtleText, 18, false)
-statusLabel.Text = 'Waiting for camp snapshot...'
+statusLabel.Text = string.format('Waiting for %s snapshot...', TEMPLE_LABEL)
 
 local objectiveLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 64), Theme.Accent, 18, false)
-objectiveLabel.Text = 'Objective: --'
+objectiveLabel.Text = string.format('%s Objective: --', SAND_BOOK_LABEL)
 
 local guideLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 60), Theme.Text, 16, false)
-guideLabel.Text =
-    'In-world prompts:\n- Shop Terminal (Soon)\n- Loadout Bench (Soon)\n- UGC Lab Console (Press E)\n- Camp Gate / Shared Maze Gate\nKeyboard: Hold LeftShift to sprint, tap C to toggle Camp Status, 1-3 to equip, X to stow'
+guideLabel.Text = string.format(
+    'In-world prompts:\n- %s Shop\n- Salvage Exchange\n- %s Board\n- %s Gate / Shared Maze Gate\nKeyboard: Hold LeftShift to sprint, tap C to toggle %s Status, %s to free mouse, 1-3 to equip, X to stow',
+    TEMPLE_LABEL,
+    SAND_BOOK_LABEL,
+    TEMPLE_LABEL,
+    TEMPLE_LABEL,
+    MOUSE_TOGGLE_KEY.Name
+)
 
 local inventoryLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 44), Theme.Warning, 16, false)
 inventoryLabel.Text = 'Inventory: --'
@@ -271,140 +379,269 @@ rosterLabel.Text = ''
 local mazeLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 96), Theme.SubtleText, 16, false)
 mazeLabel.Text = ''
 
-local ugcDialogBackdrop = Instance.new('Frame')
-ugcDialogBackdrop.Name = 'UgcDialogBackdrop'
-ugcDialogBackdrop.Size = UDim2.fromScale(1, 1)
-ugcDialogBackdrop.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-ugcDialogBackdrop.BackgroundTransparency = 0.35
-ugcDialogBackdrop.BorderSizePixel = 0
-ugcDialogBackdrop.Visible = false
-ugcDialogBackdrop.ZIndex = 20
-ugcDialogBackdrop.Parent = screenGui
+local function createModalPanel(name, size)
+    local modal = Instance.new('Frame')
+    modal.Name = name
+    modal.AnchorPoint = Vector2.new(0.5, 0.5)
+    modal.Position = UDim2.fromScale(0.5, 0.5)
+    modal.Size = size
+    modal.BackgroundColor3 = Theme.Surface
+    modal.BorderSizePixel = 0
+    modal.Visible = false
+    modal.Parent = screenGui
 
-local ugcDialogPanel = Instance.new('Frame')
-ugcDialogPanel.Name = 'UgcDialog'
-ugcDialogPanel.AnchorPoint = Vector2.new(0.5, 0.5)
-ugcDialogPanel.Position = UDim2.fromScale(0.5, 0.5)
-ugcDialogPanel.Size = UDim2.fromOffset(560, 380)
-ugcDialogPanel.BackgroundColor3 = Theme.Background
-ugcDialogPanel.BorderSizePixel = 0
-ugcDialogPanel.ZIndex = 21
-ugcDialogPanel.Parent = ugcDialogBackdrop
+    applyPanelStyle(modal, 16, 0.82)
 
-local ugcDialogCorner = Instance.new('UICorner')
-ugcDialogCorner.CornerRadius = UDim.new(0, 16)
-ugcDialogCorner.Parent = ugcDialogPanel
+    local modalPadding = Instance.new('UIPadding')
+    modalPadding.PaddingTop = UDim.new(0, 18)
+    modalPadding.PaddingLeft = UDim.new(0, 18)
+    modalPadding.PaddingRight = UDim.new(0, 18)
+    modalPadding.PaddingBottom = UDim.new(0, 18)
+    modalPadding.Parent = modal
 
-local ugcDialogPadding = Instance.new('UIPadding')
-ugcDialogPadding.PaddingTop = UDim.new(0, 18)
-ugcDialogPadding.PaddingLeft = UDim.new(0, 18)
-ugcDialogPadding.PaddingRight = UDim.new(0, 18)
-ugcDialogPadding.PaddingBottom = UDim.new(0, 18)
-ugcDialogPadding.Parent = ugcDialogPanel
+    local modalList = Instance.new('UIListLayout')
+    modalList.Padding = UDim.new(0, 10)
+    modalList.Parent = modal
 
-local ugcDialogLayout = Instance.new('UIListLayout')
-ugcDialogLayout.Padding = UDim.new(0, 10)
-ugcDialogLayout.Parent = ugcDialogPanel
+    return modal, modalList
+end
 
-local ugcDialogTitle = makeTextLabel(ugcDialogPanel, UDim2.new(1, 0, 0, 34), Theme.Accent, 28, true)
-ugcDialogTitle.ZIndex = 21
-ugcDialogTitle.Text = 'UGC Lab'
+local modalBackdrop = Instance.new('Frame')
+modalBackdrop.Name = 'ModalBackdrop'
+modalBackdrop.Size = UDim2.fromScale(1, 1)
+modalBackdrop.BackgroundColor3 = Color3.new(0, 0, 0)
+modalBackdrop.BackgroundTransparency = 0.45
+modalBackdrop.Visible = false
+modalBackdrop.Parent = screenGui
 
-local ugcDialogHint =
-    makeTextLabel(ugcDialogPanel, UDim2.new(1, 0, 0, 42), Theme.SubtleText, 16, false)
-ugcDialogHint.ZIndex = 21
-ugcDialogHint.Text =
-    '靠近营地 UGC 控制台按 E 可打开。每次成功生成消耗 1 个 UGC Signal Token。'
+local toastLabel = Instance.new('TextLabel')
+toastLabel.Name = 'Toast'
+toastLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+toastLabel.Position = UDim2.fromScale(0.5, 0.08)
+toastLabel.Size = UDim2.fromOffset(420, 42)
+toastLabel.BackgroundColor3 = Theme.Surface
+toastLabel.TextColor3 = Theme.Text
+toastLabel.TextSize = 18
+toastLabel.Font = Theme.Font
+toastLabel.Text = ''
+toastLabel.Visible = false
+toastLabel.Parent = screenGui
+applyPanelStyle(toastLabel, 12, 0.88)
 
-local ugcPromptBox = Instance.new('TextBox')
-ugcPromptBox.Size = UDim2.new(1, 0, 0, 140)
-ugcPromptBox.BackgroundColor3 = Theme.Surface
-ugcPromptBox.TextColor3 = Theme.Text
-ugcPromptBox.PlaceholderText =
-    '输入一句怪物需求，例如：做一个会压迫追逐的废铁幽灵'
-ugcPromptBox.PlaceholderColor3 = Theme.SubtleText
-ugcPromptBox.Font = Theme.Font
-ugcPromptBox.TextSize = 16
-ugcPromptBox.ClearTextOnFocus = false
-ugcPromptBox.TextWrapped = true
-ugcPromptBox.TextXAlignment = Enum.TextXAlignment.Left
-ugcPromptBox.TextYAlignment = Enum.TextYAlignment.Top
-ugcPromptBox.MultiLine = true
-ugcPromptBox.ZIndex = 21
-ugcPromptBox.Parent = ugcDialogPanel
+local goalBanner = Instance.new('TextLabel')
+goalBanner.Name = 'GoalBanner'
+goalBanner.AnchorPoint = Vector2.new(0.5, 0.5)
+goalBanner.Position = UDim2.fromScale(0.5, 0.16)
+goalBanner.Size = UDim2.fromOffset(460, 56)
+goalBanner.BackgroundColor3 = Theme.Accent
+goalBanner.TextColor3 = Theme.Background
+goalBanner.TextSize = 22
+goalBanner.Font = Enum.Font.GothamBold
+goalBanner.Text = ''
+goalBanner.Visible = false
+goalBanner.Parent = screenGui
+applyPanelStyle(goalBanner, 12, 0.7)
 
-local ugcPromptCorner = Instance.new('UICorner')
-ugcPromptCorner.CornerRadius = UDim.new(0, 10)
-ugcPromptCorner.Parent = ugcPromptBox
+local shopPanel = createModalPanel('ShopPanel', UDim2.fromOffset(460, 520))
+local shopTitle = makeTextLabel(shopPanel, UDim2.new(1, 0, 0, 32), Theme.Text, 26, true)
+shopTitle.Text = 'Temple Shop'
 
-local ugcGenerateButton = Instance.new('TextButton')
-ugcGenerateButton.Size = UDim2.new(1, 0, 0, 44)
-ugcGenerateButton.BackgroundColor3 = Theme.Accent
-ugcGenerateButton.TextColor3 = Theme.Background
-ugcGenerateButton.Font = Enum.Font.GothamBold
-ugcGenerateButton.TextSize = 18
-ugcGenerateButton.Text = 'Generate UGC Monster'
-ugcGenerateButton.ZIndex = 21
-ugcGenerateButton.Parent = ugcDialogPanel
+local shopPageLabel = makeTextLabel(shopPanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
+shopPageLabel.Text = 'Team Pages: 0'
 
-local ugcGenerateCorner = Instance.new('UICorner')
-ugcGenerateCorner.CornerRadius = UDim.new(0, 10)
-ugcGenerateCorner.Parent = ugcGenerateButton
+local shopInventoryLabel =
+    makeTextLabel(shopPanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
+shopInventoryLabel.Text = 'Inventory: --'
 
-local ugcStatusLabel =
-    makeTextLabel(ugcDialogPanel, UDim2.new(1, 0, 0, 70), Theme.SubtleText, 15, false)
-ugcStatusLabel.ZIndex = 21
-ugcStatusLabel.Text = '状态：待命（消耗 1 个 UGC Signal Token）。'
+local shopItemsFrame = Instance.new('Frame')
+shopItemsFrame.Size = UDim2.new(1, 0, 1, -210)
+shopItemsFrame.BackgroundTransparency = 1
+shopItemsFrame.Parent = shopPanel
 
-local ugcDialogCloseButton = Instance.new('TextButton')
-ugcDialogCloseButton.Size = UDim2.fromOffset(32, 32)
-ugcDialogCloseButton.Position = UDim2.new(1, -42, 0, 10)
-ugcDialogCloseButton.BackgroundColor3 = Theme.Surface
-ugcDialogCloseButton.TextColor3 = Theme.Text
-ugcDialogCloseButton.Font = Enum.Font.GothamBold
-ugcDialogCloseButton.TextSize = 20
-ugcDialogCloseButton.Text = 'X'
-ugcDialogCloseButton.ZIndex = 22
-ugcDialogCloseButton.Parent = ugcDialogBackdrop
+local shopItemsList = Instance.new('UIListLayout')
+shopItemsList.Padding = UDim.new(0, 8)
+shopItemsList.Parent = shopItemsFrame
 
-local ugcDialogCloseCorner = Instance.new('UICorner')
-ugcDialogCloseCorner.CornerRadius = UDim.new(1, 0)
-ugcDialogCloseCorner.Parent = ugcDialogCloseButton
+local shopCloseButton = makeButton(shopPanel, 'Close', 44, Theme.Warning)
+
+local sellPanel = createModalPanel('SellPanel', UDim2.fromOffset(460, 480))
+local sellTitle = makeTextLabel(sellPanel, UDim2.new(1, 0, 0, 32), Theme.Text, 26, true)
+sellTitle.Text = 'Salvage Exchange'
+
+local sellPageLabel = makeTextLabel(sellPanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
+sellPageLabel.Text = 'Team Pages: 0'
+
+local sellItemsFrame = Instance.new('Frame')
+sellItemsFrame.Size = UDim2.new(1, 0, 1, -160)
+sellItemsFrame.BackgroundTransparency = 1
+sellItemsFrame.Parent = sellPanel
+
+local sellItemsList = Instance.new('UIListLayout')
+sellItemsList.Padding = UDim.new(0, 8)
+sellItemsList.Parent = sellItemsFrame
+
+local sellCloseButton = makeButton(sellPanel, 'Close', 44, Theme.Warning)
+
+local objectivePanel = createModalPanel('ObjectivePanel', UDim2.fromOffset(440, 360))
+local objectiveTitle = makeTextLabel(objectivePanel, UDim2.new(1, 0, 0, 32), Theme.Text, 26, true)
+objectiveTitle.Text = 'Book of Sand Board'
+
+local objectiveGoalLabel =
+    makeTextLabel(objectivePanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
+objectiveGoalLabel.Text = 'Goal: 0 Pages'
+
+local objectiveProgressLabel =
+    makeTextLabel(objectivePanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
+objectiveProgressLabel.Text = 'Progress: 0%'
+
+local progressBarBack = Instance.new('Frame')
+progressBarBack.Size = UDim2.new(1, 0, 0, 18)
+progressBarBack.BackgroundColor3 = Theme.Background
+progressBarBack.BorderSizePixel = 0
+progressBarBack.Parent = objectivePanel
+
+local progressBarFill = Instance.new('Frame')
+progressBarFill.Size = UDim2.new(0, 0, 1, 0)
+progressBarFill.BackgroundColor3 = Theme.Accent
+progressBarFill.BorderSizePixel = 0
+progressBarFill.Parent = progressBarBack
+
+local progressCorner = Instance.new('UICorner')
+progressCorner.CornerRadius = UDim.new(0, 8)
+progressCorner.Parent = progressBarBack
+
+local progressFillCorner = Instance.new('UICorner')
+progressFillCorner.CornerRadius = UDim.new(0, 8)
+progressFillCorner.Parent = progressBarFill
+
+local objectiveCloseButton = makeButton(objectivePanel, 'Close', 44, Theme.Warning)
 
 local function syncCampPanelVisibility()
     panel.Visible = isRunLaunched and isCampPanelVisible
 end
 
-local function syncInputMode()
-    if not isRunLaunched or isUgcDialogVisible then
-        releaseFirstPersonLockForMenu()
-        bindMenuMouseUnlock()
+local function setActiveModal(nextModal)
+    activeModal = nextModal
+    local showModal = nextModal ~= nil
+
+    modalBackdrop.Visible = showModal
+    shopPanel.Visible = nextModal == 'Shop'
+    sellPanel.Visible = nextModal == 'Sell'
+    objectivePanel.Visible = nextModal == 'Objective'
+
+    syncMouseMode()
+end
+
+local function updateObjectiveUi()
+    local clampedProgress = math.clamp(goalProgress, 0, 1)
+    objectiveGoalLabel.Text = string.format('Goal: %d %s', goalAmount, PAGE_LABEL)
+    objectiveProgressLabel.Text =
+        string.format('%s: %d%%', SAND_BOOK_PROGRESS_LABEL, math.floor(clampedProgress * 100 + 0.5))
+    progressBarFill.Size = UDim2.new(clampedProgress, 0, 1, 0)
+end
+
+local function updatePageLabels()
+    shopPageLabel.Text = string.format('Team %s: %d', PAGE_LABEL, teamPages)
+    sellPageLabel.Text = string.format('Team %s: %d', PAGE_LABEL, teamPages)
+    updateObjectiveUi()
+
+    if inventorySummary then
+        shopInventoryLabel.Text = string.format(
+            'Inventory: %d total | %d/%d KG | %d value',
+            inventorySummary.Count or 0,
+            inventorySummary.Weight or 0,
+            inventorySummary.Capacity or 0,
+            inventorySummary.Value or 0
+        )
+    else
+        shopInventoryLabel.Text = 'Inventory: --'
+    end
+end
+
+local function showToast(message, tone)
+    local color = Theme.Text
+    if tone == 'Error' then
+        color = Theme.Warning
+    elseif tone == 'Success' then
+        color = Theme.Accent
+    end
+
+    toastLabel.TextColor3 = color
+    toastLabel.Text = message
+    toastLabel.Visible = true
+
+    local token = os.clock()
+    toastLabel:SetAttribute('ToastToken', token)
+
+    task.delay(2.5, function()
+        if toastLabel:GetAttribute('ToastToken') == token then
+            toastLabel.Visible = false
+        end
+    end)
+end
+
+local function showGoalBanner()
+    goalBanner.Text = string.format('Goal reached! Team %s: %d', PAGE_LABEL, teamPages)
+    goalBanner.Visible = true
+
+    task.delay(3, function()
+        goalBanner.Visible = false
+    end)
+end
+
+local function renderShopItems()
+    clearLayoutChildren(shopItemsFrame)
+
+    for _, item in ipairs(activeShopItems) do
+        local label = string.format('%s - %d %s', item.Name, item.Price, PAGE_LABEL)
+        local button = makeButton(shopItemsFrame, label, 40, Theme.Accent)
+        button.MouseButton1Click:Connect(function()
+            Remotes.RunAction:FireServer({
+                Type = 'RequestPurchaseItem',
+                ItemId = item.Id,
+            })
+        end)
+    end
+end
+
+local function renderSellItems()
+    clearLayoutChildren(sellItemsFrame)
+
+    if #activeSalvageItems == 0 then
+        local emptyLabel =
+            makeTextLabel(sellItemsFrame, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
+        emptyLabel.Text = 'No salvage items available.'
         return
     end
 
-    unbindMenuMouseUnlock()
-    ensureFirstPersonLock()
-end
-
-local function closeUgcDialog()
-    isUgcDialogVisible = false
-    ugcDialogBackdrop.Visible = false
-    syncInputMode()
-end
-
-local function openUgcDialog()
-    if not isRunLaunched then
-        return
+    for _, item in ipairs(activeSalvageItems) do
+        local label = string.format('%s +%d %s', item.Name, item.Price, PAGE_LABEL)
+        local button = makeButton(sellItemsFrame, label, 40, Theme.Accent)
+        if item.Color then
+            button.TextColor3 = item.Color
+        end
+        button.MouseButton1Click:Connect(function()
+            Remotes.RunAction:FireServer({
+                Type = 'RequestSellItem',
+                ItemInstanceId = item.InstanceId,
+            })
+        end)
     end
-
-    isUgcDialogVisible = true
-    ugcDialogBackdrop.Visible = true
-    ugcPromptBox:CaptureFocus()
-    syncInputMode()
 end
 
-releaseFirstPersonLockForMenu()
-bindMenuMouseUnlock()
+shopCloseButton.MouseButton1Click:Connect(function()
+    setActiveModal(nil)
+end)
+
+sellCloseButton.MouseButton1Click:Connect(function()
+    setActiveModal(nil)
+end)
+
+objectiveCloseButton.MouseButton1Click:Connect(function()
+    setActiveModal(nil)
+end)
+
+syncMouseMode()
 actionInputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
     if gameProcessedEvent then
         return
@@ -414,19 +651,18 @@ actionInputConnection = UserInputService.InputBegan:Connect(function(input, game
         return
     end
 
-    if isUgcDialogVisible then
-        if input.KeyCode == Enum.KeyCode.Escape then
-            closeUgcDialog()
-        end
-        return
-    end
-
     if input.KeyCode == Enum.KeyCode.LeftShift then
         if isRunLaunched then
             Remotes.RunAction:FireServer({
                 Type = 'RequestSprintStart',
             })
         end
+        return
+    end
+
+    if input.KeyCode == MOUSE_TOGGLE_KEY then
+        isMouseFree = not isMouseFree
+        syncMouseMode()
         return
     end
 
@@ -488,47 +724,116 @@ end)
 singlePlayerButton.MouseButton1Click:Connect(function()
     singlePlayerButton.AutoButtonColor = false
     singlePlayerButton.Active = false
-    singlePlayerButton.Text = 'Entering Camp...'
+    singlePlayerButton.Text = string.format('Entering %s...', TEMPLE_LABEL)
 
     Remotes.RunAction:FireServer({
         Type = 'RequestLaunchRun',
     })
 end)
 
-ugcDialogCloseButton.MouseButton1Click:Connect(function()
-    closeUgcDialog()
-end)
-
-ugcGenerateButton.MouseButton1Click:Connect(function()
-    if not isRunLaunched or isUgcGenerating then
+Remotes.RunPrivateState.OnClientEvent:Connect(function(payload)
+    if type(payload) ~= 'table' then
         return
     end
 
-    local prompt = ugcPromptBox.Text
-    if type(prompt) ~= 'string' or string.match(prompt, '^%s*$') then
-        ugcStatusLabel.Text = '状态：请输入怪物需求。'
+    if payload.Type == 'OpenShop' then
+        activeShopItems = payload.Items or {}
+        inventorySummary = payload.Inventory or inventorySummary
+        if type(payload.TeamPages) == 'number' then
+            teamPages = payload.TeamPages
+        end
+        updatePageLabels()
+        renderShopItems()
+        setActiveModal('Shop')
         return
     end
 
-    isUgcGenerating = true
-    ugcGenerateButton.AutoButtonColor = false
-    ugcGenerateButton.Active = false
-    ugcGenerateButton.Text = 'Generating...'
-    ugcStatusLabel.Text = '状态：正在请求生成...'
-
-    Remotes.RunAction:FireServer({
-        Type = 'RequestGenerateUgcMonster',
-        Prompt = prompt,
-    })
-end)
-
-Remotes.RunPrivateState.OnClientEvent:Connect(function(privateState)
-    if type(privateState) ~= 'table' then
+    if payload.Type == 'OpenSell' then
+        activeSalvageItems = payload.Items or {}
+        if type(payload.TeamPages) == 'number' then
+            teamPages = payload.TeamPages
+        end
+        updatePageLabels()
+        renderSellItems()
+        setActiveModal('Sell')
         return
     end
 
-    if privateState.Type == 'OpenUgcLabPanel' then
-        openUgcDialog()
+    if payload.Type == 'OpenObjectiveBoard' then
+        if type(payload.TeamPages) == 'number' then
+            teamPages = payload.TeamPages
+        end
+        if type(payload.BookGoalAmount) == 'number' then
+            goalAmount = payload.BookGoalAmount
+        end
+        if type(payload.BookGoalProgress) == 'number' then
+            goalProgress = payload.BookGoalProgress
+        end
+        updatePageLabels()
+        setActiveModal('Objective')
+        return
+    end
+
+    if payload.Type == 'ShopResult' then
+        if payload.Success then
+            showToast('Purchase complete.', 'Success')
+        else
+            local reason = payload.Reason or 'Unknown'
+            if reason == 'InsufficientFunds' then
+                showToast('Not enough pages.', 'Error')
+            elseif reason == 'OverCapacity' or reason == 'InventoryFull' then
+                showToast('Inventory is full.', 'Error')
+            else
+                showToast('Purchase failed.', 'Error')
+            end
+        end
+
+        if type(payload.TeamPages) == 'number' then
+            teamPages = payload.TeamPages
+        end
+        if payload.Inventory then
+            inventorySummary = payload.Inventory
+        end
+        updatePageLabels()
+        return
+    end
+
+    if payload.Type == 'SellResult' then
+        if payload.Success then
+            showToast('Sale complete.', 'Success')
+        else
+            showToast('Sale failed.', 'Error')
+        end
+
+        if type(payload.TeamPages) == 'number' then
+            teamPages = payload.TeamPages
+        end
+        if payload.ItemInstanceId then
+            for index, item in ipairs(activeSalvageItems) do
+                if item.InstanceId == payload.ItemInstanceId then
+                    table.remove(activeSalvageItems, index)
+                    break
+                end
+            end
+            renderSellItems()
+        end
+        updatePageLabels()
+        return
+    end
+
+    if payload.Type == 'GoalReached' then
+        if type(payload.TeamPages) == 'number' then
+            teamPages = payload.TeamPages
+        end
+        showGoalBanner()
+        return
+    end
+
+    if payload.Type == 'Toast' then
+        if type(payload.Message) == 'string' then
+            showToast(payload.Message, payload.Tone)
+        end
+        return
     end
 end)
 
@@ -537,38 +842,37 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
     isRunLaunched = hasLaunched
     if not hasLaunched then
         isCampPanelVisible = true
-        if isUgcDialogVisible then
-            closeUgcDialog()
-        end
     end
 
+    if type(snapshot.TeamPages) == 'number' then
+        teamPages = snapshot.TeamPages
+    end
+    if type(snapshot.BookGoalAmount) == 'number' then
+        goalAmount = snapshot.BookGoalAmount
+    end
+    if type(snapshot.BookGoalProgress) == 'number' then
+        goalProgress = snapshot.BookGoalProgress
+    end
     menuBackdrop.Visible = not hasLaunched
     syncCampPanelVisibility()
 
     if not hasLaunched then
-        syncInputMode()
+        syncMouseMode()
         canRequestMazeEntry = false
         visibleBackpackItems = {}
-        isUgcGenerating = false
         heldItemController:applyInventory(nil)
         menuStatusLabel.Text =
             string.format('%s\nMaze Entry: %s', snapshot.Status, buildMazeEntryText(snapshot))
         singlePlayerButton.Active = true
         singlePlayerButton.AutoButtonColor = true
-        singlePlayerButton.Text = 'Single Player'
+        singlePlayerButton.Text = string.format('Enter %s', TEMPLE_LABEL)
         inventoryLabel.Text = 'Inventory: --'
         inventoryDetailLabel.Text = ''
         playerStateLabel.Text = 'Health: --\nStamina: --\nState: --\nMovement: --'
-        ugcGenerateButton.AutoButtonColor = false
-        ugcGenerateButton.Active = false
-        ugcGenerateButton.BackgroundColor3 = Theme.Surface
-        ugcGenerateButton.TextColor3 = Theme.SubtleText
-        ugcGenerateButton.Text = 'Generate UGC Monster'
-        ugcStatusLabel.Text = '状态：进入 Camp 后靠近 UGC Lab 控制台按 E 打开。'
         return
     end
 
-    syncInputMode()
+    syncMouseMode()
     canRequestMazeEntry = snapshot.GateOpen == true
 
     statusLabel.Text = string.format(
@@ -580,11 +884,13 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
         buildMazeEntryText(snapshot)
     )
 
-    objectiveLabel.Text = string.format('Objective: %s', snapshot.Objective)
+    objectiveLabel.Text = string.format('%s Objective: %s', SAND_BOOK_LABEL, snapshot.Objective)
 
     local inventory = snapshot.Inventory or {}
+    inventorySummary = inventory
     visibleBackpackItems = inventory.BackpackItems or {}
     heldItemController:applyInventory(inventory)
+    updatePageLabels()
     inventoryLabel.Text = string.format(
         'Inventory: %d total | %d backpack | %d held | %d/%d KG | %d value',
         inventory.Count or 0,
@@ -640,32 +946,14 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
         FormalLocomotion.formatStatus(playerState, movement)
     )
 
-    local ugcStatus = snapshot.UgcGenerationStatus or 'Idle'
-    local ugcMessage = snapshot.UgcMessage or ''
-    local ugcHasPendingSpawn = snapshot.UgcHasPendingSpawn == true
-    isUgcGenerating = ugcStatus == 'Generating'
-    ugcGenerateButton.Active = not isUgcGenerating
-    ugcGenerateButton.AutoButtonColor = not isUgcGenerating
-    ugcGenerateButton.BackgroundColor3 = if isUgcGenerating then Theme.Surface else Theme.Accent
-    ugcGenerateButton.TextColor3 = if isUgcGenerating then Theme.SubtleText else Theme.Background
-    ugcGenerateButton.Text = isUgcGenerating and 'Generating...' or 'Generate UGC Monster'
-    if isUgcGenerating then
-        ugcStatusLabel.Text = '状态：正在生成，请稍候...'
-    elseif ugcHasPendingSpawn then
-        ugcStatusLabel.Text = '状态：已排队，进入 Maze 后会自动刷怪。'
-    elseif ugcMessage ~= '' then
-        ugcStatusLabel.Text = string.format('状态：%s', ugcMessage)
-    else
-        ugcStatusLabel.Text = '状态：待命（消耗 1 个 UGC Signal Token）。'
-    end
-
     local rosterLines = {}
     for _, rosterEntry in ipairs(snapshot.Roster) do
         local marker = rosterEntry.UserId == localPlayer.UserId and ' (You)' or ''
         table.insert(rosterLines, string.format('%s%s', rosterEntry.Name, marker))
     end
 
-    rosterLabel.Text = 'Camp roster:\n' .. table.concat(rosterLines, '\n')
+    rosterLabel.Text = string.format('%s roster:\n', TEMPLE_LABEL)
+        .. table.concat(rosterLines, '\n')
 
     local mazeLines = {}
     local activeMazePlayers = snapshot.PlayersInMaze or {}
@@ -698,11 +986,3 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
     mazeLabel.Text = #mazeLines > 0 and table.concat(mazeLines, '\n')
         or 'Maze summary:\n- No players have entered the maze yet.'
 end)
-
--- 叙事UI监听
-Remotes.ShowNarrative.OnClientEvent:Connect(function(layer1, layer2, layer3)
-    NarrativeUI.show(layer1, layer2, layer3)
-end)
-
--- 初始化道具客户端
-ItemClient.initialize()

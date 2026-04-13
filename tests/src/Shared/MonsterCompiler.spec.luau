@@ -5,6 +5,7 @@ return function()
     local compiler = gameplay.Monsters.compileMonsterForMaze
     local behaviorCatalog = gameplay.Monsters.MonsterBehaviorCatalog
     local effectCatalog = gameplay.Monsters.MonsterEffectCatalog
+    local monsterAssetIds = gameplay.Monsters.MonsterAssetIds
     local authorProfileModule = gameplay.Monsters.MonsterAuthorProfile
     local presentationCatalog = gameplay.Monsters.MonsterPresentationCatalog
     local runtimeProfileModule = gameplay.Monsters.MonsterRuntimeProfile
@@ -34,7 +35,7 @@ return function()
     assert(runtimeProfile.Id == 'scrap-wisp', 'Compiled runtime should preserve the monster id')
     assert(runtimeProfile.Name == 'Scrap Wisp', 'Compiled runtime should preserve the monster name')
     assert(
-        runtimeProfile.Presentation.ModelAssetId == 4446576906,
+        runtimeProfile.Presentation.ModelAssetId == monsterAssetIds.DefaultModelAssetId,
         'Compiled runtime should expose the configured model asset id'
     )
     assert(
@@ -46,10 +47,27 @@ return function()
         'Compiled runtime should preserve the configured animation mode'
     )
     assert(
-        runtimeProfile.Presentation.ChaseLoopSoundAssetId == 9118823108,
+        runtimeProfile.Presentation.ChaseLoopSoundAssetId
+            == monsterAssetIds.DefaultChaseLoopSoundAssetId,
         'Compiled runtime should expose the configured chase loop sound asset id'
     )
     assert(runtimeProfile.Speed == 14, 'Compiled runtime should expose the configured speed')
+    assert(
+        runtimeProfile.AttackRange == 4,
+        'Compiled runtime should expose the configured attack range'
+    )
+    assert(
+        runtimeProfile.AttackCooldownSeconds == 1,
+        'Compiled runtime should expose the configured attack cooldown'
+    )
+    assert(
+        runtimeProfile.AttackDamagePips == 1,
+        'Compiled runtime should expose the configured attack damage pips'
+    )
+    assert(
+        runtimeProfile.CombatHitPoints == 3,
+        'Compiled runtime should expose configured combat hit points'
+    )
     assert(
         runtimeProfile.SightRange == 36,
         'Compiled runtime should expose the configured sight range'
@@ -57,6 +75,39 @@ return function()
     assert(
         runtimeProfile.PatrolSpeedMultiplier == 0.45,
         'Compiled runtime should expose the configured patrol speed multiplier'
+    )
+    assert(
+        runtimeProfile.Components ~= nil and runtimeProfile.Components.Perception ~= nil,
+        'Compiled runtime should include component mapping payload'
+    )
+    assert(
+        runtimeProfile.Components.Perception.SightRange == runtimeProfile.SightRange,
+        'Component perception config should map from runtime sight range'
+    )
+    assert(
+        runtimeProfile.Components.Movement.Speed == runtimeProfile.Speed,
+        'Component movement config should map from runtime speed'
+    )
+    assert(
+        runtimeProfile.Components.Movement.PatrolSpeedMultiplier
+            == runtimeProfile.PatrolSpeedMultiplier,
+        'Component movement config should map patrol speed multiplier'
+    )
+    assert(
+        runtimeProfile.Components.Movement.SpawnOffset == runtimeProfile.SpawnOffset,
+        'Component movement spawn offset should map from runtime spawn offset'
+    )
+    assert(
+        runtimeProfile.Components.Attack.Range == runtimeProfile.AttackRange,
+        'Component attack range should map from runtime attack range'
+    )
+    assert(
+        runtimeProfile.Components.Attack.CooldownSeconds == runtimeProfile.AttackCooldownSeconds,
+        'Component attack cooldown should map from runtime attack cooldown'
+    )
+    assert(
+        runtimeProfile.Components.Attack.DamagePips == runtimeProfile.AttackDamagePips,
+        'Component attack damage should map from runtime attack damage pips'
     )
     assert(
         runtimeProfile.Behaviors[behaviorCatalog.Behavior.Patrol] == nil,
@@ -69,6 +120,10 @@ return function()
     assert(
         runtimeProfile.Behaviors[behaviorCatalog.Behavior.Chase] == true,
         'Chase should stay enabled in the maze runtime profile'
+    )
+    assert(
+        runtimeProfile.Behaviors[behaviorCatalog.Behavior.Attack] == true,
+        'Attack should stay enabled in the maze runtime profile'
     )
     assert(
         runtimeProfile.Behaviors[behaviorCatalog.Behavior.LoseTarget] == nil,
@@ -104,6 +159,21 @@ return function()
             and compileReport.SkippedEffectIds[1] == effectCatalog.Effect.SprintSuppressed,
         'Compiler should report maze-skipped effect intents'
     )
+
+    local noCombatHitPointsProfile = table.clone(scrapWisp)
+    noCombatHitPointsProfile.Tuning = table.clone(scrapWisp.Tuning)
+    noCombatHitPointsProfile.Tuning.CombatHitPoints = nil
+
+    local defaultHpOk, defaultHpRuntime, defaultHpReport = compiler(noCombatHitPointsProfile)
+    assert(
+        defaultHpOk == true,
+        string.format('Expected compiler success, got %s', tostring(defaultHpRuntime))
+    )
+    assert(
+        defaultHpRuntime.CombatHitPoints == 1,
+        'Compiler should default CombatHitPoints when tuning omits the field'
+    )
+    assert(defaultHpReport ~= nil, 'Default combat HP compile should return a report')
 
     local legacyProfile = {
         Id = scrapWisp.Id,

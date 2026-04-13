@@ -17,6 +17,9 @@ local SEMANTIC_FIELDS = table.freeze({
     CounterplayIntent = true,
 })
 local TUNING_FIELDS = table.freeze({
+    AttackCooldownSeconds = true,
+    AttackDamagePips = true,
+    AttackRange = true,
     Speed = true,
     SightRange = true,
     PatrolSpeedMultiplier = true,
@@ -228,8 +231,39 @@ function MonsterAuthorProfile.validate(profile)
         return false, 'InvalidPatrolSpeedMultiplier'
     end
 
+    if
+        tuning.AttackRange ~= nil
+        and (type(tuning.AttackRange) ~= 'number' or tuning.AttackRange <= 0)
+    then
+        return false, 'InvalidAttackRange'
+    end
+
+    if tuning.AttackCooldownSeconds ~= nil then
+        if type(tuning.AttackCooldownSeconds) ~= 'number' or tuning.AttackCooldownSeconds <= 0 then
+            return false, 'InvalidAttackCooldownSeconds'
+        end
+    end
+
+    if
+        tuning.AttackDamagePips ~= nil
+        and tuning.AttackDamagePips ~= 1
+        and tuning.AttackDamagePips ~= 2
+    then
+        return false, 'InvalidAttackDamagePips'
+    end
+
     if tuning.SpawnOffset ~= nil and typeof(tuning.SpawnOffset) ~= 'Vector3' then
         return false, 'InvalidSpawnOffset'
+    end
+
+    if tuning.CombatHitPoints ~= nil then
+        if
+            type(tuning.CombatHitPoints) ~= 'number'
+            or tuning.CombatHitPoints < 1
+            or math.floor(tuning.CombatHitPoints) ~= tuning.CombatHitPoints
+        then
+            return false, 'InvalidCombatHitPoints'
+        end
     end
 
     if type(executable.BehaviorIntents) ~= 'table' or #executable.BehaviorIntents == 0 then

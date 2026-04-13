@@ -6,6 +6,34 @@ local function isNonEmptyString(value)
     return type(value) == 'string' and value ~= ''
 end
 
+local function isPositiveNumber(value)
+    return type(value) == 'number' and value > 0
+end
+
+local function isValidDamagePips(value)
+    return value == 1 or value == 2
+end
+
+local function readComponentTable(profile, name)
+    local components = profile.Components
+    if components == nil then
+        return nil, nil
+    end
+    if type(components) ~= 'table' then
+        return nil, 'InvalidRuntimeComponents'
+    end
+
+    local component = components[name]
+    if component == nil then
+        return nil, nil
+    end
+    if type(component) ~= 'table' then
+        return nil, string.format('InvalidRuntimeComponent%s', name)
+    end
+
+    return component, nil
+end
+
 function MonsterRuntimeProfile.validate(profile)
     if type(profile) ~= 'table' then
         return false, 'MalformedMonsterRuntimeProfile'
@@ -46,20 +74,129 @@ function MonsterRuntimeProfile.validate(profile)
         return false, 'InvalidRuntimeChaseLoopSoundAssetId'
     end
 
-    if type(profile.Speed) ~= 'number' or profile.Speed <= 0 then
+    local perceptionConfig, perceptionConfigErr = readComponentTable(profile, 'Perception')
+    if perceptionConfigErr then
+        return false, perceptionConfigErr
+    end
+    local movementConfig, movementConfigErr = readComponentTable(profile, 'Movement')
+    if movementConfigErr then
+        return false, movementConfigErr
+    end
+    local attackConfig, attackConfigErr = readComponentTable(profile, 'Attack')
+    if attackConfigErr then
+        return false, attackConfigErr
+    end
+
+    if
+        perceptionConfig
+        and perceptionConfig.SightRange ~= nil
+        and not isPositiveNumber(perceptionConfig.SightRange)
+    then
+        return false, 'InvalidRuntimeComponentPerceptionSightRange'
+    end
+
+    if movementConfig then
+        if movementConfig.Speed ~= nil and not isPositiveNumber(movementConfig.Speed) then
+            return false, 'InvalidRuntimeComponentMovementSpeed'
+        end
+        if
+            movementConfig.PatrolSpeedMultiplier ~= nil
+            and not isPositiveNumber(movementConfig.PatrolSpeedMultiplier)
+        then
+            return false, 'InvalidRuntimeComponentMovementPatrolSpeedMultiplier'
+        end
+        if
+            movementConfig.PatrolReachDistance ~= nil
+            and not isPositiveNumber(movementConfig.PatrolReachDistance)
+        then
+            return false, 'InvalidRuntimeComponentMovementPatrolReachDistance'
+        end
+        if
+            movementConfig.SpawnOffset ~= nil
+            and typeof(movementConfig.SpawnOffset) ~= 'Vector3'
+        then
+            return false, 'InvalidRuntimeComponentMovementSpawnOffset'
+        end
+    end
+
+    if attackConfig then
+        if attackConfig.Range ~= nil and not isPositiveNumber(attackConfig.Range) then
+            return false, 'InvalidRuntimeComponentAttackRange'
+        end
+        if
+            attackConfig.CooldownSeconds ~= nil
+            and not isPositiveNumber(attackConfig.CooldownSeconds)
+        then
+            return false, 'InvalidRuntimeComponentAttackCooldown'
+        end
+        if attackConfig.DamagePips ~= nil and not isValidDamagePips(attackConfig.DamagePips) then
+            return false, 'InvalidRuntimeComponentAttackDamagePips'
+        end
+    end
+
+    local runtimeSpeed = profile.Speed
+    if runtimeSpeed == nil and movementConfig then
+        runtimeSpeed = movementConfig.Speed
+    end
+    if not isPositiveNumber(runtimeSpeed) then
         return false, 'InvalidRuntimeSpeed'
     end
 
-    if type(profile.SightRange) ~= 'number' or profile.SightRange <= 0 then
+    local runtimeSightRange = profile.SightRange
+    if runtimeSightRange == nil and perceptionConfig then
+        runtimeSightRange = perceptionConfig.SightRange
+    end
+    if not isPositiveNumber(runtimeSightRange) then
         return false, 'InvalidRuntimeSightRange'
     end
 
-    if type(profile.PatrolSpeedMultiplier) ~= 'number' or profile.PatrolSpeedMultiplier <= 0 then
+    local runtimePatrolSpeedMultiplier = profile.PatrolSpeedMultiplier
+    if runtimePatrolSpeedMultiplier == nil and movementConfig then
+        runtimePatrolSpeedMultiplier = movementConfig.PatrolSpeedMultiplier
+    end
+    if not isPositiveNumber(runtimePatrolSpeedMultiplier) then
         return false, 'InvalidRuntimePatrolSpeedMultiplier'
     end
 
-    if typeof(profile.SpawnOffset) ~= 'Vector3' then
+    local runtimeSpawnOffset = profile.SpawnOffset
+    if runtimeSpawnOffset == nil and movementConfig then
+        runtimeSpawnOffset = movementConfig.SpawnOffset
+    end
+    if typeof(runtimeSpawnOffset) ~= 'Vector3' then
         return false, 'InvalidRuntimeSpawnOffset'
+    end
+
+    local runtimeAttackRange = profile.AttackRange
+    if runtimeAttackRange == nil and attackConfig then
+        runtimeAttackRange = attackConfig.Range
+    end
+    if runtimeAttackRange == nil then
+        runtimeAttackRange = 4
+    end
+    if not isPositiveNumber(runtimeAttackRange) then
+        return false, 'InvalidRuntimeAttackRange'
+    end
+
+    local runtimeAttackCooldownSeconds = profile.AttackCooldownSeconds
+    if runtimeAttackCooldownSeconds == nil and attackConfig then
+        runtimeAttackCooldownSeconds = attackConfig.CooldownSeconds
+    end
+    if runtimeAttackCooldownSeconds == nil then
+        runtimeAttackCooldownSeconds = 1
+    end
+    if not isPositiveNumber(runtimeAttackCooldownSeconds) then
+        return false, 'InvalidRuntimeAttackCooldownSeconds'
+    end
+
+    local runtimeAttackDamagePips = profile.AttackDamagePips
+    if runtimeAttackDamagePips == nil and attackConfig then
+        runtimeAttackDamagePips = attackConfig.DamagePips
+    end
+    if runtimeAttackDamagePips == nil then
+        runtimeAttackDamagePips = 1
+    end
+    if not isValidDamagePips(runtimeAttackDamagePips) then
+        return false, 'InvalidRuntimeAttackDamagePips'
     end
 
     if type(profile.Behaviors) ~= 'table' then
@@ -68,6 +205,15 @@ function MonsterRuntimeProfile.validate(profile)
 
     if type(profile.Effects) ~= 'table' then
         return false, 'MissingRuntimeEffects'
+    end
+
+    local combatHitPoints = profile.CombatHitPoints
+    if
+        type(combatHitPoints) ~= 'number'
+        or combatHitPoints < 1
+        or math.floor(combatHitPoints) ~= combatHitPoints
+    then
+        return false, 'InvalidRuntimeCombatHitPoints'
     end
 
     return true
