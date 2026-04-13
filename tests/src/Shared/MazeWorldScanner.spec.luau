@@ -75,7 +75,13 @@ return function()
         sceneryRoom:Destroy()
 
         -- 测试正常房间
-        local normalRoom = createMockRoom('NormalRoom', 'DeadEnd', { IsScenery = false }, { 'RoomType/DeadEnd' }, {})
+        local normalRoom = createMockRoom(
+            'NormalRoom',
+            'DeadEnd',
+            { IsScenery = false },
+            { 'RoomType/DeadEnd' },
+            {}
+        )
         assert(
             MazeWorldScanner.IsSceneryInstance(normalRoom) == false,
             'Room with IsScenery=false should not be scenery'
@@ -141,15 +147,27 @@ return function()
         -- 验证 CampRoomId 识别
         assert(
             scanResult.campRoomId == 'Room_Camp_01',
-            string.format('Expected campRoomId Room_Camp_01, got %s', tostring(scanResult.campRoomId))
+            string.format(
+                'Expected campRoomId Room_Camp_01, got %s',
+                tostring(scanResult.campRoomId)
+            )
         )
 
         -- 验证房间数据
         local deadEndRoom = MazeWorldScanner.GetRoomById(scanResult, 'Room_DeadEnd_01')
         assert(deadEndRoom ~= nil, 'DeadEnd room should exist')
-        assert(deadEndRoom.DifficultyTier == 2, string.format('Expected DifficultyTier 2, got %s', tostring(deadEndRoom.DifficultyTier)))
-        assert(deadEndRoom.MonsterBudget == 3, string.format('Expected MonsterBudget 3, got %s', tostring(deadEndRoom.MonsterBudget)))
-        assert(deadEndRoom.Type == 'DeadEnd', string.format('Expected Type DeadEnd, got %s', tostring(deadEndRoom.Type)))
+        assert(
+            deadEndRoom.DifficultyTier == 2,
+            string.format('Expected DifficultyTier 2, got %s', tostring(deadEndRoom.DifficultyTier))
+        )
+        assert(
+            deadEndRoom.MonsterBudget == 3,
+            string.format('Expected MonsterBudget 3, got %s', tostring(deadEndRoom.MonsterBudget))
+        )
+        assert(
+            deadEndRoom.Type == 'DeadEnd',
+            string.format('Expected Type DeadEnd, got %s', tostring(deadEndRoom.Type))
+        )
 
         -- 验证 IsExtraction 识别
         local extract = MazeWorldScanner.GetRoomById(scanResult, 'Room_Extraction_01')
@@ -207,7 +225,13 @@ return function()
         normalRoom.Parent = mockRoot
 
         -- 添加 IsScenery 房间
-        local sceneryRoom = createMockRoom('Room_Scenery', 'Straight', { IsScenery = true }, { 'RoomType/Straight' }, {})
+        local sceneryRoom = createMockRoom(
+            'Room_Scenery',
+            'Straight',
+            { IsScenery = true },
+            { 'RoomType/Straight' },
+            {}
+        )
         sceneryRoom.Parent = mockRoot
 
         -- 执行扫描
@@ -250,8 +274,14 @@ return function()
         local scanResult = MazeWorldScanner.Scan(mockRoot)
         local eligibleRooms = MazeWorldScanner.GetEligibleMonsterRooms(scanResult)
 
-        assert(#eligibleRooms == 1, string.format('Expected 1 eligible room, got %d', #eligibleRooms))
-        assert(eligibleRooms[1] == 'Room_WithMonster', 'Only room with HasMonsterSpawner tag should be eligible')
+        assert(
+            #eligibleRooms == 1,
+            string.format('Expected 1 eligible room, got %d', #eligibleRooms)
+        )
+        assert(
+            eligibleRooms[1] == 'Room_WithMonster',
+            'Only room with HasMonsterSpawner tag should be eligible'
+        )
 
         mockRoot:Destroy()
 
@@ -265,10 +295,32 @@ return function()
         local mockRoot = Instance.new('Folder')
         mockRoot.Name = 'MockWorkspace'
 
-        createMockRoom('Room_Tier1', 'DeadEnd', { DifficultyTier = 1 }, { 'RoomType/DeadEnd' }, {}).Parent = mockRoot
-        createMockRoom('Room_Tier2', 'Straight', { DifficultyTier = 2 }, { 'RoomType/Straight' }, {}).Parent = mockRoot
-        createMockRoom('Room_Tier3', 'ObtuseTurn', { DifficultyTier = 3 }, { 'RoomType/ObtuseTurn' }, {}).Parent = mockRoot
-        createMockRoom('Room_Tier2b', 'AcuteTurn', { DifficultyTier = 2 }, { 'RoomType/AcuteTurn' }, {}).Parent = mockRoot
+        createMockRoom('Room_Tier1', 'DeadEnd', { DifficultyTier = 1 }, { 'RoomType/DeadEnd' }, {}).Parent =
+            mockRoot
+        createMockRoom(
+            'Room_Tier2',
+            'Straight',
+            { DifficultyTier = 2 },
+            { 'RoomType/Straight' },
+            {}
+        ).Parent =
+            mockRoot
+        createMockRoom(
+            'Room_Tier3',
+            'ObtuseTurn',
+            { DifficultyTier = 3 },
+            { 'RoomType/ObtuseTurn' },
+            {}
+        ).Parent =
+            mockRoot
+        createMockRoom(
+            'Room_Tier2b',
+            'AcuteTurn',
+            { DifficultyTier = 2 },
+            { 'RoomType/AcuteTurn' },
+            {}
+        ).Parent =
+            mockRoot
 
         local scanResult = MazeWorldScanner.Scan(mockRoot)
         local tier2Rooms = MazeWorldScanner.GetRoomsByDifficultyTier(scanResult, 2)
@@ -313,14 +365,26 @@ return function()
         assert(worldFormat.RoomById ~= nil, 'World format should have RoomById')
         assert(worldFormat.RoomAffordances ~= nil, 'World format should have RoomAffordances')
         assert(worldFormat.CampRoomId == 'Room_Camp', 'World format should have correct CampRoomId')
-        assert(worldFormat.PatrolPoints ~= nil, 'World format should have PatrolPoints (even if empty)')
-        assert(#worldFormat.RoomIds == 2, string.format('Expected 2 room IDs, got %d', #worldFormat.RoomIds))
+        assert(
+            worldFormat.PatrolPoints ~= nil,
+            'World format should have PatrolPoints (even if empty)'
+        )
+        assert(
+            #worldFormat.RoomIds == 2,
+            string.format('Expected 2 room IDs, got %d', #worldFormat.RoomIds)
+        )
 
         -- 验证 Affordance 中的 PatrolAnchors
         local normalAff = worldFormat.RoomAffordances['Room_Normal']
         assert(normalAff ~= nil, 'Normal room should have affordance')
-        assert(#normalAff.PatrolAnchors == 1, string.format('Expected 1 patrol anchor, got %d', #normalAff.PatrolAnchors))
-        assert(normalAff.HasMonsterSpawner == false, 'Room without HasMonsterSpawner tag should have HasMonsterSpawner=false')
+        assert(
+            #normalAff.PatrolAnchors == 1,
+            string.format('Expected 1 patrol anchor, got %d', #normalAff.PatrolAnchors)
+        )
+        assert(
+            normalAff.HasMonsterSpawner == false,
+            'Room without HasMonsterSpawner tag should have HasMonsterSpawner=false'
+        )
 
         mockRoot:Destroy()
 
@@ -334,28 +398,34 @@ return function()
         local mockRoot = Instance.new('Folder')
         mockRoot.Name = 'MockWorkspace'
 
-        local room = createMockRoom(
-            'Room_WithPatrols',
-            'DeadEnd',
-            {},
-            { 'RoomType/DeadEnd' },
-            {
-                { name = 'SpawnPoint_1', position = Vector3.new(0, 5, 0) },
-                { name = 'SpawnPoint_2', position = Vector3.new(10, 5, 0) },
-                { name = 'SpawnPoint_3', position = Vector3.new(20, 5, 0) },
-                { name = 'LootSocket_1', position = Vector3.new(5, 0, 5) },
-            }
-        )
+        local room = createMockRoom('Room_WithPatrols', 'DeadEnd', {}, { 'RoomType/DeadEnd' }, {
+            { name = 'SpawnPoint_1', position = Vector3.new(0, 5, 0) },
+            { name = 'SpawnPoint_2', position = Vector3.new(10, 5, 0) },
+            { name = 'SpawnPoint_3', position = Vector3.new(20, 5, 0) },
+            { name = 'LootSocket_1', position = Vector3.new(5, 0, 5) },
+        })
         room.Parent = mockRoot
 
         local scanResult = MazeWorldScanner.Scan(mockRoot)
         local worldFormat = MazeWorldScanner.ToWorldFormat(scanResult)
         local affordance = worldFormat.RoomAffordances['Room_WithPatrols']
 
-        assert(#affordance.PatrolAnchors == 3, string.format('Expected 3 patrol anchors, got %d', #affordance.PatrolAnchors))
-        assert(#affordance.SpawnSockets == 1, string.format('Expected 1 loot socket, got %d', #affordance.SpawnSockets))
-        assert(affordance.PatrolAnchors[1].Position == Vector3.new(0, 5, 0), 'First patrol anchor position incorrect')
-        assert(affordance.SpawnSockets[1].Position == Vector3.new(5, 0, 5), 'Loot socket position incorrect')
+        assert(
+            #affordance.PatrolAnchors == 3,
+            string.format('Expected 3 patrol anchors, got %d', #affordance.PatrolAnchors)
+        )
+        assert(
+            #affordance.SpawnSockets == 1,
+            string.format('Expected 1 loot socket, got %d', #affordance.SpawnSockets)
+        )
+        assert(
+            affordance.PatrolAnchors[1].Position == Vector3.new(0, 5, 0),
+            'First patrol anchor position incorrect'
+        )
+        assert(
+            affordance.SpawnSockets[1].Position == Vector3.new(5, 0, 5),
+            'Loot socket position incorrect'
+        )
 
         mockRoot:Destroy()
 

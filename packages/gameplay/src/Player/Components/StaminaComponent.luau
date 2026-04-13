@@ -14,7 +14,8 @@ function StaminaComponent:init(blackboard)
     self.CurrentStamina = self.MaxStamina
     self.DrainPerSecond = config.DrainPerSecond or 35
     self.RecoveryPerSecond = config.RecoveryPerSecond or 20
-    self.RecoveryDelaySeconds = config.RecoveryDelaySeconds or DEFAULT_STAMINA_RECOVERY_DELAY_SECONDS
+    self.RecoveryDelaySeconds = config.RecoveryDelaySeconds
+        or DEFAULT_STAMINA_RECOVERY_DELAY_SECONDS
     self.ResumeThreshold = config.ResumeThreshold or 20
 
     self.StaminaRecoveryStartTime = 0
@@ -79,10 +80,8 @@ function StaminaComponent:update(blackboard, dt)
             self.IsSprinting = false
         end
     elseif now >= self.StaminaRecoveryStartTime then
-        self.CurrentStamina = math.min(
-            self.MaxStamina,
-            self.CurrentStamina + self.RecoveryPerSecond * deltaTime
-        )
+        self.CurrentStamina =
+            math.min(self.MaxStamina, self.CurrentStamina + self.RecoveryPerSecond * deltaTime)
 
         if not self.CanSprint and self.CurrentStamina >= self.ResumeThreshold then
             self.CanSprint = true
