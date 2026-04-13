@@ -128,6 +128,31 @@ different port, for example:
 rojo serve places/lobby/default.project.json --port 34873
 ```
 
+If you want one Studio harness file per place that can be opened and published
+directly, build:
+
+```bash
+./scripts/build-harnesses.sh
+```
+
+Or on Windows PowerShell:
+
+```powershell
+.\scripts\build-harnesses.ps1
+```
+
+This writes:
+
+- `places/lobby/harness/lobby.rbxlx`
+- `places/run/harness/run.rbxlx`
+- `places/maze/harness/maze.rbxlx`
+
+Keep authored scene content under the matching static world root:
+
+- `Workspace/LobbyStaticWorld`
+- `Workspace/RunStaticWorld`
+- `Workspace/MazeStaticWorld`
+
 ### Connect Roblox Studio
 
 1. Start the desired `rojo serve` command and keep that terminal open.
@@ -142,7 +167,7 @@ rojo serve places/lobby/default.project.json --port 34873
 - They do **not** turn a local `.rbxl` or Studio session into a published Roblox place.
 - In a local Studio session, `game.PlaceId` and `game.GameId` may still be `0`, so cross-place maze teleports can remain blocked even when Rojo is connected.
 - To test the real maze teleport flow, use published `Lobby` / `Run` / `Maze` place ids.
-- To stay fully local in Studio, enable `SessionDebugLocalMazeHandoff` so run enters the in-place local debug maze fallback instead of cross-place teleporting.
+- `Run` and `Maze` no longer provide an in-place debug fallback. If teleport is blocked locally, the authored maze gate stays blocked until real place ids are configured.
 
 ### Validation Commands
 
@@ -253,8 +278,7 @@ In practice, the normal reading order is:
 
 - `rojo serve` only syncs source into Studio; it does not assign real Roblox `PlaceId` or `GameId` values.
 - If a local Studio session has `PlaceId == 0` or `GameId == 0`, the formal maze teleport path is treated as unavailable.
-- When `SessionDebugLocalMazeHandoff = true`, `Run` uses the local debug maze fallback and keeps the player inside the same place instead of teleporting cross-place.
-- When that flag is not enabled, the maze gate stays blocked and reports the reason back through the run HUD/status text.
+- The maze gate stays blocked until the published place ids are configured, and the reason is reported back through the run HUD/status text.
 
 ## Runtime Assumptions
 

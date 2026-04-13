@@ -4,13 +4,11 @@
 
 - Keep `run` as the orchestration place without letting it absorb maze-only
   logic or contract-only shape decisions.
-- Preserve the local debug maze fallback as a debugging tool, not as the main
-  architecture story.
+- Keep `RunSessionService` as an orchestrator over authored scene objects and
+  transition adapters instead of a god object.
 
 ## Open Questions
 
-- Whether the run-to-maze seam should be formalized through a dedicated local
-  portal adapter module, matching the direction explored on `origin/contract`
 - When the currently shared `RunAction`, `RunSnapshot`, and `PrivateState`
   remote surface should split into a clearer run-vs-maze contract
 
