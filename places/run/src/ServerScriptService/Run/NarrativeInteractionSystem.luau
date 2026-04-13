@@ -240,10 +240,15 @@ local playerFragments: { [number]: { [string]: boolean } } = {}
 -- 存储玩家持有的可触发物品
 local playerItems: { [number]: { [string]: boolean } } = {}
 
+-- 按玩家记录的进度数据（用于需要多步完成的碎片任务）
+local playerProgress: { [number]: { [string]: number } } = {}
+
 -- 清理离开的玩家数据
 Players.PlayerRemoving:Connect(function(player)
-    playerFragments[player.UserId] = nil
-    playerItems[player.UserId] = nil
+    local uid = player.UserId
+    playerFragments[uid] = nil
+    playerItems[uid] = nil
+    playerProgress[uid] = nil
 end)
 
 -- 初始化交互点
@@ -404,16 +409,10 @@ function NarrativeInteractionSystem.createAT_01(folder: Folder)
 
     local stonePrompt = createPrompt(kindlingStone, '拾取', '引火石', Enum.KeyCode.E, 0.3)
     stonePrompt.Triggered:Connect(function(player)
-        if
-            NarrativeInteractionSystem.hasItem(player, 'KindlingStone')
-            or kindlingStone:GetAttribute('Collected')
-        then
+        if NarrativeInteractionSystem.hasItem(player, 'KindlingStone') then
             return
         end
-        kindlingStone:SetAttribute('Collected', true)
-        kindlingStone.Transparency = 1
-        stoneLight.Enabled = false
-        stonePrompt.Enabled = false
+        -- 每个玩家独立拾取，不隐藏物品（保持世界一致性）
         NarrativeInteractionSystem.giveItem(player, 'KindlingStone')
     end)
 
@@ -423,7 +422,6 @@ function NarrativeInteractionSystem.createAT_01(folder: Folder)
         CFrame.new(-75, 4, 33),
         CFrame.new(-82, 3, 38),
     }
-    local litCount = 0
 
     for i, pos in ipairs(lighthousePositions) do
         local lhPart = Instance.new('Part')
@@ -440,7 +438,7 @@ function NarrativeInteractionSystem.createAT_01(folder: Folder)
             createPrompt(lhPart, '点燃残留', '倒塌的灯塔残骸', Enum.KeyCode.E, 0.5, 8)
 
         lhPrompt.Triggered:Connect(function(player)
-            if lhPart:GetAttribute('Lit') then
+            if NarrativeInteractionSystem.hasCollected(player, 'AT_01') then
                 return
             end
             if not NarrativeInteractionSystem.hasItem(player, 'KindlingStone') then
@@ -453,9 +451,14 @@ function NarrativeInteractionSystem.createAT_01(folder: Folder)
                 return
             end
 
-            lhPart:SetAttribute('Lit', true)
+            -- 按玩家记录每座灯塔是否已点燃（用 Part 属性 + UserId 标记）
+            local playerLitKey = 'LitBy' .. player.UserId
+            if lhPart:GetAttribute(playerLitKey) then
+                return -- 该玩家已点燃过这座
+            end
+            lhPart:SetAttribute(playerLitKey, true)
 
-            -- 点燃特效
+            -- 点燃特效（全局视觉反馈，所有玩家可见）
             local lhLight = Instance.new('PointLight')
             lhLight.Color = Color3.fromRGB(255, 200, 100)
             lhLight.Brightness = 2
@@ -470,8 +473,16 @@ function NarrativeInteractionSystem.createAT_01(folder: Folder)
                 end
             end)
 
-            litCount += 1
-            if litCount >= 3 then
+            -- 按玩家独立计数
+            local uid = player.UserId
+            if not playerProgress[uid] then
+                playerProgress[uid] = {}
+            end
+            if not playerProgress[uid]['AT_01'] then
+                playerProgress[uid]['AT_01'] = 0
+            end
+            playerProgress[uid]['AT_01'] += 1
+            if playerProgress[uid]['AT_01'] >= #lighthousePositions then
                 -- 三座点燃完成 → 给予碎片
                 if NarrativeInteractionSystem.awardFragment(player, 'AT_01') then
                     NarrativeInteractionSystem.consumeItem(player, 'KindlingStone')
@@ -533,15 +544,9 @@ function NarrativeInteractionSystem.createAT_03(folder: Folder)
 
     local hammerPrompt = createPrompt(hammer, '拾取', '共鸣锤', Enum.KeyCode.E, 0.3)
     hammerPrompt.Triggered:Connect(function(player)
-        if
-            NarrativeInteractionSystem.hasItem(player, 'ResonanceHammer')
-            or hammer:GetAttribute('Collected')
-        then
+        if NarrativeInteractionSystem.hasItem(player, 'ResonanceHammer') then
             return
         end
-        hammer:SetAttribute('Collected', true)
-        hammer.Transparency = 1
-        hammerPrompt.Enabled = false
         NarrativeInteractionSystem.giveItem(player, 'ResonanceHammer')
     end)
 
@@ -552,7 +557,6 @@ function NarrativeInteractionSystem.createAT_03(folder: Folder)
         Vector3.new(-65, 2, 37),
         Vector3.new(-75, 1.3, 27),
     }
-    local hitCount = 0
 
     for i, pos in ipairs(rubbleTargets) do
         local target = Instance.new('Part')
@@ -568,22 +572,36 @@ function NarrativeInteractionSystem.createAT_03(folder: Folder)
 
         local targetPrompt = createPrompt(target, '敲击', '碎石堆', Enum.KeyCode.E, 0.3)
         targetPrompt.Triggered:Connect(function(player)
-            if target:GetAttribute('Hit') then
+            if NarrativeInteractionSystem.hasCollected(player, 'AT_03') then
                 return
             end
             if not NarrativeInteractionSystem.hasItem(player, 'ResonanceHammer') then
                 return
             end
-            target:SetAttribute('Hit', true)
 
-            -- 敲击反馈
+            -- 按玩家记录是否已敲过该目标
+            local hitKey = 'HitBy' .. player.UserId
+            if target:GetAttribute(hitKey) then
+                return
+            end
+            target:SetAttribute(hitKey, true)
+
+            -- 敲击反馈（全局视觉）
             target.Color = Color3.fromRGB(200, 180, 150)
             task.delay(0.5, function()
                 target.Color = Color3.fromRGB(90, 95, 100)
             end)
 
-            hitCount += 1
-            if hitCount >= #rubbleTargets then
+            -- 按玩家独立计数
+            local uid = player.UserId
+            if not playerProgress[uid] then
+                playerProgress[uid] = {}
+            end
+            if not playerProgress[uid]['AT_03'] then
+                playerProgress[uid]['AT_03'] = 0
+            end
+            playerProgress[uid]['AT_03'] += 1
+            if playerProgress[uid]['AT_03'] >= #rubbleTargets then
                 if NarrativeInteractionSystem.awardFragment(player, 'AT_03') then
                     NarrativeInteractionSystem.consumeItem(player, 'ResonanceHammer')
                 end
@@ -613,15 +631,9 @@ function NarrativeInteractionSystem.createAR_01(folder: Folder)
 
     local lensPrompt = createPrompt(lens, '拔出', '观测透镜', Enum.KeyCode.E, 0.3)
     lensPrompt.Triggered:Connect(function(player)
-        if
-            NarrativeInteractionSystem.hasItem(player, 'ObservationLens')
-            or lens:GetAttribute('Collected')
-        then
+        if NarrativeInteractionSystem.hasItem(player, 'ObservationLens') then
             return
         end
-        lens:SetAttribute('Collected', true)
-        lens.Transparency = 1
-        lensPrompt.Enabled = false
         NarrativeInteractionSystem.giveItem(player, 'ObservationLens')
     end)
 
@@ -704,7 +716,7 @@ function NarrativeInteractionSystem.createAR_03(folder: Folder)
         Vector3.new(55, 1.5, 70),
         Vector3.new(65, 2.5, 65),
     }
-    local playerActivations: { [number]: number } = {}
+    -- 使用顶层的 playerProgress 表，按玩家独立计数（已在 PlayerRemoving 中统一清理）
 
     for i, pos in ipairs(stonePositions) do
         local stonePart = Instance.new('Part')
@@ -726,25 +738,29 @@ function NarrativeInteractionSystem.createAR_03(folder: Folder)
                 return
             end
 
-            -- 每个玩家独立计数
-            if not playerActivations[player.UserId] then
-                playerActivations[player.UserId] = 0
-            end
-
             if stonePart:GetAttribute('ActivatedBy' .. player.UserId) then
                 return -- 该玩家已激活过这块
             end
 
             stonePart:SetAttribute('ActivatedBy' .. player.UserId, true)
-            playerActivations[player.UserId] += 1
 
-            -- 激活反馈：发光增强
+            -- 激活反馈：发光增强（全局视觉）
             stonePart.Color = Color3.fromRGB(180, 190, 200)
             task.delay(1, function()
                 stonePart.Color = Color3.fromRGB(145, 150, 155)
             end)
 
-            if playerActivations[player.UserId] >= #stonePositions then
+            -- 使用顶层 playerProgress 表按玩家独立计数
+            local uid = player.UserId
+            if not playerProgress[uid] then
+                playerProgress[uid] = {}
+            end
+            if not playerProgress[uid]['AR_03'] then
+                playerProgress[uid]['AR_03'] = 0
+            end
+            playerProgress[uid]['AR_03'] += 1
+
+            if playerProgress[uid]['AR_03'] >= #stonePositions then
                 NarrativeInteractionSystem.awardFragment(player, 'AR_03')
             end
         end)
@@ -780,16 +796,9 @@ function NarrativeInteractionSystem.createWF_01(folder: Folder)
 
     local seedPrompt = createPrompt(seed, '拾取', '发光种子', Enum.KeyCode.E, 0.3)
     seedPrompt.Triggered:Connect(function(player)
-        if
-            NarrativeInteractionSystem.hasItem(player, 'LightSeed')
-            or seed:GetAttribute('Collected')
-        then
+        if NarrativeInteractionSystem.hasItem(player, 'LightSeed') then
             return
         end
-        seed:SetAttribute('Collected', true)
-        seed.Transparency = 1
-        seedLight.Enabled = false
-        seedPrompt.Enabled = false
         NarrativeInteractionSystem.giveItem(player, 'LightSeed')
     end)
 
@@ -865,15 +874,9 @@ function NarrativeInteractionSystem.createWF_02(folder: Folder)
 
     local dustPrompt = createPrompt(dust, '取下', '追踪粉尘袋', Enum.KeyCode.E, 0.3)
     dustPrompt.Triggered:Connect(function(player)
-        if
-            NarrativeInteractionSystem.hasItem(player, 'TrackingDust')
-            or dust:GetAttribute('Collected')
-        then
+        if NarrativeInteractionSystem.hasItem(player, 'TrackingDust') then
             return
         end
-        dust:SetAttribute('Collected', true)
-        dust.Transparency = 1
-        dustPrompt.Enabled = false
         NarrativeInteractionSystem.giveItem(player, 'TrackingDust')
     end)
 
@@ -966,15 +969,9 @@ function NarrativeInteractionSystem.createCR_01(folder: Folder)
 
     local shardPrompt = createPrompt(shard, '小心取出', '共振晶片', Enum.KeyCode.E, 0.5)
     shardPrompt.Triggered:Connect(function(player)
-        if
-            NarrativeInteractionSystem.hasItem(player, 'ResonanceShard')
-            or shard:GetAttribute('Collected')
-        then
+        if NarrativeInteractionSystem.hasItem(player, 'ResonanceShard') then
             return
         end
-        shard:SetAttribute('Collected', true)
-        shard.Transparency = 1
-        shardPrompt.Enabled = false
         NarrativeInteractionSystem.giveItem(player, 'ResonanceShard')
     end)
 
@@ -1051,15 +1048,9 @@ function NarrativeInteractionSystem.createCR_02(folder: Folder)
 
     local gearPrompt = createPrompt(gear, '取出', '修复齿轮', Enum.KeyCode.E, 0.3)
     gearPrompt.Triggered:Connect(function(player)
-        if
-            NarrativeInteractionSystem.hasItem(player, 'RepairGear')
-            or gear:GetAttribute('Collected')
-        then
+        if NarrativeInteractionSystem.hasItem(player, 'RepairGear') then
             return
         end
-        gear:SetAttribute('Collected', true)
-        gear.Transparency = 1
-        gearPrompt.Enabled = false
         NarrativeInteractionSystem.giveItem(player, 'RepairGear')
     end)
 
@@ -1127,15 +1118,9 @@ function NarrativeInteractionSystem.createCR_03(folder: Folder)
 
     local earringPrompt = createPrompt(earring, '拾取', '静默耳坠', Enum.KeyCode.E, 0.3)
     earringPrompt.Triggered:Connect(function(player)
-        if
-            NarrativeInteractionSystem.hasItem(player, 'SilentEarring')
-            or earring:GetAttribute('Collected')
-        then
+        if NarrativeInteractionSystem.hasItem(player, 'SilentEarring') then
             return
         end
-        earring:SetAttribute('Collected', true)
-        earring.Transparency = 1
-        earringPrompt.Enabled = false
         NarrativeInteractionSystem.giveItem(player, 'SilentEarring')
 
         -- 拾取后自动触发碎片效果（简化设计：不需要额外走到裂缝处）
