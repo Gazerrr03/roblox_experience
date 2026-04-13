@@ -501,6 +501,7 @@ function NarrativeInteractionSystem.createAT_03(folder: Folder)
                 )
             end
         end)  -- targetPrompt.Triggered
+        end  -- else (normal rubble)
     end  -- for loop
 end  -- createAT_03
 
