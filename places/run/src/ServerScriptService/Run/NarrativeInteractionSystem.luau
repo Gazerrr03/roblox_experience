@@ -1,246 +1,38 @@
 --!strict
---#region Types
-
--- 叙事碎片数据类型
-export type NarrativeFragment = {
-    id: string,
-    region: string,
-    title: string,
-    narrativeText: string,
-    intelType: string, -- "environment" | "resource" | "hazard" | "mechanic"
-    intelContent: string,
-    isCollected: { [number]: boolean }, -- 玩家收集状态，key = UserId
-}
-
--- 可触发物品数据类型
-export type TriggerItem = {
-    name: string,
-    description: string,
-    isConsumable: boolean,
-    color: Color3,
-    material: Enum.Material,
-}
-
--- 碎片配置（13个碎片）
-local FRAGMENT_CONFIGS = {
-    -- ==================== 废弃神庙区 (AbandonedTemple) ====================
-
-    {
-        id = 'AT_01',
-        region = 'AbandonedTemple',
-        title = '熄灭的守望者',
-        narrativeText = '它们曾经指向某个方向。现在方向消失了，只剩下这些焦黑的骨架。但你点燃它们的时候——有一瞬间，你感觉它们仍在看着什么。',
-        intelType = 'environment',
-        intelContent = '【环境线索】图书馆入口区域的房间排列并非随机——两侧对称的结构中，通常有一条路径通向书页房间。注意观察对称性。',
-        triggerItem = 'KindlingStone', -- 引火石
-    },
-    {
-        id = 'AT_02',
-        region = 'AbandonedTemple',
-        title = '墙上的最后一行',
-        narrativeText = '墙上的刻痕几乎被风磨平了。你只能看清最后一行："……被写下之前，我们就已经在这里等待。" 等待什么？',
-        intelType = 'resource',
-        intelContent = '【资源提示】简单难度和普通难度的稀有书页通常出现在地图边缘的独立小房间，而非主路径上。如果你只走直线，会错过它们。',
-        triggerItem = nil, -- 无需物品
-    },
-    {
-        id = 'AT_03',
-        region = 'AbandonedTemple',
-        title = '碎裂的回声',
-        narrativeText = '每一次敲击都让空气震颤。不是声音——是某种更深的东西在回应。像是整片废墟记得自己曾经的形状。',
-        intelType = 'environment',
-        intelContent = '【环境线索】困难及以上的图书馆地图中，部分墙壁是可以破坏的。如果你在一个房间里找不到出口，检查那些看起来"不太一样"的墙面。',
-        triggerItem = 'ResonanceHammer', -- 共鸣锤
-    },
-
-    -- ==================== 古代遗迹区 (AncientRuins) ====================
-
-    {
-        id = 'AR_01',
-        region = 'AncientRuins',
-        title = '石碑的无字面',
-        narrativeText = '透过它，你看到了石碑上本不存在的文字。它们不是被刻上去的——它们是从内部渗出来的，像水从石头缝里渗出。写的是同一段话，反复重叠："谁在看？"',
-        intelType = 'mechanic',
-        intelContent = '【机制提示】图书馆内的谜题通常与"观察"有关。如果你卡关了，试试切换视角、贴近墙面、或使用光照类道具——答案往往藏在细节里。',
-        triggerItem = 'ObservationLens', -- 观测透镜
-    },
-    {
-        id = 'AR_02',
-        region = 'AncientRuins',
-        title = '失衡的天平',
-        narrativeText = '你的手刚碰到天平，它就停住了。像是在等你等了很久。你听到了叹息——很轻，像翻书的声音。这个天平衡量的不是重量。它在衡量"被记录"和"被遗忘"的分量。而它们永远不可能相等。',
-        intelType = 'hazard',
-        intelContent = '【危险预警】图书馆撤离点的时间窗口类型关卡中，倒计时结束时出口会消失——但有时假的出口会在倒计时最后10秒出现。不要急着冲向第一个看到的出口。',
-        triggerItem = nil,
-    },
-    {
-        id = 'AR_03',
-        region = 'AncientRuins',
-        title = '共鸣石的频率',
-        narrativeText = '三块石头唱出了同一个音符的不同泛音。你不知道是怎么知道顺序的——你的手指在自己意识到之前就已经按了下去。好像有什么东西在你的手到达之前，已经在那里等了。',
-        intelType = 'mechanic',
-        intelContent = '【机制提示】机关解锁型撤离点通常需要按正确顺序操作多个机关。如果附近有环境线索（壁画/铭文），仔细看——顺序往往藏在其中。',
-        triggerItem = nil,
-    },
-
-    -- ==================== 荒野森林区 (WildernessForest) ====================
-
-    {
-        id = 'WF_01',
-        region = 'WildernessForest',
-        title = '树洞里的眼睛',
-        narrativeText = '光照进树洞的一瞬间，你看到里面的纹路在退缩。像是某种东西被光惊醒了，又迅速躲回了更深的黑暗里。那些纹路——你不愿把它们叫做文字，但它们确实在说着什么。',
-        intelType = 'hazard',
-        intelContent = '【危险预警】噩梦难度图书馆中存在伪装型环境威胁——看起来安全的区域可能在玩家经过一定时间后活化。保持移动，不要在同一位置停留过久。',
-        triggerItem = 'LightSeed', -- 光源种子
-    },
-    {
-        id = 'WF_02',
-        region = 'WildernessForest',
-        title = '足迹的终点',
-        narrativeText = '足迹不属于任何你见过的动物。步距太小，爪痕太规律——像是在模仿某种脚步，但又模仿得不到位。足迹在这里停了很久。久到地面都记住了它的形状。',
-        intelType = 'resource',
-        intelContent = '【资源提示】Boss房间在生成时会偏向地图中距离入口最远的区域。如果你想快速找到Boss挑战获取额外书页，优先向远离入口的方向探索。',
-        triggerItem = 'TrackingDust', -- 追踪粉尘
-    },
-    {
-        id = 'WF_03',
-        region = 'WildernessForest',
-        title = '不存在的果实',
-        narrativeText = '那颗果实碰到你手掌的时候没有重量。它像是一个念头——一个关于"果实"的念头——在你碰到的瞬间才决定让自己被看见。然后它就消失了，留给你一个问题：是你摘到了它，还是它允许了自己被摘到？',
-        intelType = 'environment',
-        intelContent = '【环境线索】普通及以上难度的图书馆地图中，镜像室环境类型的房间入口通常被刻意隐藏。如果在地图上发现一片区域周围都有房间但中间空了一块，那里很可能有隐藏入口。',
-        triggerItem = nil,
-    },
-
-    -- ==================== 洞穴遗迹区 (CaveRuins) ====================
-
-    {
-        id = 'CR_01',
-        region = 'CaveRuins',
-        title = '矿物的脉搏',
-        narrativeText = '晶片接触到矿物的每一瞬你都听到了声音。不是耳朵听到的——是骨头在震动。四个声音叠在一起组成了一句话，但你来不及抓住就消散了。只剩下那个轮廓。一扇门。一扇不该存在于洞穴深处的门。',
-        intelType = 'environment',
-        intelContent = '【环境线索+资源提示】图书馆地图的书页房间往往位于需要经过至少两个其他房间才能到达的位置（即深度≥3）。',
-        triggerItem = 'ResonanceShard', -- 共振晶片
-    },
-    {
-        id = 'CR_02',
-        region = 'CaveRuins',
-        title = '机关的沉默',
-        narrativeText = '机关启动的声音不像金属摩擦——像呼吸。沉重的、缓慢的、古老的呼吸。齿轮咬合的那一刻你知道这台机器已经等待了太久。铭文上的话让你不确定它是警告还是欢迎："门会为所有被描述的人开启。你被描述了吗？"',
-        intelType = 'hazard',
-        intelContent = '【危险预警+机制提示】竞速撤离类型的关卡中，撤离点通常不会出现在地图的前半段。如果在前半段发现看似撤离点的入口，要警惕——那可能是陷阱房间。',
-        triggerItem = 'RepairGear', -- 修复齿轮
-    },
-    {
-        id = 'CR_03',
-        region = 'CaveRuins',
-        title = '深渊的低语',
-        narrativeText = '你听到了。不是从裂缝里——是从耳坠本身传出来的。很多声音叠在一起，太多太多了。有人在朗读，有人在写字，有人在撕书，有人在尖叫。然后所有的声音突然停下来。只有一个声音留下。它在叫你的名字。但你确定你没有名字。',
-        intelType = 'hazard',
-        intelContent = '【危险预警】传送门型撤离点会将你传送到一个随机位置——通常是安全的，但在困难/噩梦难度下有低概率传送到下一个难度的前置区域（相当于跳级）。进入传送门前确保装备齐全。',
-        triggerItem = 'SilentEarring', -- 静默耳坠
-    },
-    {
-        id = 'CR_04',
-        region = 'CaveRuins',
-        title = '最后的警告',
-        narrativeText = '你站在入口。纹路在你身上流转——熄灭的守望者、墙上的最后一行、碎裂的回声、石碑的无字面、失衡的天平、共鸣石的频率、树洞里的眼睛、足迹的终点、不存在的果实、矿物的脉搏、机关的沉默、深渊的低语。所有的碎片拼在一起，你说不出完整的句子，但你明白了完整的意思：**你正走进一本已经被写好的书。而你——你是书里的字，还是翻书的手？** 门开了。答案在里面。',
-        intelType = 'environment',
-        intelContent = '【终极情报—全类型汇总】\n• 地图深层必有书页房间，但需要耐心探索\n• 边缘小房间藏稀有书页，别只走主路\n• 可破坏墙壁存在于困难+地图\n• 谜题答案在观察细节中\n• 时间窗口撤离点可能出现假出口\n• 机关顺序藏在环境线索里\n• 噩梦难度避免长时间停留同一位置\n• Boss房在最远处\n• 隐藏入口在"空白区域"中心\n• 陷阱房间会伪装成撤离点\n• 传送门可能跳级',
-        triggerItem = nil,
-    },
-}
-
--- 可触发物品定义（8个物品）
-local TRIGGER_ITEMS: { [string]: TriggerItem } = {
-    KindlingStone = {
-        name = 'KindlingStone',
-        description = '暗红色的粗糙石头，用于点燃古老装置',
-        isConsumable = true,
-        color = Color3.fromRGB(180, 60, 40),
-        material = Enum.Material.Sandstone,
-    },
-    ResonanceHammer = {
-        name = 'ResonanceHammer',
-        description = '表面有声波纹路的石质锤头',
-        isConsumable = true,
-        color = Color3.fromRGB(140, 130, 120),
-        material = Enum.Material.Slate,
-    },
-    ObservationLens = {
-        name = 'ObservationLens',
-        description = '半透明淡青色晶体，可观察隐形痕迹',
-        isConsumable = false, -- 持久工具
-        color = Color3.fromRGB(180, 220, 230),
-        material = Enum.Material.Glass,
-    },
-    TrackingDust = {
-        name = 'TrackingDust',
-        description = '撒出金色微粒显示隐形路径',
-        isConsumable = false, -- 持久工具
-        color = Color3.fromRGB(220, 190, 100),
-        material = Enum.Material.Fabric,
-    },
-    LightSeed = {
-        name = 'LightSeed',
-        description = '温橙色发光种子，照亮黑暗处',
-        isConsumable = true,
-        color = Color3.fromRGB(255, 180, 80),
-        material = Enum.Material.Neon,
-    },
-    ResonanceShard = {
-        name = 'ResonanceShard',
-        description = '薄片状晶体，读取矿物记忆',
-        isConsumable = true,
-        color = Color3.fromRGB(220, 150, 80),
-        material = Enum.Material.Glass,
-    },
-    RepairGear = {
-        name = 'RepairGear',
-        description = '部分缺损的青铜齿轮，激活古代机关',
-        isConsumable = true,
-        color = Color3.fromRGB(160, 155, 140),
-        material = Enum.Material.Metal,
-    },
-    SilentEarring = {
-        name = 'SilentEarring',
-        description = '耳坠状饰品，倾听隐藏的声音',
-        isConsumable = false, -- 持久工具
-        color = Color3.fromRGB(120, 100, 140),
-        material = Enum.Material.Glass,
-    },
-}
-
---#endregion
-
---#region Services
+-- ════════════════════════════════════════════════════════════
+-- NarrativeInteractionSystem.luau — 叙事交互系统（逻辑层）
+--
+-- 所有文字内容已抽离到 NarrativeContent.luau 本文件只负责：
+-- 1. 创建物体、设置位置和材质
+-- 2. 绑定 ProximityPrompt 和交互回调
+-- 3. 管理玩家状态（碎片/物品/进度）
+-- 4. 调用 RemoteEvent 显示叙事内容
+-- 5. 视觉特效逻辑
+--
+-- 修改文案 → 改 NarrativeContent.luau
+-- 修改交互逻辑/坐标/特效 → 改本文件
+-- ════════════════════════════════════════════════════════════
 
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
 local Players = game:GetService('Players')
 
---#endregion
+-- ── 加载纯文案配置 ──
+local Content = require(script.Parent.NarrativeContent)
 
---#region Requires
-
+-- ── 网络模块 ──
 local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
 local Remotes = Shared.Network.Remotes.waitForScope(Shared.Network.Remotes.Scope.Run)
 
---#endregion
-
---#region Module
+-- ════════════════════════════════════════════════════════════
+-- 模块
+-- ════════════════════════════════════════════════════════════
 
 local NarrativeInteractionSystem = {}
 
--- 存储玩家的叙事碎片收集状态
+-- 玩家状态存储
 local playerFragments: { [number]: { [string]: boolean } } = {}
-
--- 存储玩家持有的可触发物品
 local playerItems: { [number]: { [string]: boolean } } = {}
-
--- 按玩家记录的进度数据（用于需要多步完成的碎片任务）
 local playerProgress: { [number]: { [string]: number } } = {}
 
 -- 清理离开的玩家数据
@@ -251,35 +43,43 @@ Players.PlayerRemoving:Connect(function(player)
     playerProgress[uid] = nil
 end)
 
--- 初始化交互点
+-- ════════════════════════════════════════════════════════════
+-- 初始化入口：按区域创建所有交互点
+-- ════════════════════════════════════════════════════════════
+
 function NarrativeInteractionSystem.initialize(outdoorFolder: Folder)
     local folder = Instance.new('Folder')
     folder.Name = 'NarrativeInteractionPoints'
     folder.Parent = outdoorFolder
 
-    -- 废弃神庙区交互点 (3个)
-    NarrativeInteractionSystem.createAT_01(folder) -- 熄灭的守望者（引火石+灯塔）
-    NarrativeInteractionSystem.createAT_02(folder) -- 墙上的最后一行
-    NarrativeInteractionSystem.createAT_03(folder) -- 碎裂的回声（共鸣锤）
+    -- 废弃神庙区 (AT)
+    NarrativeInteractionSystem.createAT_01(folder)
+    NarrativeInteractionSystem.createAT_02(folder)
+    NarrativeInteractionSystem.createAT_03(folder)
 
-    -- 古代遗迹区交互点 (3个)
-    NarrativeInteractionSystem.createAR_01(folder) -- 石碑的无字面（观测透镜）
-    NarrativeInteractionSystem.createAR_02(folder) -- 失衡的天平
-    NarrativeInteractionSystem.createAR_03(folder) -- 共鸣石的频率
+    -- 古代遗迹区 (AR)
+    NarrativeInteractionSystem.createAR_01(folder)
+    NarrativeInteractionSystem.createAR_02(folder)
+    NarrativeInteractionSystem.createAR_03(folder)
 
-    -- 荒野森林区交互点 (3个)
-    NarrativeInteractionSystem.createWF_01(folder) -- 树洞里的眼睛（光源种子）
-    NarrativeInteractionSystem.createWF_02(folder) -- 足迹的终点（追踪粉尘）
-    NarrativeInteractionSystem.createWF_03(folder) -- 不存在的果实
+    -- 荒野森林区 (WF)
+    NarrativeInteractionSystem.createWF_01(folder)
+    NarrativeInteractionSystem.createWF_02(folder)
+    NarrativeInteractionSystem.createWF_03(folder)
 
-    -- 洞穴遗迹区交互点 (4个)
-    NarrativeInteractionSystem.createCR_01(folder) -- 矿物的脉搏（共振晶片）
-    NarrativeInteractionSystem.createCR_02(folder) -- 机关的沉默（修复齿轮）
-    NarrativeInteractionSystem.createCR_03(folder) -- 深渊的低语（静默耳坠）
-    NarrativeInteractionSystem.createCR_04(folder) -- 最后的警告
+    -- 洞穴遗迹区 (CR)
+    NarrativeInteractionSystem.createCR_03(folder)
+    NarrativeInteractionSystem.createCR_01(folder)
+    NarrativeInteractionSystem.createCR_02(folder)
+
+    -- 图书馆入口（一扇普通的门，无碎片、无前置条件）
+    NarrativeInteractionSystem.createLibraryDoor(folder)
 end
 
--- 辅助方法：确保玩家的数据表存在
+-- ════════════════════════════════════════════════════════════
+-- 玩家状态查询辅助方法
+-- ════════════════════════════════════════════════════════════
+
 local function ensurePlayerData(player: Player)
     if not playerFragments[player.UserId] then
         playerFragments[player.UserId] = {}
@@ -289,43 +89,56 @@ local function ensurePlayerData(player: Player)
     end
 end
 
--- 辅助方法：检查玩家是否已收集某碎片
 function NarrativeInteractionSystem.hasCollected(player: Player, fragmentId: string): boolean
     local fragments = playerFragments[player.UserId]
     return fragments ~= nil and fragments[fragmentId] == true
 end
 
--- 辅助方法：检查玩家是否持有某物品
 function NarrativeInteractionSystem.hasItem(player: Player, itemName: string): boolean
     local items = playerItems[player.UserId]
     return items ~= nil and items[itemName] == true
 end
 
--- 辅助方法：给玩家物品
+function NarrativeInteractionSystem.getCollectedCount(player: Player): number
+    local fragments = playerFragments[player.UserId]
+    if not fragments then
+        return 0
+    end
+    local count = 0
+    for _ in pairs(fragments) do
+        count += 1
+    end
+    return count
+end
+
+-- ════════════════════════════════════════════════════════════
+-- 物品操作辅助方法
+-- ════════════════════════════════════════════════════════════
+
 function NarrativeInteractionSystem.giveItem(player: Player, itemName: string)
     ensurePlayerData(player)
     playerItems[player.UserId][itemName] = true
-    Remotes.ShowNarrative:FireClient(
-        player,
-        '你获得了 '
-            .. (TRIGGER_ITEMS[itemName] and TRIGGER_ITEMS[itemName].description or itemName),
-        '',
-        ''
-    )
+
+    local itemDef = Content.TRIGGER_ITEMS[itemName]
+    if itemDef and itemDef.obtainMessage ~= '' then
+        Remotes.ShowNarrative:FireClient(player, itemDef.obtainMessage, itemDef.obtainHint, '')
+    end
 end
 
--- 辅助方法：消耗玩家物品
 function NarrativeInteractionSystem.consumeItem(player: Player, itemName: string)
     if playerItems[player.UserId] then
         playerItems[player.UserId][itemName] = nil
     end
 end
 
--- 辅助方法：给予碎片并显示内容
-function NarrativeInteractionSystem.awardFragment(player: Player, fragmentId: string)
+-- ════════════════════════════════════════════════════════════
+-- 碎片发放 + 叙事显示
+-- ════════════════════════════════════════════════════════════
+
+function NarrativeInteractionSystem.awardFragment(player: Player, fragmentId: string): boolean
     ensurePlayerData(player)
 
-    -- 已收集则不再重复
+    -- 已收集则跳过
     if playerFragments[player.UserId][fragmentId] then
         return false
     end
@@ -333,9 +146,9 @@ function NarrativeInteractionSystem.awardFragment(player: Player, fragmentId: st
     -- 标记已收集
     playerFragments[player.UserId][fragmentId] = true
 
-    -- 找到碎片配置
+    -- 从 Content 中查找碎片配置
     local config = nil
-    for _, frag in ipairs(FRAGMENT_CONFIGS) do
+    for _, frag in ipairs(Content.FRAGMENTS) do
         if frag.id == fragmentId then
             config = frag
             break
@@ -343,7 +156,7 @@ function NarrativeInteractionSystem.awardFragment(player: Player, fragmentId: st
     end
 
     if config then
-        -- 显示叙事文字 + 情报内容
+        -- 普通碎片：显示叙事文字 + 情报内容
         Remotes.ShowNarrative:FireClient(
             player,
             config.title,
@@ -355,49 +168,52 @@ function NarrativeInteractionSystem.awardFragment(player: Player, fragmentId: st
     return true
 end
 
--- 辅助方法：创建ProximityPrompt
+-- ════════════════════════════════════════════════════════════
+-- ProximityPrompt 工厂方法（统一创建 Prompt）
+-- ════════════════════════════════════════════════════════════
+
 local function createPrompt(
     parent: Instance,
-    actionText: string,
-    objectText: string,
-    keyCode: Enum.KeyCode,
-    holdDuration: number,
+    promptKey: string,
     maxDistance: number?
 ): ProximityPrompt
-    local prompt = Instance.new('ProximityPrompt')
-    prompt.Name = actionText .. 'Prompt'
-    prompt.ActionText = actionText
-    prompt.ObjectText = objectText
-    prompt.KeyboardKeyCode = keyCode
-    prompt.HoldDuration = holdDuration
-    if maxDistance then
-        prompt.MaxActivationDistance = maxDistance
-    else
-        prompt.MaxActivationDistance = 6
+    local promptConfig = Content.PROMPTS[promptKey]
+    if not promptConfig then
+        error('[NarrativeSystem] 未找到 Prompt 配置: ' .. promptKey)
     end
+
+    local prompt = Instance.new('ProximityPrompt')
+    prompt.Name = promptConfig.actionText .. 'Prompt'
+    prompt.ActionText = promptConfig.actionText
+    prompt.ObjectText = promptConfig.objectText
+    prompt.KeyboardKeyCode = Enum.KeyCode.E
+    prompt.HoldDuration = promptConfig.holdDuration
+    prompt.MaxActivationDistance = maxDistance or 6
     prompt.RequiresLineOfSight = false
     prompt.Parent = parent
     return prompt
 end
 
--- ========================================
--- AT-01: 熄灭的守望者（引火石 + 灯塔残骸）
--- ========================================
+-- ════════════════════════════════════════════════════════════
+-- AT-01: 熄灭的守望者（引火石 + 3座灯塔残骸）
+-- ════════════════════════════════════════════════════════════
+
 function NarrativeInteractionSystem.createAT_01(folder: Folder)
     local atFolder = Instance.new('Folder')
     atFolder.Name = 'AT_01_ExtinctWatchman'
     atFolder.Parent = folder
 
-    -- 步骤1：引火石（在碎石堆旁）
+    local itemDef = Content.TRIGGER_ITEMS.KindlingStone
+
+    -- 步骤1：引火石（碎石堆旁）
     local kindlingStone = Instance.new('Part')
     kindlingStone.Name = 'KindlingStone'
     kindlingStone.Size = Vector3.new(0.8, 0.6, 0.8)
-    kindlingStone.CFrame = CFrame.new(-55, 1, 50) -- 靠近Rubble1
-    kindlingStone.Color = TRIGGER_ITEMS.KindlingStone.color
-    kindlingStone.Material = TRIGGER_ITEMS.KindlingStone.material
+    kindlingStone.CFrame = CFrame.new(-55, 1, 50)
+    kindlingStone.Color = itemDef.color
+    kindlingStone.Material = itemDef.material
     kindlingStone.CanCollide = false
     kindlingStone.Anchored = true
-    atFolder.Parent = folder
     kindlingStone.Parent = atFolder
 
     -- 引火石发光提示
@@ -407,21 +223,22 @@ function NarrativeInteractionSystem.createAT_01(folder: Folder)
     stoneLight.Range = 4
     stoneLight.Parent = kindlingStone
 
-    local stonePrompt = createPrompt(kindlingStone, '拾取', '引火石', Enum.KeyCode.E, 0.3)
+    local stonePrompt = createPrompt(kindlingStone, 'AT_01_PickupStone')
     stonePrompt.Triggered:Connect(function(player)
         if NarrativeInteractionSystem.hasItem(player, 'KindlingStone') then
             return
         end
-        -- 每个玩家独立拾取，不隐藏物品（保持世界一致性）
         NarrativeInteractionSystem.giveItem(player, 'KindlingStone')
     end)
 
-    -- 步骤2：三座灯塔残骸（复用废弃神庙区的倒塌灯塔位置附近）
+    -- 步骤2：三座灯塔残骸
     local lighthousePositions = {
         CFrame.new(-68, 5, 28),
         CFrame.new(-75, 4, 33),
         CFrame.new(-82, 3, 38),
     }
+    local totalBeacons = #lighthousePositions
+    local progressFormat = Content.PROGRESS_FEEDBACK.AT_01_BeaconProgress.format
 
     for i, pos in ipairs(lighthousePositions) do
         local lhPart = Instance.new('Part')
@@ -434,38 +251,31 @@ function NarrativeInteractionSystem.createAT_01(folder: Folder)
         lhPart.Anchored = true
         lhPart.Parent = atFolder
 
-        local lhPrompt =
-            createPrompt(lhPart, '点燃残留', '倒塌的灯塔残骸', Enum.KeyCode.E, 0.5, 8)
+        local lhPrompt = createPrompt(lhPart, 'AT_01_LightBeacon', 8)
+        local missingHint = Content.MISSING_ITEM_HINTS.AT_01_BeaconNeedsFire
 
         lhPrompt.Triggered:Connect(function(player)
             if NarrativeInteractionSystem.hasCollected(player, 'AT_01') then
                 return
             end
             if not NarrativeInteractionSystem.hasItem(player, 'KindlingStone') then
-                Remotes.ShowNarrative:FireClient(
-                    player,
-                    '这座残骸冰冷而黑暗',
-                    '似乎需要某种火源才能唤醒...',
-                    ''
-                )
+                Remotes.ShowNarrative:FireClient(player, missingHint.title, missingHint.hint, '')
                 return
             end
 
-            -- 按玩家记录每座灯塔是否已点燃（用 Part 属性 + UserId 标记）
             local playerLitKey = 'LitBy' .. player.UserId
             if lhPart:GetAttribute(playerLitKey) then
-                return -- 该玩家已点燃过这座
+                return
             end
             lhPart:SetAttribute(playerLitKey, true)
 
-            -- 点燃特效（全局视觉反馈，所有玩家可见）
+            -- 点燃特效
             local lhLight = Instance.new('PointLight')
             lhLight.Color = Color3.fromRGB(255, 200, 100)
             lhLight.Brightness = 2
             lhLight.Range = 15
             lhLight.Parent = lhPart
 
-            -- 延迟熄灭（约3秒）
             task.delay(3, function()
                 if lhLight then
                     lhLight.Enabled = false
@@ -482,26 +292,38 @@ function NarrativeInteractionSystem.createAT_01(folder: Folder)
                 playerProgress[uid]['AT_01'] = 0
             end
             playerProgress[uid]['AT_01'] += 1
-            if playerProgress[uid]['AT_01'] >= #lighthousePositions then
+            local currentCount = playerProgress[uid]['AT_01']
+
+            -- ★ 进度反馈文字（通过 ShowNarrative 发送给客户端渲染 "N / 3"）
+            local progressText = string.format(progressFormat, currentCount)
+            if currentCount >= totalBeacons then
                 -- 三座点燃完成 → 给予碎片
-                if NarrativeInteractionSystem.awardFragment(player, 'AT_01') then
-                    NarrativeInteractionSystem.consumeItem(player, 'KindlingStone')
-                end
+                progressText = progressText
+                    .. '\n\n'
+                    .. Content.PROGRESS_FEEDBACK.AT_01_BeaconProgress.completedEffect
+                Remotes.ShowNarrative:FireClient(player, progressText, '', '')
+                task.delay(0.5, function()
+                    if NarrativeInteractionSystem.awardFragment(player, 'AT_01') then
+                        NarrativeInteractionSystem.consumeItem(player, 'KindlingStone')
+                    end
+                end)
+            else
+                -- 显示进度数字
+                Remotes.ShowNarrative:FireClient(player, progressText, '', '')
             end
         end)
     end
 end
 
--- ========================================
--- AT-02: 墙上的最后一行（纯观察交互）
--- ========================================
+-- ════════════════════════════════════════════════════════════
+-- AT-02: 墙上的最后一行（纯观察交互，Hold 3秒）
+-- ════════════════════════════════════════════════════════════
+
 function NarrativeInteractionSystem.createAT_02(folder: Folder)
     local atFolder = Instance.new('Folder')
     atFolder.Name = 'AT_02_LastLine'
     atFolder.Parent = folder
 
-    -- 使用FallenWall1作为交互对象（通过属性标记找到）
-    -- 在这里创建一个独立的交互部件
     local wallPart = Instance.new('Part')
     wallPart.Name = 'InscriptionWall'
     wallPart.Size = Vector3.new(12, 6, 0.5)
@@ -513,36 +335,44 @@ function NarrativeInteractionSystem.createAT_02(folder: Folder)
     wallPart.Transparency = 0.3
     wallPart.Parent = atFolder
 
-    local wallPrompt =
-        createPrompt(wallPart, '辨认墙面痕迹', '刻痕墙壁', Enum.KeyCode.E, 3, 7)
+    local wallPrompt = createPrompt(wallPart, 'AT_02_ReadWall', 7)
     wallPrompt.Triggered:Connect(function(player)
         if NarrativeInteractionSystem.hasCollected(player, 'AT_02') then
             return
         end
         NarrativeInteractionSystem.awardFragment(player, 'AT_02')
+
+        -- 标记墙壁状态
+        wallPart:SetAttribute('DecipheredBy' .. player.UserId, true)
     end)
 end
 
--- ========================================
--- AT-03: 碎裂的回声（共鸣锤 + 碎石堆）
--- ========================================
+-- ════════════════════════════════════════════════════════════
+-- AT-03: 碎裂的回声（共鸣锤 + 4个碎石堆）
+-- ════════════════════════════════════════════════════════════
+
 function NarrativeInteractionSystem.createAT_03(folder: Folder)
     local atFolder = Instance.new('Folder')
-    atFolder.Name = 'AT_03_ShatteredEcho'
+    atFolder.Name = 'AT_03_ShardedEcho'
     atFolder.Parent = folder
 
-    -- 共鸣锤（埋在第3个碎石堆中）
+    local hammerDef = Content.TRIGGER_ITEMS.ResonanceHammer
+
+    -- 共鸣锤（埋在第3个碎石堆中，初始不可见）
     local hammer = Instance.new('Part')
     hammer.Name = 'ResonanceHammer'
     hammer.Size = Vector3.new(0.6, 1.2, 0.6)
-    hammer.CFrame = CFrame.new(-65, 2, 36) -- Rubble3附近
-    hammer.Color = TRIGGER_ITEMS.ResonanceHammer.color
-    hammer.Material = TRIGGER_ITEMS.ResonanceHammer.material
+    hammer.CFrame = CFrame.new(-65, 2, 36)
+    hammer.Color = hammerDef.color
+    hammer.Material = hammerDef.material
     hammer.CanCollide = false
     hammer.Anchored = true
+    hammer.Transparency = 1  -- 初始完全透明（被碎石堆掩埋）
     hammer.Parent = atFolder
 
-    local hammerPrompt = createPrompt(hammer, '拾取', '共鸣锤', Enum.KeyCode.E, 0.3)
+    -- 锤子的 Prompt 初始禁用，挖掘后启用
+    local hammerPrompt = createPrompt(hammer, 'AT_03_PickupHammer')
+    hammerPrompt.Enabled = false
     hammerPrompt.Triggered:Connect(function(player)
         if NarrativeInteractionSystem.hasItem(player, 'ResonanceHammer') then
             return
@@ -550,15 +380,17 @@ function NarrativeInteractionSystem.createAT_03(folder: Folder)
         NarrativeInteractionSystem.giveItem(player, 'ResonanceHammer')
     end)
 
-    -- 敲击目标碎石堆（用4个碎石代表敲击序列）
-    local rubbleTargets = {
-        Vector3.new(-45, 1.5, 52),
-        Vector3.new(-55, 1, 47),
-        Vector3.new(-65, 2, 37),
-        Vector3.new(-75, 1.3, 27),
+    -- 敲击目标碎石堆（索引 3 是特殊的可挖掘碎石堆）
+    local rubblePositions = {
+        Vector3.new(-45, 1.5, 52),   -- 1: 普通
+        Vector3.new(-55, 1, 47),       -- 2: 普通
+        Vector3.new(-65, 2, 37),       -- 3: 可挖掘（锤子在里面）
+        Vector3.new(-75, 1.3, 27),     -- 4: 普通
     }
+    local totalNormalTargets = 3
+    local progressFormat = Content.PROGRESS_FEEDBACK.AT_03_RubbleProgress.format
 
-    for i, pos in ipairs(rubbleTargets) do
+    for i, pos in ipairs(rubblePositions) do
         local target = Instance.new('Part')
         target.Name = 'RubbleTarget_' .. i
         target.Size = Vector3.new(2, 1.5, 2)
@@ -566,11 +398,58 @@ function NarrativeInteractionSystem.createAT_03(folder: Folder)
         target.Color = Color3.fromRGB(90, 95, 100)
         target.Material = Enum.Material.Slate
         target.Shape = Enum.PartType.Ball
-        target.CanCollide = true
+        target.CanCollide = (i ~= 3)
         target.Anchored = true
         target.Parent = atFolder
 
-        local targetPrompt = createPrompt(target, '敲击', '碎石堆', Enum.KeyCode.E, 0.3)
+        if i == 3 then
+            -- 碎石堆_3：可挖掘（不需要锤子）
+            local digPrompt = createPrompt(target, 'AT_03_DigRubble', 3)
+            digPrompt.ActionText = '挖掘'
+            digPrompt.ObjectText = '松动的碎石'
+
+            digPrompt.Triggered:Connect(function(player)
+                local dugKey = 'DugBy' .. player.UserId
+                if target:GetAttribute(dugKey) then
+                    return
+                end
+                target:SetAttribute(dugKey, true)
+
+                -- 碎石堆破碎消失
+                target.Transparency = 1
+                target.CanCollide = false
+                digPrompt.Enabled = false
+
+                -- 小碎块飞散效果
+                for _ = 1, 4 do
+                    local debris = Instance.new('Part')
+                    debris.Size = Vector3.new(0.4, 0.4, 0.4)
+                    debris.Position = pos + Vector3.new(
+                        math.random(-10, 10) / 10,
+                        math.random(0, 10) / 10,
+                        math.random(-10, 10) / 10
+                    )
+                    debris.Color = Color3.fromRGB(90, 95, 100)
+                    debris.Material = Enum.Material.Slate
+                    debris.CanCollide = false
+                    debris.Anchored = false
+                    debris.Parent = atFolder
+                    game:GetService('Debris'):Add(debris, 2)
+                end
+
+                -- 露出锤子
+                hammer.Transparency = 0
+                hammerPrompt.Enabled = true
+
+                Remotes.ShowNarrative:FireClient(
+                    player,
+                    '碎石松动',
+                    '有什么东西露出来了……',
+                    ''
+                )
+            end)
+        else
+            local targetPrompt = createPrompt(target, 'AT_03_HitRubble')
         targetPrompt.Triggered:Connect(function(player)
             if NarrativeInteractionSystem.hasCollected(player, 'AT_03') then
                 return
@@ -579,14 +458,13 @@ function NarrativeInteractionSystem.createAT_03(folder: Folder)
                 return
             end
 
-            -- 按玩家记录是否已敲过该目标
             local hitKey = 'HitBy' .. player.UserId
             if target:GetAttribute(hitKey) then
                 return
             end
             target:SetAttribute(hitKey, true)
 
-            -- 敲击反馈（全局视觉）
+            -- 敲击视觉反馈（全局可见）
             target.Color = Color3.fromRGB(200, 180, 150)
             task.delay(0.5, function()
                 target.Color = Color3.fromRGB(90, 95, 100)
@@ -601,35 +479,54 @@ function NarrativeInteractionSystem.createAT_03(folder: Folder)
                 playerProgress[uid]['AT_03'] = 0
             end
             playerProgress[uid]['AT_03'] += 1
-            if playerProgress[uid]['AT_03'] >= #rubbleTargets then
-                if NarrativeInteractionSystem.awardFragment(player, 'AT_03') then
-                    NarrativeInteractionSystem.consumeItem(player, 'ResonanceHammer')
-                end
-            end
-        end)
-    end
-end
+            local currentCount = playerProgress[uid]['AT_03']
 
--- ========================================
+            if currentCount >= totalNormalTargets then
+                local progressText = string.format(progressFormat, currentCount)
+                    .. '\n\n'
+                    .. Content.PROGRESS_FEEDBACK.AT_03_RubbleProgress.completedEffect
+                Remotes.ShowNarrative:FireClient(player, progressText, '', '')
+                task.delay(0.5, function()
+                    if NarrativeInteractionSystem.awardFragment(player, 'AT_03') then
+                        NarrativeInteractionSystem.consumeItem(player, 'ResonanceHammer')
+                    end
+                end)
+            else
+                -- 显示进度
+                Remotes.ShowNarrative:FireClient(
+                    player,
+                    string.format(progressFormat, currentCount),
+                    '',
+                    ''
+                )
+            end
+        end)  -- targetPrompt.Triggered
+    end  -- for loop
+end  -- createAT_03
+
+-- ════════════════════════════════════════════════════════════
 -- AR-01: 石碑的无字面（观测透镜 + 石碑1）
--- ========================================
+-- ════════════════════════════════════════════════════════════
+
 function NarrativeInteractionSystem.createAR_01(folder: Folder)
     local arFolder = Instance.new('Folder')
     arFolder.Name = 'AR_01_BlankStele'
     arFolder.Parent = folder
 
+    local lensDef = Content.TRIGGER_ITEMS.ObservationLens
+
     -- 观测透镜（嵌在石碑2基座）
     local lens = Instance.new('Part')
     lens.Name = 'ObservationLens'
     lens.Size = Vector3.new(0.4, 0.1, 0.4)
-    lens.CFrame = CFrame.new(70, 4.2, 35) -- AncientStele2附近
-    lens.Color = TRIGGER_ITEMS.ObservationLens.color
-    lens.Material = TRIGGER_ITEMS.ObservationLens.material
+    lens.CFrame = CFrame.new(70, 4.2, 35)
+    lens.Color = lensDef.color
+    lens.Material = lensDef.material
     lens.CanCollide = false
     lens.Anchored = true
     lens.Parent = arFolder
 
-    local lensPrompt = createPrompt(lens, '拔出', '观测透镜', Enum.KeyCode.E, 0.3)
+    local lensPrompt = createPrompt(lens, 'AR_01_PickupLens')
     lensPrompt.Triggered:Connect(function(player)
         if NarrativeInteractionSystem.hasItem(player, 'ObservationLens') then
             return
@@ -640,7 +537,7 @@ function NarrativeInteractionSystem.createAR_01(folder: Folder)
     -- 目标石碑（石碑1位置）
     local steleTarget = Instance.new('Part')
     steleTarget.Name = 'SteleTarget'
-    steleTarget.Size = Vector3.new(3.5, 9, 1.2) -- 与AncientStele1同尺寸
+    steleTarget.Size = Vector3.new(3.5, 9, 1.2)
     steleTarget.CFrame = CFrame.new(60, 4.5, 30)
     steleTarget.Color = Color3.fromRGB(130, 135, 140)
     steleTarget.Material = Enum.Material.Slate
@@ -649,39 +546,34 @@ function NarrativeInteractionSystem.createAR_01(folder: Folder)
     steleTarget.Transparency = 0.5
     steleTarget.Parent = arFolder
 
-    local stelePrompt =
-        createPrompt(steleTarget, '透过透镜观察', '古代石碑', Enum.KeyCode.E, 0)
+    local stelePrompt = createPrompt(steleTarget, 'AR_01_ObserveStele')
+    local missingHint = Content.MISSING_ITEM_HINTS.AR_01_SteleBlank
+
     stelePrompt.Triggered:Connect(function(player)
         if NarrativeInteractionSystem.hasCollected(player, 'AR_01') then
             return
         end
         if not NarrativeInteractionSystem.hasItem(player, 'ObservationLens') then
-            Remotes.ShowNarrative:FireClient(
-                player,
-                '石碑表面光滑无字',
-                '也许需要某种工具来观察...',
-                ''
-            )
+            Remotes.ShowNarrative:FireClient(player, missingHint.title, missingHint.hint, '')
             return
         end
-        -- 自动播放文字浮现效果（客户端展示），然后给予碎片
         NarrativeInteractionSystem.awardFragment(player, 'AR_01')
     end)
 end
 
--- ========================================
+-- ════════════════════════════════════════════════════════════
 -- AR-02: 失衡的天平（直接触碰交互）
--- ========================================
+-- ════════════════════════════════════════════════════════════
+
 function NarrativeInteractionSystem.createAR_02(folder: Folder)
     local arFolder = Instance.new('Folder')
     arFolder.Name = 'AR_02_UnbalancedScale'
     arFolder.Parent = folder
 
-    -- 天平交互体（独立于OutdoorAreaBuilder中的装饰天平）
     local scalePart = Instance.new('Part')
     scalePart.Name = 'ScaleInteraction'
     scalePart.Size = Vector3.new(6, 0.5, 6)
-    scalePart.CFrame = CFrame.new(75, 3, 55) -- 在AncientScalePillar顶部附近
+    scalePart.CFrame = CFrame.new(75, 3, 55)
     scalePart.Color = Color3.fromRGB(140, 145, 150)
     scalePart.Material = Enum.Material.Slate
     scalePart.CanCollide = false
@@ -689,7 +581,7 @@ function NarrativeInteractionSystem.createAR_02(folder: Folder)
     scalePart.Transparency = 0.3
     scalePart.Parent = arFolder
 
-    local scalePrompt = createPrompt(scalePart, '触碰天平', '古代天平', Enum.KeyCode.E, 0)
+    local scalePrompt = createPrompt(scalePart, 'AR_02_TouchScale')
     scalePrompt.Triggered:Connect(function(player)
         if
             NarrativeInteractionSystem.hasCollected(player, 'AR_02')
@@ -702,21 +594,21 @@ function NarrativeInteractionSystem.createAR_02(folder: Folder)
     end)
 end
 
--- ========================================
--- AR-03: 共鸣石的频率（逐个激活，无序）
--- ========================================
+-- ════════════════════════════════════════════════════════════
+-- AR-03: 共鸣石的频率（3块石头逐个激活）
+-- ════════════════════════════════════════════════════════════
+
 function NarrativeInteractionSystem.createAR_03(folder: Folder)
     local arFolder = Instance.new('Folder')
     arFolder.Name = 'AR_03_ResonanceFrequency'
     arFolder.Parent = folder
 
-    -- 三个共鸣石交互点（与OutdoorAreaBuilder中的装饰石位置对应）
     local stonePositions = {
         Vector3.new(50, 2, 60),
         Vector3.new(55, 1.5, 70),
         Vector3.new(65, 2.5, 65),
     }
-    -- 使用顶层的 playerProgress 表，按玩家独立计数（已在 PlayerRemoving 中统一清理）
+    local totalStones = #stonePositions
 
     for i, pos in ipairs(stonePositions) do
         local stonePart = Instance.new('Part')
@@ -731,7 +623,7 @@ function NarrativeInteractionSystem.createAR_03(folder: Folder)
         stonePart.Transparency = 0.3
         stonePart.Parent = arFolder
 
-        local stonePrompt = createPrompt(stonePart, '激活', '共鸣石', Enum.KeyCode.E, 0)
+        local stonePrompt = createPrompt(stonePart, 'AR_03_ActivateStone')
 
         stonePrompt.Triggered:Connect(function(player)
             if NarrativeInteractionSystem.hasCollected(player, 'AR_03') then
@@ -739,18 +631,17 @@ function NarrativeInteractionSystem.createAR_03(folder: Folder)
             end
 
             if stonePart:GetAttribute('ActivatedBy' .. player.UserId) then
-                return -- 该玩家已激活过这块
+                return
             end
-
             stonePart:SetAttribute('ActivatedBy' .. player.UserId, true)
 
-            -- 激活反馈：发光增强（全局视觉）
+            -- 激活视觉效果
             stonePart.Color = Color3.fromRGB(180, 190, 200)
             task.delay(1, function()
                 stonePart.Color = Color3.fromRGB(145, 150, 155)
             end)
 
-            -- 使用顶层 playerProgress 表按玩家独立计数
+            -- 计数
             local uid = player.UserId
             if not playerProgress[uid] then
                 playerProgress[uid] = {}
@@ -760,28 +651,40 @@ function NarrativeInteractionSystem.createAR_03(folder: Folder)
             end
             playerProgress[uid]['AR_03'] += 1
 
-            if playerProgress[uid]['AR_03'] >= #stonePositions then
-                NarrativeInteractionSystem.awardFragment(player, 'AR_03')
+            if playerProgress[uid]['AR_03'] >= totalStones then
+                -- 全部激活完成
+                Remotes.ShowNarrative:FireClient(
+                    player,
+                    Content.PROGRESS_FEEDBACK.AR_03_StoneProgress.allActivatedEffect,
+                    '',
+                    ''
+                )
+                task.delay(0.5, function()
+                    NarrativeInteractionSystem.awardFragment(player, 'AR_03')
+                end)
             end
         end)
     end
 end
 
--- ========================================
+-- ════════════════════════════════════════════════════════════
 -- WF-01: 树洞里的眼睛（光源种子 + 树洞树）
--- ========================================
+-- ════════════════════════════════════════════════════════════
+
 function NarrativeInteractionSystem.createWF_01(folder: Folder)
     local wfFolder = Instance.new('Folder')
     wfFolder.Name = 'WF_01_EyesInTree'
     wfFolder.Parent = folder
 
-    -- 光源种子（在某棵灌木丛根部）
+    local seedDef = Content.TRIGGER_ITEMS.LightSeed
+
+    -- 光源种子（灌木丛根部）
     local seed = Instance.new('Part')
     seed.Name = 'LightSeed'
     seed.Size = Vector3.new(0.5, 0.5, 0.5)
-    seed.CFrame = CFrame.new(18, 1, 82) -- Bush1附近
-    seed.Color = TRIGGER_ITEMS.LightSeed.color
-    seed.Material = TRIGGER_ITEMS.LightSeed.material
+    seed.CFrame = CFrame.new(18, 1, 82)
+    seed.Color = seedDef.color
+    seed.Material = seedDef.material
     seed.Shape = Enum.PartType.Ball
     seed.CanCollide = false
     seed.Anchored = true
@@ -794,7 +697,7 @@ function NarrativeInteractionSystem.createWF_01(folder: Folder)
     seedLight.Range = 5
     seedLight.Parent = seed
 
-    local seedPrompt = createPrompt(seed, '拾取', '发光种子', Enum.KeyCode.E, 0.3)
+    local seedPrompt = createPrompt(seed, 'WF_01_PickupSeed')
     seedPrompt.Triggered:Connect(function(player)
         if NarrativeInteractionSystem.hasItem(player, 'LightSeed') then
             return
@@ -802,11 +705,11 @@ function NarrativeInteractionSystem.createWF_01(folder: Folder)
         NarrativeInteractionSystem.giveItem(player, 'LightSeed')
     end)
 
-    -- 目标树洞（特定树木上的空洞标记）
+    -- 目标树洞
     local treeHollow = Instance.new('Part')
     treeHollow.Name = 'TreeHollow'
     treeHollow.Size = Vector3.new(1.5, 2, 1.5)
-    treeHollow.CFrame = CFrame.new(25, 7, 85) -- ForestTreeTrunk3附近
+    treeHollow.CFrame = CFrame.new(25, 7, 85)
     treeHollow.Color = Color3.fromRGB(60, 40, 20)
     treeHollow.Material = Enum.Material.Wood
     treeHollow.CanCollide = false
@@ -814,7 +717,9 @@ function NarrativeInteractionSystem.createWF_01(folder: Folder)
     treeHollow.Transparency = 0.5
     treeHollow.Parent = wfFolder
 
-    local hollowPrompt = createPrompt(treeHollow, '投入种子', '树洞', Enum.KeyCode.E, 0.5)
+    local hollowPrompt = createPrompt(treeHollow, 'WF_01_DepositSeed')
+    local missingHint = Content.MISSING_ITEM_HINTS.WF_01_TreeDark
+
     hollowPrompt.Triggered:Connect(function(player)
         if
             NarrativeInteractionSystem.hasCollected(player, 'WF_01')
@@ -823,12 +728,7 @@ function NarrativeInteractionSystem.createWF_01(folder: Folder)
             return
         end
         if not NarrativeInteractionSystem.hasItem(player, 'LightSeed') then
-            Remotes.ShowNarrative:FireClient(
-                player,
-                '树洞深处一片漆黑',
-                '似乎需要光源才能看清里面...',
-                ''
-            )
+            Remotes.ShowNarrative:FireClient(player, missingHint.title, missingHint.hint, '')
             return
         end
         treeHollow:SetAttribute('Illuminated', true)
@@ -853,26 +753,29 @@ function NarrativeInteractionSystem.createWF_01(folder: Folder)
     end)
 end
 
--- ========================================
--- WF-02: 足迹的终点（追踪粉尘 + 足迹链）
--- ========================================
+-- ════════════════════════════════════════════════════════════
+-- WF-02: 足迹的终点（追踪粉尘 + 足迹链终点）
+-- ════════════════════════════════════════════════════════════
+
 function NarrativeInteractionSystem.createWF_02(folder: Folder)
     local wfFolder = Instance.new('Folder')
     wfFolder.Name = 'WF_02_TrackEnd'
     wfFolder.Parent = folder
 
+    local dustDef = Content.TRIGGER_ITEMS.TrackingDust
+
     -- 追踪粉尘（挂在树枝上）
     local dust = Instance.new('Part')
     dust.Name = 'TrackingDust'
     dust.Size = Vector3.new(0.3, 0.5, 0.3)
-    dust.CFrame = CFrame.new(28, 14, 90) -- ForestTreeTrunk5附近（高处）
-    dust.Color = TRIGGER_ITEMS.TrackingDust.color
-    dust.Material = TRIGGER_ITEMS.TrackingDust.material
+    dust.CFrame = CFrame.new(28, 14, 90)
+    dust.Color = dustDef.color
+    dust.Material = dustDef.material
     dust.CanCollide = false
     dust.Anchored = true
     dust.Parent = wfFolder
 
-    local dustPrompt = createPrompt(dust, '取下', '追踪粉尘袋', Enum.KeyCode.E, 0.3)
+    local dustPrompt = createPrompt(dust, 'WF_02_PickupDust')
     dustPrompt.Triggered:Connect(function(player)
         if NarrativeInteractionSystem.hasItem(player, 'TrackingDust') then
             return
@@ -884,7 +787,7 @@ function NarrativeInteractionSystem.createWF_02(folder: Folder)
     local trackEnd = Instance.new('Part')
     trackEnd.Name = 'TrackEnd'
     trackEnd.Size = Vector3.new(1.5, 0.2, 2)
-    trackEnd.CFrame = CFrame.new(31, 0.2, 97) -- 最后一个足迹标记附近
+    trackEnd.CFrame = CFrame.new(31, 0.2, 97)
     trackEnd.Color = Color3.fromRGB(70, 70, 75)
     trackEnd.Material = Enum.Material.Slate
     trackEnd.CanCollide = false
@@ -892,45 +795,43 @@ function NarrativeInteractionSystem.createWF_02(folder: Folder)
     trackEnd.Transparency = 0.3
     trackEnd.Parent = wfFolder
 
-    local trackPrompt = createPrompt(trackEnd, '调查', '凹陷痕迹', Enum.KeyCode.E, 0)
+    local trackPrompt = createPrompt(trackEnd, 'WF_02_Investigate')
+    local missingHint = Content.MISSING_ITEM_HINTS.WF_02_TrackMysterious
+
     trackPrompt.Triggered:Connect(function(player)
         if NarrativeInteractionSystem.hasCollected(player, 'WF_02') then
             return
         end
         if not NarrativeInteractionSystem.hasItem(player, 'TrackingDust') then
-            Remotes.ShowNarrative:FireClient(
-                player,
-                '地面上有一个奇怪的凹陷',
-                '似乎需要某种方式来追踪来源...',
-                ''
-            )
+            Remotes.ShowNarrative:FireClient(player, missingHint.title, missingHint.hint, '')
             return
         end
         NarrativeInteractionSystem.awardFragment(player, 'WF_02')
     end)
 end
 
--- ========================================
--- WF-03: 不存在的果实（直接交互）
--- ========================================
+-- ════════════════════════════════════════════════════════════
+-- WF-03: 不存在的果实（异常树枝直接交互）
+-- ════════════════════════════════════════════════════════════
+
 function NarrativeInteractionSystem.createWF_03(folder: Folder)
     local wfFolder = Instance.new('Folder')
     wfFolder.Name = 'WF_03_NonexistentFruit'
     wfFolder.Parent = folder
 
-    -- 异常树枝（某棵树的异色分支）
+    -- 异常树枝
     local branchPart = Instance.new('Part')
     branchPart.Name = 'AnomalousBranch'
     branchPart.Size = Vector3.new(1, 2, 1)
-    branchPart.CFrame = CFrame.new(35, 15, 110) -- 某棵树的高处
-    branchPart.Color = Color3.fromRGB(140, 100, 160) -- 偏紫色调，与其他树不同
+    branchPart.CFrame = CFrame.new(35, 15, 110)
+    branchPart.Color = Color3.fromRGB(140, 100, 160) -- 偏紫色调
     branchPart.Material = Enum.Material.Wood
     branchPart.CanCollide = false
     branchPart.Anchored = true
     branchPart.Transparency = 0.3
     branchPart.Parent = wfFolder
 
-    local branchPrompt = createPrompt(branchPart, '触碰', '异色树枝', Enum.KeyCode.E, 0)
+    local branchPrompt = createPrompt(branchPart, 'WF_03_TouchBranch')
     branchPrompt.Triggered:Connect(function(player)
         if
             NarrativeInteractionSystem.hasCollected(player, 'WF_03')
@@ -939,35 +840,40 @@ function NarrativeInteractionSystem.createWF_03(folder: Folder)
             return
         end
         branchPart:SetAttribute('Touched', true)
+
         -- 树枝闪烁效果
         branchPart.Color = Color3.fromRGB(200, 150, 220)
         task.delay(2, function()
             branchPart.Color = Color3.fromRGB(140, 100, 160)
         end)
+
         NarrativeInteractionSystem.awardFragment(player, 'WF_03')
     end)
 end
 
--- ========================================
--- CR-01: 矿物的脉搏（共振晶片 + 矿物）
--- ========================================
+-- ════════════════════════════════════════════════════════════
+-- CR-01: 矿物的脉搏（共振晶片 + 发光矿物）
+-- ════════════════════════════════════════════════════════════
+
 function NarrativeInteractionSystem.createCR_01(folder: Folder)
     local crFolder = Instance.new('Folder')
     crFolder.Name = 'CR_01_MineralPulse'
     crFolder.Parent = folder
 
+    local shardDef = Content.TRIGGER_ITEMS.ResonanceShard
+
     -- 共振晶片（嵌在特殊深橙色矿物中）
     local shard = Instance.new('Part')
     shard.Name = 'ResonanceShard'
     shard.Size = Vector3.new(0.4, 0.15, 0.4)
-    shard.CFrame = CFrame.new(-6, 6.3, 175) -- GlowingMineral3位置（偏深橙色）
-    shard.Color = TRIGGER_ITEMS.ResonanceShard.color
-    shard.Material = TRIGGER_ITEMS.ResonanceShard.material
+    shard.CFrame = CFrame.new(-6, 6.3, 175)
+    shard.Color = shardDef.color
+    shard.Material = shardDef.material
     shard.CanCollide = false
     shard.Anchored = true
     shard.Parent = crFolder
 
-    local shardPrompt = createPrompt(shard, '小心取出', '共振晶片', Enum.KeyCode.E, 0.5)
+    local shardPrompt = createPrompt(shard, 'CR_01_PickupShard')
     shardPrompt.Triggered:Connect(function(player)
         if NarrativeInteractionSystem.hasItem(player, 'ResonanceShard') then
             return
@@ -975,11 +881,11 @@ function NarrativeInteractionSystem.createCR_01(folder: Folder)
         NarrativeInteractionSystem.giveItem(player, 'ResonanceShard')
     end)
 
-    -- 目标矿物（普通发光矿物）
+    -- 目标矿物
     local targetMineral = Instance.new('Part')
     targetMineral.Name = 'TargetMineral'
     targetMineral.Size = Vector3.new(1.8, 1.8, 1.8)
-    targetMineral.CFrame = CFrame.new(8, 4.8, 165) -- GlowingMineral2附近
+    targetMineral.CFrame = CFrame.new(8, 4.8, 165)
     targetMineral.Color = Color3.fromRGB(200, 150, 100)
     targetMineral.Material = Enum.Material.Neon
     targetMineral.Shape = Enum.PartType.Ball
@@ -987,8 +893,9 @@ function NarrativeInteractionSystem.createCR_01(folder: Folder)
     targetMineral.Anchored = true
     targetMineral.Parent = crFolder
 
-    local mineralPrompt =
-        createPrompt(targetMineral, '读取记忆', '发光矿物', Enum.KeyCode.E, 0)
+    local mineralPrompt = createPrompt(targetMineral, 'CR_01_ReadMineral')
+    local missingHint = Content.MISSING_ITEM_HINTS.CR_01_MineralGlowing
+
     mineralPrompt.Triggered:Connect(function(player)
         if
             NarrativeInteractionSystem.hasCollected(player, 'CR_01')
@@ -997,12 +904,7 @@ function NarrativeInteractionSystem.createCR_01(folder: Folder)
             return
         end
         if not NarrativeInteractionSystem.hasItem(player, 'ResonanceShard') then
-            Remotes.ShowNarrative:FireClient(
-                player,
-                '矿物表面有微弱的光芒流动',
-                '也许需要某种媒介来读取...',
-                ''
-            )
+            Remotes.ShowNarrative:FireClient(player, missingHint.title, missingHint.hint, '')
             return
         end
         targetMineral:SetAttribute('Read', true)
@@ -1027,26 +929,29 @@ function NarrativeInteractionSystem.createCR_01(folder: Folder)
     end)
 end
 
--- ========================================
+-- ════════════════════════════════════════════════════════════
 -- CR-02: 机关的沉默（修复齿轮 + 古代机关）
--- ========================================
+-- ════════════════════════════════════════════════════════════
+
 function NarrativeInteractionSystem.createCR_02(folder: Folder)
     local crFolder = Instance.new('Folder')
     crFolder.Name = 'CR_02_MechanismSilence'
     crFolder.Parent = folder
 
-    -- 修复齿轮在宝藏箱内 → 这里直接放在宝藏箱旁边作为拾取物
+    local gearDef = Content.TRIGGER_ITEMS.RepairGear
+
+    -- 修复齿轮（宝藏箱旁）
     local gear = Instance.new('Part')
     gear.Name = 'RepairGear'
     gear.Size = Vector3.new(0.5, 0.25, 0.5)
-    gear.CFrame = CFrame.new(2.5, 2, 165) -- TreasureChest附近
-    gear.Color = TRIGGER_ITEMS.RepairGear.color
-    gear.Material = TRIGGER_ITEMS.RepairGear.material
+    gear.CFrame = CFrame.new(2.5, 2, 165)
+    gear.Color = gearDef.color
+    gear.Material = gearDef.material
     gear.CanCollide = false
     gear.Anchored = true
     gear.Parent = crFolder
 
-    local gearPrompt = createPrompt(gear, '取出', '修复齿轮', Enum.KeyCode.E, 0.3)
+    local gearPrompt = createPrompt(gear, 'CR_02_PickupGear')
     gearPrompt.Triggered:Connect(function(player)
         if NarrativeInteractionSystem.hasItem(player, 'RepairGear') then
             return
@@ -1054,11 +959,11 @@ function NarrativeInteractionSystem.createCR_02(folder: Folder)
         NarrativeInteractionSystem.giveItem(player, 'RepairGear')
     end)
 
-    -- 目标古代机关（独立交互体）
+    -- 目标古代机关
     local mechPart = Instance.new('Part')
     mechPart.Name = 'MechanismTarget'
     mechPart.Size = Vector3.new(7, 3.5, 7)
-    mechPart.CFrame = CFrame.new(0, 3, 180) -- AncientMechanism上方
+    mechPart.CFrame = CFrame.new(0, 3, 180)
     mechPart.Color = Color3.fromRGB(125, 130, 135)
     mechPart.Material = Enum.Material.Metal
     mechPart.CanCollide = false
@@ -1066,7 +971,9 @@ function NarrativeInteractionSystem.createCR_02(folder: Folder)
     mechPart.Transparency = 0.3
     mechPart.Parent = crFolder
 
-    local mechPrompt = createPrompt(mechPart, '安装齿轮', '古代机关', Enum.KeyCode.E, 0.5)
+    local mechPrompt = createPrompt(mechPart, 'CR_02_InstallGear')
+    local missingHint = Content.MISSING_ITEM_HINTS.CR_02_MechanismMissing
+
     mechPrompt.Triggered:Connect(function(player)
         if
             NarrativeInteractionSystem.hasCollected(player, 'CR_02')
@@ -1075,12 +982,7 @@ function NarrativeInteractionSystem.createCR_02(folder: Folder)
             return
         end
         if not NarrativeInteractionSystem.hasItem(player, 'RepairGear') then
-            Remotes.ShowNarrative:FireClient(
-                player,
-                '机关表面有一个齿轮形的凹槽',
-                '似乎缺少了关键部件...',
-                ''
-            )
+            Remotes.ShowNarrative:FireClient(player, missingHint.title, missingHint.hint, '')
             return
         end
         mechPart:SetAttribute('Activated', true)
@@ -1097,78 +999,70 @@ function NarrativeInteractionSystem.createCR_02(folder: Folder)
     end)
 end
 
--- ========================================
--- CR-03: 深渊的低语（静默耳坠 + 裂缝）
--- ========================================
+-- ════════════════════════════════════════════════════════════
+-- CR-03: 深渊的低语（静默耳坠 — 拾取即触发碎片效果）
+-- ════════════════════════════════════════════════════════════
+
 function NarrativeInteractionSystem.createCR_03(folder: Folder)
     local crFolder = Instance.new('Folder')
     crFolder.Name = 'CR_03_AbyssWhisper'
     crFolder.Parent = folder
 
-    -- 静默耳坠（半埋在裂缝边缘）
+    local earringDef = Content.TRIGGER_ITEMS.SilentEarring
+
+    -- 静默耳坠（裂缝边缘）
     local earring = Instance.new('Part')
     earring.Name = 'SilentEarring'
     earring.Size = Vector3.new(0.2, 0.4, 0.1)
-    earring.CFrame = CFrame.new(-1, 0.2, 170) -- CaveInteriorGround附近（裂缝位置）
-    earring.Color = TRIGGER_ITEMS.SilentEarring.color
-    earring.Material = TRIGGER_ITEMS.SilentEarring.material
+    earring.CFrame = CFrame.new(-1, 0.2, 170)
+    earring.Color = earringDef.color
+    earring.Material = earringDef.material
     earring.CanCollide = false
     earring.Anchored = true
     earring.Parent = crFolder
 
-    local earringPrompt = createPrompt(earring, '拾取', '静默耳坠', Enum.KeyCode.E, 0.3)
+    local earringPrompt = createPrompt(earring, 'CR_03_PickupEarring')
     earringPrompt.Triggered:Connect(function(player)
         if NarrativeInteractionSystem.hasItem(player, 'SilentEarring') then
             return
         end
-        NarrativeInteractionSystem.giveItem(player, 'SilentEarring')
+        -- 先给物品标记
+        ensurePlayerData(player)
+        playerItems[player.UserId]['SilentEarring'] = true
 
-        -- 拾取后自动触发碎片效果（简化设计：不需要额外走到裂缝处）
-        -- 暗紫色脉冲效果通过客户端叙事文本暗示，持久工具不消耗
+        -- 静默耳坠拾取后立即触发碎片（特殊体验：无普通获得提示，被叙事打断）
         NarrativeInteractionSystem.awardFragment(player, 'CR_03')
     end)
 end
 
--- ========================================
--- CR-04: 最后的警告（直接凝视交互）
--- ========================================
-function NarrativeInteractionSystem.createCR_04(folder: Folder)
-    local crFolder = Instance.new('Folder')
-    crFolder.Name = 'CR_04_FinalWarning'
-    crFolder.Parent = folder
+-- ════════════════════════════════════════════════════════════
+-- 图书馆入口（一扇普通的门，无碎片、无前置条件）
+-- ════════════════════════════════════════════════════════════
 
-    -- 洞穴入口交互体（迷宫入口区域）
-    local gatePart = Instance.new('Part')
-    gatePart.Name = 'GateInsight'
-    gatePart.Size = Vector3.new(24, 2, 6) -- 门梁宽度范围
-    gatePart.CFrame = CFrame.new(0, 19, 132) -- MazeGateBeam上方
-    gatePart.Color = Color3.fromRGB(91, 95, 102)
-    gatePart.Material = Enum.Material.Slate
-    gatePart.CanCollide = false
-    gatePart.Anchored = true
-    gatePart.Transparency = 0.8
-    gatePart.Parent = crFolder
+function NarrativeInteractionSystem.createLibraryDoor(folder: Folder)
+    local doorFolder = Instance.new('Folder')
+    doorFolder.Name = 'LibraryDoor'
+    doorFolder.Parent = folder
 
-    local gatePrompt = createPrompt(gatePart, '凝视入口', '洞穴入口', Enum.KeyCode.E, 2, 12)
-    gatePrompt.Triggered:Connect(function(player)
-        if
-            NarrativeInteractionSystem.hasCollected(player, 'CR_04')
-            or gatePart:GetAttribute('Witnessed')
-        then
-            return
-        end
-        gatePart:SetAttribute('Witnessed', true)
+    -- 门体
+    local doorPart = Instance.new('Part')
+    doorPart.Name = 'LibraryDoor'
+    doorPart.Size = Vector3.new(6, 10, 1)
+    doorPart.CFrame = CFrame.new(0, 19, 132)
+    doorPart.Color = Color3.fromRGB(80, 60, 45)
+    doorPart.Material = Enum.Material.Wood
+    doorPart.CanCollide = true
+    doorPart.Anchored = true
+    doorPart.Parent = doorFolder
 
-        -- 入口发光效果
-        gatePart.Color = Color3.fromRGB(200, 200, 220)
-        task.delay(2, function()
-            gatePart.Color = Color3.fromRGB(91, 95, 102)
-        end)
+    local doorPrompt = createPrompt(doorPart, 'LibraryDoor', 1)
 
-        NarrativeInteractionSystem.awardFragment(player, 'CR_04')
-    end)
+    doorPrompt.ActionText = Content.LIBRARY_DOOR.actionText
+    doorPrompt.ObjectText = Content.LIBRARY_DOOR.objectText
+
+    -- TODO: 传送逻辑后续按需接入（TeleportService 到 Library Place）
 end
 
---#endregion
+-- ════════════════════════════════════════════════════════════
 
 return NarrativeInteractionSystem
