@@ -9,6 +9,7 @@ local Remotes = Shared.Network.Remotes.ensureScope(Shared.Network.Remotes.Scope.
 local SessionSeedPolicy = Shared.Session.SessionSeedPolicy
 
 local LobbyRunPortal = require(script.Parent.LobbyRunPortal)
+local LobbyWorldBuilder = require(script.Parent.LobbyWorldBuilder)
 
 local LobbyService = {}
 LobbyService.__index = LobbyService
@@ -18,7 +19,33 @@ function LobbyService.new()
         ReadyByUserId = {},
         Status = 'Waiting for crew.',
         Seed = SessionConfig.DefaultSeed,
+        World = nil,
     }, LobbyService)
+end
+
+function LobbyService:_bindCharacterTeleport(player)
+    player.CharacterAdded:Connect(function(character)
+        task.wait()
+        if not character.Parent or not (self.World and self.World.SpawnCFrame) then
+            return
+        end
+
+        character:PivotTo(self.World.SpawnCFrame)
+    end)
+end
+
+function LobbyService:_bindWorldInteractions()
+    if not self.World then
+        return
+    end
+
+    self.World.ReadyPrompt.Triggered:Connect(function(player)
+        self:_setReady(player, self.ReadyByUserId[player.UserId] ~= true)
+    end)
+
+    self.World.StartRunPrompt.Triggered:Connect(function()
+        self:_teleportToRun()
+    end)
 end
 
 function LobbyService:_buildSnapshot()
@@ -109,13 +136,17 @@ function LobbyService:_teleportToRun()
 end
 
 function LobbyService:start()
+    self.World = LobbyWorldBuilder.build()
+
     for _, player in ipairs(Players:GetPlayers()) do
         self.ReadyByUserId[player.UserId] = false
+        self:_bindCharacterTeleport(player)
     end
 
     Players.PlayerAdded:Connect(function(player)
         self.ReadyByUserId[player.UserId] = false
         self.Status = string.format('%s joined the lobby.', player.DisplayName)
+        self:_bindCharacterTeleport(player)
         self:_broadcast()
     end)
 
@@ -137,6 +168,7 @@ function LobbyService:start()
         end
     end)
 
+    self:_bindWorldInteractions()
     self:_broadcast()
 end
 

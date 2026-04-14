@@ -86,6 +86,7 @@ return function()
                 SightRange = 36,
                 PatrolSpeedMultiplier = 0.45,
                 SpawnOffset = Vector3.new(0, 4, 0),
+                CombatHitPoints = 2,
                 Behaviors = {
                     SenseNearestTarget = true,
                     Chase = true,

@@ -25,7 +25,7 @@ return function()
         ToolCategory = 'Crowbar',
         StateModel = 'Durability',
         InitialState = 10,
-        ConsumePerUse = 1,
+        ConsumePerUse = 0,
         CooldownSeconds = 0.5,
     }
 
@@ -154,14 +154,14 @@ return function()
     local consumeToolSuccess, consumedHeldTool = inventoryService:consumeHeldItemState(toolPlayer)
     assert(consumeToolSuccess == true, 'Runtime inventory should consume held tool state')
     assert(
-        consumedHeldTool.CurrentState == 9,
-        'Consuming a held tool should decrement current state on persisted inventory data'
+        consumedHeldTool.CurrentState == 10,
+        'Crowbar with ConsumePerUse 0 should not decrement current state'
     )
 
     local toolSummary = inventoryService:getSummary(toolPlayer)
     assert(
-        toolSummary.HeldItem.CurrentState == 9,
-        'Consumed tool state should persist in subsequent inventory snapshots'
+        toolSummary.HeldItem.CurrentState == 10,
+        'Tool state should persist unchanged when ConsumePerUse is 0'
     )
 
     local cooldownToolPlayer = {

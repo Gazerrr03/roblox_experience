@@ -2,7 +2,6 @@ local Config = script.Parent
 
 -- 引入探索道具武器库
 local ToolItems = require(Config:WaitForChild('ToolItems'))
-local Consumables = require(Config:WaitForChild('Consumables'))
 
 -- 这是原本的基础物资列表
 local BaseItems = {
@@ -53,10 +52,6 @@ local FinalItems = table.clone(BaseItems)
 
 for _, toolData in pairs(ToolItems) do
     table.insert(FinalItems, toolData)
-end
-
-for _, consumableData in pairs(Consumables) do
-    table.insert(FinalItems, consumableData)
 end
 
 return FinalItems

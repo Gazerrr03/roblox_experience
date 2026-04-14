@@ -17,6 +17,108 @@
         }
       }
     },
+    "Workspace": {
+      "$className": "Workspace",
+      "RunStaticWorld": {
+        "$className": "Folder",
+        "$attributes": {
+          "OutdoorThresholdZ": 50
+        },
+        "SpawnMarker": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true
+          }
+        },
+        "ReturnMarker": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true
+          }
+        },
+        "MazeReturnMarker": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true
+          }
+        },
+        "DoorLeft": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true
+          }
+        },
+        "DoorRight": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true
+          }
+        },
+        "ShopTerminal": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true
+          },
+          "Prompt": {
+            "$className": "ProximityPrompt"
+          }
+        },
+        "SalvageTerminal": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true
+          },
+          "Prompt": {
+            "$className": "ProximityPrompt"
+          }
+        },
+        "ObjectiveBoard": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true
+          },
+          "Prompt": {
+            "$className": "ProximityPrompt"
+          }
+        },
+        "LoadoutBench": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true
+          },
+          "Prompt": {
+            "$className": "ProximityPrompt"
+          }
+        },
+        "UgcLabConsole": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true
+          },
+          "Prompt": {
+            "$className": "ProximityPrompt"
+          }
+        },
+        "GateSwitch": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true
+          },
+          "Prompt": {
+            "$className": "ProximityPrompt"
+          }
+        },
+        "MazeGateMarker": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true
+          },
+          "Prompt": {
+            "$className": "ProximityPrompt"
+          }
+        }
+      }
+    },
     "ServerScriptService": {
       "$className": "ServerScriptService",
       "$path": "src/ServerScriptService"

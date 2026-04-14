@@ -12,7 +12,7 @@ end
 
 function HealthComponent:init(blackboard)
     local config = blackboard.Context.ComponentConfig.Health
-    local maxHealthPips = (if config and config.MaxHealthPips then config.MaxHealthPips else 2)
+    local maxHealthPips = if config and config.MaxHealthPips then config.MaxHealthPips else 2
 
     self.MaxHealthPips = maxHealthPips
     self.CurrentHealthPips = maxHealthPips
@@ -33,24 +33,6 @@ function HealthComponent:applyDamage(_blackboard, damageKind)
         self.CorpseActive = true
     end
 
-    return true, self.CurrentHealthPips
-end
-
-function HealthComponent:applyHealPips(_blackboard, deltaPips)
-    if self.IsDead == true then
-        return false, 'Dead'
-    end
-
-    local delta = type(deltaPips) == 'number' and math.floor(deltaPips) or 0
-    if delta < 1 then
-        return false, 'InvalidDelta'
-    end
-
-    if self.CurrentHealthPips >= self.MaxHealthPips then
-        return false, 'AlreadyFull'
-    end
-
-    self.CurrentHealthPips = math.min(self.MaxHealthPips, self.CurrentHealthPips + delta)
     return true, self.CurrentHealthPips
 end
 

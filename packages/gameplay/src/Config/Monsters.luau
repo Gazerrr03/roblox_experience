@@ -23,6 +23,7 @@ return {
             AttackCooldownSeconds = 1,
             AttackDamagePips = 1,
             AttackRange = 4,
+            CombatHitPoints = 3,
             Speed = 14,
             SightRange = 36,
             PatrolSpeedMultiplier = 0.45,

@@ -19,6 +19,7 @@ return function()
             Chase = true,
         },
         Effects = {},
+        CombatHitPoints = 2,
         Components = {
             Perception = {
                 SightRange = 28,
