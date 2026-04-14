@@ -92,14 +92,6 @@ local function resolveSurfacePalette(surfacePalette)
     return resolvedPalette
 end
 
-local function edgeKey(roomIdA, roomIdB)
-    if roomIdA < roomIdB then
-        return roomIdA .. '|' .. roomIdB
-    end
-
-    return roomIdB .. '|' .. roomIdA
-end
-
 local function createPart(config, parent)
     local part = Instance_new('Part')
     part.Name = config.Name
