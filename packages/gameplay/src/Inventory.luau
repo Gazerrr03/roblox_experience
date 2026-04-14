@@ -13,29 +13,53 @@ local function cloneLightConfig(lightConfig)
     }
 end
 
-local function cloneItemEntry(itemEntry)
-    return {
-        InstanceId = itemEntry.InstanceId,
-        Id = itemEntry.Id,
-        Name = itemEntry.Name,
-        Weight = itemEntry.Weight,
-        Value = itemEntry.Value,
-        Color = itemEntry.Color,
-        Light = cloneLightConfig(itemEntry.Light),
+-- ItemEntry field groups aligned to OOP framework:
+-- Core (must-have): InstanceId (handled separately), Id, Name, Value
+-- Optional — Weight
+-- Optional — Tool state: InitialState, CurrentState, ConsumePerUse, CooldownSeconds, LastUsedAt, ToolCategory, StateModel
+-- Optional — Light: Color (Light handled separately via cloneLightConfig)
+-- Optional — Melee tool: SwingRange, SwingArcDegrees, SwingKnockback, MeleeDamage
+-- Optional — Consumable: ItemKind, ConsumableEffect, MaxCarryPerId
+local ITEM_COPY_FIELDS = table.freeze({
+    -- Core
+    'Id',
+    'Name',
+    'Value',
+    -- Optional: Weight
+    'Weight',
+    -- Optional: Tool state
+    'InitialState',
+    'CurrentState',
+    'ConsumePerUse',
+    'CooldownSeconds',
+    'LastUsedAt',
+    'ToolCategory',
+    'StateModel',
+    -- Optional: Light
+    'Color',
+    -- Optional: Melee tool
+    'SwingRange',
+    'SwingArcDegrees',
+    'SwingKnockback',
+    'MeleeDamage',
+    -- Optional: Consumable
+    'ItemKind',
+    'ConsumableEffect',
+    'MaxCarryPerId',
+})
 
-        -- === 新增：探索道具扩展字段 ===
-        ToolCategory = itemEntry.ToolCategory,
-        StateModel = itemEntry.StateModel,
-        InitialState = itemEntry.InitialState,
-        CurrentState = itemEntry.CurrentState, -- 记录当前电量/耐久
-        ConsumePerUse = itemEntry.ConsumePerUse,
-        CooldownSeconds = itemEntry.CooldownSeconds,
-        LastUsedAt = itemEntry.LastUsedAt,
-        SwingRange = itemEntry.SwingRange,
-        SwingArcDegrees = itemEntry.SwingArcDegrees,
-        KnockbackStrength = itemEntry.KnockbackStrength,
-        MeleeDamage = itemEntry.MeleeDamage,
-    }
+local function copyItemFields(source, target)
+    for _, field in ipairs(ITEM_COPY_FIELDS) do
+        target[field] = source[field]
+    end
+    target.Light = cloneLightConfig(source.Light)
+    return target
+end
+
+local function cloneItemEntry(itemEntry)
+    return copyItemFields(itemEntry, {
+        InstanceId = itemEntry.InstanceId,
+    })
 end
 
 local function cloneArray(items)
@@ -66,28 +90,10 @@ function Inventory:getCount()
 end
 
 function Inventory:_buildItemEntry(itemDef)
-    local itemEntry = {
+    local itemEntry = copyItemFields(itemDef, {
         InstanceId = self.NextItemInstanceId,
-        Id = itemDef.Id,
-        Name = itemDef.Name,
-        Weight = itemDef.Weight,
-        Value = itemDef.Value,
-        Color = itemDef.Color,
-        Light = cloneLightConfig(itemDef.Light),
-
-        -- === 新增：探索道具扩展字段 ===
-        ToolCategory = itemDef.ToolCategory,
-        StateModel = itemDef.StateModel,
-        InitialState = itemDef.InitialState,
-        CurrentState = itemDef.InitialState, -- 刚放进背包时，当前状态等于初始状态 (满电/满耐久)
-        ConsumePerUse = itemDef.ConsumePerUse,
-        CooldownSeconds = itemDef.CooldownSeconds,
-        LastUsedAt = itemDef.LastUsedAt,
-        SwingRange = itemDef.SwingRange,
-        SwingArcDegrees = itemDef.SwingArcDegrees,
-        KnockbackStrength = itemDef.KnockbackStrength,
-        MeleeDamage = itemDef.MeleeDamage,
-    }
+    })
+    itemEntry.CurrentState = itemDef.InitialState
 
     self.NextItemInstanceId += 1
 
@@ -99,28 +105,12 @@ local function normalizeItemEntry(rawItemEntry)
         return nil
     end
 
-    return {
+    local normalized = copyItemFields(rawItemEntry, {
         InstanceId = rawItemEntry.InstanceId,
-        Id = rawItemEntry.Id,
-        Name = rawItemEntry.Name,
-        Weight = rawItemEntry.Weight or 0,
-        Value = rawItemEntry.Value or 0,
-        Color = rawItemEntry.Color,
-        Light = cloneLightConfig(rawItemEntry.Light),
-
-        -- === 新增：探索道具扩展字段 ===
-        ToolCategory = rawItemEntry.ToolCategory,
-        StateModel = rawItemEntry.StateModel,
-        InitialState = rawItemEntry.InitialState,
-        CurrentState = rawItemEntry.CurrentState,
-        ConsumePerUse = rawItemEntry.ConsumePerUse,
-        CooldownSeconds = rawItemEntry.CooldownSeconds,
-        LastUsedAt = rawItemEntry.LastUsedAt,
-        SwingRange = rawItemEntry.SwingRange,
-        SwingArcDegrees = rawItemEntry.SwingArcDegrees,
-        KnockbackStrength = rawItemEntry.KnockbackStrength,
-        MeleeDamage = rawItemEntry.MeleeDamage,
-    }
+    })
+    normalized.Weight = rawItemEntry.Weight or 0
+    normalized.Value = rawItemEntry.Value or 0
+    return normalized
 end
 
 function Inventory:add(itemDef)
@@ -312,6 +302,29 @@ function Inventory:consumeById(itemId)
         self.HeldItem = nil
         self.Weight -= consumed.Weight
         return true, cloneItemEntry(consumed)
+    end
+
+    return false, 'ItemNotFound'
+end
+
+function Inventory:sell(itemId)
+    if type(itemId) ~= 'string' or itemId == '' then
+        return false, 'MissingItemId'
+    end
+
+    for index, itemEntry in ipairs(self.BackpackItems) do
+        if itemEntry.Id == itemId then
+            local sold = table.remove(self.BackpackItems, index)
+            self.Weight -= sold.Weight or 0
+            return true, cloneItemEntry(sold), sold.Value or 0
+        end
+    end
+
+    if self.HeldItem and self.HeldItem.Id == itemId then
+        local sold = self.HeldItem
+        self.HeldItem = nil
+        self.Weight -= sold.Weight or 0
+        return true, cloneItemEntry(sold), sold.Value or 0
     end
 
     return false, 'ItemNotFound'
