@@ -38,6 +38,7 @@ local function cloneItemEntry(itemEntry)
         SwingArcDegrees = itemEntry.SwingArcDegrees,
         KnockbackStrength = itemEntry.KnockbackStrength,
         MeleeDamage = itemEntry.MeleeDamage,
+        HealHealthPips = itemEntry.HealHealthPips,
     }
 end
 
@@ -93,6 +94,7 @@ function Inventory:_buildItemEntry(itemDef)
         SwingArcDegrees = itemDef.SwingArcDegrees,
         KnockbackStrength = itemDef.KnockbackStrength,
         MeleeDamage = itemDef.MeleeDamage,
+        HealHealthPips = itemDef.HealHealthPips,
     }
 
     self.NextItemInstanceId += 1
@@ -129,6 +131,7 @@ local function normalizeItemEntry(rawItemEntry)
         SwingArcDegrees = rawItemEntry.SwingArcDegrees,
         KnockbackStrength = rawItemEntry.KnockbackStrength,
         MeleeDamage = rawItemEntry.MeleeDamage,
+        HealHealthPips = rawItemEntry.HealHealthPips,
     }
 end
 

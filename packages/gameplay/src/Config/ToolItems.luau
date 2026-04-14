@@ -61,6 +61,8 @@ local ToolItems = {
         InitialState = 3,
         ConsumePerUse = 1,
         CooldownSeconds = 1,
+        -- 每次成功饮用回复的生命 pip（迷宫 RequestUseTool）
+        HealHealthPips = 1,
     },
 }
 

@@ -181,6 +181,34 @@ return function()
         'Hydrated inventory should preserve ToolTemplateName'
     )
 
+    local potionPlayer = {
+        UserId = 204,
+    }
+    inventoryService:addPlayer(potionPlayer)
+    local potionDef = {
+        Id = 'tool-potion',
+        Name = 'Potion',
+        Weight = 1,
+        Value = 0,
+        Color = Color3.fromRGB(236, 72, 153),
+        ToolCategory = 'Potion',
+        StateModel = 'Charges',
+        InitialState = 2,
+        CurrentState = 2,
+        ConsumePerUse = 1,
+        CooldownSeconds = 0,
+        HealHealthPips = 2,
+    }
+    local pickupPotionSuccess, potionEntry = inventoryService:pickup(potionPlayer, potionDef)
+    assert(pickupPotionSuccess == true, 'Runtime inventory should pick up potion tool defs')
+    local equipPotionSuccess = inventoryService:equip(potionPlayer, potionEntry.InstanceId)
+    assert(equipPotionSuccess == true, 'Runtime inventory should equip potion tools')
+    local potionSummary = inventoryService:getSummary(potionPlayer)
+    assert(
+        potionSummary.HeldItem.HealHealthPips == 2,
+        'HealHealthPips should round-trip on held potion summaries'
+    )
+
     local cooldownToolPlayer = {
         UserId = 203,
     }

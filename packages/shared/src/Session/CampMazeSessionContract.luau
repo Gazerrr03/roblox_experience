@@ -59,6 +59,7 @@ local function cloneInventoryItem(itemEntry)
         SwingArcDegrees = itemEntry.SwingArcDegrees,
         KnockbackStrength = itemEntry.KnockbackStrength,
         MeleeDamage = itemEntry.MeleeDamage,
+        HealHealthPips = itemEntry.HealHealthPips,
     }
 end
 
