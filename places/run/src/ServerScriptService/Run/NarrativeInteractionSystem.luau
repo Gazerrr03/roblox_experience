@@ -19,9 +19,6 @@ local Players = game:GetService('Players')
 -- ── 加载纯文案配置 ──
 local Content = require(script.Parent.NarrativeContent)
 
--- ── 图书馆传送门 ──
-local RunToLibraryPortal = require(script.Parent.RunToLibraryPortal)
-
 -- ── 网络模块 ──
 local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
@@ -71,11 +68,12 @@ function NarrativeInteractionSystem.initialize(outdoorFolder: Folder)
     NarrativeInteractionSystem.createWF_03(folder)
 
     -- 洞穴遗迹区 (CR)
-    -- 注意顺序：CR-03 在空间上比 CR-01/02 更靠前，先创建
     NarrativeInteractionSystem.createCR_03(folder)
     NarrativeInteractionSystem.createCR_01(folder)
     NarrativeInteractionSystem.createCR_02(folder)
-    NarrativeInteractionSystem.createCR_04(folder)
+
+    -- 图书馆入口（一扇普通的门，无碎片、无前置条件）
+    NarrativeInteractionSystem.createLibraryDoor(folder)
 end
 
 -- ════════════════════════════════════════════════════════════
@@ -158,21 +156,13 @@ function NarrativeInteractionSystem.awardFragment(player: Player, fragmentId: st
     end
 
     if config then
-        -- CR-04 特殊处理：渐进显现
-        if fragmentId == 'CR_04' then
-            local collectedCount = NarrativeInteractionSystem.getCollectedCount(player)
-            -- collectedCount 此时已包含 CR-04（刚标记），所以是总数
-            local displayText = Content.getCR04Text(collectedCount)
-            Remotes.ShowNarrative:FireClient(player, config.title, displayText, config.intelContent)
-        else
-            -- 普通碎片：显示叙事文字 + 情报内容
-            Remotes.ShowNarrative:FireClient(
-                player,
-                config.title,
-                config.narrativeText,
-                config.intelContent
-            )
-        end
+        -- 普通碎片：显示叙事文字 + 情报内容
+        Remotes.ShowNarrative:FireClient(
+            player,
+            config.title,
+            config.narrativeText,
+            config.intelContent
+        )
     end
 
     return true
@@ -185,7 +175,8 @@ end
 local function createPrompt(
     parent: Instance,
     promptKey: string,
-    maxDistance: number?
+    maxDistance: number?,
+    keyCode: KeyCode?
 ): ProximityPrompt
     local promptConfig = Content.PROMPTS[promptKey]
     if not promptConfig then
@@ -196,7 +187,7 @@ local function createPrompt(
     prompt.Name = promptConfig.actionText .. 'Prompt'
     prompt.ActionText = promptConfig.actionText
     prompt.ObjectText = promptConfig.objectText
-    prompt.KeyboardKeyCode = Enum.KeyCode.E
+    prompt.KeyboardKeyCode = keyCode or Enum.KeyCode.E
     prompt.HoldDuration = promptConfig.holdDuration
     prompt.MaxActivationDistance = maxDistance or 6
     prompt.RequiresLineOfSight = false
@@ -363,12 +354,12 @@ end
 
 function NarrativeInteractionSystem.createAT_03(folder: Folder)
     local atFolder = Instance.new('Folder')
-    atFolder.Name = 'AT_03_ShardedEcho'
+    atFolder.Name = 'AT_03_ShatteredEcho'
     atFolder.Parent = folder
 
     local hammerDef = Content.TRIGGER_ITEMS.ResonanceHammer
 
-    -- 共鸣锤（埋在第3个碎石堆中）
+    -- 共鸣锤（埋在第3个碎石堆中，初始不可见）
     local hammer = Instance.new('Part')
     hammer.Name = 'ResonanceHammer'
     hammer.Size = Vector3.new(0.6, 1.2, 0.6)
@@ -377,9 +368,12 @@ function NarrativeInteractionSystem.createAT_03(folder: Folder)
     hammer.Material = hammerDef.material
     hammer.CanCollide = false
     hammer.Anchored = true
+    hammer.Transparency = 1 -- 初始完全透明（被碎石堆掩埋）
     hammer.Parent = atFolder
 
+    -- 锤子的 Prompt 初始禁用，挖掘后启用
     local hammerPrompt = createPrompt(hammer, 'AT_03_PickupHammer')
+    hammerPrompt.Enabled = false
     hammerPrompt.Triggered:Connect(function(player)
         if NarrativeInteractionSystem.hasItem(player, 'ResonanceHammer') then
             return
@@ -387,17 +381,17 @@ function NarrativeInteractionSystem.createAT_03(folder: Folder)
         NarrativeInteractionSystem.giveItem(player, 'ResonanceHammer')
     end)
 
-    -- 敲击目标碎石堆
-    local rubbleTargets = {
-        Vector3.new(-45, 1.5, 52),
-        Vector3.new(-55, 1, 47),
-        Vector3.new(-65, 2, 37),
-        Vector3.new(-75, 1.3, 27),
+    -- 敲击目标碎石堆（索引 3 是特殊的可挖掘碎石堆）
+    local rubblePositions = {
+        Vector3.new(-45, 1.5, 52), -- 1: 普通
+        Vector3.new(-55, 1, 47), -- 2: 普通
+        Vector3.new(-65, 2, 37), -- 3: 可挖掘（锤子在里面）
+        Vector3.new(-75, 1.3, 27), -- 4: 普通
     }
-    local totalTargets = #rubbleTargets
+    local totalNormalTargets = 3
     local progressFormat = Content.PROGRESS_FEEDBACK.AT_03_RubbleProgress.format
 
-    for i, pos in ipairs(rubbleTargets) do
+    for i, pos in ipairs(rubblePositions) do
         local target = Instance.new('Part')
         target.Name = 'RubbleTarget_' .. i
         target.Size = Vector3.new(2, 1.5, 2)
@@ -409,60 +403,109 @@ function NarrativeInteractionSystem.createAT_03(folder: Folder)
         target.Anchored = true
         target.Parent = atFolder
 
-        local targetPrompt = createPrompt(target, 'AT_03_HitRubble')
-        targetPrompt.Triggered:Connect(function(player)
-            if NarrativeInteractionSystem.hasCollected(player, 'AT_03') then
-                return
-            end
-            if not NarrativeInteractionSystem.hasItem(player, 'ResonanceHammer') then
-                return
-            end
+        if i == 3 then
+            -- 碎石堆_3：可挖掘（不需要锤子）
+            local digPrompt = createPrompt(target, 'AT_03_DigRubble', 3)
+            digPrompt.ActionText = '挖掘'
+            digPrompt.ObjectText = '松动的碎石'
 
-            local hitKey = 'HitBy' .. player.UserId
-            if target:GetAttribute(hitKey) then
-                return
-            end
-            target:SetAttribute(hitKey, true)
+            digPrompt.Triggered:Connect(function(player)
+                local dugKey = 'DugBy' .. player.UserId
+                if target:GetAttribute(dugKey) then
+                    return
+                end
+                target:SetAttribute(dugKey, true)
 
-            -- 敲击视觉反馈（全局可见）
-            target.Color = Color3.fromRGB(200, 180, 150)
-            task.delay(0.5, function()
-                target.Color = Color3.fromRGB(90, 95, 100)
-            end)
+                -- 碎石堆破碎消失
+                target.Transparency = 1
+                target.CanCollide = false
+                digPrompt.Enabled = false
 
-            -- 按玩家独立计数
-            local uid = player.UserId
-            if not playerProgress[uid] then
-                playerProgress[uid] = {}
-            end
-            if not playerProgress[uid]['AT_03'] then
-                playerProgress[uid]['AT_03'] = 0
-            end
-            playerProgress[uid]['AT_03'] += 1
-            local currentCount = playerProgress[uid]['AT_03']
+                -- 小碎块飞散效果
+                for _ = 1, 4 do
+                    local debris = Instance.new('Part')
+                    debris.Size = Vector3.new(0.4, 0.4, 0.4)
+                    debris.Position = pos
+                        + Vector3.new(
+                            math.random(-10, 10) / 10,
+                            math.random(0, 10) / 10,
+                            math.random(-10, 10) / 10
+                        )
+                    debris.Color = Color3.fromRGB(90, 95, 100)
+                    debris.Material = Enum.Material.Slate
+                    debris.CanCollide = false
+                    debris.Anchored = false
+                    debris.Parent = atFolder
+                    game:GetService('Debris'):Add(debris, 2)
+                end
 
-            if currentCount >= totalTargets then
-                local progressText = string.format(progressFormat, currentCount)
-                    .. '\n\n'
-                    .. Content.PROGRESS_FEEDBACK.AT_03_RubbleProgress.completedEffect
-                Remotes.ShowNarrative:FireClient(player, progressText, '', '')
-                task.delay(0.5, function()
-                    if NarrativeInteractionSystem.awardFragment(player, 'AT_03') then
-                        NarrativeInteractionSystem.consumeItem(player, 'ResonanceHammer')
-                    end
-                end)
-            else
-                -- 显示进度
+                -- 露出锤子
+                hammer.Transparency = 0
+                hammerPrompt.Enabled = true
+
                 Remotes.ShowNarrative:FireClient(
                     player,
-                    string.format(progressFormat, currentCount),
-                    '',
+                    '碎石松动',
+                    '有什么东西露出来了……',
                     ''
                 )
-            end
-        end)
-    end
-end
+            end)
+        else
+            local targetPrompt = createPrompt(target, 'AT_03_HitRubble')
+            targetPrompt.Triggered:Connect(function(player)
+                if NarrativeInteractionSystem.hasCollected(player, 'AT_03') then
+                    return
+                end
+                if not NarrativeInteractionSystem.hasItem(player, 'ResonanceHammer') then
+                    return
+                end
+
+                local hitKey = 'HitBy' .. player.UserId
+                if target:GetAttribute(hitKey) then
+                    return
+                end
+                target:SetAttribute(hitKey, true)
+
+                -- 敲击视觉反馈（全局可见）
+                target.Color = Color3.fromRGB(200, 180, 150)
+                task.delay(0.5, function()
+                    target.Color = Color3.fromRGB(90, 95, 100)
+                end)
+
+                -- 按玩家独立计数
+                local uid = player.UserId
+                if not playerProgress[uid] then
+                    playerProgress[uid] = {}
+                end
+                if not playerProgress[uid]['AT_03'] then
+                    playerProgress[uid]['AT_03'] = 0
+                end
+                playerProgress[uid]['AT_03'] += 1
+                local currentCount = playerProgress[uid]['AT_03']
+
+                if currentCount >= totalNormalTargets then
+                    local progressText = string.format(progressFormat, currentCount)
+                        .. '\n\n'
+                        .. Content.PROGRESS_FEEDBACK.AT_03_RubbleProgress.completedEffect
+                    Remotes.ShowNarrative:FireClient(player, progressText, '', '')
+                    task.delay(0.5, function()
+                        if NarrativeInteractionSystem.awardFragment(player, 'AT_03') then
+                            NarrativeInteractionSystem.consumeItem(player, 'ResonanceHammer')
+                        end
+                    end)
+                else
+                    -- 显示进度
+                    Remotes.ShowNarrative:FireClient(
+                        player,
+                        string.format(progressFormat, currentCount),
+                        '',
+                        ''
+                    )
+                end
+            end) -- targetPrompt.Triggered
+        end -- else (normal rubble)
+    end -- for loop
+end -- createAT_03
 
 -- ════════════════════════════════════════════════════════════
 -- AR-01: 石碑的无字面（观测透镜 + 石碑1）
@@ -996,83 +1039,35 @@ function NarrativeInteractionSystem.createCR_03(folder: Folder)
 end
 
 -- ════════════════════════════════════════════════════════════
--- CR-04: 最后的警告（入口凝视 — 渐进显现）
+-- 图书馆入口（一扇普通的门，无碎片、无前置条件）
 -- ════════════════════════════════════════════════════════════
 
-function NarrativeInteractionSystem.createCR_04(folder: Folder)
-    local crFolder = Instance.new('Folder')
-    crFolder.Name = 'CR_04_FinalWarning'
-    crFolder.Parent = folder
+function NarrativeInteractionSystem.createLibraryDoor(folder: Folder)
+    local doorFolder = Instance.new('Folder')
+    doorFolder.Name = 'LibraryDoor'
+    doorFolder.Parent = folder
 
-    -- 洞穴入口交互体
-    local gatePart = Instance.new('Part')
-    gatePart.Name = 'GateInsight'
-    gatePart.Size = Vector3.new(24, 2, 6)
-    gatePart.CFrame = CFrame.new(0, 19, 132)
-    gatePart.Color = Color3.fromRGB(91, 95, 102)
-    gatePart.Material = Enum.Material.Slate
-    gatePart.CanCollide = false
-    gatePart.Anchored = true
-    gatePart.Transparency = 0.8
-    gatePart.Parent = crFolder
+    -- 门体
+    local doorPart = Instance.new('Part')
+    doorPart.Name = 'LibraryDoor'
+    doorPart.Size = Vector3.new(6, 10, 1)
+    doorPart.CFrame = CFrame.new(0, 19, 132)
+    doorPart.Color = Color3.fromRGB(80, 60, 45)
+    doorPart.Material = Enum.Material.Wood
+    doorPart.CanCollide = true
+    doorPart.Anchored = true
+    doorPart.Parent = doorFolder
 
-    local gatePrompt = createPrompt(gatePart, 'CR_04_GazeEntrance', 12)
+    local doorPrompt = Instance.new('ProximityPrompt')
+    doorPrompt.Name = 'LibraryDoorPrompt'
+    doorPrompt.ActionText = Content.LIBRARY_DOOR.actionText
+    doorPrompt.ObjectText = Content.LIBRARY_DOOR.objectText
+    doorPrompt.KeyboardKeyCode = Enum.KeyCode.E
+    doorPrompt.MaxActivationDistance = 6
+    doorPrompt.RequiresLineOfSight = false
+    doorPrompt.Parent = doorPart
 
-    gatePrompt.Triggered:Connect(function(player)
-        if
-            NarrativeInteractionSystem.hasCollected(player, 'CR_04')
-            or gatePart:GetAttribute('Witnessed')
-        then
-            return
-        end
-        gatePart:SetAttribute('Witnessed', true)
-
-        -- 入口发光效果
-        gatePart.Color = Color3.fromRGB(200, 200, 220)
-        task.delay(2, function()
-            gatePart.Color = Color3.fromRGB(91, 95, 102)
-        end)
-
-        -- 发放碎片（awardFragment 内部会自动调用 getCR04Text 处理渐进显现）
-        local awarded = NarrativeInteractionSystem.awardFragment(player, 'CR_04')
-
-        if awarded then
-            -- 检查是否已收集满全部碎片（13个）
-            local collectedCount = NarrativeInteractionSystem.getCollectedCount(player)
-            if collectedCount >= 13 then
-                -- 满收集：升级入口为图书馆传送门
-                task.delay(4.0, function()
-                    -- 等待碎片显示叙事文字结束后，安装传送门
-                    RunToLibraryPortal.installPortal(gatePart, function(p: Player)
-                        return NarrativeInteractionSystem.getCollectedCount(p) >= 13
-                    end, function(p: Player)
-                        -- 传送前回调：通知客户端播放过渡特效
-                        Remotes.ShowNarrative:FireClient(
-                            p,
-                            Content.LIBRARY_PORTAL.portalObjectText,
-                            Content.LIBRARY_PORTAL.preTeleportNarrative,
-                            ''
-                        )
-                        -- 入口持续发光
-                        gatePart.Color = Content.LIBRARY_PORTAL.entranceEffects.gateGlowColor
-                    end)
-
-                    -- 更新 Prompt 文案为"进入图书馆"
-                    gatePrompt.ActionText = Content.LIBRARY_PORTAL.portalActionText
-                    gatePrompt.ObjectText = Content.LIBRARY_PORTAL.portalObjectText
-                    gatePrompt.HoldDuration = Content.LIBRARY_PORTAL.portalHoldDuration
-
-                    -- 满收集确认文字
-                    Remotes.ShowNarrative:FireClient(
-                        player,
-                        '',
-                        Content.FRAGMENT_AWARD_TEMPLATES.collectionComplete,
-                        ''
-                    )
-                end)
-            end
-        end
-    end)
+    -- TODO: 传送逻辑后续按需接入（TeleportService 到 Library Place）
 end
 
 -- ════════════════════════════════════════════════════════════
