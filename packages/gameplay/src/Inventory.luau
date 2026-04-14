@@ -182,20 +182,23 @@ function Inventory:consumeHeldItemState(nowSeconds)
         return false, 'NotConsumable'
     end
 
-    if type(heldItem.ConsumePerUse) == 'number' and heldItem.ConsumePerUse > 0 then
+    -- Cooldown check applies to all tools (including zero-consume)
+    local cooldownSeconds = heldItem.CooldownSeconds
+    if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
+        local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
+        local lastUsedAt = heldItem.LastUsedAt
+        if type(lastUsedAt) == 'number' and now - lastUsedAt < cooldownSeconds then
+            return false, 'Cooldown', cooldownSeconds - (now - lastUsedAt)
+        end
+    end
+
+    -- Consume state only when ConsumePerUse > 0
+    if heldItem.ConsumePerUse > 0 then
         if heldItem.CurrentState < heldItem.ConsumePerUse then
             return false, 'Depleted'
         end
 
         local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
-        local cooldownSeconds = heldItem.CooldownSeconds
-        if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
-            local lastUsedAt = heldItem.LastUsedAt
-            if type(lastUsedAt) == 'number' and now - lastUsedAt < cooldownSeconds then
-                return false, 'Cooldown', cooldownSeconds - (now - lastUsedAt)
-            end
-        end
-
         heldItem.CurrentState -= heldItem.ConsumePerUse
         heldItem.LastUsedAt = now
     end
