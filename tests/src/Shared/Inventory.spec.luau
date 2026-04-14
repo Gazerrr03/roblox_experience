@@ -22,6 +22,9 @@ return function()
         Weight = 3,
         Value = 0,
         Color = Color3.fromRGB(200, 200, 200),
+        Description = 'Spec crowbar',
+        IconAssetId = '',
+        ToolTemplateName = 'ToolCrowbar',
         ToolCategory = 'Crowbar',
         StateModel = 'Durability',
         InitialState = 10,
@@ -162,6 +165,20 @@ return function()
     assert(
         toolSummary.HeldItem.CurrentState == 10,
         'Tool state should persist unchanged when ConsumePerUse is 0'
+    )
+    assert(
+        toolSummary.HeldItem.ToolTemplateName == 'ToolCrowbar',
+        'Tool presentation template name should round-trip through summaries'
+    )
+
+    local toolRoundTrip = gameplay.Inventory.new(7)
+    assert(
+        toolRoundTrip:loadSummary(toolSummary) == true,
+        'Tool summaries should hydrate inventory'
+    )
+    assert(
+        toolRoundTrip:getSummary().HeldItem.ToolTemplateName == 'ToolCrowbar',
+        'Hydrated inventory should preserve ToolTemplateName'
     )
 
     local cooldownToolPlayer = {

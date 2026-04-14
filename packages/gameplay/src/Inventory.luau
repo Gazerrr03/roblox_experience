@@ -22,6 +22,9 @@ local function cloneItemEntry(itemEntry)
         Value = itemEntry.Value,
         Color = itemEntry.Color,
         Light = cloneLightConfig(itemEntry.Light),
+        Description = itemEntry.Description,
+        IconAssetId = itemEntry.IconAssetId,
+        ToolTemplateName = itemEntry.ToolTemplateName,
 
         -- === 新增：探索道具扩展字段 ===
         ToolCategory = itemEntry.ToolCategory,
@@ -74,6 +77,9 @@ function Inventory:_buildItemEntry(itemDef)
         Value = itemDef.Value,
         Color = itemDef.Color,
         Light = cloneLightConfig(itemDef.Light),
+        Description = itemDef.Description,
+        IconAssetId = itemDef.IconAssetId,
+        ToolTemplateName = itemDef.ToolTemplateName,
 
         -- === 新增：探索道具扩展字段 ===
         ToolCategory = itemDef.ToolCategory,
@@ -107,6 +113,9 @@ local function normalizeItemEntry(rawItemEntry)
         Value = rawItemEntry.Value or 0,
         Color = rawItemEntry.Color,
         Light = cloneLightConfig(rawItemEntry.Light),
+        Description = rawItemEntry.Description,
+        IconAssetId = rawItemEntry.IconAssetId,
+        ToolTemplateName = rawItemEntry.ToolTemplateName,
 
         -- === 新增：探索道具扩展字段 ===
         ToolCategory = rawItemEntry.ToolCategory,

@@ -137,6 +137,61 @@ return function()
         'Pending UGC payload should preserve runtime monster presentation data'
     )
 
+    local toolHoldTeleport = contract.buildRunToMazeTeleportData({
+        SessionConfig = {
+            Seed = 12345,
+            Quota = 120,
+            RunDurationSeconds = 180,
+            InventoryCapacity = 8,
+        },
+        CampSession = entered,
+        EnteringPlayer = {
+            UserId = 42,
+            Name = 'Scout',
+        },
+        EntryReason = 'maze_gate',
+        PlayerInventory = {
+            Capacity = 8,
+            Weight = 3,
+            Count = 1,
+            BackpackCount = 0,
+            HeldCount = 1,
+            Value = 0,
+            BackpackItems = {},
+            HeldItem = {
+                InstanceId = 10,
+                Id = 'tool-crowbar',
+                Name = 'Crowbar',
+                Weight = 3,
+                Value = 0,
+                Color = Color3.fromRGB(200, 200, 200),
+                ToolCategory = 'Crowbar',
+                StateModel = 'Durability',
+                InitialState = 10,
+                CurrentState = 10,
+                ConsumePerUse = 0,
+                CooldownSeconds = 0.5,
+                IconAssetId = '',
+                ToolTemplateName = 'ToolCrowbar',
+                Description = 'Contract tool row',
+                SwingRange = 6,
+                SwingArcDegrees = 70,
+                KnockbackStrength = 15,
+                MeleeDamage = 1,
+            },
+        },
+        PendingUgcMonsterPayload = nil,
+    })
+    local toolHoldInventory = contract.findPlayerInventory(toolHoldTeleport, 42)
+    assert(
+        toolHoldInventory.HeldItem.ToolCategory == 'Crowbar',
+        'Run -> maze inventory clone should preserve ToolCategory for tools'
+    )
+    assert(
+        toolHoldInventory.HeldItem.ToolTemplateName == 'ToolCrowbar',
+        'Run -> maze inventory clone should preserve ToolTemplateName for presentation'
+    )
+
     local earlyReturn = contract.buildReturnSummary({
         UserId = 42,
         Name = 'Scout',
