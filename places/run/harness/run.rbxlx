@@ -11,6 +11,7 @@
         <Properties>
           <string name="Name">Gameplay</string>
           <string name="Source"><![CDATA[return {
+    Combat = require(script.Combat),
     Config = require(script.Config),
     ControlState = require(script.ControlState),
     Inventory = require(script.Inventory),
@@ -25,6 +26,91 @@
         </Properties>
         <Item class="ModuleScript" referent="3">
           <Properties>
+            <string name="Name">Combat</string>
+            <string name="Source"><![CDATA[return {
+    PlayerMonsterMelee = require(script.PlayerMonsterMelee),
+}
+]]></string>
+          </Properties>
+          <Item class="ModuleScript" referent="4">
+            <Properties>
+              <string name="Name">PlayerMonsterMelee</string>
+              <string name="Source"><![CDATA[-- Pure geometry for player crowbar / melee vs a monster anchor position (tests + runtime).
+
+local EPS = 1e-4
+
+local PlayerMonsterMelee = {}
+
+function PlayerMonsterMelee.horizontalUnit(vector3)
+    if typeof(vector3) ~= 'Vector3' then
+        return nil
+    end
+
+    local horizontal = Vector3.new(vector3.X, 0, vector3.Z)
+    if horizontal.Magnitude <= EPS then
+        return nil
+    end
+
+    return horizontal.Unit
+end
+
+function PlayerMonsterMelee.evaluateSwing(
+    playerPosition,
+    playerLookVector,
+    monsterPosition,
+    swingRange,
+    swingArcDegrees
+)
+    if typeof(playerPosition) ~= 'Vector3' then
+        return false, 'InvalidPlayerPosition'
+    end
+    if typeof(monsterPosition) ~= 'Vector3' then
+        return false, 'InvalidMonsterPosition'
+    end
+
+    local range = swingRange
+    if type(range) ~= 'number' or range <= 0 then
+        return false, 'InvalidSwingRange'
+    end
+
+    local arc = swingArcDegrees
+    if type(arc) ~= 'number' or arc <= 0 then
+        return false, 'InvalidSwingArc'
+    end
+
+    local offset = monsterPosition - playerPosition
+    local distance = offset.Magnitude
+    if distance > range + EPS then
+        return false, 'OutOfRange'
+    end
+
+    local facing = PlayerMonsterMelee.horizontalUnit(playerLookVector)
+    if facing == nil then
+        return false, 'InvalidFacing'
+    end
+
+    local toMonster = PlayerMonsterMelee.horizontalUnit(offset)
+    if toMonster == nil then
+        return true, 'HitGeometryOk'
+    end
+
+    local halfArcRad = math.rad(arc * 0.5)
+    local minDot = math.cos(halfArcRad)
+    local dot = facing:Dot(toMonster)
+    if dot + EPS < minDot then
+        return false, 'OutOfSwingArc'
+    end
+
+    return true, 'HitGeometryOk'
+end
+
+return PlayerMonsterMelee
+]]></string>
+            </Properties>
+          </Item>
+        </Item>
+        <Item class="ModuleScript" referent="5">
+          <Properties>
             <string name="Name">Config</string>
             <string name="Source"><![CDATA[return {
     Items = require(script.Items),
@@ -33,7 +119,7 @@
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="4">
+          <Item class="ModuleScript" referent="6">
             <Properties>
               <string name="Name">Items</string>
               <string name="Source"><![CDATA[local Config = script.Parent
@@ -96,7 +182,7 @@ return FinalItems
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="5">
+          <Item class="ModuleScript" referent="7">
             <Properties>
               <string name="Name">Monsters</string>
               <string name="Source"><![CDATA[local MonsterBehaviorCatalog = require(script.Parent.Parent.Monsters.MonsterBehaviorCatalog)
@@ -124,6 +210,7 @@ return {
             AttackCooldownSeconds = 1,
             AttackDamagePips = 1,
             AttackRange = 4,
+            CombatHitPoints = 3,
             Speed = 14,
             SightRange = 36,
             PatrolSpeedMultiplier = 0.45,
@@ -166,7 +253,7 @@ return {
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="6">
+          <Item class="ModuleScript" referent="8">
             <Properties>
               <string name="Name">Players</string>
               <string name="Source"><![CDATA[local Players = {}
@@ -201,7 +288,7 @@ return Players
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="7">
+          <Item class="ModuleScript" referent="9">
             <Properties>
               <string name="Name">Roles</string>
               <string name="Source"><![CDATA[return {
@@ -233,7 +320,7 @@ return Players
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="8">
+          <Item class="ModuleScript" referent="10">
             <Properties>
               <string name="Name">ToolItems</string>
               <string name="Source"><![CDATA[-- ExplorationToolItems Config v0.1
@@ -242,7 +329,7 @@ local ToolItems = {
     ['tool-flashlight'] = {
         Id = 'tool-flashlight',
         Name = 'Flashlight',
-        Description = '在黑暗中照亮路径。电量耗尽后无法使用。',
+        Description = '在黑暗中照亮路径。本配置下使用不消耗电量。',
         ToolCategory = 'Flashlight',
         Weight = 1,
         Value = 0,
@@ -251,7 +338,7 @@ local ToolItems = {
         -- 状态属性
         StateModel = 'Battery',
         InitialState = 100,
-        ConsumePerUse = 1,
+        ConsumePerUse = 0,
         CooldownSeconds = 0,
     },
 
@@ -259,7 +346,7 @@ local ToolItems = {
     ['tool-crowbar'] = {
         Id = 'tool-crowbar',
         Name = 'Crowbar',
-        Description = '近战挥舞可击退前方怪物。',
+        Description = '近战挥舞可对前方怪物造成伤害。本配置下使用不消耗耐久。',
         ToolCategory = 'Crowbar',
         Weight = 3,
         Value = 0,
@@ -268,12 +355,13 @@ local ToolItems = {
         -- 状态属性
         StateModel = 'Durability',
         InitialState = 10,
-        ConsumePerUse = 1,
+        ConsumePerUse = 0,
         CooldownSeconds = 0.5,
         -- 战斗参数
         SwingRange = 6,
         SwingArcDegrees = 70,
         KnockbackStrength = 15,
+        MeleeDamage = 1,
     },
 }
 
@@ -282,7 +370,7 @@ return ToolItems
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="9">
+        <Item class="ModuleScript" referent="11">
           <Properties>
             <string name="Name">ControlState</string>
             <string name="Source"><![CDATA[local MODE = table.freeze({
@@ -363,7 +451,7 @@ return ControlState
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="10">
+        <Item class="ModuleScript" referent="12">
           <Properties>
             <string name="Name">Inventory</string>
             <string name="Source"><![CDATA[local Inventory = {}
@@ -390,12 +478,19 @@ local function cloneItemEntry(itemEntry)
         Value = itemEntry.Value,
         Color = itemEntry.Color,
         Light = cloneLightConfig(itemEntry.Light),
+
+        -- === 新增：探索道具扩展字段 ===
         ToolCategory = itemEntry.ToolCategory,
         StateModel = itemEntry.StateModel,
-        CurrentState = itemEntry.CurrentState,
+        InitialState = itemEntry.InitialState,
+        CurrentState = itemEntry.CurrentState, -- 记录当前电量/耐久
         ConsumePerUse = itemEntry.ConsumePerUse,
         CooldownSeconds = itemEntry.CooldownSeconds,
         LastUsedAt = itemEntry.LastUsedAt,
+        SwingRange = itemEntry.SwingRange,
+        SwingArcDegrees = itemEntry.SwingArcDegrees,
+        KnockbackStrength = itemEntry.KnockbackStrength,
+        MeleeDamage = itemEntry.MeleeDamage,
     }
 end
 
@@ -435,12 +530,19 @@ function Inventory:_buildItemEntry(itemDef)
         Value = itemDef.Value,
         Color = itemDef.Color,
         Light = cloneLightConfig(itemDef.Light),
+
+        -- === 新增：探索道具扩展字段 ===
         ToolCategory = itemDef.ToolCategory,
         StateModel = itemDef.StateModel,
-        CurrentState = itemDef.InitialState,
+        InitialState = itemDef.InitialState,
+        CurrentState = itemDef.InitialState, -- 刚放进背包时，当前状态等于初始状态 (满电/满耐久)
         ConsumePerUse = itemDef.ConsumePerUse,
         CooldownSeconds = itemDef.CooldownSeconds,
         LastUsedAt = itemDef.LastUsedAt,
+        SwingRange = itemDef.SwingRange,
+        SwingArcDegrees = itemDef.SwingArcDegrees,
+        KnockbackStrength = itemDef.KnockbackStrength,
+        MeleeDamage = itemDef.MeleeDamage,
     }
 
     self.NextItemInstanceId += 1
@@ -461,12 +563,19 @@ local function normalizeItemEntry(rawItemEntry)
         Value = rawItemEntry.Value or 0,
         Color = rawItemEntry.Color,
         Light = cloneLightConfig(rawItemEntry.Light),
+
+        -- === 新增：探索道具扩展字段 ===
         ToolCategory = rawItemEntry.ToolCategory,
         StateModel = rawItemEntry.StateModel,
+        InitialState = rawItemEntry.InitialState,
         CurrentState = rawItemEntry.CurrentState,
         ConsumePerUse = rawItemEntry.ConsumePerUse,
         CooldownSeconds = rawItemEntry.CooldownSeconds,
         LastUsedAt = rawItemEntry.LastUsedAt,
+        SwingRange = rawItemEntry.SwingRange,
+        SwingArcDegrees = rawItemEntry.SwingArcDegrees,
+        KnockbackStrength = rawItemEntry.KnockbackStrength,
+        MeleeDamage = rawItemEntry.MeleeDamage,
     }
 end
 
@@ -529,21 +638,24 @@ function Inventory:consumeHeldItemState(nowSeconds)
         return false, 'NotConsumable'
     end
 
-    if heldItem.CurrentState < heldItem.ConsumePerUse then
-        return false, 'Depleted'
-    end
-
-    local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
-    local cooldownSeconds = heldItem.CooldownSeconds
-    if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
-        local lastUsedAt = heldItem.LastUsedAt
-        if type(lastUsedAt) == 'number' and now - lastUsedAt < cooldownSeconds then
-            return false, 'Cooldown', cooldownSeconds - (now - lastUsedAt)
+    if type(heldItem.ConsumePerUse) == 'number' and heldItem.ConsumePerUse > 0 then
+        if heldItem.CurrentState < heldItem.ConsumePerUse then
+            return false, 'Depleted'
         end
+
+        local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
+        local cooldownSeconds = heldItem.CooldownSeconds
+        if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
+            local lastUsedAt = heldItem.LastUsedAt
+            if type(lastUsedAt) == 'number' and now - lastUsedAt < cooldownSeconds then
+                return false, 'Cooldown', cooldownSeconds - (now - lastUsedAt)
+            end
+        end
+
+        heldItem.CurrentState -= heldItem.ConsumePerUse
+        heldItem.LastUsedAt = now
     end
 
-    heldItem.CurrentState -= heldItem.ConsumePerUse
-    heldItem.LastUsedAt = now
     return true, cloneItemEntry(heldItem)
 end
 
@@ -665,7 +777,7 @@ return Inventory
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="11">
+        <Item class="ModuleScript" referent="13">
           <Properties>
             <string name="Name">Monsters</string>
             <string name="Source"><![CDATA[local MonsterCompiler = require(script.MonsterCompiler)
@@ -690,11 +802,11 @@ return {
 }
 ]]></string>
           </Properties>
-          <Item class="Folder" referent="12">
+          <Item class="Folder" referent="14">
             <Properties>
               <string name="Name">Components</string>
             </Properties>
-            <Item class="ModuleScript" referent="13">
+            <Item class="ModuleScript" referent="15">
               <Properties>
                 <string name="Name">AttackComponent</string>
                 <string name="Source"><![CDATA[local MonsterBehaviorCatalog = require(script.Parent.Parent.MonsterBehaviorCatalog)
@@ -779,7 +891,7 @@ return AttackComponent
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="14">
+            <Item class="ModuleScript" referent="16">
               <Properties>
                 <string name="Name">MovementComponent</string>
                 <string name="Source"><![CDATA[local MonsterBehaviorCatalog = require(script.Parent.Parent.MonsterBehaviorCatalog)
@@ -868,7 +980,7 @@ return MovementComponent
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="15">
+            <Item class="ModuleScript" referent="17">
               <Properties>
                 <string name="Name">PerceptionComponent</string>
                 <string name="Source"><![CDATA[local MonsterBehaviorCatalog = require(script.Parent.Parent.MonsterBehaviorCatalog)
@@ -925,7 +1037,7 @@ return PerceptionComponent
               </Properties>
             </Item>
           </Item>
-          <Item class="ModuleScript" referent="16">
+          <Item class="ModuleScript" referent="18">
             <Properties>
               <string name="Name">Enemy</string>
               <string name="Source"><![CDATA[local EnemyBlackboard = require(script.Parent.EnemyBlackboard)
@@ -1031,7 +1143,7 @@ return Enemy
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="17">
+          <Item class="ModuleScript" referent="19">
             <Properties>
               <string name="Name">EnemyBlackboard</string>
               <string name="Source"><![CDATA[local EnemyBlackboard = {}
@@ -1076,7 +1188,7 @@ return EnemyBlackboard
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="18">
+          <Item class="ModuleScript" referent="20">
             <Properties>
               <string name="Name">EnemyStateMachine</string>
               <string name="Source"><![CDATA[local EnemyStateMachine = {}
@@ -1137,7 +1249,7 @@ return EnemyStateMachine
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="19">
+          <Item class="ModuleScript" referent="21">
             <Properties>
               <string name="Name">MazeMonsterSpawnPolicy</string>
               <string name="Source"><![CDATA[local MazeMonsterSpawnPolicy = {}
@@ -1249,7 +1361,7 @@ return MazeMonsterSpawnPolicy
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="20">
+          <Item class="ModuleScript" referent="22">
             <Properties>
               <string name="Name">MonsterAssetIds</string>
               <string name="Source"><![CDATA[local MonsterAssetIds = table.freeze({
@@ -1261,7 +1373,7 @@ return MonsterAssetIds
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="21">
+          <Item class="ModuleScript" referent="23">
             <Properties>
               <string name="Name">MonsterAuthorProfile</string>
               <string name="Source"><![CDATA[local MonsterBehaviorCatalog = require(script.Parent.MonsterBehaviorCatalog)
@@ -1522,6 +1634,16 @@ function MonsterAuthorProfile.validate(profile)
         return false, 'InvalidSpawnOffset'
     end
 
+    if tuning.CombatHitPoints ~= nil then
+        if
+            type(tuning.CombatHitPoints) ~= 'number'
+            or tuning.CombatHitPoints < 1
+            or math.floor(tuning.CombatHitPoints) ~= tuning.CombatHitPoints
+        then
+            return false, 'InvalidCombatHitPoints'
+        end
+    end
+
     if type(executable.BehaviorIntents) ~= 'table' or #executable.BehaviorIntents == 0 then
         return false, 'MissingBehaviorIntents'
     end
@@ -1569,7 +1691,7 @@ return MonsterAuthorProfile
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="22">
+          <Item class="ModuleScript" referent="24">
             <Properties>
               <string name="Name">MonsterBehaviorCatalog</string>
               <string name="Source"><![CDATA[local BEHAVIOR = table.freeze({
@@ -1601,7 +1723,7 @@ return MonsterBehaviorCatalog
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="23">
+          <Item class="ModuleScript" referent="25">
             <Properties>
               <string name="Name">MonsterCompiler</string>
               <string name="Source"><![CDATA[local MonsterAuthorProfile = require(script.Parent.MonsterAuthorProfile)
@@ -1614,6 +1736,7 @@ local DEFAULT_SPAWN_OFFSET = Vector3.new(0, 4, 0)
 local DEFAULT_ATTACK_COOLDOWN_SECONDS = 1
 local DEFAULT_ATTACK_DAMAGE_PIPS = 1
 local DEFAULT_ATTACK_RANGE = 4
+local DEFAULT_COMBAT_HIT_POINTS = 1
 
 local MonsterCompiler = {}
 
@@ -1677,6 +1800,15 @@ function MonsterCompiler.compileMonsterForMaze(authorProfile)
         end
     end
 
+    local combatHitPoints = normalizedProfile.Tuning.CombatHitPoints
+    if
+        type(combatHitPoints) ~= 'number'
+        or combatHitPoints < 1
+        or math.floor(combatHitPoints) ~= combatHitPoints
+    then
+        combatHitPoints = DEFAULT_COMBAT_HIT_POINTS
+    end
+
     local runtimeProfile = {
         Id = normalizedProfile.Id,
         Name = normalizedProfile.Name,
@@ -1689,6 +1821,7 @@ function MonsterCompiler.compileMonsterForMaze(authorProfile)
         SightRange = normalizedProfile.Tuning.SightRange,
         PatrolSpeedMultiplier = normalizedProfile.Tuning.PatrolSpeedMultiplier,
         SpawnOffset = normalizedProfile.Tuning.SpawnOffset or DEFAULT_SPAWN_OFFSET,
+        CombatHitPoints = combatHitPoints,
         Behaviors = table.freeze(behaviors),
         Effects = table.freeze(runtimeEffects),
     }
@@ -1716,7 +1849,7 @@ return MonsterCompiler
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="24">
+          <Item class="ModuleScript" referent="26">
             <Properties>
               <string name="Name">MonsterComponentConfig</string>
               <string name="Source"><![CDATA[local DEFAULT_ATTACK_COOLDOWN_SECONDS = 1
@@ -1808,7 +1941,7 @@ return MonsterComponentConfig
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="25">
+          <Item class="ModuleScript" referent="27">
             <Properties>
               <string name="Name">MonsterEffectCatalog</string>
               <string name="Source"><![CDATA[local CATEGORY = table.freeze({
@@ -1871,7 +2004,7 @@ return table.freeze(MonsterEffectCatalog)
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="26">
+          <Item class="ModuleScript" referent="28">
             <Properties>
               <string name="Name">MonsterLogic</string>
               <string name="Source"><![CDATA[local MonsterLogic = {}
@@ -1907,7 +2040,7 @@ return MonsterLogic
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="27">
+          <Item class="ModuleScript" referent="29">
             <Properties>
               <string name="Name">MonsterPresentationCatalog</string>
               <string name="Source"><![CDATA[local MonsterPresentationCatalog = {}
@@ -1932,7 +2065,7 @@ return MonsterPresentationCatalog
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="28">
+          <Item class="ModuleScript" referent="30">
             <Properties>
               <string name="Name">MonsterRuntimeProfile</string>
               <string name="Source"><![CDATA[local MonsterPresentationCatalog = require(script.Parent.MonsterPresentationCatalog)
@@ -2144,6 +2277,15 @@ function MonsterRuntimeProfile.validate(profile)
         return false, 'MissingRuntimeEffects'
     end
 
+    local combatHitPoints = profile.CombatHitPoints
+    if
+        type(combatHitPoints) ~= 'number'
+        or combatHitPoints < 1
+        or math.floor(combatHitPoints) ~= combatHitPoints
+    then
+        return false, 'InvalidRuntimeCombatHitPoints'
+    end
+
     return true
 end
 
@@ -2151,7 +2293,7 @@ return MonsterRuntimeProfile
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="29">
+          <Item class="ModuleScript" referent="31">
             <Properties>
               <string name="Name">MonsterUgcPipeline</string>
               <string name="Source"><![CDATA[local MonsterBehaviorCatalog = require(script.Parent.MonsterBehaviorCatalog)
@@ -3034,7 +3176,7 @@ return MonsterUgcPipeline
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="30">
+          <Item class="ModuleScript" referent="32">
             <Properties>
               <string name="Name">MonsterUgcReviewQueue</string>
               <string name="Source"><![CDATA[local MonsterUgcReviewQueue = {}
@@ -3189,7 +3331,7 @@ return MonsterUgcReviewQueue
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="31">
+        <Item class="ModuleScript" referent="33">
           <Properties>
             <string name="Name">Player</string>
             <string name="Source"><![CDATA[return {
@@ -3204,11 +3346,11 @@ return MonsterUgcReviewQueue
 }
 ]]></string>
           </Properties>
-          <Item class="Folder" referent="32">
+          <Item class="Folder" referent="34">
             <Properties>
               <string name="Name">Components</string>
             </Properties>
-            <Item class="ModuleScript" referent="33">
+            <Item class="ModuleScript" referent="35">
               <Properties>
                 <string name="Name">HealthComponent</string>
                 <string name="Source"><![CDATA[local HealthComponent = {}
@@ -3225,11 +3367,7 @@ end
 
 function HealthComponent:init(blackboard)
     local config = blackboard.Context.ComponentConfig.Health
-<<<<<<< HEAD
     local maxHealthPips = if config and config.MaxHealthPips then config.MaxHealthPips else 2
-=======
-    local maxHealthPips = if config and config.MaxHealthPips then config.MaxHealthPips else 2
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
 
     self.MaxHealthPips = maxHealthPips
     self.CurrentHealthPips = maxHealthPips
@@ -3237,11 +3375,7 @@ function HealthComponent:init(blackboard)
     self.CorpseActive = false
 end
 
-<<<<<<< HEAD
-function HealthComponent:applyDamage(blackboard, damageKind)
-=======
-function HealthComponent:applyDamage(blackboard, damageKind)
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
+function HealthComponent:applyDamage(_blackboard, damageKind)
     local pipCost = DAMAGE_PIP_COST[damageKind]
     if pipCost == nil then
         return false, 'UnknownDamageKind'
@@ -3257,11 +3391,7 @@ function HealthComponent:applyDamage(blackboard, damageKind)
     return true, self.CurrentHealthPips
 end
 
-<<<<<<< HEAD
-function HealthComponent:update(blackboard, dt)
-=======
-function HealthComponent:update(blackboard, dt)
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
+function HealthComponent:update(blackboard, _dt)
     blackboard.Transient.CurrentHealthPips = self.CurrentHealthPips
     blackboard.Transient.MaxHealthPips = self.MaxHealthPips
     blackboard.Transient.IsDead = self.IsDead
@@ -3274,7 +3404,7 @@ return HealthComponent
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="34">
+            <Item class="ModuleScript" referent="36">
               <Properties>
                 <string name="Name">InventoryComponent</string>
                 <string name="Source"><![CDATA[local InventoryComponent = {}
@@ -3383,11 +3513,7 @@ function InventoryComponent:useItem(blackboard)
     return true, slot
 end
 
-<<<<<<< HEAD
-function InventoryComponent:removeItem(blackboard, slotIndex)
-=======
-function InventoryComponent:removeItem(blackboard, slotIndex)
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
+function InventoryComponent:removeItem(_blackboard, slotIndex)
     if slotIndex < 1 or slotIndex > #self.Slots then
         return false, 'InvalidSlot'
     end
@@ -3404,11 +3530,7 @@ function InventoryComponent:removeItem(blackboard, slotIndex)
     return true
 end
 
-<<<<<<< HEAD
-function InventoryComponent:update(blackboard, dt)
-=======
-function InventoryComponent:update(blackboard, dt)
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
+function InventoryComponent:update(blackboard, _dt)
     blackboard.Transient.Slots = self.Slots
     blackboard.Transient.EquippedSlot = self.EquippedSlot
     blackboard.Transient.InteractionRange = self.InteractionRange
@@ -3420,7 +3542,7 @@ return InventoryComponent
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="35">
+            <Item class="ModuleScript" referent="37">
               <Properties>
                 <string name="Name">MovementComponent</string>
                 <string name="Source"><![CDATA[local MovementComponent = {}
@@ -3470,11 +3592,7 @@ function MovementComponent:update(blackboard, dt)
 
         if distance > 0.1 then
             isMoving = true
-<<<<<<< HEAD
             local stepSize = math.min(moveSpeed * dt, distance)
-=======
-            local stepSize = math.min(moveSpeed * dt, distance)
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
             nextPosition = currentPosition + (direction.Unit * stepSize)
         end
     end
@@ -3482,17 +3600,10 @@ function MovementComponent:update(blackboard, dt)
     self.IsMoving = isMoving
 
     blackboard.Transient.NextPosition = nextPosition
-<<<<<<< HEAD
     blackboard.Transient.DesiredAnimation = if isSprinting and isMoving
         then 'Run'
         elseif isMoving then 'Walk'
         else 'Idle'
-=======
-    blackboard.Transient.DesiredAnimation = if isSprinting and isMoving
-        then 'Run'
-        elseif isMoving then 'Walk'
-        else 'Idle'
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
     blackboard.Transient.IsMoving = isMoving
     blackboard.Transient.IsJumping = self.IsJumping
 end
@@ -3503,7 +3614,7 @@ return MovementComponent
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="36">
+            <Item class="ModuleScript" referent="38">
               <Properties>
                 <string name="Name">StaminaComponent</string>
                 <string name="Source"><![CDATA[local StaminaComponent = {}
@@ -3522,11 +3633,8 @@ function StaminaComponent:init(blackboard)
     self.CurrentStamina = self.MaxStamina
     self.DrainPerSecond = config.DrainPerSecond or 35
     self.RecoveryPerSecond = config.RecoveryPerSecond or 20
-<<<<<<< HEAD
-    self.RecoveryDelaySeconds = config.RecoveryDelaySeconds or DEFAULT_STAMINA_RECOVERY_DELAY_SECONDS
-=======
-    self.RecoveryDelaySeconds = config.RecoveryDelaySeconds or DEFAULT_STAMINA_RECOVERY_DELAY_SECONDS
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
+    self.RecoveryDelaySeconds = config.RecoveryDelaySeconds
+        or DEFAULT_STAMINA_RECOVERY_DELAY_SECONDS
     self.ResumeThreshold = config.ResumeThreshold or 20
 
     self.StaminaRecoveryStartTime = 0
@@ -3534,12 +3642,8 @@ function StaminaComponent:init(blackboard)
     self.CanSprint = true
 end
 
-function StaminaComponent:drainStamina(blackboard, amount)
-<<<<<<< HEAD
+function StaminaComponent:drainStamina(_blackboard, amount)
     if self.IsDead then
-=======
-    if self.IsDead then
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
         return false, 'Dead'
     end
 
@@ -3554,12 +3658,8 @@ function StaminaComponent:drainStamina(blackboard, amount)
     return true, self.CurrentStamina
 end
 
-function StaminaComponent:setSprinting(blackboard, isSprinting)
-<<<<<<< HEAD
+function StaminaComponent:setSprinting(_blackboard, isSprinting)
     if self.IsDead then
-=======
-    if self.IsDead then
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
         self.IsSprinting = false
         return false, 'Dead'
     end
@@ -3582,11 +3682,7 @@ function StaminaComponent:update(blackboard, dt)
     local deltaTime = math.max(0, dt or 0)
     local now = os.clock()
 
-<<<<<<< HEAD
     if self.IsDead then
-=======
-    if self.IsDead then
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
         blackboard.Transient.CurrentStamina = self.CurrentStamina
         blackboard.Transient.MaxStamina = self.MaxStamina
         blackboard.Transient.CanSprint = false
@@ -3603,17 +3699,8 @@ function StaminaComponent:update(blackboard, dt)
             self.IsSprinting = false
         end
     elseif now >= self.StaminaRecoveryStartTime then
-<<<<<<< HEAD
-        self.CurrentStamina = math.min(
-            self.MaxStamina,
-            self.CurrentStamina + self.RecoveryPerSecond * deltaTime
-        )
-=======
-        self.CurrentStamina = math.min(
-            self.MaxStamina,
-            self.CurrentStamina + self.RecoveryPerSecond * deltaTime
-        )
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
+        self.CurrentStamina =
+            math.min(self.MaxStamina, self.CurrentStamina + self.RecoveryPerSecond * deltaTime)
 
         if not self.CanSprint and self.CurrentStamina >= self.ResumeThreshold then
             self.CanSprint = true
@@ -3633,7 +3720,7 @@ return StaminaComponent
               </Properties>
             </Item>
           </Item>
-          <Item class="ModuleScript" referent="37">
+          <Item class="ModuleScript" referent="39">
             <Properties>
               <string name="Name">Player</string>
               <string name="Source"><![CDATA[local PlayerBlackboard = require(script.Parent.PlayerBlackboard)
@@ -3748,7 +3835,7 @@ return Player
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="38">
+          <Item class="ModuleScript" referent="40">
             <Properties>
               <string name="Name">PlayerBlackboard</string>
               <string name="Source"><![CDATA[local PlayerBlackboard = {}
@@ -3793,7 +3880,7 @@ return PlayerBlackboard
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="39">
+          <Item class="ModuleScript" referent="41">
             <Properties>
               <string name="Name">PlayerComponentConfig</string>
               <string name="Source"><![CDATA[local PlayerComponentConfig = {}
@@ -3893,7 +3980,7 @@ return PlayerComponentConfig
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="40">
+          <Item class="ModuleScript" referent="42">
             <Properties>
               <string name="Name">PlayerStateMachine</string>
               <string name="Source"><![CDATA[local PlayerStateMachine = {}
@@ -3959,7 +4046,7 @@ return PlayerStateMachine
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">PlayerState</string>
             <string name="Source"><![CDATA[local DEFAULT_MAX_HEALTH_PIPS = 2
@@ -4094,7 +4181,7 @@ return PlayerState
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">ProcGen</string>
             <string name="Source"><![CDATA[return {
@@ -4106,7 +4193,7 @@ return PlayerState
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="43">
+          <Item class="ModuleScript" referent="45">
             <Properties>
               <string name="Name">HexRoomPrefabs</string>
               <string name="Source"><![CDATA[local HexRoomPrefabs = {}
@@ -4291,7 +4378,7 @@ return HexRoomPrefabs
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="44">
+          <Item class="ModuleScript" referent="46">
             <Properties>
               <string name="Name">MazeBuilder</string>
               <string name="Source"><![CDATA[local MazeBuilder = {}
@@ -5591,7 +5678,7 @@ return MazeBuilder
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="45">
+          <Item class="ModuleScript" referent="47">
             <Properties>
               <string name="Name">MazePassageTemplates</string>
               <string name="Source"><![CDATA[local MazePassageTemplates = {}
@@ -5700,7 +5787,7 @@ return MazePassageTemplates
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="46">
+          <Item class="ModuleScript" referent="48">
             <Properties>
               <string name="Name">MazeRoomArchetypes</string>
               <string name="Source"><![CDATA[local MazeRoomTemplates = require(script.Parent.MazeRoomTemplates)
@@ -5797,7 +5884,7 @@ return MazeRoomArchetypes
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="47">
+          <Item class="ModuleScript" referent="49">
             <Properties>
               <string name="Name">MazeRoomTemplates</string>
               <string name="Source"><![CDATA[local MazePassageTemplates = require(script.Parent.MazePassageTemplates)
@@ -6026,7 +6113,7 @@ return MazeRoomTemplates
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="48">
+        <Item class="ModuleScript" referent="50">
           <Properties>
             <string name="Name">Roles</string>
             <string name="Source"><![CDATA[return {
@@ -6034,7 +6121,7 @@ return MazeRoomTemplates
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="49">
+          <Item class="ModuleScript" referent="51">
             <Properties>
               <string name="Name">RoleAllocator</string>
               <string name="Source"><![CDATA[local RoleAllocator = {}
@@ -6067,7 +6154,7 @@ return RoleAllocator
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="50">
+        <Item class="ModuleScript" referent="52">
           <Properties>
             <string name="Name">Session</string>
             <string name="Source"><![CDATA[return {
@@ -6076,7 +6163,7 @@ return RoleAllocator
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="51">
+          <Item class="ModuleScript" referent="53">
             <Properties>
               <string name="Name">MazeRunTracker</string>
               <string name="Source"><![CDATA[local SessionStateMachine = require(script.Parent.SessionStateMachine)
@@ -6219,7 +6306,7 @@ return MazeRunTracker
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="52">
+          <Item class="ModuleScript" referent="54">
             <Properties>
               <string name="Name">SessionStateMachine</string>
               <string name="Source"><![CDATA[local TRANSITIONS = {
@@ -6267,7 +6354,7 @@ return SessionStateMachine
           </Item>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="53">
+      <Item class="ModuleScript" referent="55">
         <Properties>
           <string name="Name">Shared</string>
           <string name="Source"><![CDATA[return {
@@ -6281,7 +6368,7 @@ return SessionStateMachine
 }
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="54">
+        <Item class="ModuleScript" referent="56">
           <Properties>
             <string name="Name">Client</string>
             <string name="Source"><![CDATA[return {
@@ -6290,7 +6377,7 @@ return SessionStateMachine
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="55">
+          <Item class="ModuleScript" referent="57">
             <Properties>
               <string name="Name">FirstPersonController</string>
               <string name="Source"><![CDATA[local FirstPersonController = {}
@@ -6380,7 +6467,7 @@ return FirstPersonController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="56">
+          <Item class="ModuleScript" referent="58">
             <Properties>
               <string name="Name">HeldItemController</string>
               <string name="Source"><![CDATA[local HeldItemController = {}
@@ -6490,7 +6577,7 @@ return HeldItemController
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="57">
+        <Item class="ModuleScript" referent="59">
           <Properties>
             <string name="Name">Config</string>
             <string name="Source"><![CDATA[return {
@@ -6498,7 +6585,7 @@ return HeldItemController
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="58">
+          <Item class="ModuleScript" referent="60">
             <Properties>
               <string name="Name">SessionConfig</string>
               <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -6507,10 +6594,11 @@ local DEFAULT_PLACE_IDS = {
     Lobby = 99207062749924,
     Maze = 114148445477110,
     Run = 137478567439901,
+    Library = 0, -- TODO: 替换为实际的图书馆 Place ID
 }
 local DEFAULT_DEBUG_LOCAL_MAZE_HANDOFF = false
 
-local PLACE_ID_KEYS = { 'Lobby', 'Maze', 'Run' }
+local PLACE_ID_KEYS = { 'Lobby', 'Maze', 'Run', 'Library' }
 
 local function coercePlaceId(value)
     local numericValue = tonumber(value)
@@ -6583,7 +6671,7 @@ return SessionConfig
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="59">
+        <Item class="ModuleScript" referent="61">
           <Properties>
             <string name="Name">Enums</string>
             <string name="Source"><![CDATA[return {
@@ -6591,7 +6679,7 @@ return SessionConfig
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="60">
+          <Item class="ModuleScript" referent="62">
             <Properties>
               <string name="Name">RunState</string>
               <string name="Source"><![CDATA[return {
@@ -6604,7 +6692,7 @@ return SessionConfig
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="61">
+        <Item class="ModuleScript" referent="63">
           <Properties>
             <string name="Name">Network</string>
             <string name="Source"><![CDATA[return {
@@ -6612,7 +6700,7 @@ return SessionConfig
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="62">
+          <Item class="ModuleScript" referent="64">
             <Properties>
               <string name="Name">Remotes</string>
               <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -6806,7 +6894,7 @@ return Remotes
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="63">
+        <Item class="ModuleScript" referent="65">
           <Properties>
             <string name="Name">Runtime</string>
             <string name="Source"><![CDATA[return {
@@ -6828,7 +6916,7 @@ return Remotes
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="64">
+          <Item class="ModuleScript" referent="66">
             <Properties>
               <string name="Name">ControlStateService</string>
               <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -6910,7 +6998,7 @@ return ControlStateService
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="65">
+          <Item class="ModuleScript" referent="67">
             <Properties>
               <string name="Name">FormalLocomotion</string>
               <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -6979,7 +7067,7 @@ return FormalLocomotion
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="66">
+          <Item class="ModuleScript" referent="68">
             <Properties>
               <string name="Name">HexMazeWorldRenderer</string>
               <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -7001,6 +7089,7 @@ local math_rad = math.rad
 local math_cos = math.cos
 local math_sin = math.sin
 local math_tan = math.tan
+local math_abs = math.abs
 local math_pi = math.pi
 
 local Vector3_new = Vector3.new
@@ -7029,11 +7118,22 @@ local SIDE_ANGLE_OFFSET_DEGREES = 0
 
 local SIDE_NORMALS_X = {}
 local SIDE_NORMALS_Z = {}
+local SIDE_VECTORS_NORMAL = {}
+local SIDE_VECTORS_TANGENT = {}
+
 for directionIndex = 1, 6 do
     local angle = math_rad((-(directionIndex - 1) * 60) + SIDE_ANGLE_OFFSET_DEGREES)
-    SIDE_NORMALS_X[directionIndex] = math_cos(angle)
-    SIDE_NORMALS_Z[directionIndex] = math_sin(angle)
+    local nx = math_cos(angle)
+    local nz = math_sin(angle)
+    SIDE_NORMALS_X[directionIndex] = nx
+    SIDE_NORMALS_Z[directionIndex] = nz
+    SIDE_VECTORS_NORMAL[directionIndex] = Vector3_new(nx, 0, nz)
+    SIDE_VECTORS_TANGENT[directionIndex] = Vector3_new(-nz, 0, nx)
 end
+
+local TILE_BUFFER_A = FLOOR_TILE_SIZE / 2
+local TILE_BUFFER_B = (FLOOR_TILE_SIZE / 2) * (math_cos(math_rad(60)) + math_sin(math_rad(60)))
+local SIN_60 = math_sin(math_rad(60))
 
 local DEFAULT_SURFACE_PALETTE = table.freeze({
     WallMaterial = Enum.Material.Concrete,
@@ -7350,32 +7450,7 @@ local function buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem,
 end
 
 local function sideVectors(directionIndex)
-    local nx, nz = SIDE_NORMALS_X[directionIndex], SIDE_NORMALS_Z[directionIndex]
-    local normal = Vector3_new(nx, 0, nz)
-    local tangent = Vector3_new(-nz, 0, nx)
-    return normal, tangent
-end
-
-local function isInsideHexNumeric(ox, oz, apothem)
-    if ox * SIDE_NORMALS_X[1] + oz * SIDE_NORMALS_Z[1] > apothem then
-        return false
-    end
-    if ox * SIDE_NORMALS_X[2] + oz * SIDE_NORMALS_Z[2] > apothem then
-        return false
-    end
-    if ox * SIDE_NORMALS_X[3] + oz * SIDE_NORMALS_Z[3] > apothem then
-        return false
-    end
-    if ox * SIDE_NORMALS_X[4] + oz * SIDE_NORMALS_Z[4] > apothem then
-        return false
-    end
-    if ox * SIDE_NORMALS_X[5] + oz * SIDE_NORMALS_Z[5] > apothem then
-        return false
-    end
-    if ox * SIDE_NORMALS_X[6] + oz * SIDE_NORMALS_Z[6] > apothem then
-        return false
-    end
-    return true
+    return SIDE_VECTORS_NORMAL[directionIndex], SIDE_VECTORS_TANGENT[directionIndex]
 end
 
 local function createHexTiledSlab(parent, name, center, apothem, yOffset, color, material)
@@ -7384,35 +7459,27 @@ local function createHexTiledSlab(parent, name, center, apothem, yOffset, color,
     slabFolder.Parent = parent
 
     local radius = apothem * HEX_CIRCUMRADIUS_MULTIPLIER
-    local halfTile = FLOOR_TILE_SIZE / 2
     local maxOffset = math_ceil(radius / FLOOR_TILE_SIZE) * FLOOR_TILE_SIZE
-    local tileCount = 0
 
     local cx, cy, cz = center.X, center.Y, center.Z
+    local tileSizeVector = Vector3_new(FLOOR_TILE_SIZE, SLAB_THICKNESS, FLOOR_TILE_SIZE)
 
     for x = -maxOffset, maxOffset, FLOOR_TILE_SIZE do
         for z = -maxOffset, maxOffset, FLOOR_TILE_SIZE do
-            local cornersInside = true
-
-            -- Unrolled corner check to avoid Vector3 and table allocations
+            -- Optimized single check for whole tile bounding box
             if
-                not isInsideHexNumeric(x - halfTile, z - halfTile, apothem)
-                or not isInsideHexNumeric(x + halfTile, z - halfTile, apothem)
-                or not isInsideHexNumeric(x - halfTile, z + halfTile, apothem)
-                or not isInsideHexNumeric(x + halfTile, z + halfTile, apothem)
+                math_abs(x) + TILE_BUFFER_A <= apothem
+                and math_abs(0.5 * x - SIN_60 * z) + TILE_BUFFER_B <= apothem
+                and math_abs(0.5 * x + SIN_60 * z) + TILE_BUFFER_B <= apothem
             then
-                cornersInside = false
-            end
-
-            if cornersInside then
-                tileCount += 1
-                createPart({
-                    Name = name .. 'Tile_' .. tileCount,
-                    Size = Vector3_new(FLOOR_TILE_SIZE, SLAB_THICKNESS, FLOOR_TILE_SIZE),
-                    CFrame = CFrame_new(cx + x, cy + yOffset, cz + z),
-                    Color = color,
-                    Material = material,
-                }, slabFolder)
+                local part = Instance_new('Part')
+                part.Name = 'Tile'
+                part.Anchored = true
+                part.Size = tileSizeVector
+                part.CFrame = CFrame_new(cx + x, cy + yOffset, cz + z)
+                part.Color = color
+                part.Material = material
+                part.Parent = slabFolder
             end
         end
     end
@@ -8033,7 +8100,7 @@ return HexMazeWorldRenderer
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="67">
+          <Item class="ModuleScript" referent="69">
             <Properties>
               <string name="Name">InventoryService</string>
               <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -8161,7 +8228,7 @@ return InventoryService
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="68">
+          <Item class="ModuleScript" referent="70">
             <Properties>
               <string name="Name">MazeDebugWorldComposer</string>
               <string name="Source"><![CDATA[local MazeWorldShellBuilder = require(script.Parent.MazeWorldShellBuilder)
@@ -8200,7 +8267,7 @@ return MazeDebugWorldComposer
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="69">
+          <Item class="ModuleScript" referent="71">
             <Properties>
               <string name="Name">MazeFormalWorldComposer</string>
               <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -8489,7 +8556,7 @@ return MazeFormalWorldComposer
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="70">
+          <Item class="ModuleScript" referent="72">
             <Properties>
               <string name="Name">MazeInteractionPartFactory</string>
               <string name="Source"><![CDATA[local MazeInteractionPartFactory = {}
@@ -8543,7 +8610,7 @@ return MazeInteractionPartFactory
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="71">
+          <Item class="ModuleScript" referent="73">
             <Properties>
               <string name="Name">MazeLightingProfile</string>
               <string name="Source"><![CDATA[local MazeLightingProfile = {}
@@ -8862,7 +8929,7 @@ return MazeLightingProfile
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="72">
+          <Item class="ModuleScript" referent="74">
             <Properties>
               <string name="Name">MazeModuleAssetContract</string>
               <string name="Source"><![CDATA[local MazeModuleAssetContract = {}
@@ -8975,7 +9042,7 @@ return MazeModuleAssetContract
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="73">
+          <Item class="ModuleScript" referent="75">
             <Properties>
               <string name="Name">MazeWorldScanner</string>
               <string name="Source"><![CDATA[--[[
@@ -9006,6 +9073,9 @@ local STATIC_WORLD_ROOT_NAME = 'MazeStaticWorld'
 local DEFAULT_ROOM_KIND = 'Loot'
 local DEFAULT_RETURN_ACTION_TEXT = 'Return'
 local DEFAULT_RETURN_OBJECT_TEXT = 'Run Entrance'
+
+local NEIGHBOR_DISTANCE_THRESHOLD = 50
+local DEFAULT_DETECTION_RADIUS = 18
 
 local SCAN_CONFIG = {
     RoomTagPrefix = 'RoomType/',
@@ -9299,7 +9369,7 @@ function MazeWorldScanner.Scan(scanRoot)
             local roomB = roomById[idB]
             if idA ~= idB then
                 local distance = (roomB.Position - roomA.Position).Magnitude
-                if distance < 50 then
+                if distance < NEIGHBOR_DISTANCE_THRESHOLD then
                     table.insert(roomA.Neighbors, idB)
                     table.insert(roomAffordances[idA].TraversalMask.NeighborRoomIds, idB)
                 end
@@ -9540,7 +9610,7 @@ function MazeWorldScanner.BuildStaticWorld(scanRoot)
         end
 
         local room = world.RoomById[nearestRoomId]
-        if nearestDistance > (room.DetectionRadius or 18) then
+        if nearestDistance > (room.DetectionRadius or DEFAULT_DETECTION_RADIUS) then
             return nil
         end
 
@@ -9594,7 +9664,7 @@ return MazeWorldScanner
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="74">
+          <Item class="ModuleScript" referent="76">
             <Properties>
               <string name="Name">MazeWorldShellBuilder</string>
               <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -9656,7 +9726,7 @@ return MazeWorldShellBuilder
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="75">
+          <Item class="ModuleScript" referent="77">
             <Properties>
               <string name="Name">MonsterRuntime</string>
               <string name="Source"><![CDATA[return {
@@ -9670,7 +9740,7 @@ return MazeWorldShellBuilder
 }
 ]]></string>
             </Properties>
-            <Item class="ModuleScript" referent="76">
+            <Item class="ModuleScript" referent="78">
               <Properties>
                 <string name="Name">AttackComponent</string>
                 <string name="Source"><![CDATA[local AttackComponent = {}
@@ -9719,7 +9789,7 @@ return AttackComponent
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="77">
+            <Item class="ModuleScript" referent="79">
               <Properties>
                 <string name="Name">EnemyBlackboard</string>
                 <string name="Source"><![CDATA[local EnemyBlackboard = {}
@@ -9766,7 +9836,7 @@ return EnemyBlackboard
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="78">
+            <Item class="ModuleScript" referent="80">
               <Properties>
                 <string name="Name">EnemyRuntime</string>
                 <string name="Source"><![CDATA[local EnemyBlackboard = require(script.Parent.EnemyBlackboard)
@@ -9853,7 +9923,7 @@ return EnemyRuntime
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="79">
+            <Item class="ModuleScript" referent="81">
               <Properties>
                 <string name="Name">EnemyStateMachine</string>
                 <string name="Source"><![CDATA[local EnemyStateMachine = {}
@@ -9896,7 +9966,7 @@ return EnemyStateMachine
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="80">
+            <Item class="ModuleScript" referent="82">
               <Properties>
                 <string name="Name">HealthComponent</string>
                 <string name="Source"><![CDATA[local HealthComponent = {}
@@ -9926,7 +9996,7 @@ return HealthComponent
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="81">
+            <Item class="ModuleScript" referent="83">
               <Properties>
                 <string name="Name">MovementComponent</string>
                 <string name="Source"><![CDATA[local EnemyStateMachine = require(script.Parent.EnemyStateMachine)
@@ -10000,7 +10070,7 @@ return MovementComponent
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="82">
+            <Item class="ModuleScript" referent="84">
               <Properties>
                 <string name="Name">PerceptionComponent</string>
                 <string name="Source"><![CDATA[local PerceptionComponent = {}
@@ -10053,7 +10123,7 @@ return PerceptionComponent
               </Properties>
             </Item>
           </Item>
-          <Item class="ModuleScript" referent="83">
+          <Item class="ModuleScript" referent="85">
             <Properties>
               <string name="Name">MonsterService</string>
               <string name="Source"><![CDATA[local InsertService = game:GetService('InsertService')
@@ -10070,6 +10140,7 @@ local MonsterComponentConfig = Gameplay.Monsters.MonsterComponentConfig
 local MonsterLogic = Gameplay.Monsters.MonsterLogic
 local Enemy = Gameplay.Monsters.Enemy
 local MonsterRuntimeProfile = Gameplay.Monsters.MonsterRuntimeProfile
+local PlayerMonsterMelee = Gameplay.Combat.PlayerMonsterMelee
 local EnemyRuntime = require(script.Parent.MonsterRuntime.EnemyRuntime)
 
 local MonsterService = {}
@@ -10239,6 +10310,7 @@ function MonsterService.new(
         RandomSeed = randomSeed,
         RandomSource = runtimeOptions.RandomSource
             or if randomSeed ~= nil then Random.new(randomSeed) else Random.new(),
+        CombatHitPointsRemaining = nil,
     }, MonsterService)
 
     service.EnemyRuntime = EnemyRuntime.new({
@@ -10278,6 +10350,15 @@ function MonsterService.new(
         },
     })
 
+    local combatHp = monsterRuntimeProfile.CombatHitPoints
+    if type(combatHp) ~= 'number' or combatHp < 1 or math.floor(combatHp) ~= combatHp then
+        combatHp = 1
+    else
+        combatHp = math.floor(combatHp)
+    end
+    service.CombatMaxHealth = combatHp
+    service.CombatCurrentHealth = combatHp
+
     return service
 end
 
@@ -10310,6 +10391,7 @@ function MonsterService:destroy()
     self.PendingAttack = nil
     self.ActiveAnimation = nil
     self.MonsterHumanoid = nil
+    self.CombatHitPointsRemaining = nil
     self.MonsterPositionPart = nil
     self.LogicalPosition = nil
     self.LogicAccumulator = 0
@@ -10496,9 +10578,33 @@ function MonsterService:_spawnModel(spawnPosition)
     self.MonsterRoot = preparedModel
     self.MonsterPositionPart = rootPart
     self.LogicalPosition = spawnPosition
+    if self.MonsterHumanoid == nil then
+        self.MonsterHumanoid = humanoid
+    end
     self:_attachChaseLoopSound(rootPart)
 
     return true
+end
+
+function MonsterService:_applyDefinitionCombatHealth()
+    local maxPips = self.Definition.CombatHitPoints
+    if type(maxPips) ~= 'number' or maxPips < 1 or math.floor(maxPips) ~= maxPips then
+        maxPips = 1
+    end
+
+    self.CombatMaxHealth = maxPips
+
+    local humanoid = self.MonsterHumanoid
+    if humanoid then
+        humanoid.MaxHealth = maxPips
+        humanoid.Health = maxPips
+        self.CombatCurrentHealth = maxPips
+        self.CombatHitPointsRemaining = nil
+        return
+    end
+
+    self.CombatHitPointsRemaining = maxPips
+    self.CombatCurrentHealth = maxPips
 end
 
 function MonsterService:_setAnimationState(animationName, speedMultiplier)
@@ -10925,6 +11031,148 @@ function MonsterService:_onAttackMarkerReached(markerName)
 
     self.OnAttackHit(pendingAttack.TargetPlayer, pendingAttack.DamagePips, hitContext)
 end
+
+function MonsterService:_playerMeleeLineOfSightClear(player, playerPosition, monsterPosition)
+    local offset = monsterPosition - playerPosition
+    local distance = offset.Magnitude
+    if distance <= 1e-3 then
+        return true
+    end
+
+    local character = player and player.Character
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    raycastParams.IgnoreWater = true
+    if character then
+        raycastParams.FilterDescendantsInstances = { character }
+    end
+
+    local direction = offset.Unit * (distance + 0.25)
+    local result = self.Raycast(playerPosition, direction, raycastParams)
+    if result == nil then
+        return true
+    end
+
+    if
+        self.MonsterRoot
+        and result.Instance
+        and result.Instance:IsDescendantOf(self.MonsterRoot)
+    then
+        return true
+    end
+
+    return false
+end
+
+function MonsterService:tryApplyPlayerMeleeHit(player, meleeOptions)
+    if not self.IsExpeditionActive() then
+        return false, 'ExpeditionInactive'
+    end
+
+    if self.MonsterRoot == nil then
+        return false, 'NoMonster'
+    end
+
+    local isPlayerInstance = typeof(player) == 'Instance' and player:IsA('Player')
+    local isTestStub = type(player) == 'table' and type(player.UserId) == 'number'
+    if not isPlayerInstance and not isTestStub then
+        return false, 'InvalidPlayer'
+    end
+
+    local character = player.Character
+    if character == nil then
+        return false, 'NoCharacter'
+    end
+
+    local humanoidRoot = character:FindFirstChild('HumanoidRootPart')
+    if humanoidRoot == nil or not humanoidRoot:IsA('BasePart') then
+        return false, 'MissingHumanoidRoot'
+    end
+
+    local options = meleeOptions or {}
+    local swingRange = options.SwingRange
+    if type(swingRange) ~= 'number' or swingRange <= 0 then
+        swingRange = 6
+    end
+
+    local swingArcDegrees = options.SwingArcDegrees
+    if type(swingArcDegrees) ~= 'number' or swingArcDegrees <= 0 then
+        swingArcDegrees = 70
+    end
+
+    local damagePips = options.DamagePips
+    if type(damagePips) ~= 'number' or damagePips < 1 then
+        damagePips = 1
+    end
+    damagePips = math.floor(damagePips)
+
+    local monsterPosition = self:_getCurrentPosition()
+    if typeof(monsterPosition) ~= 'Vector3' then
+        return false, 'MissingMonsterPosition'
+    end
+
+    local playerPosition = humanoidRoot.Position
+    local playerLook = humanoidRoot.CFrame.LookVector
+
+    local geometryOk, geometryReason = PlayerMonsterMelee.evaluateSwing(
+        playerPosition,
+        playerLook,
+        monsterPosition,
+        swingRange,
+        swingArcDegrees
+    )
+    if geometryOk ~= true then
+        return false, geometryReason
+    end
+
+    if not self.CanTraverse(playerPosition, monsterPosition) then
+        return false, 'PathBlocked'
+    end
+
+    if not self:_playerMeleeLineOfSightClear(player, playerPosition, monsterPosition) then
+        return false, 'BlockedLineOfSight'
+    end
+
+    local monsterHumanoid = self.MonsterHumanoid
+    local killed = false
+    local remainingHitPoints
+
+    if monsterHumanoid then
+        local nextHealth = math.max(0, monsterHumanoid.Health - damagePips)
+        monsterHumanoid.Health = nextHealth
+        remainingHitPoints = math.ceil(nextHealth)
+        self.CombatCurrentHealth = remainingHitPoints
+        if nextHealth <= 0 then
+            killed = true
+        end
+    elseif type(self.CombatHitPointsRemaining) == 'number' then
+        self.CombatHitPointsRemaining -= damagePips
+        remainingHitPoints = math.max(0, self.CombatHitPointsRemaining)
+        self.CombatCurrentHealth = remainingHitPoints
+        if remainingHitPoints <= 0 then
+            killed = true
+        end
+    else
+        return false, 'MonsterCombatStateMissing'
+    end
+
+    self:_recordDecisionEvent('PlayerMeleeHit', {
+        DamagePips = damagePips,
+        Killed = killed,
+        RemainingHitPoints = remainingHitPoints,
+        TargetUserId = player.UserId,
+    })
+
+    if killed then
+        self:destroy()
+    end
+
+    return true, {
+        Killed = killed,
+        RemainingHitPoints = remainingHitPoints,
+    }
+end
+
 function MonsterService:spawn(patrolPoints, initialPatrolIndex)
     self:destroy()
     self.PatrolPoints = patrolPoints
@@ -10950,6 +11198,8 @@ function MonsterService:spawn(patrolPoints, initialPatrolIndex)
     else
         self:_setAnimationState('Idle', 1)
     end
+
+    self:_applyDefinitionCombatHealth()
 
     self.EnemyRuntime = self.EnemyFactory(self.Definition, {
         ComponentConfig = self.ComponentConfig,
@@ -11061,7 +11311,7 @@ return MonsterService
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="84">
+          <Item class="ModuleScript" referent="86">
             <Properties>
               <string name="Name">PlayerService</string>
               <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -11238,7 +11488,7 @@ return PlayerService
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="85">
+          <Item class="ModuleScript" referent="87">
             <Properties>
               <string name="Name">PlayerStateService</string>
               <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -11318,7 +11568,7 @@ return PlayerStateService
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="86">
+          <Item class="ModuleScript" referent="88">
             <Properties>
               <string name="Name">TeleportInventoryHydrator</string>
               <string name="Source"><![CDATA[local TeleportInventoryHydrator = {}
@@ -11343,7 +11593,7 @@ return TeleportInventoryHydrator
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="87">
+        <Item class="ModuleScript" referent="89">
           <Properties>
             <string name="Name">Session</string>
             <string name="Source"><![CDATA[return {
@@ -11353,7 +11603,7 @@ return TeleportInventoryHydrator
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="88">
+          <Item class="ModuleScript" referent="90">
             <Properties>
               <string name="Name">CampMazeSessionContract</string>
               <string name="Source"><![CDATA[local CampMazeSessionContract = {}
@@ -11819,7 +12069,7 @@ return CampMazeSessionContract
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="89">
+          <Item class="ModuleScript" referent="91">
             <Properties>
               <string name="Name">MazeEntryAvailability</string>
               <string name="Source"><![CDATA[local MazeEntryAvailability = {}
@@ -11868,7 +12118,7 @@ return MazeEntryAvailability
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="90">
+          <Item class="ModuleScript" referent="92">
             <Properties>
               <string name="Name">SessionSeedPolicy</string>
               <string name="Source"><![CDATA[local SessionSeedPolicy = {}
@@ -11904,7 +12154,7 @@ return SessionSeedPolicy
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="91">
+        <Item class="ModuleScript" referent="93">
           <Properties>
             <string name="Name">Util</string>
             <string name="Source"><![CDATA[return {
@@ -11913,7 +12163,7 @@ return SessionSeedPolicy
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="92">
+          <Item class="ModuleScript" referent="94">
             <Properties>
               <string name="Name">TeleportDiagnostics</string>
               <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -12010,7 +12260,7 @@ return TeleportDiagnostics
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="93">
+          <Item class="ModuleScript" referent="95">
             <Properties>
               <string name="Name">Visibility</string>
               <string name="Source"><![CDATA[local Visibility = {}
@@ -12044,7 +12294,7 @@ return Visibility
           </Item>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="94">
+      <Item class="ModuleScript" referent="96">
         <Properties>
           <string name="Name">UI</string>
           <string name="Source"><![CDATA[return {
@@ -12052,7 +12302,7 @@ return Visibility
 }
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="95">
+        <Item class="ModuleScript" referent="97">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[return {
@@ -12060,7 +12310,7 @@ return Visibility
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="96">
+          <Item class="ModuleScript" referent="98">
             <Properties>
               <string name="Name">Theme</string>
               <string name="Source"><![CDATA[return {
@@ -12079,11 +12329,11 @@ return Visibility
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="97">
+  <Item class="ServerScriptService" referent="99">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="98">
+    <Item class="Script" referent="100">
       <Properties>
         <string name="Name">Bootstrap</string>
         <token name="RunContext">0</token>
@@ -12098,11 +12348,11 @@ RunSessionService.new():start()
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Folder" referent="99">
+    <Item class="Folder" referent="101">
       <Properties>
         <string name="Name">Run</string>
       </Properties>
-      <Item class="ModuleScript" referent="100">
+      <Item class="ModuleScript" referent="102">
         <Properties>
           <string name="Name">CampHouseBuilder</string>
           <string name="Source"><![CDATA[local HOUSE_WIDTH = 44
@@ -12318,7 +12568,7 @@ return CampHouseBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="101">
+      <Item class="ModuleScript" referent="103">
         <Properties>
           <string name="Name">InteractableObjectsSetup</string>
           <string name="Source"><![CDATA[--!strict
@@ -12435,7 +12685,7 @@ return InteractableObjectsSetup
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="102">
+      <Item class="ModuleScript" referent="104">
         <Properties>
           <string name="Name">InventoryService</string>
           <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -12514,7 +12764,7 @@ return InventoryService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="103">
+      <Item class="ModuleScript" referent="105">
         <Properties>
           <string name="Name">ItemFunctionality</string>
           <string name="Source"><![CDATA[--!strict
@@ -12941,7 +13191,7 @@ return ItemFunctionality
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="104">
+      <Item class="ModuleScript" referent="106">
         <Properties>
           <string name="Name">ItemService</string>
           <string name="Source"><![CDATA[--!strict
@@ -13187,7 +13437,7 @@ return ItemService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="105">
+      <Item class="ModuleScript" referent="107">
         <Properties>
           <string name="Name">LocalDebugMazeWorldBuilder</string>
           <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -13215,7 +13465,7 @@ return LocalDebugMazeWorldBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="106">
+      <Item class="ModuleScript" referent="108">
         <Properties>
           <string name="Name">MonsterBriefGateway</string>
           <string name="Source"><![CDATA[local HttpService = game:GetService('HttpService')
@@ -13814,35 +14064,7 @@ return MonsterBriefGateway
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="107">
-        <Properties>
-          <string name="Name">MonsterBriefGatewayLocalConfig</string>
-          <string name="Source"><![CDATA[return {
-    -- Option A: direct provider mode (current default)
-    Provider = 'moonshot',
-    Providers = {
-        moonshot = {
-            ApiKey = 'sk-u5ZXcd1jb5lEUly0XppQVLpWEXL8c8M5Gl7z45DV6D5KaIjD',
-            BaseUrl = 'https://api.moonshot.cn/v1',
-            Model = 'kimi-k2.5',
-        },
-        deepseek = {
-            ApiKey = 'sk-da8e108c1f4547dea4e29d4e64d31e13',
-            BaseUrl = 'https://api.deepseek.com/v1',
-            Model = 'deepseek-chat',
-        },
-    },
-
-    -- Option B: LiteLLM / OpenAI-compatible gateway mode
-    -- Endpoint = 'https://<your-litellm-domain>/v1/chat/completions',
-    -- EndpointProtocol = 'openai-chat',
-    -- EndpointModel = 'moonshot/kimi-k2.5',
-    -- ApiKey = 'sk-<litellm-master-key>',
-}
-]]></string>
-        </Properties>
-      </Item>
-      <Item class="ModuleScript" referent="108">
+      <Item class="ModuleScript" referent="109">
         <Properties>
           <string name="Name">MonsterService</string>
           <string name="Source"><![CDATA[local Players = game:GetService('Players')
@@ -13954,7 +14176,778 @@ return MonsterService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="109">
+      <Item class="ModuleScript" referent="110">
+        <Properties>
+          <string name="Name">NarrativeContent</string>
+          <string name="Source"><![CDATA[--!strict
+-- ════════════════════════════════════════════════════════════
+-- NarrativeContent.luau — 纯文案配置文件
+-- 所有叙事文字、Prompt文案、提示语、渐进显现文案集中在此
+-- 修改文案只需改此文件，不动逻辑代码
+--
+-- 版本: 1.0
+-- 最后更新: 2026-04-14
+-- ════════════════════════════════════════════════════════════
+
+local NarrativeContent = {}
+
+-- ════════════════════════════════════════════════════════════
+-- 一、12个碎片数据定义（叙事文字 + 情报内容 + 元信息）
+-- ════════════════════════════════════════════════════════════
+
+NarrativeContent.FRAGMENTS = {
+
+    -- ==================== 废弃神庙区 (AT) ====================
+
+    {
+        id = 'AT_01',
+        region = 'AbandonedTemple',
+        title = '熄灭的守望者',
+        narrativeText = [[它们曾经指向某个方向。
+现在，方向消失了，
+只剩下这些焦黑的骨架。
+
+但你点燃它们的时候——
+有一瞬间，
+你感觉它们仍在看着什么。]],
+        intelType = 'environment',
+        intelContent = [[📋 【环境线索】
+
+图书馆入口区域的房间排列并非随机——
+两侧对称的结构中，
+通常有一条路径通向 书页房间。
+注意观察对称性。
+
+⚠️ 此情报将在进入图书馆后验证]],
+        triggerItem = 'KindlingStone',
+    },
+
+    {
+        id = 'AT_02',
+        region = 'AbandonedTemple',
+        title = '墙上的最后一行',
+        narrativeText = [[墙上的刻痕几乎被风磨平了。
+你只能看清最后一行：
+
+'……被写下之前，
+  我们就已经在这里等待。'
+
+等待什么？]],
+        intelType = 'resource',
+        intelContent = [[📦 【资源提示】
+
+简单难度和普通难度的 稀有书页
+通常出现在地图边缘的独立小房间，
+而非主路径上。
+如果你只走直线，会错过它们。]],
+        triggerItem = nil,
+    },
+
+    {
+        id = 'AT_03',
+        region = 'AbandonedTemple',
+        title = '碎裂的回声',
+        narrativeText = [[每一次敲击都让空气震颤。
+不是声音——
+是某种更深的东西在回应。
+
+像是整片废墟
+记得自己曾经的形状。]],
+        intelType = 'environment',
+        intelContent = [[🔍 【环境线索】
+
+困难及以上的图书馆地图中，
+部分 墙壁是可以破坏 的。
+如果你在房间里找不到出口，
+检查那些看起来"不太一样"的墙面。]],
+        triggerItem = 'ResonanceHammer',
+    },
+
+    -- ==================== 古代遗迹区 (AR) ====================
+
+    {
+        id = 'AR_01',
+        region = 'AncientRuins',
+        title = '石碑的无字面',
+        narrativeText = [[透过它，
+你看到了石碑上本不存在的文字。
+
+它们不是被刻上去的——
+它们是从内部渗出来的，
+像水从石头缝里渗出。
+
+写的是同一段话，反复重叠：
+
+'谁在看？'
+'谁在看？'
+'谁在看？']],
+        intelType = 'mechanic',
+        intelContent = [[⚙️ 【机制提示】
+
+图书馆内的 谜题 通常与"观察"有关。
+如果你卡关了，
+试试切换视角、贴近墙面、
+或使用光照类道具——
+答案往往藏在细节里。]],
+        triggerItem = 'ObservationLens',
+    },
+
+    {
+        id = 'AR_02',
+        region = 'AncientRuins',
+        title = '失衡的天平',
+        narrativeText = [[你的手刚碰到天平，它就停住了。
+像是在等你等了很久。
+
+你听到了叹息——很轻，像翻书的声音。
+这个天平衡量的不是重量。
+
+它在衡量
+'被记录'
+和
+'被遗忘'
+的分量。
+
+——而它们
+ 永远不可能相等。]],
+        intelType = 'hazard',
+        intelContent = [[⚠️ 【危险预警】
+
+图书馆撤离点的 时间窗口 类型关卡中，
+倒计时结束时出口会消失——
+但有时 假的出口
+会在倒计时最后10秒出现。
+不要急着冲向第一个看到的出口。]],
+        triggerItem = nil,
+    },
+
+    {
+        id = 'AR_03',
+        region = 'AncientRuins',
+        title = '共鸣石的频率',
+        narrativeText = [[三块石头唱出了
+同一个音符的不同泛音。
+
+你不知道是怎么知道顺序的——
+你的手指在自己意识到之前
+就已经按了下去。
+
+好像有什么东西
+在你的手到达之前，
+已经在那里等了。]],
+        intelType = 'mechanic',
+        intelContent = [[⚙️ 【机制提示】
+
+机关解锁型 撤离点
+通常需要按正确顺序操作多个机关。
+如果附近有环境线索（壁画/铭文），
+仔细看——
+顺序往往藏在其中。]],
+        triggerItem = nil,
+    },
+
+    -- ==================== 荒野森林区 (WF) ====================
+
+    {
+        id = 'WF_01',
+        region = 'WildernessForest',
+        title = '树洞里的眼睛',
+        narrativeText = [[光照进树洞的一瞬间，
+你看到里面的纹路在退缩。
+
+像是某种东西被光惊醒了，
+又迅速躲回了更深的黑暗里。
+
+那些纹路——
+你不愿把它们叫做文字，
+但它们确实在说着什么。]],
+        intelType = 'hazard',
+        intelContent = [[⚠️ 【危险预警】
+
+噩梦难度图书馆中存在 伪装型环境威胁——
+看起来安全的区域
+（比如静止的书堆、装饰性雕像）
+可能在玩家经过一定时间后活化。
+保持移动，
+不要在同一位置停留过久。]],
+        triggerItem = 'LightSeed',
+    },
+
+    {
+        id = 'WF_02',
+        region = 'WildernessForest',
+        title = '足迹的终点',
+        narrativeText = [[足迹不属于任何你见过的动物。
+步距太小，爪痕太规律——
+像是在模仿某种脚步，
+但又模仿得不到位。
+
+足迹在这里停了很久。
+久到地面都记住了它的形状。]],
+        intelType = 'resource',
+        intelContent = [[📦 【资源提示】
+
+Boss房间 在生成时会偏向
+地图中距离入口 最远的区域。
+如果你想快速找到Boss挑战获取额外书页，
+优先向远离入口的方向探索。]],
+        triggerItem = 'TrackingDust',
+    },
+
+    {
+        id = 'WF_03',
+        region = 'WildernessForest',
+        title = '不存在的果实',
+        narrativeText = [[那颗果实碰到你手掌的时候没有重量。
+
+它像是一个念头——
+一个关于'果实'的念头——
+在你碰到的瞬间
+才决定让自己被看见。
+
+然后它就消失了，
+留给你一个问题：
+
+是你摘到了它，
+还是它允许了自己被摘到？]],
+        intelType = 'environment',
+        intelContent = [[🔍 【环境线索】
+
+普通及以上难度的图书馆地图中，
+镜像室 环境类型的房间入口
+通常被刻意隐藏
+（如在书架后面、地板下方）。
+如果在地图上发现一片区域
+周围都有房间但中间空了一块，
+那里很可能有隐藏入口。]],
+        triggerItem = nil,
+    },
+
+    -- ==================== 洞穴遗迹区 (CR) ====================
+
+    {
+        id = 'CR_01',
+        region = 'CaveRuins',
+        title = '矿物的脉搏',
+        narrativeText = [[晶片接触到矿物的每一瞬你都听到了声音。
+不是耳朵听到的——
+是骨头在震动。
+
+四个声音叠在一起组成了一句话，
+但你来不及抓住就消散了。
+只剩下那个轮廓。
+
+一扇门。
+一扇不该存在于洞穴深处的门。]],
+        intelType = 'environment',
+        intelContent = [[📋 【环境线索】+ 📦 【资源提示】
+
+图书馆地图的 书页房间
+往往位于需要经过至少两个其他房间
+才能到达的位置（即深度≥3）。
+
+如果一条路径连续经过2-3个房间
+还没遇到书页房间，
+下一个很可能就是。]],
+        triggerItem = 'ResonanceShard',
+    },
+
+    {
+        id = 'CR_02',
+        region = 'CaveRuins',
+        title = '机关的沉默',
+        narrativeText = [[机关启动的声音不像金属摩擦——
+像呼吸。
+沉重的、缓慢的、古老的呼吸。
+
+齿轮咬合的那一刻
+你知道这台机器
+已经等待了太久。
+
+铭文上的话
+让你不确定它是警告还是欢迎：
+
+'门会为所有被描述的人开启。
+你被描述了吗？']],
+        intelType = 'hazard',
+        intelContent = [[⚠️ 【危险预警】+ ⚙️ 【机制提示】
+
+竞速撤离 类型的关卡中，
+撤离点通常不会出现在地图的前半段。
+如果你在前半段就发现了看似撤离点的入口，
+要警惕——
+
+那可能是 陷阱房间，
+进入后会显著缩短剩余撤离时间。]],
+        triggerItem = 'RepairGear',
+    },
+
+    {
+        id = 'CR_03',
+        region = 'CaveRuins',
+        title = '深渊的低语',
+        narrativeText = [[你听到了。
+不是从裂缝里——
+是从耳坠本身传出来的。
+
+很多声音叠在一起，太多太多了。
+有人在朗读，有人在写字，
+有人在撕书，有人在尖叫。
+
+然后所有的声音突然停下来。
+只有一个声音留下。
+
+它在叫你的名字。
+
+但你确定你没有名字。]],
+        intelType = 'hazard',
+        intelContent = [[⚠️ 【危险预警】
+
+传送门型 撤离点会将你传送到一个随机位置——
+通常是安全的，
+但在困难/噩梦难度下有低概率传送到
+下一难度的前置区域
+（相当于跳级）。
+如果你没准备好迎接更高难度，
+进入传送门前确保装备齐全。]],
+        triggerItem = 'SilentEarring',
+    },
+}
+
+-- ════════════════════════════════════════════════════════════
+-- 二、可触发物品定义（8个物品）
+-- ════════════════════════════════════════════════════════════
+
+NarrativeContent.TRIGGER_ITEMS = {
+    KindlingStone = {
+        name = 'KindlingStone',
+        displayName = '引火石',
+        description = '暗红色的粗糙石头，用于点燃古老装置',
+        pickupActionText = '拾取',
+        pickupObjectText = '发光的石头',
+        pickupHoldDuration = 0.2,
+        obtainMessage = '获得了 引火石',
+        obtainHint = '这块石头还残留着温度。它想被使用。',
+        isConsumable = true,
+        consumedHint = '', -- 消耗时无额外提示，直接消耗
+        color = Color3.fromRGB(180, 60, 40),
+        material = Enum.Material.Sandstone,
+    },
+    ResonanceHammer = {
+        name = 'ResonanceHammer',
+        displayName = '共鸣锤',
+        description = '表面有声波纹路的石质锤头',
+        pickupActionText = '拔出',
+        pickupObjectText = '埋在碎石中的东西',
+        pickupHoldDuration = 0.3,
+        obtainMessage = '获得了 共鸣锤',
+        obtainHint = '它能听到石头记住的声音。',
+        isConsumable = true,
+        consumedHint = '',
+        color = Color3.fromRGB(140, 130, 120),
+        material = Enum.Material.Slate,
+    },
+    ObservationLens = {
+        name = 'ObservationLens',
+        displayName = '观测透镜',
+        description = '半透明淡青色晶体，可观察隐形痕迹',
+        pickupActionText = '拔出',
+        pickupObjectText = '嵌在基座里的晶体',
+        pickupHoldDuration = 0.3,
+        obtainMessage = '获得了 观测透镜',
+        obtainHint = '透过它，你能看到不该被看到的东西。',
+        isConsumable = false, -- 持久工具
+        color = Color3.fromRGB(180, 220, 230),
+        material = Enum.Material.Glass,
+    },
+    TrackingDust = {
+        name = 'TrackingDust',
+        displayName = '追踪粉尘',
+        description = '撒出金色微粒显示隐形路径',
+        pickupActionText = '取下',
+        pickupObjectText = '挂在枝头的布袋',
+        pickupHoldDuration = 0.3,
+        obtainMessage = '获得了 追踪粉尘',
+        obtainHint = '它能显示那些不想被看见的路。',
+        isConsumable = false, -- 持久工具
+        color = Color3.fromRGB(220, 190, 100),
+        material = Enum.Material.Fabric,
+    },
+    LightSeed = {
+        name = 'LightSeed',
+        displayName = '光源种子',
+        description = '温橙色发光种子，照亮黑暗处',
+        pickupActionText = '拾取',
+        pickupObjectText = '发光的种子',
+        pickupHoldDuration = 0.2,
+        obtainMessage = '获得了 光源种子',
+        obtainHint = '它是温暖的。它想照进某个黑暗的地方。',
+        isConsumable = true,
+        consumedHint = '',
+        color = Color3.fromRGB(255, 180, 80),
+        material = Enum.Material.Neon,
+    },
+    ResonanceShard = {
+        name = 'ResonanceShard',
+        displayName = '共振晶片',
+        description = '薄片状晶体，读取矿物记忆',
+        pickupActionText = '小心取出',
+        pickupObjectText = '深橙色的矿物',
+        pickupHoldDuration = 0.5,
+        obtainMessage = '获得了 共振晶片',
+        obtainHint = '它能读取石头记住的画面。',
+        isConsumable = true,
+        consumedHint = '',
+        color = Color3.fromRGB(220, 150, 80),
+        material = Enum.Material.Glass,
+    },
+    RepairGear = {
+        name = 'RepairGear',
+        displayName = '修复齿轮',
+        description = '部分缺损的青铜齿轮，激活古代机关',
+        pickupActionText = '取出齿轮', -- 从宝箱中取出
+        pickupObjectText = '残缺的齿轮',
+        pickupHoldDuration = 0.2,
+        obtainMessage = '获得了 修复齿轮',
+        obtainHint = '',
+        isConsumable = true,
+        consumedHint = '',
+        color = Color3.fromRGB(160, 155, 140),
+        material = Enum.Material.Metal,
+    },
+    SilentEarring = {
+        name = 'SilentEarring',
+        displayName = '静默耳坠',
+        description = '耳坠状饰品，倾听隐藏的声音',
+        pickupActionText = '拾取',
+        pickupObjectText = '裂缝边的什么东西',
+        pickupHoldDuration = 0.2,
+        obtainMessage = '', -- 无普通获得提示——被叙事文字打断
+        obtainHint = '',
+        isConsumable = false, -- 持久工具
+        color = Color3.fromRGB(120, 100, 140),
+        material = Enum.Material.Glass,
+    },
+}
+
+-- ════════════════════════════════════════════════════════════
+-- 四、ProximityPrompt 配置表（所有交互点的 Prompt 文案和参数）
+-- ════════════════════════════════════════════════════════════
+
+NarrativeContent.PROMPTS = {
+
+    -- ── AT-01: 引火石 & 灯塔 ──
+    AT_01_PickupStone = {
+        actionText = '拾取',
+        objectText = '发光的石头',
+        holdDuration = 0.2,
+    },
+    AT_01_LightBeacon = {
+        actionText = '点燃残留',
+        objectText = '倒塌的灯塔',
+        holdDuration = 0.5,
+    },
+
+    -- ── AT-02: 刻痕墙壁 ──
+    AT_02_ReadWall = {
+        actionText = '辨认墙面痕迹',
+        objectText = '刻痕墙壁',
+        holdDuration = 3.0,
+    },
+
+    -- ── AT-03: 共鸣锤 & 碎石堆 ──
+    AT_03_PickupHammer = {
+        actionText = '拔出',
+        objectText = '埋在碎石中的东西',
+        holdDuration = 0.3,
+    },
+    AT_03_HitRubble = {
+        actionText = '敲击',
+        objectText = '碎石堆',
+        holdDuration = 0.3,
+    },
+
+    -- ── AR-01: 观测透镜 & 石碑 ──
+    AR_01_PickupLens = {
+        actionText = '拔出',
+        objectText = '嵌在基座里的晶体',
+        holdDuration = 0.3,
+    },
+    AR_01_ObserveStele = {
+        actionText = '透过透镜观察',
+        objectText = '古代石碑',
+        holdDuration = 0.0,
+    },
+
+    -- ── AR-02: 天平 ──
+    AR_02_TouchScale = {
+        actionText = '触碰天平',
+        objectText = '古代天平',
+        holdDuration = 0.0,
+    },
+
+    -- ── AR-03: 共鸣石 ──
+    AR_03_ActivateStone = {
+        actionText = '激活',
+        objectText = '共鸣石',
+        holdDuration = 0.0,
+    },
+
+    -- ── WF-01: 光源种子 & 树洞 ──
+    WF_01_PickupSeed = {
+        actionText = '拾取',
+        objectText = '发光的种子',
+        holdDuration = 0.2,
+    },
+    WF_01_DepositSeed = {
+        actionText = '投入种子',
+        objectText = '树洞',
+        holdDuration = 0.5,
+    },
+
+    -- ── WF-02: 追踪粉尘 & 足迹 ──
+    WF_02_PickupDust = {
+        actionText = '取下',
+        objectText = '挂在枝头的布袋',
+        holdDuration = 0.3,
+    },
+    WF_02_TrackFootprint = {
+        actionText = '追踪足迹',
+        objectText = '奇怪的足迹',
+        holdDuration = 0.0,
+    },
+    WF_02_Investigate = {
+        actionText = '调查',
+        objectText = '停留的痕迹',
+        holdDuration = 0.0,
+    },
+
+    -- ── WF-03: 异常树枝 & 果实 ──
+    WF_03_TouchBranch = {
+        actionText = '触碰',
+        objectText = '异常的树枝',
+        holdDuration = 0.0,
+    },
+    WF_03_PickFruit = {
+        actionText = '采摘',
+        objectText = '不存在的果实',
+        holdDuration = 0.0,
+    },
+
+    -- ── CR-03: 静默耳坠 ──
+    CR_03_PickupEarring = {
+        actionText = '拾取',
+        objectText = '裂缝边的什么东西',
+        holdDuration = 0.2,
+    },
+
+    -- ── CR-01: 共振晶片 & 矿物 ──
+    CR_01_PickupShard = {
+        actionText = '小心取出',
+        objectText = '深橙色的矿物',
+        holdDuration = 0.5,
+    },
+    CR_01_ReadMineral = {
+        actionText = '读取记忆',
+        objectText = '发光矿物',
+        holdDuration = 0.0,
+    },
+
+    -- ── CR-02: 宝箱 & 机关 ──
+    CR_02_OpenChest = {
+        actionText = '打开',
+        objectText = '古老的宝箱',
+        holdDuration = 0.5,
+    },
+    CR_02_PickupGear = {
+        actionText = '取出齿轮',
+        objectText = '残缺的齿轮',
+        holdDuration = 0.2,
+    },
+    CR_02_InstallGear = {
+        actionText = '安装齿轮',
+        objectText = '古代机关',
+        holdDuration = 0.5,
+    },
+
+    -- ── 图书馆入口门 ──
+    LibraryDoor = {
+        actionText = '推开门',
+        objectText = '一扇厚重的木门',
+        holdDuration = 1.0,
+    },
+}
+
+-- ════════════════════════════════════════════════════════════
+-- 五、"物品缺失时的拒绝提示"
+-- 当玩家尝试交互但没有持有必需物品时显示的文案
+-- ════════════════════════════════════════════════════════════
+
+NarrativeContent.MISSING_ITEM_HINTS = {
+    AT_01_BeaconNeedsFire = {
+        title = '这座残骸冰冷而黑暗',
+        hint = '似乎需要某种火源才能唤醒...',
+    },
+    AT_03_NeedHammer = { title = '', hint = '' }, -- 不敲击就不出 prompt，不需要额外提示
+    AR_01_SteleBlank = {
+        title = '石碑表面光滑无字',
+        hint = '也许需要某种工具来观察...',
+    },
+    WF_01_TreeDark = {
+        title = '树洞深处一片漆黑',
+        hint = '似乎需要光源才能看清里面...',
+    },
+    WF_02_TrackMysterious = {
+        title = '地面上有一个奇怪的凹陷',
+        hint = '似乎需要某种方式来追踪来源...',
+    },
+    CR_01_MineralGlowing = {
+        title = '矿物表面有微弱的光芒流动',
+        hint = '也许需要某种媒介来读取...',
+    },
+    CR_02_MechanismMissing = {
+        title = '机关表面有一个齿轮形的凹槽',
+        hint = '似乎缺少了关键部件...',
+    },
+}
+
+-- ════════════════════════════════════════════════════════════
+-- 六、多步骤进度反馈文字
+-- ════════════════════════════════════════════════════════════
+
+NarrativeContent.PROGRESS_FEEDBACK = {
+
+    -- AT-01 点燃灯塔进度
+    AT_01_BeaconProgress = {
+        format = '%d / 3', -- "1 / 3", "2 / 3", "3 / 3"
+        completedEffect = '三座灯塔同时发出的光芒在空中交汇成一瞬间的图案',
+    },
+
+    -- AT-03 敲击碎石堆进度（3个普通 + 1个可挖掘）
+    AT_03_RubbleProgress = {
+        format = '%d / 3', -- "1 / 3", "2 / 3", "3 / 3"
+        completedEffect = '四个碎石堆同时发出强烈共鸣',
+    },
+
+    -- AR-03 激活共鸣石进度
+    AR_03_StoneProgress = {
+        format = '☆', -- 激活标记
+        allActivatedEffect = '三道光柱从每块石头正上方射出，交汇于一点',
+    },
+}
+
+-- ════════════════════════════════════════════════════════════
+-- 七、区域进入/离开 提示文字
+-- ════════════════════════════════════════════════════════════
+
+NarrativeContent.AREA_HINTS = {
+
+    -- 出生点
+    Spawn = {
+        birthText = '你在黑暗中醒来。',
+        controlHint = '按 WASD 移动，空格跳跃',
+        guideHint = '走向光的方向。那里有东西在等你。',
+        firstStepHint = '荒野中有残留的记忆。找到它们。',
+        sandbookTitle = '📖 沙之书',
+        sandbookContent = '书页：0 / 40',
+        sandbookSubtext = '书页尚为空白。去寻找它们吧。',
+        promptAltar = '[E] 祭坛',
+        promptAssemble = '[E] 拼凑书页',
+        promptSandbook = '[E] 查看沙之书',
+    },
+
+    -- 进入各区域的边界提示
+    AT_Enter = {
+        complete = '废墟的气息。有什么东西曾经在这里存在过。',
+        duration = 4,
+    },
+    AT_Leave = {
+        allCollected = '废弃神庙区的回声已安静下来。还有更多东西在前方等待。',
+        partial = '这片废墟还有话没说完。',
+        duration = 3,
+    },
+
+    AR_Enter = {
+        text = '这里的秩序感令人不安。好像有人精心安排过一切。',
+        duration = 4,
+    },
+    AR_Leave = {
+        allCollected = '被记录的东西已经向你展示了它的秩序。接下来……有些东西正在生长。',
+        partial = '石头还在等待它的频率。',
+        duration = 4,
+    },
+
+    WF_Enter = {
+        text = '森林在呼吸。但有些呼吸……不太属于这里。',
+        duration = 4,
+    },
+    WF_Leave = {
+        allCollected = '有些东西不应该存在——但它确实在。而且它知道你知道。',
+        partial = '森林里还有些异常没有被理解。',
+        duration = 4,
+    },
+
+    CR_Enter = { text = '你站在入口。里面比你以为的更深。', duration = 3 },
+}
+
+-- ════════════════════════════════════════════════════════════
+-- 八、碎片获得确认格式化模板
+-- ════════════════════════════════════════════════════════════
+
+NarrativeContent.FRAGMENT_AWARD_TEMPLATES = {
+
+    -- 获得确认标题行
+    awardHeader = '★ 叙事碎片已记录：%s', -- %s = title
+    -- 进度行
+    progressLine = '进度：%d / 12', -- %d = 已收集数
+
+    -- 物品状态行（消耗品 vs 持久工具）
+    itemConsumed = '%s 已消耗', -- %s = 物品displayName
+    itemKept = '%s 已保留（持久工具）',
+
+    -- 全部碎片收集完成
+    collectionComplete = [[
+═══════════════════════════════
+
+ ✦ 所有荒野叙事碎片已收集完成 ✦
+
+ 荒野的故事已经拼完整了。
+ 门就在那里，随时可以进去。
+═══════════════════════════════
+ 进入图书馆前可在神庙查看。
+═══════════════════════════════]],
+
+    -- 状态变化标记
+    wallDeciphered = '该墙壁已被你辨认',
+    scaleCalmed = '该天平已平静',
+    stonesResonated = '共鸣石已共鸣',
+}
+
+-- ════════════════════════════════════════════════════════════
+-- 九、踏入图书馆 过渡文案
+-- ════════════════════════════════════════════════════════════
+
+NarrativeContent.LIBRARY_TRANSITION = {
+    nearDoorHint = '你拥有了所有的碎片。门就在前面。',
+    doorFrameHint = '进去之后，第一件事——找书页。',
+    doorFrameNoSandbookHint = '你还没看过沙之书。也许进去之后，你会想起来了。',
+    transitionDescription = '你进入了图书馆',
+}
+
+-- ════════════════════════════════════════════════════════════
+-- 十、图书馆入口门（普通门，无碎片/无前置条件）
+-- ════════════════════════════════════════════════════════════
+
+NarrativeContent.LIBRARY_DOOR = {
+    actionText = '推开门',
+    objectText = '一扇厚重的木门',
+}
+
+return NarrativeContent
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="111">
         <Properties>
           <string name="Name">NarrativeInteractionService</string>
           <string name="Source"><![CDATA[--!strict
@@ -14108,492 +15101,1088 @@ return NarrativeInteractionService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="110">
+      <Item class="ModuleScript" referent="112">
         <Properties>
           <string name="Name">NarrativeInteractionSystem</string>
           <string name="Source"><![CDATA[--!strict
---#region Types
-
-export type InteractionPoint = {
-    Name: string,
-    Type: string,
-    Description: string,
-    Position: Vector3,
-    Completed: { [number]: boolean }, -- 玩家完成状态，key = UserId
-}
-
---#endregion
-
---#region Services
+-- ════════════════════════════════════════════════════════════
+-- NarrativeInteractionSystem.luau — 叙事交互系统（逻辑层）
+--
+-- 所有文字内容已抽离到 NarrativeContent.luau 本文件只负责：
+-- 1. 创建物体、设置位置和材质
+-- 2. 绑定 ProximityPrompt 和交互回调
+-- 3. 管理玩家状态（碎片/物品/进度）
+-- 4. 调用 RemoteEvent 显示叙事内容
+-- 5. 视觉特效逻辑
+--
+-- 修改文案 → 改 NarrativeContent.luau
+-- 修改交互逻辑/坐标/特效 → 改本文件
+-- ════════════════════════════════════════════════════════════
 
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
 local Players = game:GetService('Players')
 
---#endregion
+-- ── 加载纯文案配置 ──
+local Content = require(script.Parent.NarrativeContent)
 
---#region Requires
-
+-- ── 网络模块 ──
 local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
 local Remotes = Shared.Network.Remotes.waitForScope(Shared.Network.Remotes.Scope.Run)
 
-local ItemService = require(script.Parent.ItemService)
-
---#endregion
-
---#region Module
+-- ════════════════════════════════════════════════════════════
+-- 模块
+-- ════════════════════════════════════════════════════════════
 
 local NarrativeInteractionSystem = {}
 
--- 存储玩家的叙事状态，避免内存泄漏
-local playerNarrativeStates = {}
+-- 玩家状态存储
+local playerFragments: { [number]: { [string]: boolean } } = {}
+local playerItems: { [number]: { [string]: boolean } } = {}
+local playerProgress: { [number]: { [string]: number } } = {}
 
 -- 清理离开的玩家数据
 Players.PlayerRemoving:Connect(function(player)
-    playerNarrativeStates[player.UserId] = nil
+    local uid = player.UserId
+    playerFragments[uid] = nil
+    playerItems[uid] = nil
+    playerProgress[uid] = nil
 end)
 
--- 交互点数据
-NarrativeInteractionSystem.InteractionPoints = {}
+-- ════════════════════════════════════════════════════════════
+-- 初始化入口：按区域创建所有交互点
+-- ════════════════════════════════════════════════════════════
 
--- 初始化交互点
 function NarrativeInteractionSystem.initialize(outdoorFolder: Folder)
     local folder = Instance.new('Folder')
-    folder.Name = 'InteractionPoints'
+    folder.Name = 'NarrativeInteractionPoints'
     folder.Parent = outdoorFolder
 
-    -- 交互点 1：手电筒 - 废弃神庙区
-    NarrativeInteractionSystem.createFlashlightInteraction(folder)
+    -- 废弃神庙区 (AT)
+    NarrativeInteractionSystem.createAT_01(folder)
+    NarrativeInteractionSystem.createAT_02(folder)
+    NarrativeInteractionSystem.createAT_03(folder)
 
-    -- 交互点 2：绳索 - 洞穴遗迹区
-    NarrativeInteractionSystem.createRopeInteraction(folder)
+    -- 古代遗迹区 (AR)
+    NarrativeInteractionSystem.createAR_01(folder)
+    NarrativeInteractionSystem.createAR_02(folder)
+    NarrativeInteractionSystem.createAR_03(folder)
 
-    -- 交互点 3：撬棍 - 古代遗迹区
-    NarrativeInteractionSystem.createCrowbarInteraction(folder)
+    -- 荒野森林区 (WF)
+    NarrativeInteractionSystem.createWF_01(folder)
+    NarrativeInteractionSystem.createWF_02(folder)
+    NarrativeInteractionSystem.createWF_03(folder)
+
+    -- 洞穴遗迹区 (CR)
+    NarrativeInteractionSystem.createCR_03(folder)
+    NarrativeInteractionSystem.createCR_01(folder)
+    NarrativeInteractionSystem.createCR_02(folder)
+
+    -- 图书馆入口（一扇普通的门，无碎片、无前置条件）
+    NarrativeInteractionSystem.createLibraryDoor(folder)
 end
 
--- ========================================
--- 交互点 1：手电筒
--- ========================================
-function NarrativeInteractionSystem.createFlashlightInteraction(folder: Folder)
-    local torchFolder = Instance.new('Folder')
-    torchFolder.Name = 'FlashlightInteraction'
-    torchFolder.Parent = folder
+-- ════════════════════════════════════════════════════════════
+-- 玩家状态查询辅助方法
+-- ════════════════════════════════════════════════════════════
 
-    -- 燃烧的火把
-    local torch = Instance.new('Part')
-    torch.Name = 'BurningTorch'
-    torch.Size = Vector3.new(0.5, 3, 0.5)
-    torch.CFrame = CFrame.new(-55, 2, 35) -- 废弃神庙区
-    torch.Color = Color3.fromRGB(139, 90, 43)
-    torch.Material = Enum.Material.Wood
-    torch.CanCollide = true
-    torch.Anchored = true
-    torch.Parent = torchFolder
+local function ensurePlayerData(player: Player)
+    if not playerFragments[player.UserId] then
+        playerFragments[player.UserId] = {}
+    end
+    if not playerItems[player.UserId] then
+        playerItems[player.UserId] = {}
+    end
+end
 
-    -- 火把顶部（火焰）
-    local fireTip = Instance.new('Part')
-    fireTip.Name = 'FireTip'
-    fireTip.Size = Vector3.new(0.3, 0.5, 0.3)
-    fireTip.CFrame = torch.CFrame * CFrame.new(0, 1.75, 0)
-    fireTip.Color = Color3.fromRGB(255, 200, 100)
-    fireTip.Material = Enum.Material.Neon
-    fireTip.Transparency = 0.3
-    fireTip.CanCollide = false
-    fireTip.Anchored = true
-    fireTip.Parent = torch
+function NarrativeInteractionSystem.hasCollected(player: Player, fragmentId: string): boolean
+    local fragments = playerFragments[player.UserId]
+    return fragments ~= nil and fragments[fragmentId] == true
+end
 
-    -- 火焰粒子特效
-    local fireAttachment = Instance.new('Attachment')
-    fireAttachment.Parent = fireTip
+function NarrativeInteractionSystem.hasItem(player: Player, itemName: string): boolean
+    local items = playerItems[player.UserId]
+    return items ~= nil and items[itemName] == true
+end
 
-    local fireParticle = Instance.new('ParticleEmitter')
-    fireParticle.Name = 'FireParticle'
-    fireParticle.Rate = 50
-    fireParticle.Lifetime = NumberRange.new(0.5, 1)
-    fireParticle.Speed = NumberRange.new(2, 4)
-    fireParticle.Size = NumberSequence.new(0.5, 0)
-    fireParticle.Color =
-        ColorSequence.new(Color3.fromRGB(255, 200, 100), Color3.fromRGB(255, 100, 50))
-    fireParticle.Transparency = NumberSequence.new(0, 1)
-    fireParticle.LightEmission = 1
-    fireParticle.Parent = fireAttachment
+function NarrativeInteractionSystem.getCollectedCount(player: Player): number
+    local fragments = playerFragments[player.UserId]
+    if not fragments then
+        return 0
+    end
+    local count = 0
+    for _ in pairs(fragments) do
+        count += 1
+    end
+    return count
+end
 
-    -- 火焰光照
-    local fireLight = Instance.new('PointLight')
-    fireLight.Name = 'FireLight'
-    fireLight.Color = Color3.fromRGB(255, 200, 100)
-    fireLight.Brightness = 2
-    fireLight.Range = 15
-    fireLight.Parent = fireTip
+-- ════════════════════════════════════════════════════════════
+-- 物品操作辅助方法
+-- ════════════════════════════════════════════════════════════
 
-    -- 火把交互提示
-    local torchPrompt = Instance.new('ProximityPrompt')
-    torchPrompt.Name = 'TorchPrompt'
-    torchPrompt.ActionText = '拾取'
-    torchPrompt.ObjectText = '燃烧的火把'
-    torchPrompt.MaxActivationDistance = 5
-    torchPrompt.KeyboardKeyCode = Enum.KeyCode.E
-    torchPrompt.HoldDuration = 0.5
-    torchPrompt.Parent = torch
+function NarrativeInteractionSystem.giveItem(player: Player, itemName: string)
+    ensurePlayerData(player)
+    playerItems[player.UserId][itemName] = true
 
-    torchPrompt.Triggered:Connect(function(player)
-        if ItemService.hasItem(player, 'BurningTorch') then
-            return -- 已经拾取过
+    local itemDef = Content.TRIGGER_ITEMS[itemName]
+    if itemDef and itemDef.obtainMessage ~= '' then
+        Remotes.ShowNarrative:FireClient(player, itemDef.obtainMessage, itemDef.obtainHint, '')
+    end
+end
+
+function NarrativeInteractionSystem.consumeItem(player: Player, itemName: string)
+    if playerItems[player.UserId] then
+        playerItems[player.UserId][itemName] = nil
+    end
+end
+
+-- ════════════════════════════════════════════════════════════
+-- 碎片发放 + 叙事显示
+-- ════════════════════════════════════════════════════════════
+
+function NarrativeInteractionSystem.awardFragment(player: Player, fragmentId: string): boolean
+    ensurePlayerData(player)
+
+    -- 已收集则跳过
+    if playerFragments[player.UserId][fragmentId] then
+        return false
+    end
+
+    -- 标记已收集
+    playerFragments[player.UserId][fragmentId] = true
+
+    -- 从 Content 中查找碎片配置
+    local config = nil
+    for _, frag in ipairs(Content.FRAGMENTS) do
+        if frag.id == fragmentId then
+            config = frag
+            break
         end
+    end
 
-        -- 给予火把道具
-        ItemService.giveItem(player, 'BurningTorch')
-
-        -- 显示叙事文本
+    if config then
+        -- 普通碎片：显示叙事文字 + 情报内容
         Remotes.ShowNarrative:FireClient(
             player,
-            '火把在燃烧中...',
-            '它的光芒温暖而短暂',
-            '用它点燃那些倒塌的灯塔吧'
+            config.title,
+            config.narrativeText,
+            config.intelContent
         )
+    end
 
-        -- 隐藏火把（拾取后）
-        torch.Transparency = 1
-        torch.CanCollide = false
-        fireTip.Transparency = 1
-        fireParticle.Enabled = false
-        fireLight.Enabled = false
-        torchPrompt.Enabled = false
+    return true
+end
+
+-- ════════════════════════════════════════════════════════════
+-- ProximityPrompt 工厂方法（统一创建 Prompt）
+-- ════════════════════════════════════════════════════════════
+
+local function createPrompt(
+    parent: Instance,
+    promptKey: string,
+    maxDistance: number?,
+    keyCode: KeyCode?
+): ProximityPrompt
+    local promptConfig = Content.PROMPTS[promptKey]
+    if not promptConfig then
+        error('[NarrativeSystem] 未找到 Prompt 配置: ' .. promptKey)
+    end
+
+    local prompt = Instance.new('ProximityPrompt')
+    prompt.Name = promptConfig.actionText .. 'Prompt'
+    prompt.ActionText = promptConfig.actionText
+    prompt.ObjectText = promptConfig.objectText
+    prompt.KeyboardKeyCode = keyCode or Enum.KeyCode.E
+    prompt.HoldDuration = promptConfig.holdDuration
+    prompt.MaxActivationDistance = maxDistance or 6
+    prompt.RequiresLineOfSight = false
+    prompt.Parent = parent
+    return prompt
+end
+
+-- ════════════════════════════════════════════════════════════
+-- AT-01: 熄灭的守望者（引火石 + 3座灯塔残骸）
+-- ════════════════════════════════════════════════════════════
+
+function NarrativeInteractionSystem.createAT_01(folder: Folder)
+    local atFolder = Instance.new('Folder')
+    atFolder.Name = 'AT_01_ExtinctWatchman'
+    atFolder.Parent = folder
+
+    local itemDef = Content.TRIGGER_ITEMS.KindlingStone
+
+    -- 步骤1：引火石（碎石堆旁）
+    local kindlingStone = Instance.new('Part')
+    kindlingStone.Name = 'KindlingStone'
+    kindlingStone.Size = Vector3.new(0.8, 0.6, 0.8)
+    kindlingStone.CFrame = CFrame.new(-55, 1, 50)
+    kindlingStone.Color = itemDef.color
+    kindlingStone.Material = itemDef.material
+    kindlingStone.CanCollide = false
+    kindlingStone.Anchored = true
+    kindlingStone.Parent = atFolder
+
+    -- 引火石发光提示
+    local stoneLight = Instance.new('PointLight')
+    stoneLight.Color = Color3.fromRGB(255, 100, 50)
+    stoneLight.Brightness = 0.5
+    stoneLight.Range = 4
+    stoneLight.Parent = kindlingStone
+
+    local stonePrompt = createPrompt(kindlingStone, 'AT_01_PickupStone')
+    stonePrompt.Triggered:Connect(function(player)
+        if NarrativeInteractionSystem.hasItem(player, 'KindlingStone') then
+            return
+        end
+        NarrativeInteractionSystem.giveItem(player, 'KindlingStone')
     end)
 
-    -- 三座倒塌的灯塔
+    -- 步骤2：三座灯塔残骸
     local lighthousePositions = {
-        CFrame.new(-70, 6, 30) * CFrame.Angles(math.rad(25), 0, 0),
-        CFrame.new(-75, 5, 25),
-        CFrame.new(-80, 4, 35),
+        CFrame.new(-68, 5, 28),
+        CFrame.new(-75, 4, 33),
+        CFrame.new(-82, 3, 38),
     }
+    local totalBeacons = #lighthousePositions
+    local progressFormat = Content.PROGRESS_FEEDBACK.AT_01_BeaconProgress.format
 
     for i, pos in ipairs(lighthousePositions) do
-        local lighthouse = Instance.new('Part')
-        lighthouse.Name = 'Lighthouse' .. i
-        lighthouse.Size = Vector3.new(6, 10, 6)
-        lighthouse.CFrame = pos
-        lighthouse.Color = Color3.fromRGB(110, 115, 120)
-        lighthouse.Material = Enum.Material.Slate
-        lighthouse.CanCollide = true
-        lighthouse.Anchored = true
-        lighthouse.Parent = torchFolder
+        local lhPart = Instance.new('Part')
+        lhPart.Name = 'LighthouseRemnant_' .. i
+        lhPart.Size = Vector3.new(4, 8, 4)
+        lhPart.CFrame = pos
+        lhPart.Color = Color3.fromRGB(90, 95, 100)
+        lhPart.Material = Enum.Material.Slate
+        lhPart.CanCollide = true
+        lhPart.Anchored = true
+        lhPart.Parent = atFolder
 
-        -- 灯塔顶部（灯室）
-        local lantern = Instance.new('Part')
-        lantern.Name = 'Lantern'
-        lantern.Size = Vector3.new(3, 3, 3)
-        lantern.CFrame = lighthouse.CFrame * CFrame.new(0, 6.5, 0)
-        lantern.Color = Color3.fromRGB(100, 105, 110)
-        lantern.Material = Enum.Material.Glass
-        lantern.Transparency = 0.3
-        lantern.CanCollide = false
-        lantern.Anchored = true
-        lantern.Parent = lighthouse
+        local lhPrompt = createPrompt(lhPart, 'AT_01_LightBeacon', 8)
+        local missingHint = Content.MISSING_ITEM_HINTS.AT_01_BeaconNeedsFire
 
-        -- 灯塔交互提示（用于点燃）
-        local lighthousePrompt = Instance.new('ProximityPrompt')
-        lighthousePrompt.Name = 'LighthousePrompt'
-        lighthousePrompt.ActionText = '点燃'
-        lighthousePrompt.ObjectText = '倒塌的灯塔'
-        lighthousePrompt.MaxActivationDistance = 8
-        lighthousePrompt.KeyboardKeyCode = Enum.KeyCode.E
-        lighthousePrompt.HoldDuration = 0.5
-        lighthousePrompt.Parent = lantern
-
-        lighthousePrompt.Triggered:Connect(function(player)
-            if not ItemService.hasItem(player, 'BurningTorch') then
-                Remotes.ShowNarrative:FireClient(
-                    player,
-                    '灯塔曾是荒野的指引',
-                    '现在只剩下残垣断壁',
-                    '等待光明的重现'
-                )
+        lhPrompt.Triggered:Connect(function(player)
+            if NarrativeInteractionSystem.hasCollected(player, 'AT_01') then
+                return
+            end
+            if not NarrativeInteractionSystem.hasItem(player, 'KindlingStone') then
+                Remotes.ShowNarrative:FireClient(player, missingHint.title, missingHint.hint, '')
                 return
             end
 
-            -- 检查是否已经点燃
-            if lantern:GetAttribute('Lit') then
+            local playerLitKey = 'LitBy' .. player.UserId
+            if lhPart:GetAttribute(playerLitKey) then
                 return
             end
+            lhPart:SetAttribute(playerLitKey, true)
 
-            -- 点燃灯塔
-            lantern:SetAttribute('Lit', true)
+            -- 点燃特效
+            local lhLight = Instance.new('PointLight')
+            lhLight.Color = Color3.fromRGB(255, 200, 100)
+            lhLight.Brightness = 2
+            lhLight.Range = 15
+            lhLight.Parent = lhPart
 
-            -- 添加光照
-            local lanternLight = Instance.new('PointLight')
-            lanternLight.Name = 'LanternLight'
-            lanternLight.Color = Color3.fromRGB(255, 230, 150)
-            lanternLight.Brightness = 3
-            lanternLight.Range = 20
-            lanternLight.Parent = lantern
+            task.delay(3, function()
+                if lhLight then
+                    lhLight.Enabled = false
+                    lhLight:Destroy()
+                end
+            end)
 
-            -- 添加粒子特效
-            local lanternAttachment = Instance.new('Attachment')
-            lanternAttachment.Parent = lantern
+            -- 按玩家独立计数
+            local uid = player.UserId
+            if not playerProgress[uid] then
+                playerProgress[uid] = {}
+            end
+            if not playerProgress[uid]['AT_01'] then
+                playerProgress[uid]['AT_01'] = 0
+            end
+            playerProgress[uid]['AT_01'] += 1
+            local currentCount = playerProgress[uid]['AT_01']
 
-            local lanternParticle = Instance.new('ParticleEmitter')
-            lanternParticle.Name = 'LightParticle'
-            lanternParticle.Rate = 30
-            lanternParticle.Lifetime = NumberRange.new(1, 2)
-            lanternParticle.Speed = NumberRange.new(1, 2)
-            lanternParticle.Size = NumberSequence.new(0.8, 0)
-            lanternParticle.Color =
-                ColorSequence.new(Color3.fromRGB(255, 230, 150), Color3.fromRGB(255, 200, 100))
-            lanternParticle.Transparency = NumberSequence.new(0, 0.5)
-            lanternParticle.LightEmission = 0.5
-            lanternParticle.Parent = lanternAttachment
-
-            -- 检查是否三座都已点燃
-            local litCount = 0
-            for _, sibling in ipairs(torchFolder:GetChildren()) do
-                if sibling.Name:sub(1, 10) == 'Lighthouse' then
-                    local siblingLantern = sibling:FindFirstChild('Lantern')
-                    if siblingLantern and siblingLantern:GetAttribute('Lit') then
-                        litCount = litCount + 1
+            -- ★ 进度反馈文字（通过 ShowNarrative 发送给客户端渲染 "N / 3"）
+            local progressText = string.format(progressFormat, currentCount)
+            if currentCount >= totalBeacons then
+                -- 三座点燃完成 → 给予碎片
+                progressText = progressText
+                    .. '\n\n'
+                    .. Content.PROGRESS_FEEDBACK.AT_01_BeaconProgress.completedEffect
+                Remotes.ShowNarrative:FireClient(player, progressText, '', '')
+                task.delay(0.5, function()
+                    if NarrativeInteractionSystem.awardFragment(player, 'AT_01') then
+                        NarrativeInteractionSystem.consumeItem(player, 'KindlingStone')
                     end
-                end
-            end
-
-            if litCount >= 3 then
-                -- 给予手电筒
-                if not ItemService.hasItem(player, 'Flashlight') then
-                    ItemService.giveItem(player, 'Flashlight')
-                    Remotes.ShowNarrative:FireClient(
-                        player,
-                        '三座灯塔都已点燃',
-                        '光芒照亮了荒野',
-                        '你获得了手电筒！'
-                    )
-                end
+                end)
+            else
+                -- 显示进度数字
+                Remotes.ShowNarrative:FireClient(player, progressText, '', '')
             end
         end)
     end
 end
 
--- ========================================
--- 交互点 2：绳索
--- ========================================
-function NarrativeInteractionSystem.createRopeInteraction(folder: Folder)
-    local ropeFolder = Instance.new('Folder')
-    ropeFolder.Name = 'RopeInteraction'
-    ropeFolder.Parent = folder
+-- ════════════════════════════════════════════════════════════
+-- AT-02: 墙上的最后一行（纯观察交互，Hold 3秒）
+-- ════════════════════════════════════════════════════════════
 
-    -- 三段废弃的绳子
-    local ropePositions = {
-        Vector3.new(-5, 1, 165),
-        Vector3.new(5, 1.5, 170),
-        Vector3.new(0, 2, 175),
+function NarrativeInteractionSystem.createAT_02(folder: Folder)
+    local atFolder = Instance.new('Folder')
+    atFolder.Name = 'AT_02_LastLine'
+    atFolder.Parent = folder
+
+    local wallPart = Instance.new('Part')
+    wallPart.Name = 'InscriptionWall'
+    wallPart.Size = Vector3.new(12, 6, 0.5)
+    wallPart.CFrame = CFrame.new(-50, 5, 42) * CFrame.Angles(0, math.rad(30), math.rad(-15))
+    wallPart.Color = Color3.fromRGB(100, 105, 110)
+    wallPart.Material = Enum.Material.Slate
+    wallPart.CanCollide = false
+    wallPart.Anchored = true
+    wallPart.Transparency = 0.3
+    wallPart.Parent = atFolder
+
+    local wallPrompt = createPrompt(wallPart, 'AT_02_ReadWall', 7)
+    wallPrompt.Triggered:Connect(function(player)
+        if NarrativeInteractionSystem.hasCollected(player, 'AT_02') then
+            return
+        end
+        NarrativeInteractionSystem.awardFragment(player, 'AT_02')
+
+        -- 标记墙壁状态
+        wallPart:SetAttribute('DecipheredBy' .. player.UserId, true)
+    end)
+end
+
+-- ════════════════════════════════════════════════════════════
+-- AT-03: 碎裂的回声（共鸣锤 + 4个碎石堆）
+-- ════════════════════════════════════════════════════════════
+
+function NarrativeInteractionSystem.createAT_03(folder: Folder)
+    local atFolder = Instance.new('Folder')
+    atFolder.Name = 'AT_03_ShatteredEcho'
+    atFolder.Parent = folder
+
+    local hammerDef = Content.TRIGGER_ITEMS.ResonanceHammer
+
+    -- 共鸣锤（埋在第3个碎石堆中，初始不可见）
+    local hammer = Instance.new('Part')
+    hammer.Name = 'ResonanceHammer'
+    hammer.Size = Vector3.new(0.6, 1.2, 0.6)
+    hammer.CFrame = CFrame.new(-65, 2, 36)
+    hammer.Color = hammerDef.color
+    hammer.Material = hammerDef.material
+    hammer.CanCollide = false
+    hammer.Anchored = true
+    hammer.Transparency = 1 -- 初始完全透明（被碎石堆掩埋）
+    hammer.Parent = atFolder
+
+    -- 锤子的 Prompt 初始禁用，挖掘后启用
+    local hammerPrompt = createPrompt(hammer, 'AT_03_PickupHammer')
+    hammerPrompt.Enabled = false
+    hammerPrompt.Triggered:Connect(function(player)
+        if NarrativeInteractionSystem.hasItem(player, 'ResonanceHammer') then
+            return
+        end
+        NarrativeInteractionSystem.giveItem(player, 'ResonanceHammer')
+    end)
+
+    -- 敲击目标碎石堆（索引 3 是特殊的可挖掘碎石堆）
+    local rubblePositions = {
+        Vector3.new(-45, 1.5, 52), -- 1: 普通
+        Vector3.new(-55, 1, 47), -- 2: 普通
+        Vector3.new(-65, 2, 37), -- 3: 可挖掘（锤子在里面）
+        Vector3.new(-75, 1.3, 27), -- 4: 普通
     }
+    local totalNormalTargets = 3
+    local progressFormat = Content.PROGRESS_FEEDBACK.AT_03_RubbleProgress.format
 
-    for i, pos in ipairs(ropePositions) do
-        local rope = Instance.new('Part')
-        rope.Name = 'RopeSegment' .. i
-        rope.Size = Vector3.new(0.3, 2, 0.3)
-        rope.CFrame = CFrame.new(pos)
-        rope.Color = Color3.fromRGB(101, 67, 33)
-        rope.Material = Enum.Material.Fabric
-        rope.CanCollide = true
-        rope.Anchored = true
-        rope.Parent = ropeFolder
+    for i, pos in ipairs(rubblePositions) do
+        local target = Instance.new('Part')
+        target.Name = 'RubbleTarget_' .. i
+        target.Size = Vector3.new(2, 1.5, 2)
+        target.CFrame = CFrame.new(pos)
+        target.Color = Color3.fromRGB(90, 95, 100)
+        target.Material = Enum.Material.Slate
+        target.Shape = Enum.PartType.Ball
+        target.CanCollide = true
+        target.Anchored = true
+        target.Parent = atFolder
 
-        -- 绳子交互提示
-        local ropePrompt = Instance.new('ProximityPrompt')
-        ropePrompt.Name = 'RopePrompt'
-        ropePrompt.ActionText = '拾取'
-        ropePrompt.ObjectText = '废弃的绳子'
-        ropePrompt.MaxActivationDistance = 5
-        ropePrompt.KeyboardKeyCode = Enum.KeyCode.E
-        ropePrompt.HoldDuration = 0.2
-        ropePrompt.Parent = rope
+        if i == 3 then
+            -- 碎石堆_3：可挖掘（不需要锤子）
+            local digPrompt = createPrompt(target, 'AT_03_DigRubble', 3)
+            digPrompt.ActionText = '挖掘'
+            digPrompt.ObjectText = '松动的碎石'
 
-        ropePrompt.Triggered:Connect(function(player)
-            if rope:GetAttribute('Collected') then
-                return -- 已经拾取过
-            end
-
-            -- 标记为已拾取
-            rope:SetAttribute('Collected', true)
-            rope.Transparency = 1
-            rope.CanCollide = false
-            ropePrompt.Enabled = false
-
-            -- 检查是否是第一段
-            local collectedCount = 0
-            for _, sibling in ipairs(ropeFolder:GetChildren()) do
-                if sibling.Name:sub(1, 12) == 'RopeSegment' then
-                    if sibling:GetAttribute('Collected') then
-                        collectedCount = collectedCount + 1
-                    end
+            digPrompt.Triggered:Connect(function(player)
+                local dugKey = 'DugBy' .. player.UserId
+                if target:GetAttribute(dugKey) then
+                    return
                 end
-            end
+                target:SetAttribute(dugKey, true)
 
-            -- 第一段触发叙事
-            if collectedCount == 1 then
+                -- 碎石堆破碎消失
+                target.Transparency = 1
+                target.CanCollide = false
+                digPrompt.Enabled = false
+
+                -- 小碎块飞散效果
+                for _ = 1, 4 do
+                    local debris = Instance.new('Part')
+                    debris.Size = Vector3.new(0.4, 0.4, 0.4)
+                    debris.Position = pos
+                        + Vector3.new(
+                            math.random(-10, 10) / 10,
+                            math.random(0, 10) / 10,
+                            math.random(-10, 10) / 10
+                        )
+                    debris.Color = Color3.fromRGB(90, 95, 100)
+                    debris.Material = Enum.Material.Slate
+                    debris.CanCollide = false
+                    debris.Anchored = false
+                    debris.Parent = atFolder
+                    game:GetService('Debris'):Add(debris, 2)
+                end
+
+                -- 露出锤子
+                hammer.Transparency = 0
+                hammerPrompt.Enabled = true
+
                 Remotes.ShowNarrative:FireClient(
                     player,
-                    '历史的痕迹从未被抹去',
-                    '可历史又从哪里来呢？',
-                    '继续寻找其他段落的绳子...'
+                    '碎石松动',
+                    '有什么东西露出来了……',
+                    ''
                 )
-            end
+            end)
+        else
+            local targetPrompt = createPrompt(target, 'AT_03_HitRubble')
+            targetPrompt.Triggered:Connect(function(player)
+                if NarrativeInteractionSystem.hasCollected(player, 'AT_03') then
+                    return
+                end
+                if not NarrativeInteractionSystem.hasItem(player, 'ResonanceHammer') then
+                    return
+                end
 
-            -- 三段都拾取后，给予全新绳索
-            if collectedCount >= 3 then
-                if not ItemService.hasItem(player, 'Rope') then
-                    ItemService.giveItem(player, 'Rope')
+                local hitKey = 'HitBy' .. player.UserId
+                if target:GetAttribute(hitKey) then
+                    return
+                end
+                target:SetAttribute(hitKey, true)
+
+                -- 敲击视觉反馈（全局可见）
+                target.Color = Color3.fromRGB(200, 180, 150)
+                task.delay(0.5, function()
+                    target.Color = Color3.fromRGB(90, 95, 100)
+                end)
+
+                -- 按玩家独立计数
+                local uid = player.UserId
+                if not playerProgress[uid] then
+                    playerProgress[uid] = {}
+                end
+                if not playerProgress[uid]['AT_03'] then
+                    playerProgress[uid]['AT_03'] = 0
+                end
+                playerProgress[uid]['AT_03'] += 1
+                local currentCount = playerProgress[uid]['AT_03']
+
+                if currentCount >= totalNormalTargets then
+                    local progressText = string.format(progressFormat, currentCount)
+                        .. '\n\n'
+                        .. Content.PROGRESS_FEEDBACK.AT_03_RubbleProgress.completedEffect
+                    Remotes.ShowNarrative:FireClient(player, progressText, '', '')
+                    task.delay(0.5, function()
+                        if NarrativeInteractionSystem.awardFragment(player, 'AT_03') then
+                            NarrativeInteractionSystem.consumeItem(player, 'ResonanceHammer')
+                        end
+                    end)
+                else
+                    -- 显示进度
                     Remotes.ShowNarrative:FireClient(
                         player,
-                        '三段绳子都已收集',
-                        '你将它们编织成了一根完整的绳索',
-                        '你获得了绳索！'
+                        string.format(progressFormat, currentCount),
+                        '',
+                        ''
                     )
                 end
-            end
-        end)
-    end
+            end) -- targetPrompt.Triggered
+        end -- else (normal rubble)
+    end -- for loop
+end -- createAT_03
+
+-- ════════════════════════════════════════════════════════════
+-- AR-01: 石碑的无字面（观测透镜 + 石碑1）
+-- ════════════════════════════════════════════════════════════
+
+function NarrativeInteractionSystem.createAR_01(folder: Folder)
+    local arFolder = Instance.new('Folder')
+    arFolder.Name = 'AR_01_BlankStele'
+    arFolder.Parent = folder
+
+    local lensDef = Content.TRIGGER_ITEMS.ObservationLens
+
+    -- 观测透镜（嵌在石碑2基座）
+    local lens = Instance.new('Part')
+    lens.Name = 'ObservationLens'
+    lens.Size = Vector3.new(0.4, 0.1, 0.4)
+    lens.CFrame = CFrame.new(70, 4.2, 35)
+    lens.Color = lensDef.color
+    lens.Material = lensDef.material
+    lens.CanCollide = false
+    lens.Anchored = true
+    lens.Parent = arFolder
+
+    local lensPrompt = createPrompt(lens, 'AR_01_PickupLens')
+    lensPrompt.Triggered:Connect(function(player)
+        if NarrativeInteractionSystem.hasItem(player, 'ObservationLens') then
+            return
+        end
+        NarrativeInteractionSystem.giveItem(player, 'ObservationLens')
+    end)
+
+    -- 目标石碑（石碑1位置）
+    local steleTarget = Instance.new('Part')
+    steleTarget.Name = 'SteleTarget'
+    steleTarget.Size = Vector3.new(3.5, 9, 1.2)
+    steleTarget.CFrame = CFrame.new(60, 4.5, 30)
+    steleTarget.Color = Color3.fromRGB(130, 135, 140)
+    steleTarget.Material = Enum.Material.Slate
+    steleTarget.CanCollide = false
+    steleTarget.Anchored = true
+    steleTarget.Transparency = 0.5
+    steleTarget.Parent = arFolder
+
+    local stelePrompt = createPrompt(steleTarget, 'AR_01_ObserveStele')
+    local missingHint = Content.MISSING_ITEM_HINTS.AR_01_SteleBlank
+
+    stelePrompt.Triggered:Connect(function(player)
+        if NarrativeInteractionSystem.hasCollected(player, 'AR_01') then
+            return
+        end
+        if not NarrativeInteractionSystem.hasItem(player, 'ObservationLens') then
+            Remotes.ShowNarrative:FireClient(player, missingHint.title, missingHint.hint, '')
+            return
+        end
+        NarrativeInteractionSystem.awardFragment(player, 'AR_01')
+    end)
 end
 
--- ========================================
--- 交互点 3：撬棍
--- ========================================
-function NarrativeInteractionSystem.createCrowbarInteraction(folder: Folder)
-    local crowbarFolder = Instance.new('Folder')
-    crowbarFolder.Name = 'CrowbarInteraction'
-    crowbarFolder.Parent = folder
+-- ════════════════════════════════════════════════════════════
+-- AR-02: 失衡的天平（直接触碰交互）
+-- ════════════════════════════════════════════════════════════
 
-    -- 废弃的箱子
-    local chest = Instance.new('Part')
-    chest.Name = 'AbandonedChest'
-    chest.Size = Vector3.new(5, 4, 3)
-    chest.CFrame = CFrame.new(65, 2, 55) -- 古代遗迹区
-    chest.Color = Color3.fromRGB(101, 67, 33)
-    chest.Material = Enum.Material.Wood
-    chest.CanCollide = true
-    chest.Anchored = true
-    chest.Parent = crowbarFolder
+function NarrativeInteractionSystem.createAR_02(folder: Folder)
+    local arFolder = Instance.new('Folder')
+    arFolder.Name = 'AR_02_UnbalancedScale'
+    arFolder.Parent = folder
 
-    -- 箱子盖
-    local lid = Instance.new('Part')
-    lid.Name = 'ChestLid'
-    lid.Size = Vector3.new(5.2, 0.3, 3.2)
-    lid.CFrame = chest.CFrame * CFrame.new(0, 2.2, 0)
-    lid.Color = Color3.fromRGB(91, 57, 23)
-    lid.Material = Enum.Material.Wood
-    lid.CanCollide = true
-    lid.Anchored = true
-    lid.Parent = chest
+    local scalePart = Instance.new('Part')
+    scalePart.Name = 'ScaleInteraction'
+    scalePart.Size = Vector3.new(6, 0.5, 6)
+    scalePart.CFrame = CFrame.new(75, 3, 55)
+    scalePart.Color = Color3.fromRGB(140, 145, 150)
+    scalePart.Material = Enum.Material.Slate
+    scalePart.CanCollide = false
+    scalePart.Anchored = true
+    scalePart.Transparency = 0.3
+    scalePart.Parent = arFolder
 
-    -- 箱子金属锁
-    local lock = Instance.new('Part')
-    lock.Name = 'ChestLock'
-    lock.Size = Vector3.new(0.5, 0.8, 0.5)
-    lock.CFrame = chest.CFrame * CFrame.new(0, 2.5, 1.5)
-    lock.Color = Color3.fromRGB(112, 112, 112)
-    lock.Material = Enum.Material.Metal
-    lock.CanCollide = false
-    lock.Anchored = true
-    lock.Parent = chest
-
-    -- 箱子靠近触发叙事
-    local chestPrompt = Instance.new('ProximityPrompt')
-    chestPrompt.Name = 'ChestNarrativePrompt'
-    chestPrompt.ActionText = ''
-    chestPrompt.ObjectText = '废弃的箱子'
-    chestPrompt.MaxActivationDistance = 10
-    chestPrompt.KeyboardKeyCode = Enum.KeyCode.E
-    chestPrompt.HoldDuration = 0
-    chestPrompt.GamepadKeyCode = Enum.KeyCode.ButtonA
-    chestPrompt.Parent = chest
-
-    local narrativeKey = 'chest_narrative_shown'
-
-    chestPrompt.Triggered:Connect(function(player)
+    local scalePrompt = createPrompt(scalePart, 'AR_02_TouchScale')
+    scalePrompt.Triggered:Connect(function(player)
         if
-            playerNarrativeStates[player.UserId]
-            and playerNarrativeStates[player.UserId][narrativeKey]
+            NarrativeInteractionSystem.hasCollected(player, 'AR_02')
+            or scalePart:GetAttribute('Calmed')
         then
             return
         end
+        scalePart:SetAttribute('Calmed', true)
+        NarrativeInteractionSystem.awardFragment(player, 'AR_02')
+    end)
+end
 
-        if not playerNarrativeStates[player.UserId] then
-            playerNarrativeStates[player.UserId] = {}
-        end
-        playerNarrativeStates[player.UserId][narrativeKey] = true
-        Remotes.ShowNarrative:FireClient(
-            player,
-            '覆灭的文明留下了历史残骸',
-            '这个箱子看起来锁住了',
-            '按 R 键尝试打开它'
-        )
+-- ════════════════════════════════════════════════════════════
+-- AR-03: 共鸣石的频率（3块石头逐个激活）
+-- ════════════════════════════════════════════════════════════
 
-        -- 显示打开提示
-        local openPrompt = Instance.new('ProximityPrompt')
-        openPrompt.Name = 'OpenPrompt'
-        openPrompt.ActionText = '打开'
-        openPrompt.ObjectText = '废弃的箱子'
-        openPrompt.MaxActivationDistance = 5
-        openPrompt.KeyboardKeyCode = Enum.KeyCode.R
-        openPrompt.HoldDuration = 0.5
-        openPrompt.Parent = chest
+function NarrativeInteractionSystem.createAR_03(folder: Folder)
+    local arFolder = Instance.new('Folder')
+    arFolder.Name = 'AR_03_ResonanceFrequency'
+    arFolder.Parent = folder
 
-        openPrompt.Triggered:Connect(function(_opener)
-            if chest:GetAttribute('Opened') then
+    local stonePositions = {
+        Vector3.new(50, 2, 60),
+        Vector3.new(55, 1.5, 70),
+        Vector3.new(65, 2.5, 65),
+    }
+    local totalStones = #stonePositions
+
+    for i, pos in ipairs(stonePositions) do
+        local stonePart = Instance.new('Part')
+        stonePart.Name = 'ResonanceStone_' .. i
+        stonePart.Size = Vector3.new(4.2, 4.2, 4.2)
+        stonePart.CFrame = CFrame.new(pos)
+        stonePart.Color = Color3.fromRGB(145, 150, 155)
+        stonePart.Material = Enum.Material.Slate
+        stonePart.Shape = Enum.PartType.Ball
+        stonePart.CanCollide = false
+        stonePart.Anchored = true
+        stonePart.Transparency = 0.3
+        stonePart.Parent = arFolder
+
+        local stonePrompt = createPrompt(stonePart, 'AR_03_ActivateStone')
+
+        stonePrompt.Triggered:Connect(function(player)
+            if NarrativeInteractionSystem.hasCollected(player, 'AR_03') then
                 return
             end
 
-            -- 打开箱子
-            chest:SetAttribute('Opened', true)
-            openPrompt:Destroy()
+            if stonePart:GetAttribute('ActivatedBy' .. player.UserId) then
+                return
+            end
+            stonePart:SetAttribute('ActivatedBy' .. player.UserId, true)
 
-            -- 箱子盖打开动画
-            lid.CFrame = chest.CFrame * CFrame.Angles(math.rad(-45), 0, 0) * CFrame.new(0, 2.5, 0.5)
-
-            -- 显示撬棍
-            local crowbar = Instance.new('Part')
-            crowbar.Name = 'Crowbar'
-            crowbar.Size = Vector3.new(0.3, 4, 0.3)
-            crowbar.CFrame = chest.CFrame * CFrame.new(0, 1.5, 0)
-            crowbar.Color = Color3.fromRGB(120, 120, 120)
-            crowbar.Material = Enum.Material.Metal
-            crowbar.CanCollide = true
-            crowbar.Anchored = true
-            crowbar.Parent = chest
-
-            -- 撬棍拾取提示
-            local crowbarPrompt = Instance.new('ProximityPrompt')
-            crowbarPrompt.Name = 'CrowbarPrompt'
-            crowbarPrompt.ActionText = '拾取'
-            crowbarPrompt.ObjectText = '金属撬棍'
-            crowbarPrompt.MaxActivationDistance = 5
-            crowbarPrompt.KeyboardKeyCode = Enum.KeyCode.E
-            crowbarPrompt.HoldDuration = 0.3
-            crowbarPrompt.Parent = crowbar
-
-            crowbarPrompt.Triggered:Connect(function(picker)
-                if not ItemService.hasItem(picker, 'Crowbar') then
-                    ItemService.giveItem(picker, 'Crowbar')
-                    crowbar.Transparency = 1
-                    crowbar.CanCollide = false
-                    crowbarPrompt.Enabled = false
-                    Remotes.ShowNarrative:FireClient(
-                        picker,
-                        '你捡起了撬棍',
-                        '它可以用来撬开锁住的箱子',
-                        '你获得了撬棍！'
-                    )
-                end
+            -- 激活视觉效果
+            stonePart.Color = Color3.fromRGB(180, 190, 200)
+            task.delay(1, function()
+                stonePart.Color = Color3.fromRGB(145, 150, 155)
             end)
+
+            -- 计数
+            local uid = player.UserId
+            if not playerProgress[uid] then
+                playerProgress[uid] = {}
+            end
+            if not playerProgress[uid]['AR_03'] then
+                playerProgress[uid]['AR_03'] = 0
+            end
+            playerProgress[uid]['AR_03'] += 1
+
+            if playerProgress[uid]['AR_03'] >= totalStones then
+                -- 全部激活完成
+                Remotes.ShowNarrative:FireClient(
+                    player,
+                    Content.PROGRESS_FEEDBACK.AR_03_StoneProgress.allActivatedEffect,
+                    '',
+                    ''
+                )
+                task.delay(0.5, function()
+                    NarrativeInteractionSystem.awardFragment(player, 'AR_03')
+                end)
+            end
         end)
+    end
+end
+
+-- ════════════════════════════════════════════════════════════
+-- WF-01: 树洞里的眼睛（光源种子 + 树洞树）
+-- ════════════════════════════════════════════════════════════
+
+function NarrativeInteractionSystem.createWF_01(folder: Folder)
+    local wfFolder = Instance.new('Folder')
+    wfFolder.Name = 'WF_01_EyesInTree'
+    wfFolder.Parent = folder
+
+    local seedDef = Content.TRIGGER_ITEMS.LightSeed
+
+    -- 光源种子（灌木丛根部）
+    local seed = Instance.new('Part')
+    seed.Name = 'LightSeed'
+    seed.Size = Vector3.new(0.5, 0.5, 0.5)
+    seed.CFrame = CFrame.new(18, 1, 82)
+    seed.Color = seedDef.color
+    seed.Material = seedDef.material
+    seed.Shape = Enum.PartType.Ball
+    seed.CanCollide = false
+    seed.Anchored = true
+    seed.Parent = wfFolder
+
+    -- 种子发光
+    local seedLight = Instance.new('PointLight')
+    seedLight.Color = Color3.fromRGB(255, 180, 80)
+    seedLight.Brightness = 1
+    seedLight.Range = 5
+    seedLight.Parent = seed
+
+    local seedPrompt = createPrompt(seed, 'WF_01_PickupSeed')
+    seedPrompt.Triggered:Connect(function(player)
+        if NarrativeInteractionSystem.hasItem(player, 'LightSeed') then
+            return
+        end
+        NarrativeInteractionSystem.giveItem(player, 'LightSeed')
+    end)
+
+    -- 目标树洞
+    local treeHollow = Instance.new('Part')
+    treeHollow.Name = 'TreeHollow'
+    treeHollow.Size = Vector3.new(1.5, 2, 1.5)
+    treeHollow.CFrame = CFrame.new(25, 7, 85)
+    treeHollow.Color = Color3.fromRGB(60, 40, 20)
+    treeHollow.Material = Enum.Material.Wood
+    treeHollow.CanCollide = false
+    treeHollow.Anchored = true
+    treeHollow.Transparency = 0.5
+    treeHollow.Parent = wfFolder
+
+    local hollowPrompt = createPrompt(treeHollow, 'WF_01_DepositSeed')
+    local missingHint = Content.MISSING_ITEM_HINTS.WF_01_TreeDark
+
+    hollowPrompt.Triggered:Connect(function(player)
+        if
+            NarrativeInteractionSystem.hasCollected(player, 'WF_01')
+            or treeHollow:GetAttribute('Illuminated')
+        then
+            return
+        end
+        if not NarrativeInteractionSystem.hasItem(player, 'LightSeed') then
+            Remotes.ShowNarrative:FireClient(player, missingHint.title, missingHint.hint, '')
+            return
+        end
+        treeHollow:SetAttribute('Illuminated', true)
+
+        -- 光照效果
+        local hollowLight = Instance.new('PointLight')
+        hollowLight.Color = Color3.fromRGB(255, 200, 100)
+        hollowLight.Brightness = 2
+        hollowLight.Range = 8
+        hollowLight.Parent = treeHollow
+
+        task.delay(5, function()
+            if hollowLight then
+                hollowLight.Enabled = false
+                hollowLight:Destroy()
+            end
+        end)
+
+        if NarrativeInteractionSystem.awardFragment(player, 'WF_01') then
+            NarrativeInteractionSystem.consumeItem(player, 'LightSeed')
+        end
     end)
 end
+
+-- ════════════════════════════════════════════════════════════
+-- WF-02: 足迹的终点（追踪粉尘 + 足迹链终点）
+-- ════════════════════════════════════════════════════════════
+
+function NarrativeInteractionSystem.createWF_02(folder: Folder)
+    local wfFolder = Instance.new('Folder')
+    wfFolder.Name = 'WF_02_TrackEnd'
+    wfFolder.Parent = folder
+
+    local dustDef = Content.TRIGGER_ITEMS.TrackingDust
+
+    -- 追踪粉尘（挂在树枝上）
+    local dust = Instance.new('Part')
+    dust.Name = 'TrackingDust'
+    dust.Size = Vector3.new(0.3, 0.5, 0.3)
+    dust.CFrame = CFrame.new(28, 14, 90)
+    dust.Color = dustDef.color
+    dust.Material = dustDef.material
+    dust.CanCollide = false
+    dust.Anchored = true
+    dust.Parent = wfFolder
+
+    local dustPrompt = createPrompt(dust, 'WF_02_PickupDust')
+    dustPrompt.Triggered:Connect(function(player)
+        if NarrativeInteractionSystem.hasItem(player, 'TrackingDust') then
+            return
+        end
+        NarrativeInteractionSystem.giveItem(player, 'TrackingDust')
+    end)
+
+    -- 足迹终点（凹陷地面）
+    local trackEnd = Instance.new('Part')
+    trackEnd.Name = 'TrackEnd'
+    trackEnd.Size = Vector3.new(1.5, 0.2, 2)
+    trackEnd.CFrame = CFrame.new(31, 0.2, 97)
+    trackEnd.Color = Color3.fromRGB(70, 70, 75)
+    trackEnd.Material = Enum.Material.Slate
+    trackEnd.CanCollide = false
+    trackEnd.Anchored = true
+    trackEnd.Transparency = 0.3
+    trackEnd.Parent = wfFolder
+
+    local trackPrompt = createPrompt(trackEnd, 'WF_02_Investigate')
+    local missingHint = Content.MISSING_ITEM_HINTS.WF_02_TrackMysterious
+
+    trackPrompt.Triggered:Connect(function(player)
+        if NarrativeInteractionSystem.hasCollected(player, 'WF_02') then
+            return
+        end
+        if not NarrativeInteractionSystem.hasItem(player, 'TrackingDust') then
+            Remotes.ShowNarrative:FireClient(player, missingHint.title, missingHint.hint, '')
+            return
+        end
+        NarrativeInteractionSystem.awardFragment(player, 'WF_02')
+    end)
+end
+
+-- ════════════════════════════════════════════════════════════
+-- WF-03: 不存在的果实（异常树枝直接交互）
+-- ════════════════════════════════════════════════════════════
+
+function NarrativeInteractionSystem.createWF_03(folder: Folder)
+    local wfFolder = Instance.new('Folder')
+    wfFolder.Name = 'WF_03_NonexistentFruit'
+    wfFolder.Parent = folder
+
+    -- 异常树枝
+    local branchPart = Instance.new('Part')
+    branchPart.Name = 'AnomalousBranch'
+    branchPart.Size = Vector3.new(1, 2, 1)
+    branchPart.CFrame = CFrame.new(35, 15, 110)
+    branchPart.Color = Color3.fromRGB(140, 100, 160) -- 偏紫色调
+    branchPart.Material = Enum.Material.Wood
+    branchPart.CanCollide = false
+    branchPart.Anchored = true
+    branchPart.Transparency = 0.3
+    branchPart.Parent = wfFolder
+
+    local branchPrompt = createPrompt(branchPart, 'WF_03_TouchBranch')
+    branchPrompt.Triggered:Connect(function(player)
+        if
+            NarrativeInteractionSystem.hasCollected(player, 'WF_03')
+            or branchPart:GetAttribute('Touched')
+        then
+            return
+        end
+        branchPart:SetAttribute('Touched', true)
+
+        -- 树枝闪烁效果
+        branchPart.Color = Color3.fromRGB(200, 150, 220)
+        task.delay(2, function()
+            branchPart.Color = Color3.fromRGB(140, 100, 160)
+        end)
+
+        NarrativeInteractionSystem.awardFragment(player, 'WF_03')
+    end)
+end
+
+-- ════════════════════════════════════════════════════════════
+-- CR-01: 矿物的脉搏（共振晶片 + 发光矿物）
+-- ════════════════════════════════════════════════════════════
+
+function NarrativeInteractionSystem.createCR_01(folder: Folder)
+    local crFolder = Instance.new('Folder')
+    crFolder.Name = 'CR_01_MineralPulse'
+    crFolder.Parent = folder
+
+    local shardDef = Content.TRIGGER_ITEMS.ResonanceShard
+
+    -- 共振晶片（嵌在特殊深橙色矿物中）
+    local shard = Instance.new('Part')
+    shard.Name = 'ResonanceShard'
+    shard.Size = Vector3.new(0.4, 0.15, 0.4)
+    shard.CFrame = CFrame.new(-6, 6.3, 175)
+    shard.Color = shardDef.color
+    shard.Material = shardDef.material
+    shard.CanCollide = false
+    shard.Anchored = true
+    shard.Parent = crFolder
+
+    local shardPrompt = createPrompt(shard, 'CR_01_PickupShard')
+    shardPrompt.Triggered:Connect(function(player)
+        if NarrativeInteractionSystem.hasItem(player, 'ResonanceShard') then
+            return
+        end
+        NarrativeInteractionSystem.giveItem(player, 'ResonanceShard')
+    end)
+
+    -- 目标矿物
+    local targetMineral = Instance.new('Part')
+    targetMineral.Name = 'TargetMineral'
+    targetMineral.Size = Vector3.new(1.8, 1.8, 1.8)
+    targetMineral.CFrame = CFrame.new(8, 4.8, 165)
+    targetMineral.Color = Color3.fromRGB(200, 150, 100)
+    targetMineral.Material = Enum.Material.Neon
+    targetMineral.Shape = Enum.PartType.Ball
+    targetMineral.CanCollide = false
+    targetMineral.Anchored = true
+    targetMineral.Parent = crFolder
+
+    local mineralPrompt = createPrompt(targetMineral, 'CR_01_ReadMineral')
+    local missingHint = Content.MISSING_ITEM_HINTS.CR_01_MineralGlowing
+
+    mineralPrompt.Triggered:Connect(function(player)
+        if
+            NarrativeInteractionSystem.hasCollected(player, 'CR_01')
+            or targetMineral:GetAttribute('Read')
+        then
+            return
+        end
+        if not NarrativeInteractionSystem.hasItem(player, 'ResonanceShard') then
+            Remotes.ShowNarrative:FireClient(player, missingHint.title, missingHint.hint, '')
+            return
+        end
+        targetMineral:SetAttribute('Read', true)
+
+        -- 强光投影效果
+        targetMineral.Color = Color3.fromRGB(255, 230, 180)
+        local projLight = Instance.new('PointLight')
+        projLight.Color = Color3.fromRGB(255, 230, 180)
+        projLight.Brightness = 3
+        projLight.Range = 20
+        projLight.Parent = targetMineral
+
+        task.delay(3, function()
+            projLight.Enabled = false
+            projLight:Destroy()
+            targetMineral.Color = Color3.fromRGB(200, 150, 100)
+        end)
+
+        if NarrativeInteractionSystem.awardFragment(player, 'CR_01') then
+            NarrativeInteractionSystem.consumeItem(player, 'ResonanceShard')
+        end
+    end)
+end
+
+-- ════════════════════════════════════════════════════════════
+-- CR-02: 机关的沉默（修复齿轮 + 古代机关）
+-- ════════════════════════════════════════════════════════════
+
+function NarrativeInteractionSystem.createCR_02(folder: Folder)
+    local crFolder = Instance.new('Folder')
+    crFolder.Name = 'CR_02_MechanismSilence'
+    crFolder.Parent = folder
+
+    local gearDef = Content.TRIGGER_ITEMS.RepairGear
+
+    -- 修复齿轮（宝藏箱旁）
+    local gear = Instance.new('Part')
+    gear.Name = 'RepairGear'
+    gear.Size = Vector3.new(0.5, 0.25, 0.5)
+    gear.CFrame = CFrame.new(2.5, 2, 165)
+    gear.Color = gearDef.color
+    gear.Material = gearDef.material
+    gear.CanCollide = false
+    gear.Anchored = true
+    gear.Parent = crFolder
+
+    local gearPrompt = createPrompt(gear, 'CR_02_PickupGear')
+    gearPrompt.Triggered:Connect(function(player)
+        if NarrativeInteractionSystem.hasItem(player, 'RepairGear') then
+            return
+        end
+        NarrativeInteractionSystem.giveItem(player, 'RepairGear')
+    end)
+
+    -- 目标古代机关
+    local mechPart = Instance.new('Part')
+    mechPart.Name = 'MechanismTarget'
+    mechPart.Size = Vector3.new(7, 3.5, 7)
+    mechPart.CFrame = CFrame.new(0, 3, 180)
+    mechPart.Color = Color3.fromRGB(125, 130, 135)
+    mechPart.Material = Enum.Material.Metal
+    mechPart.CanCollide = false
+    mechPart.Anchored = true
+    mechPart.Transparency = 0.3
+    mechPart.Parent = crFolder
+
+    local mechPrompt = createPrompt(mechPart, 'CR_02_InstallGear')
+    local missingHint = Content.MISSING_ITEM_HINTS.CR_02_MechanismMissing
+
+    mechPrompt.Triggered:Connect(function(player)
+        if
+            NarrativeInteractionSystem.hasCollected(player, 'CR_02')
+            or mechPart:GetAttribute('Activated')
+        then
+            return
+        end
+        if not NarrativeInteractionSystem.hasItem(player, 'RepairGear') then
+            Remotes.ShowNarrative:FireClient(player, missingHint.title, missingHint.hint, '')
+            return
+        end
+        mechPart:SetAttribute('Activated', true)
+
+        -- 启动效果
+        mechPart.Color = Color3.fromRGB(170, 175, 180)
+        task.delay(3, function()
+            mechPart.Color = Color3.fromRGB(125, 130, 135)
+        end)
+
+        if NarrativeInteractionSystem.awardFragment(player, 'CR_02') then
+            NarrativeInteractionSystem.consumeItem(player, 'RepairGear')
+        end
+    end)
+end
+
+-- ════════════════════════════════════════════════════════════
+-- CR-03: 深渊的低语（静默耳坠 — 拾取即触发碎片效果）
+-- ════════════════════════════════════════════════════════════
+
+function NarrativeInteractionSystem.createCR_03(folder: Folder)
+    local crFolder = Instance.new('Folder')
+    crFolder.Name = 'CR_03_AbyssWhisper'
+    crFolder.Parent = folder
+
+    local earringDef = Content.TRIGGER_ITEMS.SilentEarring
+
+    -- 静默耳坠（裂缝边缘）
+    local earring = Instance.new('Part')
+    earring.Name = 'SilentEarring'
+    earring.Size = Vector3.new(0.2, 0.4, 0.1)
+    earring.CFrame = CFrame.new(-1, 0.2, 170)
+    earring.Color = earringDef.color
+    earring.Material = earringDef.material
+    earring.CanCollide = false
+    earring.Anchored = true
+    earring.Parent = crFolder
+
+    local earringPrompt = createPrompt(earring, 'CR_03_PickupEarring')
+    earringPrompt.Triggered:Connect(function(player)
+        if NarrativeInteractionSystem.hasItem(player, 'SilentEarring') then
+            return
+        end
+        -- 先给物品标记
+        ensurePlayerData(player)
+        playerItems[player.UserId]['SilentEarring'] = true
+
+        -- 静默耳坠拾取后立即触发碎片（特殊体验：无普通获得提示，被叙事打断）
+        NarrativeInteractionSystem.awardFragment(player, 'CR_03')
+    end)
+end
+
+-- ════════════════════════════════════════════════════════════
+-- 图书馆入口（一扇普通的门，无碎片、无前置条件）
+-- ════════════════════════════════════════════════════════════
+
+function NarrativeInteractionSystem.createLibraryDoor(folder: Folder)
+    local doorFolder = Instance.new('Folder')
+    doorFolder.Name = 'LibraryDoor'
+    doorFolder.Parent = folder
+
+    -- 门体
+    local doorPart = Instance.new('Part')
+    doorPart.Name = 'LibraryDoor'
+    doorPart.Size = Vector3.new(6, 10, 1)
+    doorPart.CFrame = CFrame.new(0, 19, 132)
+    doorPart.Color = Color3.fromRGB(80, 60, 45)
+    doorPart.Material = Enum.Material.Wood
+    doorPart.CanCollide = true
+    doorPart.Anchored = true
+    doorPart.Parent = doorFolder
+
+    local doorPrompt = Instance.new('ProximityPrompt')
+    doorPrompt.Name = 'LibraryDoorPrompt'
+    doorPrompt.ActionText = Content.LIBRARY_DOOR.actionText
+    doorPrompt.ObjectText = Content.LIBRARY_DOOR.objectText
+    doorPrompt.KeyboardKeyCode = Enum.KeyCode.E
+    doorPrompt.MaxActivationDistance = 6
+    doorPrompt.RequiresLineOfSight = false
+    doorPrompt.Parent = doorPart
+
+    -- TODO: 传送逻辑后续按需接入（TeleportService 到 Library Place）
+end
+
+-- ════════════════════════════════════════════════════════════
 
 return NarrativeInteractionSystem
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="111">
+      <Item class="ModuleScript" referent="113">
         <Properties>
           <string name="Name">OutdoorAreaBuilder</string>
           <string name="Source"><![CDATA[local OutdoorAreaBuilder = {}
@@ -14994,7 +16583,7 @@ return OutdoorAreaBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="112">
+      <Item class="ModuleScript" referent="114">
         <Properties>
           <string name="Name">RoleService</string>
           <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -15082,7 +16671,7 @@ return RoleService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="113">
+      <Item class="ModuleScript" referent="115">
         <Properties>
           <string name="Name">RunAreaResolver</string>
           <string name="Source"><![CDATA[local RunAreaResolver = {}
@@ -15106,7 +16695,7 @@ return RunAreaResolver
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="114">
+      <Item class="ModuleScript" referent="116">
         <Properties>
           <string name="Name">RunDoor</string>
           <string name="Source"><![CDATA[local RunDoor = {}
@@ -15136,7 +16725,7 @@ return RunDoor
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="115">
+      <Item class="ModuleScript" referent="117">
         <Properties>
           <string name="Name">RunInteractionRegistry</string>
           <string name="Source"><![CDATA[local RunInteractionRegistry = {}
@@ -15187,7 +16776,7 @@ return RunInteractionRegistry
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="116">
+      <Item class="ModuleScript" referent="118">
         <Properties>
           <string name="Name">RunMazePortal</string>
           <string name="Source"><![CDATA[local RunToMazeTransition = require(script.Parent.RunToMazeTransition)
@@ -15206,7 +16795,7 @@ return RunMazePortal
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="117">
+      <Item class="ModuleScript" referent="119">
         <Properties>
           <string name="Name">RunPortal</string>
           <string name="Source"><![CDATA[local RunPortal = {}
@@ -15248,7 +16837,7 @@ return RunPortal
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="118">
+      <Item class="ModuleScript" referent="120">
         <Properties>
           <string name="Name">RunScene</string>
           <string name="Source"><![CDATA[local RunAreaResolver = require(script.Parent.RunAreaResolver)
@@ -15377,7 +16966,7 @@ return RunScene
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="119">
+      <Item class="ModuleScript" referent="121">
         <Properties>
           <string name="Name">RunSessionService</string>
           <string name="Source"><![CDATA[local Players = game:GetService('Players')
@@ -16618,7 +18207,7 @@ return RunSessionService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="120">
+      <Item class="ModuleScript" referent="122">
         <Properties>
           <string name="Name">RunSpawnPoint</string>
           <string name="Source"><![CDATA[local RunSpawnPoint = {}
@@ -16647,7 +18236,7 @@ return RunSpawnPoint
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="121">
+      <Item class="ModuleScript" referent="123">
         <Properties>
           <string name="Name">RunTerminal</string>
           <string name="Source"><![CDATA[local RunTerminal = {}
@@ -16685,7 +18274,140 @@ return RunTerminal
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="122">
+      <Item class="ModuleScript" referent="124">
+        <Properties>
+          <string name="Name">RunToLibraryPortal</string>
+          <string name="Source"><![CDATA[--!strict
+-- ════════════════════════════════════════════════════════════
+-- RunToLibraryPortal.luau — 荒野(Run) → 图书馆(Library) 传送模块
+--
+-- 职责：
+--   1. 在 CR-04 洞穴入口处创建传送门交互体
+--   2. 玩家收集满碎片后，入口从"凝视获得碎片"变为"进入图书馆"
+--   3. 使用 TeleportService 将玩家传送到 Library Place
+--
+-- 依赖：
+--   - SessionConfig.PlaceIds.Library（需要在 Roblox 后台创建 Place 并填入 ID）
+--   - NarrativeInteractionSystem（判断玩家是否已收集全部碎片）
+--
+-- 版本: 1.0
+-- 最后更新: 2026-04-14
+-- ════════════════════════════════════════════════════════════
+
+local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local TeleportService = game:GetService('TeleportService')
+
+local Packages = ReplicatedStorage:WaitForChild('Packages')
+local Shared = require(Packages:WaitForChild('Shared'))
+
+local SessionConfig = Shared.Config.SessionConfig
+
+local RunToLibraryPortal = {}
+
+-- ════════════════════════════════════════════════════════════
+-- 核心传送函数
+-- ════════════════════════════════════════════════════════════
+
+--- 将单个玩家传送到图书馆
+--- @param player Player 要传送的玩家
+--- @param teleportData table? 传递给图书馆的数据（如已收集的碎片列表、书页数等）
+--- @return boolean success 是否成功发起传送
+--- @return string? error 错误信息（失败时）
+function RunToLibraryPortal.teleportPlayer(
+    player: Player,
+    teleportData: { [string]: any }?
+): (boolean, string?)
+    local libraryPlaceId = SessionConfig.PlaceIds.Library
+
+    -- 检查 Library PlaceId 是否已配置
+    if not libraryPlaceId or libraryPlaceId == 0 then
+        return false,
+            'Library PlaceId 未配置。请在 SessionConfig 中设置有效的 Library Place ID。'
+    end
+
+    -- 构建传送数据：携带玩家的荒野进度
+    local data = teleportData or {}
+    data.SourcePlace = 'Run'
+    data.TransitionType = 'RunToLibrary'
+    data.Timestamp = os.time()
+
+    local success, err = pcall(function()
+        TeleportService:TeleportAsync(libraryPlaceId, { player }, data)
+    end)
+
+    if not success then
+        return false, '传送失败: ' .. tostring(err)
+    end
+
+    return true, nil
+end
+
+-- ════════════════════════════════════════════════════════════
+-- 创建图书馆传送门（替代/增强 CR-04 入口）
+--
+-- 在 NarrativeInteractionSystem 初始化后调用，
+-- 将 CR-04 的 gatePart 升级为可传送状态
+-- ════════════════════════════════════════════════════════════
+
+--- 在指定的 Part 上安装图书馆传送门
+--- @param gatePart Part CR-04 的洞穴入口 Part（已有 Prompt）
+--- @param checkAllCollected function? 回调函数：检查玩家是否已收集满全部碎片
+--- @param onTeleportStart function? 传送开始时的回调（可用于播放过渡动画）
+function RunToLibraryPortal.installPortal(
+    gatePart: Part,
+    checkAllCollected: ((player: Player) -> boolean)?,
+    onTeleportStart: ((player: Player) -> ())?
+)
+    -- 给入口 Part 打标记：这是一个图书馆传送门
+    gatePart:SetAttribute('IsLibraryPortal', true)
+
+    -- 监听已有 Prompt 的 Triggered 事件
+    -- 当玩家在已收集满碎片后再次触发时，执行传送
+    local existingPrompt = gatePart:FindFirstChildWhichIsA('ProximityPrompt')
+    if not existingPrompt then
+        warn('[RunToLibraryPortal] 未找到已有的 ProximityPrompt')
+        return
+    end
+
+    existingPrompt.Triggered:Connect(function(player)
+        -- 如果提供了检查函数且未通过检查，不传送
+        if checkAllCollected and not checkAllCollected(player) then
+            return
+        end
+
+        -- 额外确认：确保玩家已经获得了 CR-04
+        -- （防止未完成探索就尝试进入）
+        local witnessed = gatePart:GetAttribute('Witnessed')
+        if not witnessed then
+            return
+        end
+
+        -- 执行传送前回调（如播放过渡动画、屏幕特效等）
+        if onTeleportStart then
+            onTeleportStart(player)
+        end
+
+        -- 延迟一小段时间让过渡动画播放
+        task.delay(1.5, function()
+            -- 收集传送数据
+            local teleportData = {
+                HasCompletedWilderness = true,
+            }
+
+            local ok, errMsg = RunToLibraryPortal.teleportPlayer(player, teleportData)
+            if not ok then
+                warn('[RunToLibraryPortal] ' .. errMsg)
+                -- 可以在这里通知客户端显示错误提示
+            end
+        end)
+    end)
+end
+
+return RunToLibraryPortal
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="125">
         <Properties>
           <string name="Name">RunToMazeTransition</string>
           <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -16804,7 +18526,7 @@ return RunToMazeTransition
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="123">
+      <Item class="ModuleScript" referent="126">
         <Properties>
           <string name="Name">RunWorldBuilder</string>
           <string name="Source"><![CDATA[local Workspace = game:GetService('Workspace')
@@ -16837,7 +18559,7 @@ return RunWorldBuilder
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="124">
+  <Item class="StarterPlayer" referent="127">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">12</float>
@@ -16845,11 +18567,11 @@ return RunWorldBuilder
       <token name="CameraMode">0</token>
       <bool name="EnableMouseLockOption">false</bool>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="125">
+    <Item class="StarterPlayerScripts" referent="128">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="ModuleScript" referent="126">
+      <Item class="ModuleScript" referent="129">
         <Properties>
           <string name="Name">BackpackUI</string>
           <string name="Source"><![CDATA[--!strict
@@ -17127,7 +18849,7 @@ return BackpackUI
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="127">
+      <Item class="ModuleScript" referent="130">
         <Properties>
           <string name="Name">ItemClient</string>
           <string name="Source"><![CDATA[--!strict
@@ -17374,7 +19096,7 @@ return ItemClient
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="128">
+      <Item class="ModuleScript" referent="131">
         <Properties>
           <string name="Name">NarrativeUI</string>
           <string name="Source"><![CDATA[-- NarrativeUI
@@ -17709,7 +19431,7 @@ return NarrativeUI
 ]]></string>
         </Properties>
       </Item>
-      <Item class="LocalScript" referent="129">
+      <Item class="LocalScript" referent="132">
         <Properties>
           <string name="Name">RunClient</string>
           <string name="Source"><![CDATA[local Players = game:GetService('Players')
@@ -18705,70 +20427,53 @@ end)
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="130">
+  <Item class="Workspace" referent="133">
     <Properties>
       <string name="Name">Workspace</string>
       <bool name="NeedsPivotMigration">false</bool>
     </Properties>
-    <Item class="Folder" referent="131">
+    <Item class="Folder" referent="134">
       <Properties>
         <string name="Name">RunStaticWorld</string>
         <BinaryString name="AttributesSerialize">AQAAABEAAABPdXRkb29yVGhyZXNob2xkWgYAAAAAAABJQA==</BinaryString>
       </Properties>
-      <Item class="Part" referent="132">
+      <Item class="Part" referent="135">
         <Properties>
           <string name="Name">DoorLeft</string>
           <bool name="Anchored">true</bool>
         </Properties>
       </Item>
-      <Item class="Part" referent="133">
+      <Item class="Part" referent="136">
         <Properties>
           <string name="Name">DoorRight</string>
           <bool name="Anchored">true</bool>
         </Properties>
       </Item>
-      <Item class="Part" referent="134">
+      <Item class="Part" referent="137">
         <Properties>
           <string name="Name">GateSwitch</string>
           <bool name="Anchored">true</bool>
         </Properties>
-        <Item class="ProximityPrompt" referent="135">
+        <Item class="ProximityPrompt" referent="138">
           <Properties>
             <string name="Name">Prompt</string>
           </Properties>
         </Item>
       </Item>
-      <Item class="Part" referent="136">
+      <Item class="Part" referent="139">
         <Properties>
           <string name="Name">LoadoutBench</string>
           <bool name="Anchored">true</bool>
         </Properties>
-        <Item class="ProximityPrompt" referent="137">
+        <Item class="ProximityPrompt" referent="140">
           <Properties>
             <string name="Name">Prompt</string>
           </Properties>
         </Item>
-      </Item>
-      <Item class="Part" referent="138">
-        <Properties>
-          <string name="Name">MazeGateMarker</string>
-          <bool name="Anchored">true</bool>
-        </Properties>
-        <Item class="ProximityPrompt" referent="139">
-          <Properties>
-            <string name="Name">Prompt</string>
-          </Properties>
-        </Item>
-      </Item>
-      <Item class="Part" referent="140">
-        <Properties>
-          <string name="Name">MazeReturnMarker</string>
-          <bool name="Anchored">true</bool>
-        </Properties>
       </Item>
       <Item class="Part" referent="141">
         <Properties>
-          <string name="Name">ObjectiveBoard</string>
+          <string name="Name">MazeGateMarker</string>
           <bool name="Anchored">true</bool>
         </Properties>
         <Item class="ProximityPrompt" referent="142">
@@ -18779,13 +20484,13 @@ end)
       </Item>
       <Item class="Part" referent="143">
         <Properties>
-          <string name="Name">ReturnMarker</string>
+          <string name="Name">MazeReturnMarker</string>
           <bool name="Anchored">true</bool>
         </Properties>
       </Item>
       <Item class="Part" referent="144">
         <Properties>
-          <string name="Name">SalvageTerminal</string>
+          <string name="Name">ObjectiveBoard</string>
           <bool name="Anchored">true</bool>
         </Properties>
         <Item class="ProximityPrompt" referent="145">
@@ -18796,30 +20501,105 @@ end)
       </Item>
       <Item class="Part" referent="146">
         <Properties>
-          <string name="Name">ShopTerminal</string>
+          <string name="Name">ReturnMarker</string>
           <bool name="Anchored">true</bool>
         </Properties>
-        <Item class="ProximityPrompt" referent="147">
+      </Item>
+      <Item class="Part" referent="147">
+        <Properties>
+          <string name="Name">SalvageTerminal</string>
+          <bool name="Anchored">true</bool>
+        </Properties>
+        <Item class="ProximityPrompt" referent="148">
           <Properties>
             <string name="Name">Prompt</string>
           </Properties>
         </Item>
       </Item>
-      <Item class="Part" referent="148">
-        <Properties>
-          <string name="Name">SpawnMarker</string>
-          <bool name="Anchored">true</bool>
-        </Properties>
-      </Item>
       <Item class="Part" referent="149">
         <Properties>
-          <string name="Name">UgcLabConsole</string>
+          <string name="Name">ShopTerminal</string>
           <bool name="Anchored">true</bool>
         </Properties>
         <Item class="ProximityPrompt" referent="150">
           <Properties>
             <string name="Name">Prompt</string>
           </Properties>
+        </Item>
+      </Item>
+      <Item class="Part" referent="151">
+        <Properties>
+          <string name="Name">SpawnMarker</string>
+          <bool name="Anchored">true</bool>
+        </Properties>
+      </Item>
+      <Item class="Part" referent="152">
+        <Properties>
+          <string name="Name">UgcLabConsole</string>
+          <bool name="Anchored">true</bool>
+        </Properties>
+        <Item class="ProximityPrompt" referent="153">
+          <Properties>
+            <string name="Name">Prompt</string>
+          </Properties>
+        </Item>
+      </Item>
+      <Item class="Model" referent="154">
+        <Properties>
+          <string name="Name">RunTerrain_Main</string>
+        </Properties>
+        <Item class="Model" referent="155">
+          <Properties>
+            <string name="Name">Scene</string>
+          </Properties>
+          <Item class="Model" referent="156">
+            <Properties>
+              <string name="Name">RunTerrain_OriginalHigh</string>
+            </Properties>
+            <Item class="MeshPart" referent="157">
+              <Properties>
+                <string name="Name">RunTerrain_OriginalHighMesh</string>
+                <bool name="Anchored">true</bool>
+                <bool name="CanCollide">true</bool>
+                <bool name="CanQuery">true</bool>
+                <bool name="CanTouch">true</bool>
+                <token name="Material">256</token>
+                <Color3uint8 name="Color3uint8">10724005</Color3uint8>
+                <float name="Reflectance">0</float>
+                <float name="Transparency">0</float>
+                <CoordinateFrame name="CFrame">
+                  <X>-595.9181618592931</X>
+                  <Y>-764.357268852862</Y>
+                  <Z>12465.488790689564</Z>
+                  <R00>1</R00>
+                  <R01>0</R01>
+                  <R02>0</R02>
+                  <R10>0</R10>
+                  <R11>1</R11>
+                  <R12>0</R12>
+                  <R20>0</R20>
+                  <R21>0</R21>
+                  <R22>1</R22>
+                </CoordinateFrame>
+                <Vector3 name="InitialSize">
+                  <X>1337.6868049725063</X>
+                  <Y>79.77201268339309</Y>
+                  <Z>1337.6868049725063</Z>
+                </Vector3>
+                <Vector3 name="size">
+                  <X>1337.6868049725063</X>
+                  <Y>79.77201268339309</Y>
+                  <Z>1337.6868049725063</Z>
+                </Vector3>
+                <Content name="MeshId">
+                  <url>rbxassetid://75883733298633</url>
+                </Content>
+                <Content name="TextureID">
+                  <url>rbxassetid://89497335397824</url>
+                </Content>
+              </Properties>
+            </Item>
+          </Item>
         </Item>
       </Item>
     </Item>

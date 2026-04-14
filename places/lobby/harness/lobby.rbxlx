@@ -11,6 +11,7 @@
         <Properties>
           <string name="Name">Gameplay</string>
           <string name="Source"><![CDATA[return {
+    Combat = require(script.Combat),
     Config = require(script.Config),
     ControlState = require(script.ControlState),
     Inventory = require(script.Inventory),
@@ -25,6 +26,91 @@
         </Properties>
         <Item class="ModuleScript" referent="3">
           <Properties>
+            <string name="Name">Combat</string>
+            <string name="Source"><![CDATA[return {
+    PlayerMonsterMelee = require(script.PlayerMonsterMelee),
+}
+]]></string>
+          </Properties>
+          <Item class="ModuleScript" referent="4">
+            <Properties>
+              <string name="Name">PlayerMonsterMelee</string>
+              <string name="Source"><![CDATA[-- Pure geometry for player crowbar / melee vs a monster anchor position (tests + runtime).
+
+local EPS = 1e-4
+
+local PlayerMonsterMelee = {}
+
+function PlayerMonsterMelee.horizontalUnit(vector3)
+    if typeof(vector3) ~= 'Vector3' then
+        return nil
+    end
+
+    local horizontal = Vector3.new(vector3.X, 0, vector3.Z)
+    if horizontal.Magnitude <= EPS then
+        return nil
+    end
+
+    return horizontal.Unit
+end
+
+function PlayerMonsterMelee.evaluateSwing(
+    playerPosition,
+    playerLookVector,
+    monsterPosition,
+    swingRange,
+    swingArcDegrees
+)
+    if typeof(playerPosition) ~= 'Vector3' then
+        return false, 'InvalidPlayerPosition'
+    end
+    if typeof(monsterPosition) ~= 'Vector3' then
+        return false, 'InvalidMonsterPosition'
+    end
+
+    local range = swingRange
+    if type(range) ~= 'number' or range <= 0 then
+        return false, 'InvalidSwingRange'
+    end
+
+    local arc = swingArcDegrees
+    if type(arc) ~= 'number' or arc <= 0 then
+        return false, 'InvalidSwingArc'
+    end
+
+    local offset = monsterPosition - playerPosition
+    local distance = offset.Magnitude
+    if distance > range + EPS then
+        return false, 'OutOfRange'
+    end
+
+    local facing = PlayerMonsterMelee.horizontalUnit(playerLookVector)
+    if facing == nil then
+        return false, 'InvalidFacing'
+    end
+
+    local toMonster = PlayerMonsterMelee.horizontalUnit(offset)
+    if toMonster == nil then
+        return true, 'HitGeometryOk'
+    end
+
+    local halfArcRad = math.rad(arc * 0.5)
+    local minDot = math.cos(halfArcRad)
+    local dot = facing:Dot(toMonster)
+    if dot + EPS < minDot then
+        return false, 'OutOfSwingArc'
+    end
+
+    return true, 'HitGeometryOk'
+end
+
+return PlayerMonsterMelee
+]]></string>
+            </Properties>
+          </Item>
+        </Item>
+        <Item class="ModuleScript" referent="5">
+          <Properties>
             <string name="Name">Config</string>
             <string name="Source"><![CDATA[return {
     Items = require(script.Items),
@@ -33,7 +119,7 @@
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="4">
+          <Item class="ModuleScript" referent="6">
             <Properties>
               <string name="Name">Items</string>
               <string name="Source"><![CDATA[local Config = script.Parent
@@ -96,7 +182,7 @@ return FinalItems
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="5">
+          <Item class="ModuleScript" referent="7">
             <Properties>
               <string name="Name">Monsters</string>
               <string name="Source"><![CDATA[local MonsterBehaviorCatalog = require(script.Parent.Parent.Monsters.MonsterBehaviorCatalog)
@@ -124,6 +210,7 @@ return {
             AttackCooldownSeconds = 1,
             AttackDamagePips = 1,
             AttackRange = 4,
+            CombatHitPoints = 3,
             Speed = 14,
             SightRange = 36,
             PatrolSpeedMultiplier = 0.45,
@@ -166,7 +253,7 @@ return {
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="6">
+          <Item class="ModuleScript" referent="8">
             <Properties>
               <string name="Name">Players</string>
               <string name="Source"><![CDATA[local Players = {}
@@ -201,7 +288,7 @@ return Players
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="7">
+          <Item class="ModuleScript" referent="9">
             <Properties>
               <string name="Name">Roles</string>
               <string name="Source"><![CDATA[return {
@@ -233,7 +320,7 @@ return Players
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="8">
+          <Item class="ModuleScript" referent="10">
             <Properties>
               <string name="Name">ToolItems</string>
               <string name="Source"><![CDATA[-- ExplorationToolItems Config v0.1
@@ -242,7 +329,7 @@ local ToolItems = {
     ['tool-flashlight'] = {
         Id = 'tool-flashlight',
         Name = 'Flashlight',
-        Description = '在黑暗中照亮路径。电量耗尽后无法使用。',
+        Description = '在黑暗中照亮路径。本配置下使用不消耗电量。',
         ToolCategory = 'Flashlight',
         Weight = 1,
         Value = 0,
@@ -251,7 +338,7 @@ local ToolItems = {
         -- 状态属性
         StateModel = 'Battery',
         InitialState = 100,
-        ConsumePerUse = 1,
+        ConsumePerUse = 0,
         CooldownSeconds = 0,
     },
 
@@ -259,7 +346,7 @@ local ToolItems = {
     ['tool-crowbar'] = {
         Id = 'tool-crowbar',
         Name = 'Crowbar',
-        Description = '近战挥舞可击退前方怪物。',
+        Description = '近战挥舞可对前方怪物造成伤害。本配置下使用不消耗耐久。',
         ToolCategory = 'Crowbar',
         Weight = 3,
         Value = 0,
@@ -268,12 +355,13 @@ local ToolItems = {
         -- 状态属性
         StateModel = 'Durability',
         InitialState = 10,
-        ConsumePerUse = 1,
+        ConsumePerUse = 0,
         CooldownSeconds = 0.5,
         -- 战斗参数
         SwingRange = 6,
         SwingArcDegrees = 70,
         KnockbackStrength = 15,
+        MeleeDamage = 1,
     },
 }
 
@@ -282,7 +370,7 @@ return ToolItems
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="9">
+        <Item class="ModuleScript" referent="11">
           <Properties>
             <string name="Name">ControlState</string>
             <string name="Source"><![CDATA[local MODE = table.freeze({
@@ -363,7 +451,7 @@ return ControlState
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="10">
+        <Item class="ModuleScript" referent="12">
           <Properties>
             <string name="Name">Inventory</string>
             <string name="Source"><![CDATA[local Inventory = {}
@@ -390,12 +478,19 @@ local function cloneItemEntry(itemEntry)
         Value = itemEntry.Value,
         Color = itemEntry.Color,
         Light = cloneLightConfig(itemEntry.Light),
+
+        -- === 新增：探索道具扩展字段 ===
         ToolCategory = itemEntry.ToolCategory,
         StateModel = itemEntry.StateModel,
-        CurrentState = itemEntry.CurrentState,
+        InitialState = itemEntry.InitialState,
+        CurrentState = itemEntry.CurrentState, -- 记录当前电量/耐久
         ConsumePerUse = itemEntry.ConsumePerUse,
         CooldownSeconds = itemEntry.CooldownSeconds,
         LastUsedAt = itemEntry.LastUsedAt,
+        SwingRange = itemEntry.SwingRange,
+        SwingArcDegrees = itemEntry.SwingArcDegrees,
+        KnockbackStrength = itemEntry.KnockbackStrength,
+        MeleeDamage = itemEntry.MeleeDamage,
     }
 end
 
@@ -435,12 +530,19 @@ function Inventory:_buildItemEntry(itemDef)
         Value = itemDef.Value,
         Color = itemDef.Color,
         Light = cloneLightConfig(itemDef.Light),
+
+        -- === 新增：探索道具扩展字段 ===
         ToolCategory = itemDef.ToolCategory,
         StateModel = itemDef.StateModel,
-        CurrentState = itemDef.InitialState,
+        InitialState = itemDef.InitialState,
+        CurrentState = itemDef.InitialState, -- 刚放进背包时，当前状态等于初始状态 (满电/满耐久)
         ConsumePerUse = itemDef.ConsumePerUse,
         CooldownSeconds = itemDef.CooldownSeconds,
         LastUsedAt = itemDef.LastUsedAt,
+        SwingRange = itemDef.SwingRange,
+        SwingArcDegrees = itemDef.SwingArcDegrees,
+        KnockbackStrength = itemDef.KnockbackStrength,
+        MeleeDamage = itemDef.MeleeDamage,
     }
 
     self.NextItemInstanceId += 1
@@ -461,12 +563,19 @@ local function normalizeItemEntry(rawItemEntry)
         Value = rawItemEntry.Value or 0,
         Color = rawItemEntry.Color,
         Light = cloneLightConfig(rawItemEntry.Light),
+
+        -- === 新增：探索道具扩展字段 ===
         ToolCategory = rawItemEntry.ToolCategory,
         StateModel = rawItemEntry.StateModel,
+        InitialState = rawItemEntry.InitialState,
         CurrentState = rawItemEntry.CurrentState,
         ConsumePerUse = rawItemEntry.ConsumePerUse,
         CooldownSeconds = rawItemEntry.CooldownSeconds,
         LastUsedAt = rawItemEntry.LastUsedAt,
+        SwingRange = rawItemEntry.SwingRange,
+        SwingArcDegrees = rawItemEntry.SwingArcDegrees,
+        KnockbackStrength = rawItemEntry.KnockbackStrength,
+        MeleeDamage = rawItemEntry.MeleeDamage,
     }
 end
 
@@ -529,21 +638,24 @@ function Inventory:consumeHeldItemState(nowSeconds)
         return false, 'NotConsumable'
     end
 
-    if heldItem.CurrentState < heldItem.ConsumePerUse then
-        return false, 'Depleted'
-    end
-
-    local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
-    local cooldownSeconds = heldItem.CooldownSeconds
-    if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
-        local lastUsedAt = heldItem.LastUsedAt
-        if type(lastUsedAt) == 'number' and now - lastUsedAt < cooldownSeconds then
-            return false, 'Cooldown', cooldownSeconds - (now - lastUsedAt)
+    if type(heldItem.ConsumePerUse) == 'number' and heldItem.ConsumePerUse > 0 then
+        if heldItem.CurrentState < heldItem.ConsumePerUse then
+            return false, 'Depleted'
         end
+
+        local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
+        local cooldownSeconds = heldItem.CooldownSeconds
+        if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
+            local lastUsedAt = heldItem.LastUsedAt
+            if type(lastUsedAt) == 'number' and now - lastUsedAt < cooldownSeconds then
+                return false, 'Cooldown', cooldownSeconds - (now - lastUsedAt)
+            end
+        end
+
+        heldItem.CurrentState -= heldItem.ConsumePerUse
+        heldItem.LastUsedAt = now
     end
 
-    heldItem.CurrentState -= heldItem.ConsumePerUse
-    heldItem.LastUsedAt = now
     return true, cloneItemEntry(heldItem)
 end
 
@@ -665,7 +777,7 @@ return Inventory
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="11">
+        <Item class="ModuleScript" referent="13">
           <Properties>
             <string name="Name">Monsters</string>
             <string name="Source"><![CDATA[local MonsterCompiler = require(script.MonsterCompiler)
@@ -690,11 +802,11 @@ return {
 }
 ]]></string>
           </Properties>
-          <Item class="Folder" referent="12">
+          <Item class="Folder" referent="14">
             <Properties>
               <string name="Name">Components</string>
             </Properties>
-            <Item class="ModuleScript" referent="13">
+            <Item class="ModuleScript" referent="15">
               <Properties>
                 <string name="Name">AttackComponent</string>
                 <string name="Source"><![CDATA[local MonsterBehaviorCatalog = require(script.Parent.Parent.MonsterBehaviorCatalog)
@@ -779,7 +891,7 @@ return AttackComponent
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="14">
+            <Item class="ModuleScript" referent="16">
               <Properties>
                 <string name="Name">MovementComponent</string>
                 <string name="Source"><![CDATA[local MonsterBehaviorCatalog = require(script.Parent.Parent.MonsterBehaviorCatalog)
@@ -868,7 +980,7 @@ return MovementComponent
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="15">
+            <Item class="ModuleScript" referent="17">
               <Properties>
                 <string name="Name">PerceptionComponent</string>
                 <string name="Source"><![CDATA[local MonsterBehaviorCatalog = require(script.Parent.Parent.MonsterBehaviorCatalog)
@@ -925,7 +1037,7 @@ return PerceptionComponent
               </Properties>
             </Item>
           </Item>
-          <Item class="ModuleScript" referent="16">
+          <Item class="ModuleScript" referent="18">
             <Properties>
               <string name="Name">Enemy</string>
               <string name="Source"><![CDATA[local EnemyBlackboard = require(script.Parent.EnemyBlackboard)
@@ -1031,7 +1143,7 @@ return Enemy
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="17">
+          <Item class="ModuleScript" referent="19">
             <Properties>
               <string name="Name">EnemyBlackboard</string>
               <string name="Source"><![CDATA[local EnemyBlackboard = {}
@@ -1076,7 +1188,7 @@ return EnemyBlackboard
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="18">
+          <Item class="ModuleScript" referent="20">
             <Properties>
               <string name="Name">EnemyStateMachine</string>
               <string name="Source"><![CDATA[local EnemyStateMachine = {}
@@ -1137,7 +1249,7 @@ return EnemyStateMachine
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="19">
+          <Item class="ModuleScript" referent="21">
             <Properties>
               <string name="Name">MazeMonsterSpawnPolicy</string>
               <string name="Source"><![CDATA[local MazeMonsterSpawnPolicy = {}
@@ -1249,7 +1361,7 @@ return MazeMonsterSpawnPolicy
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="20">
+          <Item class="ModuleScript" referent="22">
             <Properties>
               <string name="Name">MonsterAssetIds</string>
               <string name="Source"><![CDATA[local MonsterAssetIds = table.freeze({
@@ -1261,7 +1373,7 @@ return MonsterAssetIds
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="21">
+          <Item class="ModuleScript" referent="23">
             <Properties>
               <string name="Name">MonsterAuthorProfile</string>
               <string name="Source"><![CDATA[local MonsterBehaviorCatalog = require(script.Parent.MonsterBehaviorCatalog)
@@ -1522,6 +1634,16 @@ function MonsterAuthorProfile.validate(profile)
         return false, 'InvalidSpawnOffset'
     end
 
+    if tuning.CombatHitPoints ~= nil then
+        if
+            type(tuning.CombatHitPoints) ~= 'number'
+            or tuning.CombatHitPoints < 1
+            or math.floor(tuning.CombatHitPoints) ~= tuning.CombatHitPoints
+        then
+            return false, 'InvalidCombatHitPoints'
+        end
+    end
+
     if type(executable.BehaviorIntents) ~= 'table' or #executable.BehaviorIntents == 0 then
         return false, 'MissingBehaviorIntents'
     end
@@ -1569,7 +1691,7 @@ return MonsterAuthorProfile
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="22">
+          <Item class="ModuleScript" referent="24">
             <Properties>
               <string name="Name">MonsterBehaviorCatalog</string>
               <string name="Source"><![CDATA[local BEHAVIOR = table.freeze({
@@ -1601,7 +1723,7 @@ return MonsterBehaviorCatalog
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="23">
+          <Item class="ModuleScript" referent="25">
             <Properties>
               <string name="Name">MonsterCompiler</string>
               <string name="Source"><![CDATA[local MonsterAuthorProfile = require(script.Parent.MonsterAuthorProfile)
@@ -1614,6 +1736,7 @@ local DEFAULT_SPAWN_OFFSET = Vector3.new(0, 4, 0)
 local DEFAULT_ATTACK_COOLDOWN_SECONDS = 1
 local DEFAULT_ATTACK_DAMAGE_PIPS = 1
 local DEFAULT_ATTACK_RANGE = 4
+local DEFAULT_COMBAT_HIT_POINTS = 1
 
 local MonsterCompiler = {}
 
@@ -1677,6 +1800,15 @@ function MonsterCompiler.compileMonsterForMaze(authorProfile)
         end
     end
 
+    local combatHitPoints = normalizedProfile.Tuning.CombatHitPoints
+    if
+        type(combatHitPoints) ~= 'number'
+        or combatHitPoints < 1
+        or math.floor(combatHitPoints) ~= combatHitPoints
+    then
+        combatHitPoints = DEFAULT_COMBAT_HIT_POINTS
+    end
+
     local runtimeProfile = {
         Id = normalizedProfile.Id,
         Name = normalizedProfile.Name,
@@ -1689,6 +1821,7 @@ function MonsterCompiler.compileMonsterForMaze(authorProfile)
         SightRange = normalizedProfile.Tuning.SightRange,
         PatrolSpeedMultiplier = normalizedProfile.Tuning.PatrolSpeedMultiplier,
         SpawnOffset = normalizedProfile.Tuning.SpawnOffset or DEFAULT_SPAWN_OFFSET,
+        CombatHitPoints = combatHitPoints,
         Behaviors = table.freeze(behaviors),
         Effects = table.freeze(runtimeEffects),
     }
@@ -1716,7 +1849,7 @@ return MonsterCompiler
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="24">
+          <Item class="ModuleScript" referent="26">
             <Properties>
               <string name="Name">MonsterComponentConfig</string>
               <string name="Source"><![CDATA[local DEFAULT_ATTACK_COOLDOWN_SECONDS = 1
@@ -1808,7 +1941,7 @@ return MonsterComponentConfig
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="25">
+          <Item class="ModuleScript" referent="27">
             <Properties>
               <string name="Name">MonsterEffectCatalog</string>
               <string name="Source"><![CDATA[local CATEGORY = table.freeze({
@@ -1871,7 +2004,7 @@ return table.freeze(MonsterEffectCatalog)
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="26">
+          <Item class="ModuleScript" referent="28">
             <Properties>
               <string name="Name">MonsterLogic</string>
               <string name="Source"><![CDATA[local MonsterLogic = {}
@@ -1907,7 +2040,7 @@ return MonsterLogic
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="27">
+          <Item class="ModuleScript" referent="29">
             <Properties>
               <string name="Name">MonsterPresentationCatalog</string>
               <string name="Source"><![CDATA[local MonsterPresentationCatalog = {}
@@ -1932,7 +2065,7 @@ return MonsterPresentationCatalog
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="28">
+          <Item class="ModuleScript" referent="30">
             <Properties>
               <string name="Name">MonsterRuntimeProfile</string>
               <string name="Source"><![CDATA[local MonsterPresentationCatalog = require(script.Parent.MonsterPresentationCatalog)
@@ -2144,6 +2277,15 @@ function MonsterRuntimeProfile.validate(profile)
         return false, 'MissingRuntimeEffects'
     end
 
+    local combatHitPoints = profile.CombatHitPoints
+    if
+        type(combatHitPoints) ~= 'number'
+        or combatHitPoints < 1
+        or math.floor(combatHitPoints) ~= combatHitPoints
+    then
+        return false, 'InvalidRuntimeCombatHitPoints'
+    end
+
     return true
 end
 
@@ -2151,7 +2293,7 @@ return MonsterRuntimeProfile
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="29">
+          <Item class="ModuleScript" referent="31">
             <Properties>
               <string name="Name">MonsterUgcPipeline</string>
               <string name="Source"><![CDATA[local MonsterBehaviorCatalog = require(script.Parent.MonsterBehaviorCatalog)
@@ -3034,7 +3176,7 @@ return MonsterUgcPipeline
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="30">
+          <Item class="ModuleScript" referent="32">
             <Properties>
               <string name="Name">MonsterUgcReviewQueue</string>
               <string name="Source"><![CDATA[local MonsterUgcReviewQueue = {}
@@ -3189,7 +3331,7 @@ return MonsterUgcReviewQueue
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="31">
+        <Item class="ModuleScript" referent="33">
           <Properties>
             <string name="Name">Player</string>
             <string name="Source"><![CDATA[return {
@@ -3204,11 +3346,11 @@ return MonsterUgcReviewQueue
 }
 ]]></string>
           </Properties>
-          <Item class="Folder" referent="32">
+          <Item class="Folder" referent="34">
             <Properties>
               <string name="Name">Components</string>
             </Properties>
-            <Item class="ModuleScript" referent="33">
+            <Item class="ModuleScript" referent="35">
               <Properties>
                 <string name="Name">HealthComponent</string>
                 <string name="Source"><![CDATA[local HealthComponent = {}
@@ -3225,11 +3367,7 @@ end
 
 function HealthComponent:init(blackboard)
     local config = blackboard.Context.ComponentConfig.Health
-<<<<<<< HEAD
     local maxHealthPips = if config and config.MaxHealthPips then config.MaxHealthPips else 2
-=======
-    local maxHealthPips = if config and config.MaxHealthPips then config.MaxHealthPips else 2
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
 
     self.MaxHealthPips = maxHealthPips
     self.CurrentHealthPips = maxHealthPips
@@ -3237,11 +3375,7 @@ function HealthComponent:init(blackboard)
     self.CorpseActive = false
 end
 
-<<<<<<< HEAD
-function HealthComponent:applyDamage(blackboard, damageKind)
-=======
-function HealthComponent:applyDamage(blackboard, damageKind)
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
+function HealthComponent:applyDamage(_blackboard, damageKind)
     local pipCost = DAMAGE_PIP_COST[damageKind]
     if pipCost == nil then
         return false, 'UnknownDamageKind'
@@ -3257,11 +3391,7 @@ function HealthComponent:applyDamage(blackboard, damageKind)
     return true, self.CurrentHealthPips
 end
 
-<<<<<<< HEAD
-function HealthComponent:update(blackboard, dt)
-=======
-function HealthComponent:update(blackboard, dt)
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
+function HealthComponent:update(blackboard, _dt)
     blackboard.Transient.CurrentHealthPips = self.CurrentHealthPips
     blackboard.Transient.MaxHealthPips = self.MaxHealthPips
     blackboard.Transient.IsDead = self.IsDead
@@ -3274,7 +3404,7 @@ return HealthComponent
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="34">
+            <Item class="ModuleScript" referent="36">
               <Properties>
                 <string name="Name">InventoryComponent</string>
                 <string name="Source"><![CDATA[local InventoryComponent = {}
@@ -3383,11 +3513,7 @@ function InventoryComponent:useItem(blackboard)
     return true, slot
 end
 
-<<<<<<< HEAD
-function InventoryComponent:removeItem(blackboard, slotIndex)
-=======
-function InventoryComponent:removeItem(blackboard, slotIndex)
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
+function InventoryComponent:removeItem(_blackboard, slotIndex)
     if slotIndex < 1 or slotIndex > #self.Slots then
         return false, 'InvalidSlot'
     end
@@ -3404,11 +3530,7 @@ function InventoryComponent:removeItem(blackboard, slotIndex)
     return true
 end
 
-<<<<<<< HEAD
-function InventoryComponent:update(blackboard, dt)
-=======
-function InventoryComponent:update(blackboard, dt)
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
+function InventoryComponent:update(blackboard, _dt)
     blackboard.Transient.Slots = self.Slots
     blackboard.Transient.EquippedSlot = self.EquippedSlot
     blackboard.Transient.InteractionRange = self.InteractionRange
@@ -3420,7 +3542,7 @@ return InventoryComponent
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="35">
+            <Item class="ModuleScript" referent="37">
               <Properties>
                 <string name="Name">MovementComponent</string>
                 <string name="Source"><![CDATA[local MovementComponent = {}
@@ -3470,11 +3592,7 @@ function MovementComponent:update(blackboard, dt)
 
         if distance > 0.1 then
             isMoving = true
-<<<<<<< HEAD
             local stepSize = math.min(moveSpeed * dt, distance)
-=======
-            local stepSize = math.min(moveSpeed * dt, distance)
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
             nextPosition = currentPosition + (direction.Unit * stepSize)
         end
     end
@@ -3482,17 +3600,10 @@ function MovementComponent:update(blackboard, dt)
     self.IsMoving = isMoving
 
     blackboard.Transient.NextPosition = nextPosition
-<<<<<<< HEAD
     blackboard.Transient.DesiredAnimation = if isSprinting and isMoving
         then 'Run'
         elseif isMoving then 'Walk'
         else 'Idle'
-=======
-    blackboard.Transient.DesiredAnimation = if isSprinting and isMoving
-        then 'Run'
-        elseif isMoving then 'Walk'
-        else 'Idle'
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
     blackboard.Transient.IsMoving = isMoving
     blackboard.Transient.IsJumping = self.IsJumping
 end
@@ -3503,7 +3614,7 @@ return MovementComponent
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="36">
+            <Item class="ModuleScript" referent="38">
               <Properties>
                 <string name="Name">StaminaComponent</string>
                 <string name="Source"><![CDATA[local StaminaComponent = {}
@@ -3522,11 +3633,8 @@ function StaminaComponent:init(blackboard)
     self.CurrentStamina = self.MaxStamina
     self.DrainPerSecond = config.DrainPerSecond or 35
     self.RecoveryPerSecond = config.RecoveryPerSecond or 20
-<<<<<<< HEAD
-    self.RecoveryDelaySeconds = config.RecoveryDelaySeconds or DEFAULT_STAMINA_RECOVERY_DELAY_SECONDS
-=======
-    self.RecoveryDelaySeconds = config.RecoveryDelaySeconds or DEFAULT_STAMINA_RECOVERY_DELAY_SECONDS
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
+    self.RecoveryDelaySeconds = config.RecoveryDelaySeconds
+        or DEFAULT_STAMINA_RECOVERY_DELAY_SECONDS
     self.ResumeThreshold = config.ResumeThreshold or 20
 
     self.StaminaRecoveryStartTime = 0
@@ -3534,12 +3642,8 @@ function StaminaComponent:init(blackboard)
     self.CanSprint = true
 end
 
-function StaminaComponent:drainStamina(blackboard, amount)
-<<<<<<< HEAD
+function StaminaComponent:drainStamina(_blackboard, amount)
     if self.IsDead then
-=======
-    if self.IsDead then
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
         return false, 'Dead'
     end
 
@@ -3554,12 +3658,8 @@ function StaminaComponent:drainStamina(blackboard, amount)
     return true, self.CurrentStamina
 end
 
-function StaminaComponent:setSprinting(blackboard, isSprinting)
-<<<<<<< HEAD
+function StaminaComponent:setSprinting(_blackboard, isSprinting)
     if self.IsDead then
-=======
-    if self.IsDead then
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
         self.IsSprinting = false
         return false, 'Dead'
     end
@@ -3582,11 +3682,7 @@ function StaminaComponent:update(blackboard, dt)
     local deltaTime = math.max(0, dt or 0)
     local now = os.clock()
 
-<<<<<<< HEAD
     if self.IsDead then
-=======
-    if self.IsDead then
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
         blackboard.Transient.CurrentStamina = self.CurrentStamina
         blackboard.Transient.MaxStamina = self.MaxStamina
         blackboard.Transient.CanSprint = false
@@ -3603,17 +3699,8 @@ function StaminaComponent:update(blackboard, dt)
             self.IsSprinting = false
         end
     elseif now >= self.StaminaRecoveryStartTime then
-<<<<<<< HEAD
-        self.CurrentStamina = math.min(
-            self.MaxStamina,
-            self.CurrentStamina + self.RecoveryPerSecond * deltaTime
-        )
-=======
-        self.CurrentStamina = math.min(
-            self.MaxStamina,
-            self.CurrentStamina + self.RecoveryPerSecond * deltaTime
-        )
->>>>>>> af646b4 (feat(player): add Player OOP system with component architecture)
+        self.CurrentStamina =
+            math.min(self.MaxStamina, self.CurrentStamina + self.RecoveryPerSecond * deltaTime)
 
         if not self.CanSprint and self.CurrentStamina >= self.ResumeThreshold then
             self.CanSprint = true
@@ -3633,7 +3720,7 @@ return StaminaComponent
               </Properties>
             </Item>
           </Item>
-          <Item class="ModuleScript" referent="37">
+          <Item class="ModuleScript" referent="39">
             <Properties>
               <string name="Name">Player</string>
               <string name="Source"><![CDATA[local PlayerBlackboard = require(script.Parent.PlayerBlackboard)
@@ -3748,7 +3835,7 @@ return Player
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="38">
+          <Item class="ModuleScript" referent="40">
             <Properties>
               <string name="Name">PlayerBlackboard</string>
               <string name="Source"><![CDATA[local PlayerBlackboard = {}
@@ -3793,7 +3880,7 @@ return PlayerBlackboard
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="39">
+          <Item class="ModuleScript" referent="41">
             <Properties>
               <string name="Name">PlayerComponentConfig</string>
               <string name="Source"><![CDATA[local PlayerComponentConfig = {}
@@ -3893,7 +3980,7 @@ return PlayerComponentConfig
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="40">
+          <Item class="ModuleScript" referent="42">
             <Properties>
               <string name="Name">PlayerStateMachine</string>
               <string name="Source"><![CDATA[local PlayerStateMachine = {}
@@ -3959,7 +4046,7 @@ return PlayerStateMachine
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">PlayerState</string>
             <string name="Source"><![CDATA[local DEFAULT_MAX_HEALTH_PIPS = 2
@@ -4094,7 +4181,7 @@ return PlayerState
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">ProcGen</string>
             <string name="Source"><![CDATA[return {
@@ -4106,7 +4193,7 @@ return PlayerState
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="43">
+          <Item class="ModuleScript" referent="45">
             <Properties>
               <string name="Name">HexRoomPrefabs</string>
               <string name="Source"><![CDATA[local HexRoomPrefabs = {}
@@ -4291,7 +4378,7 @@ return HexRoomPrefabs
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="44">
+          <Item class="ModuleScript" referent="46">
             <Properties>
               <string name="Name">MazeBuilder</string>
               <string name="Source"><![CDATA[local MazeBuilder = {}
@@ -5591,7 +5678,7 @@ return MazeBuilder
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="45">
+          <Item class="ModuleScript" referent="47">
             <Properties>
               <string name="Name">MazePassageTemplates</string>
               <string name="Source"><![CDATA[local MazePassageTemplates = {}
@@ -5700,7 +5787,7 @@ return MazePassageTemplates
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="46">
+          <Item class="ModuleScript" referent="48">
             <Properties>
               <string name="Name">MazeRoomArchetypes</string>
               <string name="Source"><![CDATA[local MazeRoomTemplates = require(script.Parent.MazeRoomTemplates)
@@ -5797,7 +5884,7 @@ return MazeRoomArchetypes
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="47">
+          <Item class="ModuleScript" referent="49">
             <Properties>
               <string name="Name">MazeRoomTemplates</string>
               <string name="Source"><![CDATA[local MazePassageTemplates = require(script.Parent.MazePassageTemplates)
@@ -6026,7 +6113,7 @@ return MazeRoomTemplates
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="48">
+        <Item class="ModuleScript" referent="50">
           <Properties>
             <string name="Name">Roles</string>
             <string name="Source"><![CDATA[return {
@@ -6034,7 +6121,7 @@ return MazeRoomTemplates
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="49">
+          <Item class="ModuleScript" referent="51">
             <Properties>
               <string name="Name">RoleAllocator</string>
               <string name="Source"><![CDATA[local RoleAllocator = {}
@@ -6067,7 +6154,7 @@ return RoleAllocator
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="50">
+        <Item class="ModuleScript" referent="52">
           <Properties>
             <string name="Name">Session</string>
             <string name="Source"><![CDATA[return {
@@ -6076,7 +6163,7 @@ return RoleAllocator
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="51">
+          <Item class="ModuleScript" referent="53">
             <Properties>
               <string name="Name">MazeRunTracker</string>
               <string name="Source"><![CDATA[local SessionStateMachine = require(script.Parent.SessionStateMachine)
@@ -6219,7 +6306,7 @@ return MazeRunTracker
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="52">
+          <Item class="ModuleScript" referent="54">
             <Properties>
               <string name="Name">SessionStateMachine</string>
               <string name="Source"><![CDATA[local TRANSITIONS = {
@@ -6267,7 +6354,7 @@ return SessionStateMachine
           </Item>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="53">
+      <Item class="ModuleScript" referent="55">
         <Properties>
           <string name="Name">Shared</string>
           <string name="Source"><![CDATA[return {
@@ -6281,7 +6368,7 @@ return SessionStateMachine
 }
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="54">
+        <Item class="ModuleScript" referent="56">
           <Properties>
             <string name="Name">Client</string>
             <string name="Source"><![CDATA[return {
@@ -6290,7 +6377,7 @@ return SessionStateMachine
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="55">
+          <Item class="ModuleScript" referent="57">
             <Properties>
               <string name="Name">FirstPersonController</string>
               <string name="Source"><![CDATA[local FirstPersonController = {}
@@ -6380,7 +6467,7 @@ return FirstPersonController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="56">
+          <Item class="ModuleScript" referent="58">
             <Properties>
               <string name="Name">HeldItemController</string>
               <string name="Source"><![CDATA[local HeldItemController = {}
@@ -6490,7 +6577,7 @@ return HeldItemController
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="57">
+        <Item class="ModuleScript" referent="59">
           <Properties>
             <string name="Name">Config</string>
             <string name="Source"><![CDATA[return {
@@ -6498,7 +6585,7 @@ return HeldItemController
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="58">
+          <Item class="ModuleScript" referent="60">
             <Properties>
               <string name="Name">SessionConfig</string>
               <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -6507,10 +6594,11 @@ local DEFAULT_PLACE_IDS = {
     Lobby = 99207062749924,
     Maze = 114148445477110,
     Run = 137478567439901,
+    Library = 0, -- TODO: 替换为实际的图书馆 Place ID
 }
 local DEFAULT_DEBUG_LOCAL_MAZE_HANDOFF = false
 
-local PLACE_ID_KEYS = { 'Lobby', 'Maze', 'Run' }
+local PLACE_ID_KEYS = { 'Lobby', 'Maze', 'Run', 'Library' }
 
 local function coercePlaceId(value)
     local numericValue = tonumber(value)
@@ -6583,7 +6671,7 @@ return SessionConfig
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="59">
+        <Item class="ModuleScript" referent="61">
           <Properties>
             <string name="Name">Enums</string>
             <string name="Source"><![CDATA[return {
@@ -6591,7 +6679,7 @@ return SessionConfig
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="60">
+          <Item class="ModuleScript" referent="62">
             <Properties>
               <string name="Name">RunState</string>
               <string name="Source"><![CDATA[return {
@@ -6604,7 +6692,7 @@ return SessionConfig
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="61">
+        <Item class="ModuleScript" referent="63">
           <Properties>
             <string name="Name">Network</string>
             <string name="Source"><![CDATA[return {
@@ -6612,7 +6700,7 @@ return SessionConfig
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="62">
+          <Item class="ModuleScript" referent="64">
             <Properties>
               <string name="Name">Remotes</string>
               <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -6806,7 +6894,7 @@ return Remotes
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="63">
+        <Item class="ModuleScript" referent="65">
           <Properties>
             <string name="Name">Runtime</string>
             <string name="Source"><![CDATA[return {
@@ -6828,7 +6916,7 @@ return Remotes
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="64">
+          <Item class="ModuleScript" referent="66">
             <Properties>
               <string name="Name">ControlStateService</string>
               <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -6910,7 +6998,7 @@ return ControlStateService
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="65">
+          <Item class="ModuleScript" referent="67">
             <Properties>
               <string name="Name">FormalLocomotion</string>
               <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -6979,7 +7067,7 @@ return FormalLocomotion
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="66">
+          <Item class="ModuleScript" referent="68">
             <Properties>
               <string name="Name">HexMazeWorldRenderer</string>
               <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -7001,6 +7089,7 @@ local math_rad = math.rad
 local math_cos = math.cos
 local math_sin = math.sin
 local math_tan = math.tan
+local math_abs = math.abs
 local math_pi = math.pi
 
 local Vector3_new = Vector3.new
@@ -7029,11 +7118,22 @@ local SIDE_ANGLE_OFFSET_DEGREES = 0
 
 local SIDE_NORMALS_X = {}
 local SIDE_NORMALS_Z = {}
+local SIDE_VECTORS_NORMAL = {}
+local SIDE_VECTORS_TANGENT = {}
+
 for directionIndex = 1, 6 do
     local angle = math_rad((-(directionIndex - 1) * 60) + SIDE_ANGLE_OFFSET_DEGREES)
-    SIDE_NORMALS_X[directionIndex] = math_cos(angle)
-    SIDE_NORMALS_Z[directionIndex] = math_sin(angle)
+    local nx = math_cos(angle)
+    local nz = math_sin(angle)
+    SIDE_NORMALS_X[directionIndex] = nx
+    SIDE_NORMALS_Z[directionIndex] = nz
+    SIDE_VECTORS_NORMAL[directionIndex] = Vector3_new(nx, 0, nz)
+    SIDE_VECTORS_TANGENT[directionIndex] = Vector3_new(-nz, 0, nx)
 end
+
+local TILE_BUFFER_A = FLOOR_TILE_SIZE / 2
+local TILE_BUFFER_B = (FLOOR_TILE_SIZE / 2) * (math_cos(math_rad(60)) + math_sin(math_rad(60)))
+local SIN_60 = math_sin(math_rad(60))
 
 local DEFAULT_SURFACE_PALETTE = table.freeze({
     WallMaterial = Enum.Material.Concrete,
@@ -7350,32 +7450,7 @@ local function buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem,
 end
 
 local function sideVectors(directionIndex)
-    local nx, nz = SIDE_NORMALS_X[directionIndex], SIDE_NORMALS_Z[directionIndex]
-    local normal = Vector3_new(nx, 0, nz)
-    local tangent = Vector3_new(-nz, 0, nx)
-    return normal, tangent
-end
-
-local function isInsideHexNumeric(ox, oz, apothem)
-    if ox * SIDE_NORMALS_X[1] + oz * SIDE_NORMALS_Z[1] > apothem then
-        return false
-    end
-    if ox * SIDE_NORMALS_X[2] + oz * SIDE_NORMALS_Z[2] > apothem then
-        return false
-    end
-    if ox * SIDE_NORMALS_X[3] + oz * SIDE_NORMALS_Z[3] > apothem then
-        return false
-    end
-    if ox * SIDE_NORMALS_X[4] + oz * SIDE_NORMALS_Z[4] > apothem then
-        return false
-    end
-    if ox * SIDE_NORMALS_X[5] + oz * SIDE_NORMALS_Z[5] > apothem then
-        return false
-    end
-    if ox * SIDE_NORMALS_X[6] + oz * SIDE_NORMALS_Z[6] > apothem then
-        return false
-    end
-    return true
+    return SIDE_VECTORS_NORMAL[directionIndex], SIDE_VECTORS_TANGENT[directionIndex]
 end
 
 local function createHexTiledSlab(parent, name, center, apothem, yOffset, color, material)
@@ -7384,35 +7459,27 @@ local function createHexTiledSlab(parent, name, center, apothem, yOffset, color,
     slabFolder.Parent = parent
 
     local radius = apothem * HEX_CIRCUMRADIUS_MULTIPLIER
-    local halfTile = FLOOR_TILE_SIZE / 2
     local maxOffset = math_ceil(radius / FLOOR_TILE_SIZE) * FLOOR_TILE_SIZE
-    local tileCount = 0
 
     local cx, cy, cz = center.X, center.Y, center.Z
+    local tileSizeVector = Vector3_new(FLOOR_TILE_SIZE, SLAB_THICKNESS, FLOOR_TILE_SIZE)
 
     for x = -maxOffset, maxOffset, FLOOR_TILE_SIZE do
         for z = -maxOffset, maxOffset, FLOOR_TILE_SIZE do
-            local cornersInside = true
-
-            -- Unrolled corner check to avoid Vector3 and table allocations
+            -- Optimized single check for whole tile bounding box
             if
-                not isInsideHexNumeric(x - halfTile, z - halfTile, apothem)
-                or not isInsideHexNumeric(x + halfTile, z - halfTile, apothem)
-                or not isInsideHexNumeric(x - halfTile, z + halfTile, apothem)
-                or not isInsideHexNumeric(x + halfTile, z + halfTile, apothem)
+                math_abs(x) + TILE_BUFFER_A <= apothem
+                and math_abs(0.5 * x - SIN_60 * z) + TILE_BUFFER_B <= apothem
+                and math_abs(0.5 * x + SIN_60 * z) + TILE_BUFFER_B <= apothem
             then
-                cornersInside = false
-            end
-
-            if cornersInside then
-                tileCount += 1
-                createPart({
-                    Name = name .. 'Tile_' .. tileCount,
-                    Size = Vector3_new(FLOOR_TILE_SIZE, SLAB_THICKNESS, FLOOR_TILE_SIZE),
-                    CFrame = CFrame_new(cx + x, cy + yOffset, cz + z),
-                    Color = color,
-                    Material = material,
-                }, slabFolder)
+                local part = Instance_new('Part')
+                part.Name = 'Tile'
+                part.Anchored = true
+                part.Size = tileSizeVector
+                part.CFrame = CFrame_new(cx + x, cy + yOffset, cz + z)
+                part.Color = color
+                part.Material = material
+                part.Parent = slabFolder
             end
         end
     end
@@ -8033,7 +8100,7 @@ return HexMazeWorldRenderer
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="67">
+          <Item class="ModuleScript" referent="69">
             <Properties>
               <string name="Name">InventoryService</string>
               <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -8161,7 +8228,7 @@ return InventoryService
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="68">
+          <Item class="ModuleScript" referent="70">
             <Properties>
               <string name="Name">MazeDebugWorldComposer</string>
               <string name="Source"><![CDATA[local MazeWorldShellBuilder = require(script.Parent.MazeWorldShellBuilder)
@@ -8200,7 +8267,7 @@ return MazeDebugWorldComposer
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="69">
+          <Item class="ModuleScript" referent="71">
             <Properties>
               <string name="Name">MazeFormalWorldComposer</string>
               <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -8489,7 +8556,7 @@ return MazeFormalWorldComposer
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="70">
+          <Item class="ModuleScript" referent="72">
             <Properties>
               <string name="Name">MazeInteractionPartFactory</string>
               <string name="Source"><![CDATA[local MazeInteractionPartFactory = {}
@@ -8543,7 +8610,7 @@ return MazeInteractionPartFactory
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="71">
+          <Item class="ModuleScript" referent="73">
             <Properties>
               <string name="Name">MazeLightingProfile</string>
               <string name="Source"><![CDATA[local MazeLightingProfile = {}
@@ -8862,7 +8929,7 @@ return MazeLightingProfile
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="72">
+          <Item class="ModuleScript" referent="74">
             <Properties>
               <string name="Name">MazeModuleAssetContract</string>
               <string name="Source"><![CDATA[local MazeModuleAssetContract = {}
@@ -8975,7 +9042,7 @@ return MazeModuleAssetContract
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="73">
+          <Item class="ModuleScript" referent="75">
             <Properties>
               <string name="Name">MazeWorldScanner</string>
               <string name="Source"><![CDATA[--[[
@@ -9006,6 +9073,9 @@ local STATIC_WORLD_ROOT_NAME = 'MazeStaticWorld'
 local DEFAULT_ROOM_KIND = 'Loot'
 local DEFAULT_RETURN_ACTION_TEXT = 'Return'
 local DEFAULT_RETURN_OBJECT_TEXT = 'Run Entrance'
+
+local NEIGHBOR_DISTANCE_THRESHOLD = 50
+local DEFAULT_DETECTION_RADIUS = 18
 
 local SCAN_CONFIG = {
     RoomTagPrefix = 'RoomType/',
@@ -9299,7 +9369,7 @@ function MazeWorldScanner.Scan(scanRoot)
             local roomB = roomById[idB]
             if idA ~= idB then
                 local distance = (roomB.Position - roomA.Position).Magnitude
-                if distance < 50 then
+                if distance < NEIGHBOR_DISTANCE_THRESHOLD then
                     table.insert(roomA.Neighbors, idB)
                     table.insert(roomAffordances[idA].TraversalMask.NeighborRoomIds, idB)
                 end
@@ -9540,7 +9610,7 @@ function MazeWorldScanner.BuildStaticWorld(scanRoot)
         end
 
         local room = world.RoomById[nearestRoomId]
-        if nearestDistance > (room.DetectionRadius or 18) then
+        if nearestDistance > (room.DetectionRadius or DEFAULT_DETECTION_RADIUS) then
             return nil
         end
 
@@ -9594,7 +9664,7 @@ return MazeWorldScanner
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="74">
+          <Item class="ModuleScript" referent="76">
             <Properties>
               <string name="Name">MazeWorldShellBuilder</string>
               <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -9656,7 +9726,7 @@ return MazeWorldShellBuilder
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="75">
+          <Item class="ModuleScript" referent="77">
             <Properties>
               <string name="Name">MonsterRuntime</string>
               <string name="Source"><![CDATA[return {
@@ -9670,7 +9740,7 @@ return MazeWorldShellBuilder
 }
 ]]></string>
             </Properties>
-            <Item class="ModuleScript" referent="76">
+            <Item class="ModuleScript" referent="78">
               <Properties>
                 <string name="Name">AttackComponent</string>
                 <string name="Source"><![CDATA[local AttackComponent = {}
@@ -9719,7 +9789,7 @@ return AttackComponent
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="77">
+            <Item class="ModuleScript" referent="79">
               <Properties>
                 <string name="Name">EnemyBlackboard</string>
                 <string name="Source"><![CDATA[local EnemyBlackboard = {}
@@ -9766,7 +9836,7 @@ return EnemyBlackboard
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="78">
+            <Item class="ModuleScript" referent="80">
               <Properties>
                 <string name="Name">EnemyRuntime</string>
                 <string name="Source"><![CDATA[local EnemyBlackboard = require(script.Parent.EnemyBlackboard)
@@ -9853,7 +9923,7 @@ return EnemyRuntime
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="79">
+            <Item class="ModuleScript" referent="81">
               <Properties>
                 <string name="Name">EnemyStateMachine</string>
                 <string name="Source"><![CDATA[local EnemyStateMachine = {}
@@ -9896,7 +9966,7 @@ return EnemyStateMachine
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="80">
+            <Item class="ModuleScript" referent="82">
               <Properties>
                 <string name="Name">HealthComponent</string>
                 <string name="Source"><![CDATA[local HealthComponent = {}
@@ -9926,7 +9996,7 @@ return HealthComponent
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="81">
+            <Item class="ModuleScript" referent="83">
               <Properties>
                 <string name="Name">MovementComponent</string>
                 <string name="Source"><![CDATA[local EnemyStateMachine = require(script.Parent.EnemyStateMachine)
@@ -10000,7 +10070,7 @@ return MovementComponent
 ]]></string>
               </Properties>
             </Item>
-            <Item class="ModuleScript" referent="82">
+            <Item class="ModuleScript" referent="84">
               <Properties>
                 <string name="Name">PerceptionComponent</string>
                 <string name="Source"><![CDATA[local PerceptionComponent = {}
@@ -10053,7 +10123,7 @@ return PerceptionComponent
               </Properties>
             </Item>
           </Item>
-          <Item class="ModuleScript" referent="83">
+          <Item class="ModuleScript" referent="85">
             <Properties>
               <string name="Name">MonsterService</string>
               <string name="Source"><![CDATA[local InsertService = game:GetService('InsertService')
@@ -10070,6 +10140,7 @@ local MonsterComponentConfig = Gameplay.Monsters.MonsterComponentConfig
 local MonsterLogic = Gameplay.Monsters.MonsterLogic
 local Enemy = Gameplay.Monsters.Enemy
 local MonsterRuntimeProfile = Gameplay.Monsters.MonsterRuntimeProfile
+local PlayerMonsterMelee = Gameplay.Combat.PlayerMonsterMelee
 local EnemyRuntime = require(script.Parent.MonsterRuntime.EnemyRuntime)
 
 local MonsterService = {}
@@ -10239,6 +10310,7 @@ function MonsterService.new(
         RandomSeed = randomSeed,
         RandomSource = runtimeOptions.RandomSource
             or if randomSeed ~= nil then Random.new(randomSeed) else Random.new(),
+        CombatHitPointsRemaining = nil,
     }, MonsterService)
 
     service.EnemyRuntime = EnemyRuntime.new({
@@ -10278,6 +10350,15 @@ function MonsterService.new(
         },
     })
 
+    local combatHp = monsterRuntimeProfile.CombatHitPoints
+    if type(combatHp) ~= 'number' or combatHp < 1 or math.floor(combatHp) ~= combatHp then
+        combatHp = 1
+    else
+        combatHp = math.floor(combatHp)
+    end
+    service.CombatMaxHealth = combatHp
+    service.CombatCurrentHealth = combatHp
+
     return service
 end
 
@@ -10310,6 +10391,7 @@ function MonsterService:destroy()
     self.PendingAttack = nil
     self.ActiveAnimation = nil
     self.MonsterHumanoid = nil
+    self.CombatHitPointsRemaining = nil
     self.MonsterPositionPart = nil
     self.LogicalPosition = nil
     self.LogicAccumulator = 0
@@ -10496,9 +10578,33 @@ function MonsterService:_spawnModel(spawnPosition)
     self.MonsterRoot = preparedModel
     self.MonsterPositionPart = rootPart
     self.LogicalPosition = spawnPosition
+    if self.MonsterHumanoid == nil then
+        self.MonsterHumanoid = humanoid
+    end
     self:_attachChaseLoopSound(rootPart)
 
     return true
+end
+
+function MonsterService:_applyDefinitionCombatHealth()
+    local maxPips = self.Definition.CombatHitPoints
+    if type(maxPips) ~= 'number' or maxPips < 1 or math.floor(maxPips) ~= maxPips then
+        maxPips = 1
+    end
+
+    self.CombatMaxHealth = maxPips
+
+    local humanoid = self.MonsterHumanoid
+    if humanoid then
+        humanoid.MaxHealth = maxPips
+        humanoid.Health = maxPips
+        self.CombatCurrentHealth = maxPips
+        self.CombatHitPointsRemaining = nil
+        return
+    end
+
+    self.CombatHitPointsRemaining = maxPips
+    self.CombatCurrentHealth = maxPips
 end
 
 function MonsterService:_setAnimationState(animationName, speedMultiplier)
@@ -10925,6 +11031,148 @@ function MonsterService:_onAttackMarkerReached(markerName)
 
     self.OnAttackHit(pendingAttack.TargetPlayer, pendingAttack.DamagePips, hitContext)
 end
+
+function MonsterService:_playerMeleeLineOfSightClear(player, playerPosition, monsterPosition)
+    local offset = monsterPosition - playerPosition
+    local distance = offset.Magnitude
+    if distance <= 1e-3 then
+        return true
+    end
+
+    local character = player and player.Character
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    raycastParams.IgnoreWater = true
+    if character then
+        raycastParams.FilterDescendantsInstances = { character }
+    end
+
+    local direction = offset.Unit * (distance + 0.25)
+    local result = self.Raycast(playerPosition, direction, raycastParams)
+    if result == nil then
+        return true
+    end
+
+    if
+        self.MonsterRoot
+        and result.Instance
+        and result.Instance:IsDescendantOf(self.MonsterRoot)
+    then
+        return true
+    end
+
+    return false
+end
+
+function MonsterService:tryApplyPlayerMeleeHit(player, meleeOptions)
+    if not self.IsExpeditionActive() then
+        return false, 'ExpeditionInactive'
+    end
+
+    if self.MonsterRoot == nil then
+        return false, 'NoMonster'
+    end
+
+    local isPlayerInstance = typeof(player) == 'Instance' and player:IsA('Player')
+    local isTestStub = type(player) == 'table' and type(player.UserId) == 'number'
+    if not isPlayerInstance and not isTestStub then
+        return false, 'InvalidPlayer'
+    end
+
+    local character = player.Character
+    if character == nil then
+        return false, 'NoCharacter'
+    end
+
+    local humanoidRoot = character:FindFirstChild('HumanoidRootPart')
+    if humanoidRoot == nil or not humanoidRoot:IsA('BasePart') then
+        return false, 'MissingHumanoidRoot'
+    end
+
+    local options = meleeOptions or {}
+    local swingRange = options.SwingRange
+    if type(swingRange) ~= 'number' or swingRange <= 0 then
+        swingRange = 6
+    end
+
+    local swingArcDegrees = options.SwingArcDegrees
+    if type(swingArcDegrees) ~= 'number' or swingArcDegrees <= 0 then
+        swingArcDegrees = 70
+    end
+
+    local damagePips = options.DamagePips
+    if type(damagePips) ~= 'number' or damagePips < 1 then
+        damagePips = 1
+    end
+    damagePips = math.floor(damagePips)
+
+    local monsterPosition = self:_getCurrentPosition()
+    if typeof(monsterPosition) ~= 'Vector3' then
+        return false, 'MissingMonsterPosition'
+    end
+
+    local playerPosition = humanoidRoot.Position
+    local playerLook = humanoidRoot.CFrame.LookVector
+
+    local geometryOk, geometryReason = PlayerMonsterMelee.evaluateSwing(
+        playerPosition,
+        playerLook,
+        monsterPosition,
+        swingRange,
+        swingArcDegrees
+    )
+    if geometryOk ~= true then
+        return false, geometryReason
+    end
+
+    if not self.CanTraverse(playerPosition, monsterPosition) then
+        return false, 'PathBlocked'
+    end
+
+    if not self:_playerMeleeLineOfSightClear(player, playerPosition, monsterPosition) then
+        return false, 'BlockedLineOfSight'
+    end
+
+    local monsterHumanoid = self.MonsterHumanoid
+    local killed = false
+    local remainingHitPoints
+
+    if monsterHumanoid then
+        local nextHealth = math.max(0, monsterHumanoid.Health - damagePips)
+        monsterHumanoid.Health = nextHealth
+        remainingHitPoints = math.ceil(nextHealth)
+        self.CombatCurrentHealth = remainingHitPoints
+        if nextHealth <= 0 then
+            killed = true
+        end
+    elseif type(self.CombatHitPointsRemaining) == 'number' then
+        self.CombatHitPointsRemaining -= damagePips
+        remainingHitPoints = math.max(0, self.CombatHitPointsRemaining)
+        self.CombatCurrentHealth = remainingHitPoints
+        if remainingHitPoints <= 0 then
+            killed = true
+        end
+    else
+        return false, 'MonsterCombatStateMissing'
+    end
+
+    self:_recordDecisionEvent('PlayerMeleeHit', {
+        DamagePips = damagePips,
+        Killed = killed,
+        RemainingHitPoints = remainingHitPoints,
+        TargetUserId = player.UserId,
+    })
+
+    if killed then
+        self:destroy()
+    end
+
+    return true, {
+        Killed = killed,
+        RemainingHitPoints = remainingHitPoints,
+    }
+end
+
 function MonsterService:spawn(patrolPoints, initialPatrolIndex)
     self:destroy()
     self.PatrolPoints = patrolPoints
@@ -10950,6 +11198,8 @@ function MonsterService:spawn(patrolPoints, initialPatrolIndex)
     else
         self:_setAnimationState('Idle', 1)
     end
+
+    self:_applyDefinitionCombatHealth()
 
     self.EnemyRuntime = self.EnemyFactory(self.Definition, {
         ComponentConfig = self.ComponentConfig,
@@ -11061,7 +11311,7 @@ return MonsterService
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="84">
+          <Item class="ModuleScript" referent="86">
             <Properties>
               <string name="Name">PlayerService</string>
               <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -11238,7 +11488,7 @@ return PlayerService
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="85">
+          <Item class="ModuleScript" referent="87">
             <Properties>
               <string name="Name">PlayerStateService</string>
               <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -11318,7 +11568,7 @@ return PlayerStateService
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="86">
+          <Item class="ModuleScript" referent="88">
             <Properties>
               <string name="Name">TeleportInventoryHydrator</string>
               <string name="Source"><![CDATA[local TeleportInventoryHydrator = {}
@@ -11343,7 +11593,7 @@ return TeleportInventoryHydrator
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="87">
+        <Item class="ModuleScript" referent="89">
           <Properties>
             <string name="Name">Session</string>
             <string name="Source"><![CDATA[return {
@@ -11353,7 +11603,7 @@ return TeleportInventoryHydrator
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="88">
+          <Item class="ModuleScript" referent="90">
             <Properties>
               <string name="Name">CampMazeSessionContract</string>
               <string name="Source"><![CDATA[local CampMazeSessionContract = {}
@@ -11819,7 +12069,7 @@ return CampMazeSessionContract
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="89">
+          <Item class="ModuleScript" referent="91">
             <Properties>
               <string name="Name">MazeEntryAvailability</string>
               <string name="Source"><![CDATA[local MazeEntryAvailability = {}
@@ -11868,7 +12118,7 @@ return MazeEntryAvailability
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="90">
+          <Item class="ModuleScript" referent="92">
             <Properties>
               <string name="Name">SessionSeedPolicy</string>
               <string name="Source"><![CDATA[local SessionSeedPolicy = {}
@@ -11904,7 +12154,7 @@ return SessionSeedPolicy
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="91">
+        <Item class="ModuleScript" referent="93">
           <Properties>
             <string name="Name">Util</string>
             <string name="Source"><![CDATA[return {
@@ -11913,7 +12163,7 @@ return SessionSeedPolicy
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="92">
+          <Item class="ModuleScript" referent="94">
             <Properties>
               <string name="Name">TeleportDiagnostics</string>
               <string name="Source"><![CDATA[local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -12010,7 +12260,7 @@ return TeleportDiagnostics
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="93">
+          <Item class="ModuleScript" referent="95">
             <Properties>
               <string name="Name">Visibility</string>
               <string name="Source"><![CDATA[local Visibility = {}
@@ -12044,7 +12294,7 @@ return Visibility
           </Item>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="94">
+      <Item class="ModuleScript" referent="96">
         <Properties>
           <string name="Name">UI</string>
           <string name="Source"><![CDATA[return {
@@ -12052,7 +12302,7 @@ return Visibility
 }
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="95">
+        <Item class="ModuleScript" referent="97">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[return {
@@ -12060,7 +12310,7 @@ return Visibility
 }
 ]]></string>
           </Properties>
-          <Item class="ModuleScript" referent="96">
+          <Item class="ModuleScript" referent="98">
             <Properties>
               <string name="Name">Theme</string>
               <string name="Source"><![CDATA[return {
@@ -12079,11 +12329,11 @@ return Visibility
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="97">
+  <Item class="ServerScriptService" referent="99">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="98">
+    <Item class="Script" referent="100">
       <Properties>
         <string name="Name">Bootstrap</string>
         <token name="RunContext">0</token>
@@ -12098,11 +12348,11 @@ LobbyService.new():start()
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Folder" referent="99">
+    <Item class="Folder" referent="101">
       <Properties>
         <string name="Name">Lobby</string>
       </Properties>
-      <Item class="ModuleScript" referent="100">
+      <Item class="ModuleScript" referent="102">
         <Properties>
           <string name="Name">LobbyRunPortal</string>
           <string name="Source"><![CDATA[local HttpService = game:GetService('HttpService')
@@ -12178,7 +12428,7 @@ return LobbyRunPortal
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="101">
+      <Item class="ModuleScript" referent="103">
         <Properties>
           <string name="Name">LobbyService</string>
           <string name="Source"><![CDATA[local Players = game:GetService('Players')
@@ -12359,7 +12609,7 @@ return LobbyService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="102">
+      <Item class="ModuleScript" referent="104">
         <Properties>
           <string name="Name">LobbyWorldBuilder</string>
           <string name="Source"><![CDATA[local Workspace = game:GetService('Workspace')
@@ -12370,13 +12620,7 @@ local STATIC_WORLD_ROOT_NAME = 'LobbyStaticWorld'
 local DEFAULT_SPAWN_CFRAME = CFrame.new(0, 4, 0)
 
 local function findNamedDescendant(root, name)
-    for _, descendant in ipairs(root:GetDescendants()) do
-        if descendant.Name == name then
-            return descendant
-        end
-    end
-
-    return nil
+    return root:FindFirstChild(name, true)
 end
 
 local function findPromptOnPart(root, partName)
@@ -12439,7 +12683,7 @@ return LobbyWorldBuilder
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="103">
+  <Item class="StarterPlayer" referent="105">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">0.5</float>
@@ -12447,11 +12691,11 @@ return LobbyWorldBuilder
       <token name="CameraMode">1</token>
       <bool name="EnableMouseLockOption">false</bool>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="104">
+    <Item class="StarterPlayerScripts" referent="106">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="105">
+      <Item class="LocalScript" referent="107">
         <Properties>
           <string name="Name">LobbyClient</string>
           <string name="Source"><![CDATA[local Players = game:GetService('Players')
