@@ -27,6 +27,7 @@ return function()
         InitialState = 10,
         ConsumePerUse = 0,
         CooldownSeconds = 0.5,
+        KnockbackStrength = 15,
     }
 
     local success, firstEntry = inventory:add(items[2])
@@ -141,7 +142,6 @@ return function()
         serviceSummary.HeldItem.Light ~= nil,
         'Runtime inventory should preserve held item effect data'
     )
-
     local toolPlayer = {
         UserId = 202,
     }
@@ -162,6 +162,10 @@ return function()
     assert(
         toolSummary.HeldItem.CurrentState == 10,
         'Tool state should persist unchanged when ConsumePerUse is 0'
+    )
+    assert(
+        toolSummary.HeldItem.KnockbackStrength == toolItem.KnockbackStrength,
+        'Runtime inventory should preserve extended item fields through summaries'
     )
 
     local cooldownToolPlayer = {
@@ -202,6 +206,68 @@ return function()
     assert(
         restoredInventory:getSummary().HeldItem.Light ~= nil,
         'Restored inventory should preserve held item light metadata'
+    )
+
+    local restoredToolInventory = gameplay.Inventory.new(7)
+    local restoredToolSummaryOk = restoredToolInventory:loadSummary(toolSummary)
+    assert(
+        restoredToolSummaryOk == true,
+        'Inventory should restore tool summaries with extended item fields intact'
+    )
+    assert(
+        restoredToolInventory:getSummary().HeldItem.KnockbackStrength == toolItem.KnockbackStrength,
+        'Inventory loadSummary should preserve extended item fields copied by the OOP surface'
+    )
+
+    local sellInventory = gameplay.Inventory.new(10)
+    local sellBackpackSuccess, sellBackpackEntry = sellInventory:add(items[2])
+    assert(sellBackpackSuccess == true, 'Sell test inventory should accept a backpack item')
+    local soldBackpackSuccess, soldBackpackItem, soldBackpackValue = sellInventory:sell(items[2].Id)
+    assert(soldBackpackSuccess == true, 'Inventory should sell matching backpack items by item id')
+    assert(
+        soldBackpackItem.InstanceId == sellBackpackEntry.InstanceId
+            and soldBackpackValue == items[2].Value,
+        'Selling from the backpack should return the sold item entry and its value'
+    )
+    assert(
+        sellInventory:getSummary().Count == 0,
+        'Selling the only backpack item should remove it from the inventory summary'
+    )
+
+    local heldSellSuccess, heldSellEntry = sellInventory:add(toolItem)
+    assert(heldSellSuccess == true, 'Sell test inventory should accept a held-item candidate')
+    local heldEquipSuccess = sellInventory:equip(heldSellEntry.InstanceId)
+    assert(heldEquipSuccess == true, 'Sell test inventory should equip the held-item candidate')
+    local soldHeldSuccess, soldHeldItem, soldHeldValue = sellInventory:sell(toolItem.Id)
+    assert(soldHeldSuccess == true, 'Inventory should sell a matching held item by item id')
+    assert(
+        soldHeldItem.InstanceId == heldSellEntry.InstanceId and soldHeldValue == toolItem.Value,
+        'Selling a held item should return the held entry and its value'
+    )
+    assert(
+        sellInventory:getSummary().HeldItem == nil,
+        'Selling the held item should clear the held slot'
+    )
+
+    local serviceSellPlayer = {
+        UserId = 204,
+    }
+    inventoryService:addPlayer(serviceSellPlayer)
+    local serviceSellPickupSuccess = inventoryService:pickup(serviceSellPlayer, items[2])
+    assert(
+        serviceSellPickupSuccess == true,
+        'Runtime inventory should pick up items before selling'
+    )
+    local serviceSoldSuccess, serviceSoldItem, serviceSoldValue =
+        inventoryService:sell(serviceSellPlayer, items[2].Id)
+    assert(serviceSoldSuccess == true, 'InventoryService should expose the restored sell facade')
+    assert(
+        serviceSoldItem.Id == items[2].Id and serviceSoldValue == items[2].Value,
+        'InventoryService sell should return the sold item and its value'
+    )
+    assert(
+        inventoryService:getSummary(serviceSellPlayer).Count == 0,
+        'InventoryService sell should remove the sold item from the player inventory'
     )
 
     local serviceDepositValue = inventoryService:deposit(fakePlayer)

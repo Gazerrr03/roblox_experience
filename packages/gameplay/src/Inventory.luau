@@ -13,12 +13,12 @@ local function cloneLightConfig(lightConfig)
     }
 end
 
--- ItemEntry field groups aligned to OOP framework:
+-- ItemEntry field groups aligned to the live item payload shape:
 -- Core (must-have): InstanceId (handled separately), Id, Name, Value
 -- Optional — Weight
 -- Optional — Tool state: InitialState, CurrentState, ConsumePerUse, CooldownSeconds, LastUsedAt, ToolCategory, StateModel
 -- Optional — Light: Color (Light handled separately via cloneLightConfig)
--- Optional — Melee tool: SwingRange, SwingArcDegrees, SwingKnockback, MeleeDamage
+-- Optional — Melee tool: SwingRange, SwingArcDegrees, KnockbackStrength, MeleeDamage
 -- Optional — Consumable: ItemKind, ConsumableEffect, MaxCarryPerId
 local ITEM_COPY_FIELDS = table.freeze({
     -- Core
@@ -40,7 +40,7 @@ local ITEM_COPY_FIELDS = table.freeze({
     -- Optional: Melee tool
     'SwingRange',
     'SwingArcDegrees',
-    'SwingKnockback',
+    'KnockbackStrength',
     'MeleeDamage',
     -- Optional: Consumable
     'ItemKind',
@@ -172,23 +172,26 @@ function Inventory:consumeHeldItemState(nowSeconds)
         return false, 'NotConsumable'
     end
 
-    if type(heldItem.ConsumePerUse) == 'number' and heldItem.ConsumePerUse > 0 then
+    local cooldownSeconds = heldItem.CooldownSeconds
+    if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
+        local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
+        local lastUsedAt = heldItem.LastUsedAt
+        if type(lastUsedAt) == 'number' and now - lastUsedAt < cooldownSeconds then
+            return false, 'Cooldown', cooldownSeconds - (now - lastUsedAt)
+        end
+    end
+
+    local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
+
+    if heldItem.ConsumePerUse > 0 then
         if heldItem.CurrentState < heldItem.ConsumePerUse then
             return false, 'Depleted'
         end
 
-        local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
-        local cooldownSeconds = heldItem.CooldownSeconds
-        if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
-            local lastUsedAt = heldItem.LastUsedAt
-            if type(lastUsedAt) == 'number' and now - lastUsedAt < cooldownSeconds then
-                return false, 'Cooldown', cooldownSeconds - (now - lastUsedAt)
-            end
-        end
-
         heldItem.CurrentState -= heldItem.ConsumePerUse
-        heldItem.LastUsedAt = now
     end
+
+    heldItem.LastUsedAt = now
 
     return true, cloneItemEntry(heldItem)
 end
