@@ -14,6 +14,10 @@ return function()
         campSession.MazeStatus == contract.MazeStatus.Idle,
         'New camp sessions should start idle'
     )
+    assert(
+        campSession.SessionPhase == contract.SessionPhase.RunPrep,
+        'New camp sessions should start in RunPrep'
+    )
 
     local entered = contract.markPlayerEntered(campSession, {
         UserId = 42,
@@ -26,6 +30,10 @@ return function()
         'Entering the maze should activate the maze status'
     )
     assert(#entered.PlayersInMaze == 1, 'Entering should track the player inside the maze')
+    assert(
+        entered.SessionPhase == contract.SessionPhase.MazeActive,
+        'Entering the maze should move the shared session into MazeActive'
+    )
 
     local lobbyToRun = contract.buildLobbyToRunTeleportData({
         SessionId = 'camp-session-1',
@@ -37,6 +45,10 @@ return function()
     assert(
         lobbyToRun.Entry.Kind == 'LobbyLaunch',
         'Lobby -> run teleport payload should mark the handoff entry kind'
+    )
+    assert(
+        lobbyToRun.CampSession.SessionPhase == contract.SessionPhase.RunPrep,
+        'Lobby -> run payload should preserve direct-entry run prep phase'
     )
 
     local campToMaze = contract.buildRunToMazeTeleportData({
@@ -115,6 +127,10 @@ return function()
     assert(
         campToMaze.CampSession.SessionId == 'camp-session-1',
         'Camp session id should survive camp -> maze teleport shaping'
+    )
+    assert(
+        campToMaze.CampSession.SessionPhase == contract.SessionPhase.MazeActive,
+        'Camp -> maze payload should carry the MazeActive phase for shared re-entry'
     )
     local enteringInventory = contract.findPlayerInventory(campToMaze, 42)
     assert(
@@ -212,6 +228,10 @@ return function()
         'Maze stays active when it was opened but not completed'
     )
     assert(
+        resumed.SessionPhase == contract.SessionPhase.Debrief,
+        'Returned players should move the shared session into Debrief while no crew remains in maze'
+    )
+    assert(
         resumed.ReturnedPlayerSummaries[1].Value == 18,
         'Return summaries should preserve collected value'
     )
@@ -282,6 +302,10 @@ return function()
         #completed.PlayersInMaze == 0,
         'Completed maze sessions should not retain active maze players'
     )
+    assert(
+        completed.SessionPhase == contract.SessionPhase.Debrief,
+        'Completed maze sessions should stay in Debrief until the camp session closes'
+    )
 
     local mazeToCamp = contract.buildMazeToRunTeleportData({
         SessionConfig = {
@@ -341,6 +365,16 @@ return function()
     assert(
         returnedInventory.HeldItem.Light ~= nil,
         'Maze -> run payload should preserve held item light metadata'
+    )
+
+    local closed = contract.closeCampSession(completed)
+    assert(
+        closed.SessionPhase == contract.SessionPhase.SessionClosed,
+        'Closed sessions should expose a terminal SessionClosed phase'
+    )
+    assert(
+        closed.SessionClosed == true,
+        'Closing the session should preserve an explicit terminal marker'
     )
 
     local reconciledPlaceholder, placeholderAccepted = contract.reconcileIncomingCampSession(

@@ -1,4 +1,5 @@
 local CampMazeSessionContract = {}
+local SessionPhase = require(script.Parent.SessionPhase)
 
 local MAZE_STATUS = {
     Idle = 'idle',
@@ -203,10 +204,12 @@ function CampMazeSessionContract.normalizeCampSession(session)
         MazeAccessCode = session and session.MazeAccessCode or nil,
         PlayersInMaze = cloneArray(session and session.PlayersInMaze or {}),
         ReturnedPlayerSummaries = cloneArray(session and session.ReturnedPlayerSummaries or {}),
+        SessionClosed = session ~= nil and session.SessionClosed == true or false,
     }
 
     sortPlayers(normalized.PlayersInMaze)
     sortSummaries(normalized.ReturnedPlayerSummaries)
+    normalized.SessionPhase = SessionPhase.resolveFromCampSession(session or normalized)
 
     return normalized
 end
@@ -382,6 +385,13 @@ function CampMazeSessionContract.buildLobbyToCampTeleportData(params)
     return CampMazeSessionContract.buildLobbyToRunTeleportData(params)
 end
 
+function CampMazeSessionContract.closeCampSession(session)
+    local nextSession = CampMazeSessionContract.normalizeCampSession(session)
+    nextSession.SessionClosed = true
+    nextSession.SessionPhase = SessionPhase.SessionClosed
+    return nextSession
+end
+
 function CampMazeSessionContract.buildRunToMazeTeleportData(params)
     local playerInventories = {}
     if
@@ -471,5 +481,6 @@ function CampMazeSessionContract.findPendingUgcMonsterPayload(teleportData)
 end
 
 CampMazeSessionContract.MazeStatus = MAZE_STATUS
+CampMazeSessionContract.SessionPhase = SessionPhase
 
 return CampMazeSessionContract
