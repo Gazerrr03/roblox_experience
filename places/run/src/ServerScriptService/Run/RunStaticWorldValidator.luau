@@ -136,8 +136,11 @@ function RunStaticWorldValidator.validate(root)
         error('RunStaticWorld must be parented to Workspace before validation.', 0)
     end
 
-    local collisionRoot =
-        RunStaticWorldContract.requireContainer(root, RunStaticWorldContract.CollisionRootName, 'RunStaticWorld')
+    local collisionRoot = RunStaticWorldContract.requireContainer(
+        root,
+        RunStaticWorldContract.CollisionRootName,
+        'RunStaticWorld'
+    )
     local sceneCollisionRoot = RunStaticWorldContract.requireContainer(
         collisionRoot,
         RunStaticWorldContract.SceneCollisionName,
@@ -148,8 +151,11 @@ function RunStaticWorldValidator.validate(root)
         RunStaticWorldContract.ShipCollisionName,
         'RunStaticWorld Collision'
     )
-    local triggersRoot =
-        RunStaticWorldContract.requireContainer(root, RunStaticWorldContract.TriggersRootName, 'RunStaticWorld')
+    local triggersRoot = RunStaticWorldContract.requireContainer(
+        root,
+        RunStaticWorldContract.TriggersRootName,
+        'RunStaticWorld'
+    )
     local oceanTriggerRoot = RunStaticWorldContract.requireContainer(
         triggersRoot,
         RunStaticWorldContract.OceanTriggerName,

@@ -7,7 +7,9 @@ local function getComponentConfig(blackboard, componentName)
     local context = if type(blackboard) == 'table' and type(blackboard.Context) == 'table'
         then blackboard.Context
         else {}
-    local componentConfig = if type(context.ComponentConfig) == 'table' then context.ComponentConfig else {}
+    local componentConfig = if type(context.ComponentConfig) == 'table'
+        then context.ComponentConfig
+        else {}
     local config = componentConfig[componentName]
 
     if type(config) == 'table' then
