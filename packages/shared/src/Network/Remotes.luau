@@ -18,14 +18,6 @@ local REMOTE_NAMES_BY_SCOPE = table.freeze({
         'RunAction',
         'RunState',
         'RunPrivateState',
-        'ShowNarrative',
-        'GetInventory',
-        'EquipItem',
-        'UseItem',
-        'UseItemFunction',
-        'GetInteractables',
-        'GetItemData',
-        'ItemUsageFeedback',
     },
     [Remotes.Scope.Maze] = {
         'MazeAction',
@@ -40,14 +32,6 @@ local ALL_REMOTE_NAMES = {
     'RunAction',
     'RunState',
     'RunPrivateState',
-    'ShowNarrative',
-    'GetInventory',
-    'EquipItem',
-    'UseItem',
-    'UseItemFunction',
-    'GetInteractables',
-    'GetItemData',
-    'ItemUsageFeedback',
     'MazeAction',
     'MazeState',
     'MazePrivateState',
@@ -71,12 +55,7 @@ local function ensureContainer()
     return container
 end
 
--- 需要使用RemoteFunction的remote名称
-local REMOTE_FUNCTION_NAMES = {
-    'GetInventory',
-    'GetInteractables',
-    'GetItemData',
-}
+local REMOTE_FUNCTION_NAMES = {}
 
 local function ensureRemote(container, name)
     local remote = container:FindFirstChild(name)

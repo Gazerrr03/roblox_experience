@@ -224,6 +224,10 @@ local function buildFingerprintText(snapshot)
     return string.format('Build: %s', fingerprint)
 end
 
+local function buildSessionPhaseText(snapshot)
+    return string.format('Phase: %s', snapshot.SessionPhase or 'RunPrep')
+end
+
 local menuBackdrop = Instance.new('Frame')
 menuBackdrop.Name = 'StartMenu'
 menuBackdrop.Size = UDim2.fromScale(1, 1)
@@ -261,14 +265,14 @@ menuList.Padding = UDim.new(0, 14)
 menuList.Parent = menuPanel
 
 local eyebrow = makeTextLabel(menuPanel, UDim2.new(1, 0, 0, 20), Theme.Accent, 16, true)
-eyebrow.Text = 'TEMPLE STAGING PROTOTYPE'
+eyebrow.Text = 'TEMPLE DIRECT ENTRY'
 
 local menuTitle = makeTextLabel(menuPanel, UDim2.new(1, 0, 0, 72), Theme.Text, 34, true)
 menuTitle.Text = string.format('Enter the %s', TEMPLE_LABEL)
 
 local menuBody = makeTextLabel(menuPanel, UDim2.new(1, 0, 0, 78), Theme.SubtleText, 18, false)
 menuBody.Text =
-    'Start inside the temple hall, meet up with the crew, and open the main gate when you are ready to step into the wilderness and the shared maze gate.'
+    'Run now boots directly into the temple flow. Hold while the camp session syncs, then regroup inside before opening the gate to the wilderness and the shared maze.'
 
 local singlePlayerButton = Instance.new('TextButton')
 singlePlayerButton.Size = UDim2.new(1, 0, 0, 52)
@@ -276,8 +280,10 @@ singlePlayerButton.BackgroundColor3 = Theme.Accent
 singlePlayerButton.TextColor3 = Theme.Background
 singlePlayerButton.Font = Enum.Font.GothamBold
 singlePlayerButton.TextSize = 20
-singlePlayerButton.Text = string.format('Enter %s', TEMPLE_LABEL)
+singlePlayerButton.Text = string.format('Syncing %s...', TEMPLE_LABEL)
 singlePlayerButton.Parent = menuPanel
+singlePlayerButton.Active = false
+singlePlayerButton.AutoButtonColor = false
 
 local singlePlayerCorner = Instance.new('UICorner')
 singlePlayerCorner.CornerRadius = UDim.new(0, 12)
@@ -835,16 +841,6 @@ sprintInputEndedConnection = UserInputService.InputEnded:Connect(function(input,
     })
 end)
 
-singlePlayerButton.MouseButton1Click:Connect(function()
-    singlePlayerButton.AutoButtonColor = false
-    singlePlayerButton.Active = false
-    singlePlayerButton.Text = string.format('Entering %s...', TEMPLE_LABEL)
-
-    Remotes.RunAction:FireServer({
-        Type = 'RequestLaunchRun',
-    })
-end)
-
 Remotes.RunPrivateState.OnClientEvent:Connect(function(payload)
     if type(payload) ~= 'table' then
         return
@@ -994,14 +990,15 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
         visibleBackpackItems = {}
         heldItemController:applyInventory(nil)
         menuStatusLabel.Text = string.format(
-            '%s\n%s\nMaze Entry: %s',
+            '%s\n%s\n%s\nMaze Entry: %s',
             snapshot.Status,
             buildFingerprintText(snapshot),
+            buildSessionPhaseText(snapshot),
             buildMazeEntryText(snapshot)
         )
-        singlePlayerButton.Active = true
-        singlePlayerButton.AutoButtonColor = true
-        singlePlayerButton.Text = string.format('Enter %s', TEMPLE_LABEL)
+        singlePlayerButton.Active = false
+        singlePlayerButton.AutoButtonColor = false
+        singlePlayerButton.Text = string.format('Syncing %s...', TEMPLE_LABEL)
         inventoryLabel.Text = 'Inventory: --'
         inventoryDetailLabel.Text = ''
         playerStateLabel.Text = 'Health: --\nStamina: --\nState: --\nMovement: --'
@@ -1012,9 +1009,10 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
     canRequestMazeEntry = snapshot.GateOpen == true
 
     statusLabel.Text = string.format(
-        '%s\n%s\nArea: %s | Gate: %s | Maze: %s\nEntry: %s',
+        '%s\n%s\n%s\nArea: %s | Gate: %s | Maze: %s\nEntry: %s',
         snapshot.Status,
         buildFingerprintText(snapshot),
+        buildSessionPhaseText(snapshot),
         snapshot.Area,
         snapshot.GateOpen and 'Open' or 'Closed',
         snapshot.MazeStatus or 'idle',
