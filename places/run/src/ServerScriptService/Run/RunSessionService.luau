@@ -629,7 +629,8 @@ function RunSessionService:_applyReturnedPlayersFromTeleportData(players, accept
         local teleportData = self:_readTeleportData(player) or acceptedTeleportData
         local returnSummary = CampMazeSessionContract.findReturnSummary(teleportData, player.UserId)
         if returnSummary then
-            self.PendingSpawnByUserId[player.UserId] = self:_getReturnSpawnCFrameForSummary(returnSummary)
+            self.PendingSpawnByUserId[player.UserId] =
+                self:_getReturnSpawnCFrameForSummary(returnSummary)
             table.insert(returnedPlayers, {
                 Player = player,
                 Summary = returnSummary,
@@ -683,7 +684,28 @@ function RunSessionService:_rebuildWorld()
     clearDefaultWorkspaceShell()
     self.World = RunWorldBuilder.build()
     if self.GateOpen then
-        self.World.OpenGate()
+        self.World:openGate()
+    end
+
+    self.WorldInteractions = self.World:bindInteractions({
+        OnShop = function(player)
+            if not self:_canManageInventory(player) then
+                return
+            end
+
+            self:_openShop(player)
+        end,
+        OnSell = function(player)
+            if not self:_canManageInventory(player) then
+                return
+            end
+
+            self:_openSell(player)
+        end,
+        OnObjective = function(player)
+            self:_openObjectiveBoard(player)
+        end,
+        OnLoadout = function(player)
             self:_setStatus(
                 string.format(
                     '%s checked the loadout bench. Equipment setup is coming soon.',
