@@ -1,4 +1,5 @@
 return function()
+    local Players = game:GetService('Players')
     local ReplicatedStorage = game:GetService('ReplicatedStorage')
     local Packages = ReplicatedStorage:WaitForChild('Packages')
     local Shared = require(Packages:WaitForChild('Shared'))
@@ -76,4 +77,42 @@ return function()
         startupService.PendingSpawnByUserId[202] == RunWorldBuilder.ReturnCFrame,
         'Startup return processing should keep non-loop returns at the generic run return position'
     )
+
+    local originalCharacterAutoLoads = Players.CharacterAutoLoads
+    Players.CharacterAutoLoads = false
+
+    local failingBuilderCalls = 0
+    local failingLaunchService = RunSessionService.new({
+        RunWorldBuilder = {
+            build = function()
+                failingBuilderCalls += 1
+                error('RunStaticWorld authored content is incomplete.', 0)
+            end,
+        },
+    })
+
+    local ok, launchErr = pcall(function()
+        failingLaunchService:_launchRun(nil)
+    end)
+
+    assert(ok == false, 'Launch should still fail loudly when static world build fails')
+    assert(
+        string.find(tostring(launchErr), 'RunStaticWorld authored content is incomplete.', 1, true)
+            ~= nil,
+        'Launch failure should expose the authored-world build error'
+    )
+    assert(
+        failingBuilderCalls == 1,
+        'Launch should attempt to build the world exactly once before aborting'
+    )
+    assert(
+        failingLaunchService.IsLaunched == false,
+        'Launch should not flip IsLaunched when static world build fails'
+    )
+    assert(
+        Players.CharacterAutoLoads == false,
+        'Launch should keep CharacterAutoLoads disabled when static world build fails'
+    )
+
+    Players.CharacterAutoLoads = originalCharacterAutoLoads
 end

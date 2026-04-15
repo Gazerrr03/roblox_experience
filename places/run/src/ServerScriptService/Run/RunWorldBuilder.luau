@@ -1,57 +1,44 @@
 local Workspace = game:GetService('Workspace')
 
-local CampHouseBuilder = require(script.Parent.CampHouseBuilder)
-local OutdoorAreaBuilder = require(script.Parent.OutdoorAreaBuilder)
+local RunScene = require(script.Parent.RunScene)
+local RunStaticWorldContract = require(script.Parent.RunStaticWorldContract)
+local RunStaticWorldValidator = require(script.Parent.RunStaticWorldValidator)
+local RunSpawnPoint = require(script.Parent.RunSpawnPoint)
 
 local RunWorldBuilder = {}
 
-local OUTDOOR_THRESHOLD_Z = 20
+<local OUTDOOR_THRESHOLD_Z = 20
 local DEFAULT_SPAWN_CFRAME = CFrame.new(0, 4, -6)
 local DEFAULT_RETURN_CFRAME = CFrame.new(0, 4, -2)
 local MAZE_RETURN_CFRAME = CFrame.new(0, 4, 108)
 local GENERATED_WORLD_ROOT_NAME = 'GeneratedWorld'
 local STATIC_WORLD_ROOT_NAME = 'RunStaticWorld'
 
-local function createPart(config, parent)
-    local part = Instance.new('Part')
-    part.Name = config.Name
-    part.Anchored = true
-    part.Size = config.Size
-    part.CFrame = config.CFrame
-    part.Color = config.Color
-    part.Material = config.Material or Enum.Material.SmoothPlastic
-    part.Transparency = config.Transparency or 0
-    part.CanCollide = config.CanCollide ~= false
-    part.Shape = config.Shape or Enum.PartType.Block
-    part.Parent = parent
-    return part
+local function stabilizeVisualModel(model)
+    if model == nil then
+        return
+    end
+
+    for _, descendant in ipairs(model:GetDescendants()) do
+        if descendant:IsA('BasePart') then
+            descendant.Anchored = true
+            descendant.CanCollide = false
+            descendant.CanTouch = false
+            descendant.CanQuery = true
+            descendant.AssemblyLinearVelocity = Vector3.zero
+            descendant.AssemblyAngularVelocity = Vector3.zero
+        end
+    end
 end
 
-local function createPromptPart(config, parent)
-    local part = createPart({
-        Name = config.Name,
-        Size = config.Size or Vector3.new(4, 4, 4),
-        CFrame = config.CFrame,
-        Color = config.Color,
-        Material = config.Material or Enum.Material.Metal,
-        Transparency = config.Transparency or 0,
-        CanCollide = config.CanCollide,
-    }, parent)
-
-    local prompt = Instance.new('ProximityPrompt')
-    prompt.ActionText = config.ActionText
-    prompt.ObjectText = config.ObjectText
-    prompt.HoldDuration = 0
-    prompt.MaxActivationDistance = config.MaxActivationDistance or 10
-    if config.KeyboardKeyCode ~= nil then
-        prompt.KeyboardKeyCode = config.KeyboardKeyCode
+local function prepareRunTerrain(root)
+    local terrainRoot = root:FindFirstChild('RunTerrain_Main')
+    if terrainRoot == nil or not terrainRoot:IsA('Model') then
+        return
     end
-    if config.RequiresLineOfSight ~= nil then
-        prompt.RequiresLineOfSight = config.RequiresLineOfSight
-    end
-    prompt.Parent = part
 
-    return part, prompt
+    stabilizeVisualModel(terrainRoot:FindFirstChild('Scene'))
+    stabilizeVisualModel(terrainRoot:FindFirstChild('Sci-Fi Space Ship'))
 end
 
 local function findNamedDescendant(root, name)
@@ -138,7 +125,9 @@ end
 function RunWorldBuilder.build()
     local staticWorldRoot = Workspace:FindFirstChild(STATIC_WORLD_ROOT_NAME)
     if staticWorldRoot and (staticWorldRoot:IsA('Folder') or staticWorldRoot:IsA('Model')) then
-        return buildFromStaticWorld(staticWorldRoot)
+        prepareRunTerrain(staticWorldRoot)
+        RunStaticWorldValidator.validate(staticWorldRoot)
+        return RunScene.new(staticWorldRoot)
     end
 
     local existing = Workspace:FindFirstChild(GENERATED_WORLD_ROOT_NAME)
@@ -149,9 +138,6 @@ function RunWorldBuilder.build()
     local worldFolder = Instance.new('Folder')
     worldFolder.Name = GENERATED_WORLD_ROOT_NAME
     worldFolder.Parent = Workspace
-
-    local house = CampHouseBuilder.build(worldFolder, createPart, createPromptPart)
-    local outdoors = OutdoorAreaBuilder.build(worldFolder, createPart, createPromptPart)
 
     return {
         Root = worldFolder,
