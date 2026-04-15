@@ -27,8 +27,8 @@ return function()
         mockPlayer.CameraMaxZoomDistance == 0.5,
         'Player max zoom distance should be clamped to first-person range'
     )
-    assert(
-        mockPlayer.DevEnableMouseLock == false,
-        'Player mouse lock should stay disabled when supported'
-    )
+	assert(
+	    mockPlayer.DevEnableMouseLock == nil,
+	    'Player runtime properties should not write DevEnableMouseLock'
+	)
 end

@@ -1,12 +1,26 @@
 local InventoryComponent = {}
 InventoryComponent.__index = InventoryComponent
 
+local function getComponentConfig(blackboard, componentName)
+    local context = if type(blackboard) == 'table' and type(blackboard.Context) == 'table'
+        then blackboard.Context
+        else {}
+    local componentConfig = if type(context.ComponentConfig) == 'table' then context.ComponentConfig else {}
+    local config = componentConfig[componentName]
+
+    if type(config) == 'table' then
+        return config
+    end
+
+    return {}
+end
+
 function InventoryComponent.new()
     return setmetatable({}, InventoryComponent)
 end
 
 function InventoryComponent:init(blackboard)
-    local config = blackboard.Context.ComponentConfig.Inventory or {}
+    local config = getComponentConfig(blackboard, 'Inventory')
 
     self.SlotCount = config.SlotCount or 8
     self.Slots = table.create(self.SlotCount, nil)

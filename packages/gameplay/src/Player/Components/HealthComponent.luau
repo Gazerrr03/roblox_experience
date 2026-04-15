@@ -6,12 +6,26 @@ local DAMAGE_PIP_COST = {
     Heavy = 2,
 }
 
+local function getComponentConfig(blackboard, componentName)
+    local context = if type(blackboard) == 'table' and type(blackboard.Context) == 'table'
+        then blackboard.Context
+        else {}
+    local componentConfig = if type(context.ComponentConfig) == 'table' then context.ComponentConfig else {}
+    local config = componentConfig[componentName]
+
+    if type(config) == 'table' then
+        return config
+    end
+
+    return {}
+end
+
 function HealthComponent.new()
     return setmetatable({}, HealthComponent)
 end
 
 function HealthComponent:init(blackboard)
-    local config = blackboard.Context.ComponentConfig.Health
+    local config = getComponentConfig(blackboard, 'Health')
     local maxHealthPips = if config and config.MaxHealthPips then config.MaxHealthPips else 2
 
     self.MaxHealthPips = maxHealthPips

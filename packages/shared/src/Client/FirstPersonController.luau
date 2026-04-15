@@ -6,10 +6,6 @@ local TARGET_PLAYER_PROPERTIES = {
     CameraMaxZoomDistance = 0.5,
 }
 
-local OPTIONAL_PLAYER_PROPERTIES = {
-    DevEnableMouseLock = false,
-}
-
 FirstPersonController.StarterPlayerProperties = {
     CameraMode = TARGET_PLAYER_PROPERTIES.CameraMode,
     CameraMinZoomDistance = TARGET_PLAYER_PROPERTIES.CameraMinZoomDistance,
@@ -25,17 +21,8 @@ local function applyProperties(target, properties)
     end
 end
 
-local function applyOptionalProperties(target, properties)
-    for propertyName, value in pairs(properties) do
-        pcall(function()
-            target[propertyName] = value
-        end)
-    end
-end
-
 function FirstPersonController.applyToPlayer(player)
     applyProperties(player, TARGET_PLAYER_PROPERTIES)
-    applyOptionalProperties(player, OPTIONAL_PLAYER_PROPERTIES)
 end
 
 function FirstPersonController.start(player)
@@ -58,20 +45,6 @@ function FirstPersonController.start(player)
                 end
             end)
         )
-    end
-
-    for propertyName, targetValue in pairs(OPTIONAL_PLAYER_PROPERTIES) do
-        local ok, connection = pcall(function()
-            return player:GetPropertyChangedSignal(propertyName):Connect(function()
-                if player[propertyName] ~= targetValue then
-                    reapply()
-                end
-            end)
-        end)
-
-        if ok and connection ~= nil then
-            table.insert(connections, connection)
-        end
     end
 
     return function()
