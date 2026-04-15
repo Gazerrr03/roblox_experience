@@ -1,4 +1,5 @@
 return {
+    ItemFields = require(script.ItemFields),
     Items = require(script.Items),
     ItemPresentation = require(script.ItemPresentation),
     Monsters = require(script.Monsters),

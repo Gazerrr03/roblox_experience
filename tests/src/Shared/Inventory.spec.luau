@@ -2,6 +2,8 @@ return function()
     local ReplicatedStorage = game:GetService('ReplicatedStorage')
     local gameplay = require(ReplicatedStorage:WaitForChild('Packages'):WaitForChild('Gameplay'))
     local sharedPackage = ReplicatedStorage:WaitForChild('Packages'):WaitForChild('Shared')
+    local shared = require(sharedPackage)
+    local contract = shared.Session.CampMazeSessionContract
     local items = gameplay.Config.Items
     local inventory = gameplay.Inventory.new(7)
     local inventoryService =
@@ -211,6 +213,80 @@ return function()
     assert(
         potionSummary.HeldItem.HealHealthPips == 2,
         'HealHealthPips should round-trip on held potion summaries'
+    )
+
+    local durableUser = {
+        UserId = 205,
+    }
+    inventoryService:addPlayer(durableUser)
+    local durableDef = {
+        Id = 'spec-durable',
+        Name = 'Durable',
+        Weight = 1,
+        Value = 0,
+        Color = Color3.fromRGB(90, 90, 90),
+        ToolCategory = 'Pry',
+        StateModel = 'Durability',
+        InitialState = 5,
+        ConsumePerUse = 1,
+        CooldownSeconds = 0,
+    }
+    local durablePickupOk, durableEntry = inventoryService:pickup(durableUser, durableDef)
+    assert(durablePickupOk == true, 'Runtime inventory should pick up durable consumable defs')
+    assert(
+        inventoryService:equip(durableUser, durableEntry.InstanceId) == true,
+        'Runtime inventory should equip durable consumable tools'
+    )
+    local durableConsumeOk, durableHeld = inventoryService:consumeHeldItemState(durableUser, 200)
+    assert(durableConsumeOk == true, 'consumeHeldItemState should succeed for held durable tools')
+    assert(
+        durableHeld.CurrentState == 4,
+        'Held durable tool CurrentState should decrement by ConsumePerUse'
+    )
+
+    local durableSummary = inventoryService:getSummary(durableUser)
+    local campForRoundTrip = contract.newCampSession({
+        SessionId = 'inv-contract-rt',
+        CampAccessCode = 'inv-contract-rt',
+    })
+    local enteredRoundTrip = contract.markPlayerEntered(campForRoundTrip, {
+        UserId = durableUser.UserId,
+        Name = 'RoundTrip',
+    })
+    enteredRoundTrip.MazeAccessCode = 'inv-contract-rt-maze'
+    local roundTripTeleport = contract.buildRunToMazeTeleportData({
+        SessionConfig = {
+            Seed = 42,
+            Quota = 10,
+            RunDurationSeconds = 120,
+            InventoryCapacity = 7,
+        },
+        CampSession = enteredRoundTrip,
+        EnteringPlayer = {
+            UserId = durableUser.UserId,
+            Name = 'RoundTrip',
+        },
+        EntryReason = 'maze_gate',
+        PlayerInventory = durableSummary,
+        PendingUgcMonsterPayload = nil,
+    })
+    local clonedSummary = contract.findPlayerInventory(roundTripTeleport, durableUser.UserId)
+    assert(
+        clonedSummary ~= nil and clonedSummary.HeldItem ~= nil,
+        'Contract teleport shaping should carry the durable inventory summary'
+    )
+    assert(
+        clonedSummary.HeldItem.CurrentState == 4,
+        'Contract clone should preserve CurrentState across maze teleport shaping'
+    )
+    local inventoryAfterContract = gameplay.Inventory.new(7)
+    assert(
+        inventoryAfterContract:loadSummary(clonedSummary) == true,
+        'Inventory should hydrate summaries produced by contract cloning'
+    )
+    assert(
+        inventoryAfterContract:getSummary().HeldItem.CurrentState == 4,
+        'Hydrated inventory should preserve contract-cloned CurrentState'
     )
 
     local cooldownToolPlayer = {

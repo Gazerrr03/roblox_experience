@@ -191,6 +191,10 @@ return function()
                 ToolTemplateName = 'ToolPotion',
                 Description = 'Contract potion row',
                 HealHealthPips = 2,
+                SwingRange = 4,
+                SwingArcDegrees = 50,
+                KnockbackStrength = 9,
+                MeleeDamage = 2,
             },
         },
         PendingUgcMonsterPayload = nil,
@@ -207,6 +211,10 @@ return function()
     assert(
         toolHoldInventory.HeldItem.HealHealthPips == 2,
         'Run -> maze inventory clone should preserve HealHealthPips for potion tools'
+    )
+    assert(
+        toolHoldInventory.HeldItem.MeleeDamage == 2,
+        'Run -> maze inventory clone should preserve MeleeDamage for tool entries'
     )
 
     local earlyReturn = contract.buildReturnSummary({

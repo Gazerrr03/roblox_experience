@@ -23,6 +23,7 @@ local RunSnapshotBuilder = require(script.Parent.RunSnapshotBuilder)
 local RunStaticWorldContract = require(script.Parent.RunStaticWorldContract)
 local RunToMazeTransition = require(script.Parent.RunToMazeTransition)
 local RunWorldBuilder = require(script.Parent.RunWorldBuilder)
+local RunInventoryBridge = require(script.Parent.RunInventoryBridge)
 
 local RunSessionService = {}
 RunSessionService.__index = RunSessionService
@@ -33,6 +34,11 @@ local MAZE_ENTRY_REQUEST_COOLDOWN_SECONDS = 0.35
 local MAZE_ENTRY_DISTANCE_BUFFER = 2
 local TERMINAL_INTERACTION_DISTANCE_BUFFER = 2
 local SNAPSHOT_INTERVAL_SECONDS = 0.25
+local LEGACY_TOOL_CATEGORY = table.freeze({
+    Flashlight = 'Flashlight',
+    Rope = 'Rope',
+    Crowbar = 'Crowbar',
+})
 local RUN_MAZE_GATE_RETURN_REASONS = table.freeze({
     early_return = true,
     extracted = true,
@@ -1378,10 +1384,108 @@ function RunSessionService:_ensureAuthoritativeSessionSeed()
     end
 end
 
+function RunSessionService:_emptyInventorySummary()
+    return {
+        Capacity = self.SessionData.InventoryCapacity,
+        Weight = 0,
+        Count = 0,
+        BackpackCount = 0,
+        HeldCount = 0,
+        Value = 0,
+        BackpackItems = {},
+        HeldItem = nil,
+    }
+end
+
+function RunSessionService:_inventorySummaryFor(player)
+    if not self.IsLaunched then
+        return self:_emptyInventorySummary()
+    end
+
+    return self.InventoryService:getSummary(player)
+end
+
+function RunSessionService:_getLegacyHeldItemShim(player, legacyToolName)
+    if type(legacyToolName) ~= 'string' then
+        return nil
+    end
+
+    local expectedCategory = LEGACY_TOOL_CATEGORY[legacyToolName]
+    if not expectedCategory then
+        return nil
+    end
+
+    local held = self:_inventorySummaryFor(player).HeldItem
+    if not held or held.ToolCategory ~= expectedCategory then
+        return nil
+    end
+
+    return {
+        Name = held.Name,
+        Type = 'Tool',
+        Description = held.Description or '',
+        IsEquipped = true,
+        IsActive = false,
+        IconAssetId = held.IconAssetId or '',
+        Color = held.Color,
+    }
+end
+
+function RunSessionService:_bindItemRemotes()
+    self.Remotes.GetInventory.OnServerInvoke = function(player: Player)
+        return self:_inventorySummaryFor(player)
+    end
+
+    self.Remotes.GetItemData.OnServerInvoke = function(player: Player, legacyToolName: string)
+        return self:_getLegacyHeldItemShim(player, legacyToolName)
+    end
+
+    self.Remotes.EquipItem.OnServerEvent:Connect(
+        function(player: Player, itemInstanceId: any, equip: any)
+            if type(itemInstanceId) ~= 'number' then
+                return
+            end
+
+            if equip == true then
+                self:_equipItem(player, itemInstanceId)
+            else
+                self:_unequipItem(player)
+            end
+
+            self:_broadcastSnapshot()
+        end
+    )
+
+    self.Remotes.UseItem.OnServerEvent:Connect(function(player: Player, legacyToolName: string)
+        if type(legacyToolName) ~= 'string' then
+            return
+        end
+
+        if not self:_canManageInventory(player) then
+            return
+        end
+
+        local expectedCategory = LEGACY_TOOL_CATEGORY[legacyToolName]
+        if not expectedCategory then
+            return
+        end
+
+        local held = self.InventoryService:getSummary(player).HeldItem
+        if not held or held.ToolCategory ~= expectedCategory then
+            return
+        end
+
+        self.InventoryService:consumeHeldItemState(player, os.clock())
+        self:_broadcastSnapshot()
+    end)
+end
+
 function RunSessionService:start()
     warn(string.format('[run-session] build=%s', self.BuildFingerprint))
     self:_loadSessionDataFromJoin()
     self:_ensureAuthoritativeSessionSeed()
+    RunInventoryBridge.bind(self)
+    self:_bindItemRemotes()
     Players.CharacterAutoLoads = false
 
     for _, player in ipairs(Players:GetPlayers()) do
