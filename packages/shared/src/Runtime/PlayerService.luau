@@ -66,6 +66,16 @@ function PlayerService:applyDamage(player, damageKind)
     return health:applyDamage(p.Blackboard, damageKind)
 end
 
+function PlayerService:healHealthPips(player, amount)
+    local p = self:get(player)
+    if not p then
+        return false, 'MissingPlayer'
+    end
+
+    local health = p.Components.Health
+    return health:healPips(p.Blackboard, amount)
+end
+
 function PlayerService:setSprinting(player, isSprinting)
     local p = self:get(player)
     if not p then
