@@ -1,3 +1,5 @@
+local HeldToolVisual = require(script.Parent.HeldToolVisual)
+
 local HeldItemController = {}
 HeldItemController.__index = HeldItemController
 
@@ -29,8 +31,9 @@ function HeldItemController.new(player)
     )
     table.insert(
         self.Connections,
-        player.CharacterRemoving:Connect(function()
+        player.CharacterRemoving:Connect(function(character)
             self:_clearLight()
+            HeldToolVisual.clear(character)
         end)
     )
 
@@ -53,14 +56,23 @@ function HeldItemController:_clearLight()
 end
 
 function HeldItemController:_refresh()
+    local character = self.Player.Character
     local heldItem = self.Inventory and self.Inventory.HeldItem
+
+    if character then
+        HeldToolVisual.sync(character, heldItem)
+    end
+
     local lightConfig = heldItem and heldItem.Light
     if type(lightConfig) ~= 'table' then
         self:_clearLight()
         return
     end
 
-    local character = self.Player.Character
+    if not character then
+        return
+    end
+
     local lightParent = getLightParent(character)
     if not lightParent then
         return
@@ -98,6 +110,7 @@ function HeldItemController:destroy()
 
     self.Connections = {}
     self:_clearLight()
+    HeldToolVisual.clear(self.Player.Character)
 end
 
 return HeldItemController

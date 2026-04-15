@@ -10,7 +10,9 @@ local ReplicatedStorage = game:GetService('ReplicatedStorage')
 --#region Requires
 
 local Packages = ReplicatedStorage:WaitForChild('Packages')
+local Gameplay = require(Packages:WaitForChild('Gameplay'))
 local Shared = require(Packages:WaitForChild('Shared'))
+local ItemPresentation = Gameplay.Config.ItemPresentation
 local Remotes = Shared.Network.Remotes.waitForScope(Shared.Network.Remotes.Scope.Run)
 
 --#endregion
@@ -25,6 +27,7 @@ local ItemDescriptions = {
     Flashlight = '照亮黑暗区域（按F键开关）',
     Rope = '攀爬高处、跨越断层、固定怪物',
     Crowbar = '撬开锁住的箱子/门',
+    Potion = '迷宫内饮用可回复生命（本背包为展示）',
 }
 
 -- 创建背包 UI
@@ -111,14 +114,24 @@ function BackpackUI.createItemCard(itemName: string, itemData: { [string]: any }
     card.BorderSizePixel = 0
     card.Parent = BackpackUI.ItemContainer
 
-    -- 道具图标（占位）
+    -- 道具图标：有 IconAssetId 时用图；否则用道具 Color 作为色块占位
     local icon = Instance.new('Frame')
     icon.Name = 'Icon'
     icon.Size = UDim2.new(0, 60, 0, 60)
     icon.Position = UDim2.new(0, 10, 0.5, -30)
-    icon.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+    icon.BackgroundColor3 = (itemData.Color :: Color3?) or Color3.fromRGB(60, 60, 70)
     icon.BorderSizePixel = 0
     icon.Parent = card
+
+    local iconUri = ItemPresentation.formatIconContentId(itemData.IconAssetId)
+    local iconImage = Instance.new('ImageLabel')
+    iconImage.Name = 'IconImage'
+    iconImage.BackgroundTransparency = 1
+    iconImage.Size = UDim2.new(1, 0, 1, 0)
+    iconImage.ScaleType = Enum.ScaleType.Fit
+    iconImage.Image = iconUri
+    iconImage.Visible = iconUri ~= ''
+    iconImage.Parent = icon
 
     -- 道具名称
     local nameLabel = Instance.new('TextLabel')

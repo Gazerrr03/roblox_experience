@@ -1184,6 +1184,21 @@ function MazeSessionService:_handleUseTool(player)
                 )
             end
         end
+    elseif updatedHeldItem.ToolCategory == 'Potion' then
+        actionWord = 'drank'
+        local healPips = 1
+        if
+            type(updatedHeldItem.HealHealthPips) == 'number'
+            and updatedHeldItem.HealHealthPips >= 1
+        then
+            healPips = math.floor(updatedHeldItem.HealHealthPips)
+        end
+        local healOk, healResult = self.PlayerService:healHealthPips(player, healPips)
+        if healOk then
+            effectText = string.format('The brew steadies you — health pips: %d.', healResult)
+        else
+            effectText = string.format('The brew has no effect (%s).', tostring(healResult))
+        end
     end
 
     self:_setStatus(

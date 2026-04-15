@@ -1,5 +1,6 @@
 return {
     Items = require(script.Items),
+    ItemPresentation = require(script.ItemPresentation),
     Monsters = require(script.Monsters),
     Players = require(script.Players),
     Roles = require(script.Roles),

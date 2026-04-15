@@ -137,6 +137,62 @@ return function()
         'Pending UGC payload should preserve runtime monster presentation data'
     )
 
+    local toolHoldTeleport = contract.buildRunToMazeTeleportData({
+        SessionConfig = {
+            Seed = 12345,
+            Quota = 120,
+            RunDurationSeconds = 180,
+            InventoryCapacity = 8,
+        },
+        CampSession = entered,
+        EnteringPlayer = {
+            UserId = 42,
+            Name = 'Scout',
+        },
+        EntryReason = 'maze_gate',
+        PlayerInventory = {
+            Capacity = 8,
+            Weight = 1,
+            Count = 1,
+            BackpackCount = 0,
+            HeldCount = 1,
+            Value = 0,
+            BackpackItems = {},
+            HeldItem = {
+                InstanceId = 10,
+                Id = 'tool-potion',
+                Name = 'Potion',
+                Weight = 1,
+                Value = 0,
+                Color = Color3.fromRGB(236, 72, 153),
+                ToolCategory = 'Potion',
+                StateModel = 'Charges',
+                InitialState = 3,
+                CurrentState = 3,
+                ConsumePerUse = 1,
+                CooldownSeconds = 1,
+                IconAssetId = '',
+                ToolTemplateName = 'ToolPotion',
+                Description = 'Contract potion row',
+                HealHealthPips = 2,
+            },
+        },
+        PendingUgcMonsterPayload = nil,
+    })
+    local toolHoldInventory = contract.findPlayerInventory(toolHoldTeleport, 42)
+    assert(
+        toolHoldInventory.HeldItem.ToolCategory == 'Potion',
+        'Run -> maze inventory clone should preserve ToolCategory for tools'
+    )
+    assert(
+        toolHoldInventory.HeldItem.ToolTemplateName == 'ToolPotion',
+        'Run -> maze inventory clone should preserve ToolTemplateName for presentation'
+    )
+    assert(
+        toolHoldInventory.HeldItem.HealHealthPips == 2,
+        'Run -> maze inventory clone should preserve HealHealthPips for potion tools'
+    )
+
     local earlyReturn = contract.buildReturnSummary({
         UserId = 42,
         Name = 'Scout',

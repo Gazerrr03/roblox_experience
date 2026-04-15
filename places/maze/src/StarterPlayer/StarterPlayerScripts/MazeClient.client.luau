@@ -7,8 +7,10 @@ local localPlayer = Players.LocalPlayer
 local playerGui = localPlayer:WaitForChild('PlayerGui')
 
 local Packages = ReplicatedStorage:WaitForChild('Packages')
+local Gameplay = require(Packages:WaitForChild('Gameplay'))
 local Shared = require(Packages:WaitForChild('Shared'))
 local UI = require(Packages:WaitForChild('UI'))
+local ItemPresentation = Gameplay.Config.ItemPresentation
 
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local heldItemController = Shared.Client.HeldItemController.new(localPlayer)
@@ -28,6 +30,17 @@ local visibleBackpackItems = {}
 local didReceiveInitialSnapshot = false
 local lastToolUseRequestAt = -math.huge
 local heldToolCooldownSeconds = 0.2
+
+local function presentationIconSuffix(itemEntry: { [string]: any }?)
+    if type(itemEntry) ~= 'table' then
+        return ''
+    end
+    local uri = ItemPresentation.formatIconContentId(itemEntry.IconAssetId)
+    if uri ~= '' then
+        return ' | 2D icon'
+    end
+    return ''
+end
 
 local function readBootstrapDiagnostic()
     local failed = ReplicatedStorage:GetAttribute('MazeBootstrapFailed')
@@ -301,11 +314,12 @@ local function connectMazeRemotes(remotes)
 
         local detailLines = {
             heldItem and string.format(
-                'Held: %s | %d KG | %d value%s',
+                'Held: %s | %d KG | %d value%s%s',
                 heldItem.Name,
                 heldItem.Weight,
                 heldItem.Value,
-                heldItem.Light and ' | Glow active' or ''
+                heldItem.Light and ' | Glow active' or '',
+                presentationIconSuffix(heldItem)
             ) or 'Held: Empty hands',
             'Backpack:',
         }
@@ -318,11 +332,12 @@ local function connectMazeRemotes(remotes)
                 table.insert(
                     detailLines,
                     string.format(
-                        '- [%d] %s | %d KG | %d value',
+                        '- [%d] %s | %d KG | %d value%s',
                         itemIndex,
                         itemEntry.Name,
                         itemEntry.Weight,
-                        itemEntry.Value
+                        itemEntry.Value,
+                        presentationIconSuffix(itemEntry)
                     )
                 )
             end

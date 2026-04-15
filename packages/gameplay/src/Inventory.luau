@@ -13,6 +13,7 @@ local function cloneLightConfig(lightConfig)
     }
 end
 
+<<<<<<< HEAD
 -- ItemEntry field groups aligned to the live item payload shape:
 -- Core (must-have): InstanceId (handled separately), Id, Name, Value
 -- Optional — Weight
@@ -60,6 +61,35 @@ local function cloneItemEntry(itemEntry)
     return copyItemFields(itemEntry, {
         InstanceId = itemEntry.InstanceId,
     })
+=======
+local function cloneItemEntry(itemEntry)
+    return {
+        InstanceId = itemEntry.InstanceId,
+        Id = itemEntry.Id,
+        Name = itemEntry.Name,
+        Weight = itemEntry.Weight,
+        Value = itemEntry.Value,
+        Color = itemEntry.Color,
+        Light = cloneLightConfig(itemEntry.Light),
+        Description = itemEntry.Description,
+        IconAssetId = itemEntry.IconAssetId,
+        ToolTemplateName = itemEntry.ToolTemplateName,
+
+        -- === 新增：探索道具扩展字段 ===
+        ToolCategory = itemEntry.ToolCategory,
+        StateModel = itemEntry.StateModel,
+        InitialState = itemEntry.InitialState,
+        CurrentState = itemEntry.CurrentState, -- 记录当前电量/耐久
+        ConsumePerUse = itemEntry.ConsumePerUse,
+        CooldownSeconds = itemEntry.CooldownSeconds,
+        LastUsedAt = itemEntry.LastUsedAt,
+        SwingRange = itemEntry.SwingRange,
+        SwingArcDegrees = itemEntry.SwingArcDegrees,
+        KnockbackStrength = itemEntry.KnockbackStrength,
+        MeleeDamage = itemEntry.MeleeDamage,
+        HealHealthPips = itemEntry.HealHealthPips,
+    }
+>>>>>>> origin/main
 end
 
 local function cloneArray(items)
@@ -92,8 +122,35 @@ end
 function Inventory:_buildItemEntry(itemDef)
     local itemEntry = copyItemFields(itemDef, {
         InstanceId = self.NextItemInstanceId,
+<<<<<<< HEAD
     })
     itemEntry.CurrentState = itemDef.InitialState
+=======
+        Id = itemDef.Id,
+        Name = itemDef.Name,
+        Weight = itemDef.Weight,
+        Value = itemDef.Value,
+        Color = itemDef.Color,
+        Light = cloneLightConfig(itemDef.Light),
+        Description = itemDef.Description,
+        IconAssetId = itemDef.IconAssetId,
+        ToolTemplateName = itemDef.ToolTemplateName,
+
+        -- === 新增：探索道具扩展字段 ===
+        ToolCategory = itemDef.ToolCategory,
+        StateModel = itemDef.StateModel,
+        InitialState = itemDef.InitialState,
+        CurrentState = itemDef.InitialState, -- 刚放进背包时，当前状态等于初始状态 (满电/满耐久)
+        ConsumePerUse = itemDef.ConsumePerUse,
+        CooldownSeconds = itemDef.CooldownSeconds,
+        LastUsedAt = itemDef.LastUsedAt,
+        SwingRange = itemDef.SwingRange,
+        SwingArcDegrees = itemDef.SwingArcDegrees,
+        KnockbackStrength = itemDef.KnockbackStrength,
+        MeleeDamage = itemDef.MeleeDamage,
+        HealHealthPips = itemDef.HealHealthPips,
+    }
+>>>>>>> origin/main
 
     self.NextItemInstanceId += 1
 
@@ -107,10 +164,37 @@ local function normalizeItemEntry(rawItemEntry)
 
     local normalized = copyItemFields(rawItemEntry, {
         InstanceId = rawItemEntry.InstanceId,
+<<<<<<< HEAD
     })
     normalized.Weight = rawItemEntry.Weight or 0
     normalized.Value = rawItemEntry.Value or 0
     return normalized
+=======
+        Id = rawItemEntry.Id,
+        Name = rawItemEntry.Name,
+        Weight = rawItemEntry.Weight or 0,
+        Value = rawItemEntry.Value or 0,
+        Color = rawItemEntry.Color,
+        Light = cloneLightConfig(rawItemEntry.Light),
+        Description = rawItemEntry.Description,
+        IconAssetId = rawItemEntry.IconAssetId,
+        ToolTemplateName = rawItemEntry.ToolTemplateName,
+
+        -- === 新增：探索道具扩展字段 ===
+        ToolCategory = rawItemEntry.ToolCategory,
+        StateModel = rawItemEntry.StateModel,
+        InitialState = rawItemEntry.InitialState,
+        CurrentState = rawItemEntry.CurrentState,
+        ConsumePerUse = rawItemEntry.ConsumePerUse,
+        CooldownSeconds = rawItemEntry.CooldownSeconds,
+        LastUsedAt = rawItemEntry.LastUsedAt,
+        SwingRange = rawItemEntry.SwingRange,
+        SwingArcDegrees = rawItemEntry.SwingArcDegrees,
+        KnockbackStrength = rawItemEntry.KnockbackStrength,
+        MeleeDamage = rawItemEntry.MeleeDamage,
+        HealHealthPips = rawItemEntry.HealHealthPips,
+    }
+>>>>>>> origin/main
 end
 
 function Inventory:add(itemDef)
@@ -172,6 +256,10 @@ function Inventory:consumeHeldItemState(nowSeconds)
         return false, 'NotConsumable'
     end
 
+<<<<<<< HEAD
+=======
+    -- Cooldown check applies to all tools (including zero-consume)
+>>>>>>> origin/main
     local cooldownSeconds = heldItem.CooldownSeconds
     if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
         local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
@@ -181,13 +269,21 @@ function Inventory:consumeHeldItemState(nowSeconds)
         end
     end
 
+<<<<<<< HEAD
     local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
 
+=======
+    -- Consume state only when ConsumePerUse > 0
+>>>>>>> origin/main
     if heldItem.ConsumePerUse > 0 then
         if heldItem.CurrentState < heldItem.ConsumePerUse then
             return false, 'Depleted'
         end
 
+<<<<<<< HEAD
+=======
+        local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
+>>>>>>> origin/main
         heldItem.CurrentState -= heldItem.ConsumePerUse
     end
 
