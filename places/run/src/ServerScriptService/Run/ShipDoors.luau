@@ -153,7 +153,7 @@ function ShipDoors.init(shipModel)
 		{
 			name = "Left Door 1",
 			folderName = "Left Door 1",
-			panelParentName = "Dropship Door Triad",
+			panelParentName = "Helghast Dropship Improved Left Door 1",
 			hingePosition = Vector3.new(58.85, 24.95, 294.61),
 			rotationAngle = ROTATION_ANGLE,
 		},
@@ -167,24 +167,36 @@ function ShipDoors.init(shipModel)
 		{
 			name = "Right Door 1",
 			folderName = "Right Door 1",
-			panelParentName = "Dropship Door Triad",
+			panelParentName = "Helghast Dropship Improved Right Door 1",
 			hingePosition = Vector3.new(45.06, 24.95, 308.40),
 			rotationAngle = ROTATION_ANGLE,
 		},
 		{
 			name = "Right Door 2",
 			folderName = "Right Door 2",
-			panelParentName = "Dropship Door Triad",
+			panelParentName = "Helghast Dropship Improved Right Door 2",
 			hingePosition = Vector3.new(41.03, 24.95, 304.37),
 			rotationAngle = ROTATION_ANGLE,
 		},
 	}
 
 	-- LARGE HINGED DOORS
+	-- Each door folder contains multiple Model children; the panel is inside one of them.
+	-- We must search all Model children, not just FindFirstChild("Model"), which only returns the first.
+	local function findPanelParentInDoorFolder(doorFolder, panelParentName)
+		if not doorFolder then return nil end
+		for _, child in ipairs(doorFolder:GetChildren()) do
+			if child:IsA("Model") then
+				local found = child:FindFirstChild(panelParentName)
+				if found then return found end
+			end
+		end
+		return nil
+	end
+
 	for _, config in ipairs(largeDoorConfigs) do
 		local doorFolder = dropship:FindFirstChild(config.folderName)
-		local model = doorFolder and doorFolder:FindFirstChild("Model")
-		local panelParent = model and model:FindFirstChild(config.panelParentName)
+		local panelParent = findPanelParentInDoorFolder(doorFolder, config.panelParentName)
 		local panel = panelParent and findMeshPart(panelParent)
 
 		if not panel then
