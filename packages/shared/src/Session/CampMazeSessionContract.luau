@@ -45,6 +45,21 @@ local function cloneInventoryItem(itemEntry)
         Value = itemEntry.Value,
         Color = itemEntry.Color,
         Light = cloneLightConfig(itemEntry.Light),
+        Description = itemEntry.Description,
+        IconAssetId = itemEntry.IconAssetId,
+        ToolTemplateName = itemEntry.ToolTemplateName,
+        ToolCategory = itemEntry.ToolCategory,
+        StateModel = itemEntry.StateModel,
+        InitialState = itemEntry.InitialState,
+        CurrentState = itemEntry.CurrentState,
+        ConsumePerUse = itemEntry.ConsumePerUse,
+        CooldownSeconds = itemEntry.CooldownSeconds,
+        LastUsedAt = itemEntry.LastUsedAt,
+        SwingRange = itemEntry.SwingRange,
+        SwingArcDegrees = itemEntry.SwingArcDegrees,
+        KnockbackStrength = itemEntry.KnockbackStrength,
+        MeleeDamage = itemEntry.MeleeDamage,
+        HealHealthPips = itemEntry.HealHealthPips,
     }
 end
 

@@ -11,6 +11,8 @@ export type ItemData = {
     Description: string,
     IsEquipped: boolean,
     IsActive: boolean,
+    IconAssetId: string?,
+    Color: Color3?,
 }
 
 --#endregion
@@ -42,6 +44,8 @@ ItemService.Items = {
         Description = '点燃倒塌的灯塔',
         IsEquipped = false,
         IsActive = false,
+        IconAssetId = '',
+        Color = Color3.fromRGB(255, 140, 60),
     },
     Flashlight = {
         Name = '手电筒',
@@ -49,6 +53,8 @@ ItemService.Items = {
         Description = '照亮黑暗区域',
         IsEquipped = false,
         IsActive = false,
+        IconAssetId = '',
+        Color = Color3.fromRGB(148, 163, 184),
     },
     Rope = {
         Name = '绳索',
@@ -56,6 +62,8 @@ ItemService.Items = {
         Description = '攀爬高处、跨越断层、固定怪物',
         IsEquipped = false,
         IsActive = false,
+        IconAssetId = '',
+        Color = Color3.fromRGB(180, 160, 120),
     },
     Crowbar = {
         Name = '撬棍',
@@ -63,6 +71,17 @@ ItemService.Items = {
         Description = '撬开锁住的箱子/门',
         IsEquipped = false,
         IsActive = false,
+        IconAssetId = '',
+        Color = Color3.fromRGB(200, 200, 200),
+    },
+    Potion = {
+        Name = '药水',
+        Type = 'Tool',
+        Description = '迷宫远征中饮用可回复生命（Run 侧为展示占位）',
+        IsEquipped = false,
+        IsActive = false,
+        IconAssetId = '',
+        Color = Color3.fromRGB(236, 72, 153),
     },
 }
 

@@ -22,6 +22,9 @@ local function cloneItemEntry(itemEntry)
         Value = itemEntry.Value,
         Color = itemEntry.Color,
         Light = cloneLightConfig(itemEntry.Light),
+        Description = itemEntry.Description,
+        IconAssetId = itemEntry.IconAssetId,
+        ToolTemplateName = itemEntry.ToolTemplateName,
 
         -- === 新增：探索道具扩展字段 ===
         ToolCategory = itemEntry.ToolCategory,
@@ -35,6 +38,7 @@ local function cloneItemEntry(itemEntry)
         SwingArcDegrees = itemEntry.SwingArcDegrees,
         KnockbackStrength = itemEntry.KnockbackStrength,
         MeleeDamage = itemEntry.MeleeDamage,
+        HealHealthPips = itemEntry.HealHealthPips,
     }
 end
 
@@ -74,6 +78,9 @@ function Inventory:_buildItemEntry(itemDef)
         Value = itemDef.Value,
         Color = itemDef.Color,
         Light = cloneLightConfig(itemDef.Light),
+        Description = itemDef.Description,
+        IconAssetId = itemDef.IconAssetId,
+        ToolTemplateName = itemDef.ToolTemplateName,
 
         -- === 新增：探索道具扩展字段 ===
         ToolCategory = itemDef.ToolCategory,
@@ -87,6 +94,7 @@ function Inventory:_buildItemEntry(itemDef)
         SwingArcDegrees = itemDef.SwingArcDegrees,
         KnockbackStrength = itemDef.KnockbackStrength,
         MeleeDamage = itemDef.MeleeDamage,
+        HealHealthPips = itemDef.HealHealthPips,
     }
 
     self.NextItemInstanceId += 1
@@ -107,6 +115,9 @@ local function normalizeItemEntry(rawItemEntry)
         Value = rawItemEntry.Value or 0,
         Color = rawItemEntry.Color,
         Light = cloneLightConfig(rawItemEntry.Light),
+        Description = rawItemEntry.Description,
+        IconAssetId = rawItemEntry.IconAssetId,
+        ToolTemplateName = rawItemEntry.ToolTemplateName,
 
         -- === 新增：探索道具扩展字段 ===
         ToolCategory = rawItemEntry.ToolCategory,
@@ -120,6 +131,7 @@ local function normalizeItemEntry(rawItemEntry)
         SwingArcDegrees = rawItemEntry.SwingArcDegrees,
         KnockbackStrength = rawItemEntry.KnockbackStrength,
         MeleeDamage = rawItemEntry.MeleeDamage,
+        HealHealthPips = rawItemEntry.HealHealthPips,
     }
 end
 

@@ -15,6 +15,12 @@
         "UI": {
           "$path": "../../packages/ui/src"
         }
+      },
+      "Assets": {
+        "$className": "Folder",
+        "ToolTemplates": {
+          "$className": "Folder"
+        }
       }
     },
     "Workspace": {
