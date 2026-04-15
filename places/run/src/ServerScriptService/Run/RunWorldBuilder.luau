@@ -1,13 +1,11 @@
 local Workspace = game:GetService('Workspace')
 
 local RunScene = require(script.Parent.RunScene)
-local RunStaticWorldContract = require(script.Parent.RunStaticWorldContract)
 local RunStaticWorldValidator = require(script.Parent.RunStaticWorldValidator)
-local RunSpawnPoint = require(script.Parent.RunSpawnPoint)
 
 local RunWorldBuilder = {}
 
-<local OUTDOOR_THRESHOLD_Z = 20
+local OUTDOOR_THRESHOLD_Z = 20
 local DEFAULT_SPAWN_CFRAME = CFrame.new(0, 4, -6)
 local DEFAULT_RETURN_CFRAME = CFrame.new(0, 4, -2)
 local MAZE_RETURN_CFRAME = CFrame.new(0, 4, 108)
@@ -41,87 +39,6 @@ local function prepareRunTerrain(root)
     stabilizeVisualModel(terrainRoot:FindFirstChild('Sci-Fi Space Ship'))
 end
 
-local function findNamedDescendant(root, name)
-    for _, descendant in ipairs(root:GetDescendants()) do
-        if descendant.Name == name then
-            return descendant
-        end
-    end
-
-    return nil
-end
-
-local function findPromptOnPart(root, partName)
-    local part = findNamedDescendant(root, partName)
-    if not part or not part:IsA('BasePart') then
-        return nil
-    end
-
-    return part:FindFirstChildOfClass('ProximityPrompt')
-end
-
-local function requirePromptOnPart(root, partName)
-    local prompt = findPromptOnPart(root, partName)
-    if prompt then
-        return prompt
-    end
-
-    error(
-        string.format(
-            '%s is missing a ProximityPrompt on part "%s".',
-            STATIC_WORLD_ROOT_NAME,
-            partName
-        )
-    )
-end
-
-local function resolveMarkerCFrame(root, markerName, fallback)
-    local marker = findNamedDescendant(root, markerName)
-    if marker and marker:IsA('BasePart') then
-        return marker.CFrame
-    end
-
-    return fallback
-end
-
-local function buildFromStaticWorld(staticWorldRoot)
-    local doorLeft = findNamedDescendant(staticWorldRoot, 'DoorLeft')
-    local doorRight = findNamedDescendant(staticWorldRoot, 'DoorRight')
-    local gatePrompt = requirePromptOnPart(staticWorldRoot, 'GateSwitch')
-
-    local function openGate()
-        if doorLeft and doorLeft:IsA('BasePart') then
-            doorLeft.CanCollide = false
-            doorLeft.Transparency = 1
-        end
-
-        if doorRight and doorRight:IsA('BasePart') then
-            doorRight.CanCollide = false
-            doorRight.Transparency = 1
-        end
-
-        gatePrompt.ActionText = 'Gate Open'
-    end
-
-    return {
-        Root = staticWorldRoot,
-        SpawnCFrame = resolveMarkerCFrame(staticWorldRoot, 'SpawnMarker', DEFAULT_SPAWN_CFRAME),
-        ReturnCFrame = resolveMarkerCFrame(staticWorldRoot, 'ReturnMarker', DEFAULT_RETURN_CFRAME),
-        MazeReturnCFrame = resolveMarkerCFrame(
-            staticWorldRoot,
-            'MazeReturnMarker',
-            MAZE_RETURN_CFRAME
-        ),
-        OutdoorThresholdZ = tonumber(staticWorldRoot:GetAttribute('OutdoorThresholdZ'))
-            or OUTDOOR_THRESHOLD_Z,
-        ShopPrompt = requirePromptOnPart(staticWorldRoot, 'ShopTerminal'),
-        LoadoutPrompt = requirePromptOnPart(staticWorldRoot, 'LoadoutBench'),
-        GatePrompt = gatePrompt,
-        MazePrompt = requirePromptOnPart(staticWorldRoot, 'MazeGateMarker'),
-        OpenGate = openGate,
-    }
-end
-
 function RunWorldBuilder.build()
     local staticWorldRoot = Workspace:FindFirstChild(STATIC_WORLD_ROOT_NAME)
     if staticWorldRoot and (staticWorldRoot:IsA('Folder') or staticWorldRoot:IsA('Model')) then
@@ -145,11 +62,7 @@ function RunWorldBuilder.build()
         ReturnCFrame = DEFAULT_RETURN_CFRAME,
         MazeReturnCFrame = MAZE_RETURN_CFRAME,
         OutdoorThresholdZ = OUTDOOR_THRESHOLD_Z,
-        ShopPrompt = house.ShopPrompt,
-        LoadoutPrompt = house.LoadoutPrompt,
-        GatePrompt = house.GatePrompt,
-        MazePrompt = outdoors.MazePrompt,
-        OpenGate = house.OpenGate,
+        OpenGate = function() end,
     }
 end
 

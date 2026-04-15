@@ -674,7 +674,15 @@ local function hideOceanSlowdown()
     oceanSlowdownTween:Play()
 end
 
+local currentSplashTweens = nil
+
 local function showOceanSplash(message)
+    if currentSplashTweens then
+        currentSplashTweens.flashIn:Cancel()
+        currentSplashTweens.flashOut:Cancel()
+        currentSplashTweens = nil
+    end
+
     showToast(message or 'Splash!', 'Success')
 
     oceanSplashOverlay.BackgroundTransparency = 1
@@ -694,9 +702,13 @@ local function showOceanSplash(message)
         }
     )
 
+    currentSplashTweens = { flashIn = flashIn, flashOut = flashOut }
     flashIn:Play()
     flashIn.Completed:Connect(function()
         flashOut:Play()
+        flashOut.Completed:Connect(function()
+            currentSplashTweens = nil
+        end)
     end)
 
     -- Also show sustained slowdown overlay

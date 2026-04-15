@@ -18,7 +18,6 @@ local PlayerService = Shared.Runtime.PlayerService
 local PlayerStateService = Shared.Runtime.PlayerStateService
 local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 
-local RunSpawnPoint = require(script.Parent.RunSpawnPoint)
 local RunStaticWorldContract = require(script.Parent.RunStaticWorldContract)
 local RunToMazeTransition = require(script.Parent.RunToMazeTransition)
 local RunWorldBuilder = require(script.Parent.RunWorldBuilder)
@@ -338,7 +337,7 @@ function RunSessionService:_setOceanState(player, newState)
         }
         -- Apply slowdown after delay
         task.delay(OCEAN_SLOWDOWN_DELAY_SECONDS, function()
-            if self:_getOceanState(player) == 'Touching' then
+            if self:_getOceanState(player) ~= 'None' then
                 self:_applyOceanSlowdown(player)
             end
         end)
