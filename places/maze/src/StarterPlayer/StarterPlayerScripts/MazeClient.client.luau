@@ -75,7 +75,7 @@ objectiveLabel.Text = 'Objective: --'
 
 local promptLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 66), Theme.Text, 16, false)
 promptLabel.Text =
-    'In-world prompts:\n- Loot pickups\n- Maze Exit\n- Double Door controls\nKeyboard: Hold LeftShift to sprint'
+    'In-world prompts:\n- Loot pickups\n- Blue/Gold return markers -> Run Entrance\n- Double Door controls\nKeyboard: Hold LeftShift to sprint'
 
 if RunService:IsStudio() then
     promptLabel.Text ..= '\nStudio debug: H light damage | J heavy damage'

@@ -6,19 +6,26 @@ local Workspace = game:GetService('Workspace')
 local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Gameplay = require(Packages:WaitForChild('Gameplay'))
 
+local MonsterBehaviorCatalog = Gameplay.Monsters.MonsterBehaviorCatalog
 local MonsterLogic = Gameplay.Monsters.MonsterLogic
+local MonsterRuntimeProfile = Gameplay.Monsters.MonsterRuntimeProfile
 
 local MonsterService = {}
 MonsterService.__index = MonsterService
 
 function MonsterService.new(
-    monsterDefinition,
+    monsterRuntimeProfile,
     isExpeditionActiveCallback,
     canTargetPlayerCallback,
     canTraverseCallback
 )
+    local validRuntimeProfile, runtimeReason = MonsterRuntimeProfile.validate(monsterRuntimeProfile)
+    if not validRuntimeProfile then
+        error(string.format('Monster runtime profile invalid: %s', tostring(runtimeReason)), 0)
+    end
+
     return setmetatable({
-        Definition = monsterDefinition,
+        Definition = monsterRuntimeProfile,
         IsExpeditionActive = isExpeditionActiveCallback,
         CanTargetPlayer = canTargetPlayerCallback or function()
             return true
@@ -45,7 +52,7 @@ function MonsterService:destroy()
     end
 end
 
-function MonsterService:spawn(patrolPoints)
+function MonsterService:spawn(patrolPoints, initialPatrolIndex)
     self:destroy()
     self.PatrolPoints = patrolPoints
     self.PatrolIndex = 1
@@ -53,6 +60,8 @@ function MonsterService:spawn(patrolPoints)
     if #patrolPoints == 0 then
         return
     end
+
+    self.PatrolIndex = math.clamp(initialPatrolIndex or 1, 1, #patrolPoints)
 
     local monster = Instance.new('Part')
     monster.Name = self.Definition.Name
@@ -62,7 +71,7 @@ function MonsterService:spawn(patrolPoints)
     monster.CanCollide = false
     monster.Material = Enum.Material.Neon
     monster.Color = Color3.fromRGB(214, 91, 91)
-    monster.Position = patrolPoints[1] + Vector3.new(0, 4, 0)
+    monster.Position = patrolPoints[self.PatrolIndex] + self.Definition.SpawnOffset
     monster.Parent = Workspace
 
     self.MonsterPart = monster
@@ -90,21 +99,34 @@ function MonsterService:update(dt)
     end
 
     local currentPosition = self.MonsterPart.Position
-    local targetPlayer =
-        MonsterLogic.pickNearestTarget(currentPosition, playerPositions, self.Definition.SightRange)
+    local targetPlayer = nil
+    if self.Definition.Behaviors[MonsterBehaviorCatalog.Behavior.SenseNearestTarget] then
+        targetPlayer = MonsterLogic.pickNearestTarget(
+            currentPosition,
+            playerPositions,
+            self.Definition.SightRange
+        )
+    end
     local nextPosition
 
-    if targetPlayer then
+    if targetPlayer and self.Definition.Behaviors[MonsterBehaviorCatalog.Behavior.Chase] then
         nextPosition = MonsterLogic.stepToward(
             currentPosition,
             playerPositions[targetPlayer],
             self.Definition.Speed,
             dt
         )
-    elseif #self.PatrolPoints > 0 then
-        local patrolTarget = self.PatrolPoints[self.PatrolIndex] + Vector3.new(0, 4, 0)
-        nextPosition =
-            MonsterLogic.stepToward(currentPosition, patrolTarget, self.Definition.Speed * 0.45, dt)
+    elseif
+        self.Definition.Behaviors[MonsterBehaviorCatalog.Behavior.Patrol]
+        and #self.PatrolPoints > 0
+    then
+        local patrolTarget = self.PatrolPoints[self.PatrolIndex] + self.Definition.SpawnOffset
+        nextPosition = MonsterLogic.stepToward(
+            currentPosition,
+            patrolTarget,
+            self.Definition.Speed * self.Definition.PatrolSpeedMultiplier,
+            dt
+        )
 
         if (nextPosition - patrolTarget).Magnitude <= 2 then
             self.PatrolIndex = (self.PatrolIndex % #self.PatrolPoints) + 1
