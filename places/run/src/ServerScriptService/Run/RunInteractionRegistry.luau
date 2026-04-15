@@ -33,6 +33,12 @@ function RunInteractionRegistry:bindScene(scene, handlers)
     self:_track(scene.MazePortal:bind(function(player)
         handlers.OnMazePortal(player)
     end))
+
+    for _, oceanTrigger in ipairs(scene.OceanTriggers or {}) do
+        self:_track(oceanTrigger:bind(function(player, trigger)
+            handlers.OnOceanEntered(player, trigger)
+        end))
+    end
 end
 
 function RunInteractionRegistry:disconnectAll()
