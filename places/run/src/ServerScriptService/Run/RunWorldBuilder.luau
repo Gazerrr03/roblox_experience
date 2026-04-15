@@ -27,7 +27,7 @@ end
 local function prepareRunTerrain(root)
     local terrainRoot = root:FindFirstChild('RunTerrain_Main')
     if terrainRoot == nil or not terrainRoot:IsA('Model') then
-        error('RunStaticWorld is missing required authored terrain model "RunTerrain_Main".', 0)
+        return
     end
 
     stabilizeVisualModel(terrainRoot:FindFirstChild('Scene'))

@@ -9,8 +9,29 @@ local REQUIRED_MARKER_NAMES = table.freeze({
     'MazeReturnMarker',
 })
 
+local function requireContainer(parent, name, contextLabel)
+    local child = parent:FindFirstChild(name)
+    if child == nil or not (child:IsA('Folder') or child:IsA('Model')) then
+        error(string.format('%s is missing required container "%s".', contextLabel, name), 0)
+    end
+
+    return child
+end
+
+local function collectBaseParts(root)
+    local parts = {}
+
+    for _, descendant in ipairs(root:GetDescendants()) do
+        if descendant:IsA('BasePart') then
+            table.insert(parts, descendant)
+        end
+    end
+
+    return parts
+end
+
 local function requireBaseParts(root, contextLabel)
-    local parts = RunStaticWorldContract.collectBaseParts(root)
+    local parts = collectBaseParts(root)
     if #parts == 0 then
         error(string.format('%s must contain at least one BasePart.', contextLabel), 0)
     end
@@ -92,7 +113,10 @@ local function validateMarkerPart(part, contextLabel)
 end
 
 local function buildSpawnGroundParams(sceneCollisionRoot, shipCollisionRoot)
-    return RunStaticWorldContract.buildSpawnGroundParams(sceneCollisionRoot, shipCollisionRoot)
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Include
+    raycastParams.FilterDescendantsInstances = { sceneCollisionRoot, shipCollisionRoot }
+    return raycastParams
 end
 
 local function buildSpawnGroundSampleOffsets(spawnMarker)
@@ -136,27 +160,21 @@ function RunStaticWorldValidator.validate(root)
         error('RunStaticWorld must be parented to Workspace before validation.', 0)
     end
 
-    local collisionRoot = RunStaticWorldContract.requireContainer(
-        root,
-        RunStaticWorldContract.CollisionRootName,
-        'RunStaticWorld'
-    )
-    local sceneCollisionRoot = RunStaticWorldContract.requireContainer(
+    local collisionRoot =
+        requireContainer(root, RunStaticWorldContract.CollisionRootName, 'RunStaticWorld')
+    local sceneCollisionRoot = requireContainer(
         collisionRoot,
         RunStaticWorldContract.SceneCollisionName,
         'RunStaticWorld Collision'
     )
-    local shipCollisionRoot = RunStaticWorldContract.requireContainer(
+    local shipCollisionRoot = requireContainer(
         collisionRoot,
         RunStaticWorldContract.ShipCollisionName,
         'RunStaticWorld Collision'
     )
-    local triggersRoot = RunStaticWorldContract.requireContainer(
-        root,
-        RunStaticWorldContract.TriggersRootName,
-        'RunStaticWorld'
-    )
-    local oceanTriggerRoot = RunStaticWorldContract.requireContainer(
+    local triggersRoot =
+        requireContainer(root, RunStaticWorldContract.TriggersRootName, 'RunStaticWorld')
+    local oceanTriggerRoot = requireContainer(
         triggersRoot,
         RunStaticWorldContract.OceanTriggerName,
         'RunStaticWorld Triggers'
