@@ -86,46 +86,6 @@ function PlayerService:setSprinting(player, isSprinting)
     return stamina:setSprinting(p.Blackboard, isSprinting)
 end
 
-function PlayerService:addItem(player, itemDef)
-    local p = self:get(player)
-    if not p then
-        return false, 'MissingPlayer'
-    end
-
-    local inventory = p.Components.Inventory
-    return inventory:addItem(p.Blackboard, itemDef)
-end
-
-function PlayerService:equipSlot(player, slotIndex)
-    local p = self:get(player)
-    if not p then
-        return false, 'MissingPlayer'
-    end
-
-    local inventory = p.Components.Inventory
-    return inventory:equipSlot(p.Blackboard, slotIndex)
-end
-
-function PlayerService:unequip(player)
-    local p = self:get(player)
-    if not p then
-        return false, 'MissingPlayer'
-    end
-
-    local inventory = p.Components.Inventory
-    return inventory:unequip(p.Blackboard)
-end
-
-function PlayerService:useItem(player)
-    local p = self:get(player)
-    if not p then
-        return false, 'MissingPlayer'
-    end
-
-    local inventory = p.Components.Inventory
-    return inventory:useItem(p.Blackboard)
-end
-
 function PlayerService:getSummary(player)
     local p = self:get(player)
     if not p then
@@ -147,8 +107,8 @@ function PlayerService:getSummary(player)
             IsSprinting = p.Components.Stamina.IsSprinting,
         },
         State = p.StateMachine:getState(),
-        Slots = p.Components.Inventory.Slots,
-        EquippedSlot = p.Components.Inventory.EquippedSlot,
+        SlotCount = p.Components.Inventory.SlotCount,
+        InteractionRange = p.Components.Inventory.InteractionRange,
         -- Backward compatibility: mirrors PlayerStateService:getSummary format
         PlayerState = {
             HealthPips = p.Components.Health.CurrentHealthPips,
