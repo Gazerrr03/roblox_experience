@@ -17,3 +17,7 @@
 ## 2025-05-20 - [Hot Path Hoisting & Lookup Optimization]
 **Learning:** In `HexMazeWorldRenderer.luau`, hoisting the X-axis containment check out of the inner loop in `createHexTiledSlab` provides a ~30% speedup by skipping entire rows of grid tiles. Additionally, replacing string-based doorway lookups with nested tables in `canTraverseBetweenPositions` avoids allocation overhead and string comparison costs, yielding a ~14% performance gain.
 **Action:** Always hoist invariant condition checks out of nested loops. Prefer nested tables over string-concatenated keys for O(1) relationship lookups in high-frequency pathfinding/collision paths.
+
+## 2025-05-20 - [Nested Table vs String Key Lookup]
+**Learning:** In Luau, string concatenation (`..`) to create lookup keys in high-frequency functions (like `canTraverseBetweenPositions`) is a significant source of GC pressure and execution time. Replacing `map[idA .. '|' .. idB]` with a nested table `map[idA][idB]` eliminates all string allocations in the hot path.
+**Action:** Prefer nested table lookups over concatenated string keys for frequently accessed 2D spatial or graph relationships.
