@@ -41,6 +41,8 @@ local activeShopItems = {}
 local activeSalvageItems = {}
 local activeModal = nil
 local activeBuildFingerprint = 'unknown'
+local isInOcean = false
+local oceanSlowdownTween = nil
 ensureFirstPersonLock = function()
     disconnectFirstPersonLock = Shared.Client.FirstPersonController.start(localPlayer)
     ensureFirstPersonLock = function() end
@@ -442,6 +444,27 @@ oceanSplashGradient.Transparency = NumberSequence.new({
 })
 oceanSplashGradient.Parent = oceanSplashOverlay
 
+-- Sustained slowdown overlay (visible while in ocean)
+local oceanSlowdownOverlay = Instance.new('Frame')
+oceanSlowdownOverlay.Name = 'OceanSlowdownOverlay'
+oceanSlowdownOverlay.Size = UDim2.fromScale(1, 1)
+oceanSlowdownOverlay.BackgroundColor3 = Color3.fromRGB(60, 176, 255)
+oceanSlowdownOverlay.BackgroundTransparency = 1
+oceanSlowdownOverlay.BorderSizePixel = 0
+oceanSlowdownOverlay.Parent = screenGui
+
+local oceanSlowdownGradient = Instance.new('UIGradient')
+oceanSlowdownGradient.Rotation = 90
+oceanSlowdownGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(140, 220, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(32, 100, 164)),
+})
+oceanSlowdownGradient.Transparency = NumberSequence.new({
+    NumberSequenceKeypoint.new(0, 0.85),
+    NumberSequenceKeypoint.new(1, 0.92),
+})
+oceanSlowdownGradient.Parent = oceanSlowdownOverlay
+
 local toastLabel = Instance.new('TextLabel')
 toastLabel.Name = 'Toast'
 toastLabel.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -617,6 +640,40 @@ local function showGoalBanner()
     end)
 end
 
+local function showOceanSlowdown()
+    isInOcean = true
+    if oceanSlowdownTween then
+        oceanSlowdownTween:Cancel()
+        oceanSlowdownTween = nil
+    end
+
+    oceanSlowdownTween = TweenService:Create(
+        oceanSlowdownOverlay,
+        TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        { BackgroundTransparency = 0.7 }
+    )
+    oceanSlowdownTween:Play()
+end
+
+local function hideOceanSlowdown()
+    if not isInOcean then
+        return
+    end
+    isInOcean = false
+
+    if oceanSlowdownTween then
+        oceanSlowdownTween:Cancel()
+        oceanSlowdownTween = nil
+    end
+
+    oceanSlowdownTween = TweenService:Create(
+        oceanSlowdownOverlay,
+        TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+        { BackgroundTransparency = 1 }
+    )
+    oceanSlowdownTween:Play()
+end
+
 local function showOceanSplash(message)
     showToast(message or 'Splash!', 'Success')
 
@@ -641,6 +698,9 @@ local function showOceanSplash(message)
     flashIn.Completed:Connect(function()
         flashOut:Play()
     end)
+
+    -- Also show sustained slowdown overlay
+    showOceanSlowdown()
 end
 
 local function renderShopItems()
@@ -892,6 +952,16 @@ Remotes.RunPrivateState.OnClientEvent:Connect(function(payload)
 
     if payload.Type == 'OceanSplash' then
         showOceanSplash(payload.Message)
+        return
+    end
+
+    if payload.Type == 'OceanExit' then
+        hideOceanSlowdown()
+        return
+    end
+
+    if payload.Type == 'OceanDamage' then
+        showOceanSplash('Drowning!')
         return
     end
 end)
