@@ -1,6 +1,7 @@
 local Players = game:GetService('Players')
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
 local RunService = game:GetService('RunService')
+local TweenService = game:GetService('TweenService')
 local UserInputService = game:GetService('UserInputService')
 
 local localPlayer = Players.LocalPlayer
@@ -39,6 +40,7 @@ local inventorySummary = nil
 local activeShopItems = {}
 local activeSalvageItems = {}
 local activeModal = nil
+local activeBuildFingerprint = 'unknown'
 ensureFirstPersonLock = function()
     disconnectFirstPersonLock = Shared.Client.FirstPersonController.start(localPlayer)
     ensureFirstPersonLock = function() end
@@ -213,6 +215,11 @@ local function buildMazeEntryText(snapshot)
     end
 
     return string.format('%s [%s]', mode, reasonCode)
+end
+
+local function buildFingerprintText(snapshot)
+    local fingerprint = snapshot.BuildFingerprint or activeBuildFingerprint or 'unknown'
+    return string.format('Build: %s', fingerprint)
 end
 
 local menuBackdrop = Instance.new('Frame')
@@ -414,6 +421,27 @@ modalBackdrop.BackgroundTransparency = 0.45
 modalBackdrop.Visible = false
 modalBackdrop.Parent = screenGui
 
+local oceanSplashOverlay = Instance.new('Frame')
+oceanSplashOverlay.Name = 'OceanSplashOverlay'
+oceanSplashOverlay.Size = UDim2.fromScale(1, 1)
+oceanSplashOverlay.BackgroundColor3 = Color3.fromRGB(60, 176, 255)
+oceanSplashOverlay.BackgroundTransparency = 1
+oceanSplashOverlay.BorderSizePixel = 0
+oceanSplashOverlay.Parent = screenGui
+
+local oceanSplashGradient = Instance.new('UIGradient')
+oceanSplashGradient.Rotation = 90
+oceanSplashGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(140, 220, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(32, 100, 164)),
+})
+oceanSplashGradient.Transparency = NumberSequence.new({
+    NumberSequenceKeypoint.new(0, 0.1),
+    NumberSequenceKeypoint.new(0.45, 0.65),
+    NumberSequenceKeypoint.new(1, 0.15),
+})
+oceanSplashGradient.Parent = oceanSplashOverlay
+
 local toastLabel = Instance.new('TextLabel')
 toastLabel.Name = 'Toast'
 toastLabel.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -586,6 +614,32 @@ local function showGoalBanner()
 
     task.delay(3, function()
         goalBanner.Visible = false
+    end)
+end
+
+local function showOceanSplash(message)
+    showToast(message or 'Splash!', 'Success')
+
+    oceanSplashOverlay.BackgroundTransparency = 1
+
+    local flashIn = TweenService:Create(
+        oceanSplashOverlay,
+        TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {
+            BackgroundTransparency = 0.82,
+        }
+    )
+    local flashOut = TweenService:Create(
+        oceanSplashOverlay,
+        TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+        {
+            BackgroundTransparency = 1,
+        }
+    )
+
+    flashIn:Play()
+    flashIn.Completed:Connect(function()
+        flashOut:Play()
     end)
 end
 
@@ -835,11 +889,19 @@ Remotes.RunPrivateState.OnClientEvent:Connect(function(payload)
         end
         return
     end
+
+    if payload.Type == 'OceanSplash' then
+        showOceanSplash(payload.Message)
+        return
+    end
 end)
 
 Remotes.RunState.OnClientEvent:Connect(function(snapshot)
     local hasLaunched = snapshot.IsLaunched == true
     isRunLaunched = hasLaunched
+    if type(snapshot.BuildFingerprint) == 'string' and snapshot.BuildFingerprint ~= '' then
+        activeBuildFingerprint = snapshot.BuildFingerprint
+    end
     if not hasLaunched then
         isCampPanelVisible = true
     end
@@ -861,8 +923,12 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
         canRequestMazeEntry = false
         visibleBackpackItems = {}
         heldItemController:applyInventory(nil)
-        menuStatusLabel.Text =
-            string.format('%s\nMaze Entry: %s', snapshot.Status, buildMazeEntryText(snapshot))
+        menuStatusLabel.Text = string.format(
+            '%s\n%s\nMaze Entry: %s',
+            snapshot.Status,
+            buildFingerprintText(snapshot),
+            buildMazeEntryText(snapshot)
+        )
         singlePlayerButton.Active = true
         singlePlayerButton.AutoButtonColor = true
         singlePlayerButton.Text = string.format('Enter %s', TEMPLE_LABEL)
@@ -876,8 +942,9 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
     canRequestMazeEntry = snapshot.GateOpen == true
 
     statusLabel.Text = string.format(
-        '%s\nArea: %s | Gate: %s | Maze: %s\nEntry: %s',
+        '%s\n%s\nArea: %s | Gate: %s | Maze: %s\nEntry: %s',
         snapshot.Status,
+        buildFingerprintText(snapshot),
         snapshot.Area,
         snapshot.GateOpen and 'Open' or 'Closed',
         snapshot.MazeStatus or 'idle',
