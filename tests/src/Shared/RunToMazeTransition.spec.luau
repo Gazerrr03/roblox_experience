@@ -27,6 +27,7 @@ return function()
         end,
         markPlayerEntered = function(session, enteringPlayer)
             session.PlayersInMaze = { enteringPlayer }
+            session.SessionPhase = 'MazeActive'
             return session
         end,
         buildRunToMazeTeleportData = function(payload)
@@ -92,5 +93,9 @@ return function()
     assert(
         calls.TeleportData.CampSession.MazeAccessCode == 'reserved-maze-access',
         'RunToMazeTransition should persist the reserved access code into teleport data'
+    )
+    assert(
+        result.NextSession.SessionPhase == 'MazeActive',
+        'RunToMazeTransition should keep the shared session in MazeActive for same-session re-entry'
     )
 end

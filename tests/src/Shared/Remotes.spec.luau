@@ -22,6 +22,16 @@ return function()
         'MazeState',
         'MazePrivateState',
     }
+    local unexpectedRunLegacyNames = {
+        'ShowNarrative',
+        'GetInventory',
+        'EquipItem',
+        'UseItem',
+        'UseItemFunction',
+        'GetInteractables',
+        'GetItemData',
+        'ItemUsageFeedback',
+    }
 
     for _, name in ipairs(expectedNames) do
         local remote = remotes[name]
@@ -42,6 +52,13 @@ return function()
         #container:GetChildren() == #expectedNames,
         'ensure should not duplicate remotes on repeated calls'
     )
+
+    for _, legacyName in ipairs(unexpectedRunLegacyNames) do
+        assert(
+            remotes[legacyName] == nil and container:FindFirstChild(legacyName) == nil,
+            string.format('Legacy run remote %s should no longer be created', legacyName)
+        )
+    end
 
     local mazeScoped = shared.Network.Remotes.ensureScope(shared.Network.Remotes.Scope.Maze)
     assert(mazeScoped.MazeAction == remotes.MazeAction, 'Maze scope should reuse MazeAction')

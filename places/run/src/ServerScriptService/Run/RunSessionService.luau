@@ -19,6 +19,7 @@ local PlayerStateService = Shared.Runtime.PlayerStateService
 local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 
 local RunSpawnPoint = require(script.Parent.RunSpawnPoint)
+local RunSnapshotBuilder = require(script.Parent.RunSnapshotBuilder)
 local RunStaticWorldContract = require(script.Parent.RunStaticWorldContract)
 local RunToMazeTransition = require(script.Parent.RunToMazeTransition)
 local RunWorldBuilder = require(script.Parent.RunWorldBuilder)
@@ -552,6 +553,7 @@ end
 function RunSessionService:_syncCampSession()
     self.CampSession = CampMazeSessionContract.normalizeCampSession(self.CampSession)
     self.CampSession.GateOpen = self.GateOpen
+    self.CampSession = CampMazeSessionContract.normalizeCampSession(self.CampSession)
 end
 
 function RunSessionService:_applyIncomingCampSession(teleportData)
@@ -779,23 +781,36 @@ function RunSessionService:_buildRoster()
     return roster
 end
 
+function RunSessionService:_getActiveMazeRoster()
+    return cloneArray(self.CampSession.PlayersInMaze)
+end
+
+function RunSessionService:_getReturnedSummaries()
+    return cloneArray(self.CampSession.ReturnedPlayerSummaries)
+end
+
 function RunSessionService:_getObjectiveFor(player)
     local area = self:_getPlayerArea(player)
+    local sessionPhase = self.CampSession.SessionPhase
 
-    if not self.GateOpen then
+    if sessionPhase == CampMazeSessionContract.SessionPhase.RunPrep then
         return 'Inspect the temple terminals and open the gate when the group is ready.'
     end
 
-    if self.CampSession.MazeStatus == CampMazeSessionContract.MazeStatus.Completed then
+    if sessionPhase == CampMazeSessionContract.SessionPhase.Debrief then
         return 'The maze run is complete. Review the returned crew summaries in the temple.'
     end
 
-    if self.CampSession.MazeStatus == CampMazeSessionContract.MazeStatus.Active then
+    if sessionPhase == CampMazeSessionContract.SessionPhase.MazeActive then
         if area == 'Wilderness' then
             return 'A maze session is active. Use the gate outside to join the shared expedition.'
         end
 
         return 'Head outside and use the maze gate to join the active shared expedition.'
+    end
+
+    if sessionPhase == CampMazeSessionContract.SessionPhase.SessionClosed then
+        return 'This temple session is closed. Return to the staging flow before launching another expedition.'
     end
 
     if area == 'Wilderness' then
@@ -997,41 +1012,13 @@ function RunSessionService:_resolveMazeEntryAvailability()
 end
 
 function RunSessionService:_broadcastSnapshot()
-    local roster = self:_buildRoster()
-    local activeMazeRoster = cloneArray(self.CampSession.PlayersInMaze)
-    local returnedSummaries = cloneArray(self.CampSession.ReturnedPlayerSummaries)
     local mazeEntryAvailability = self:_resolveMazeEntryAvailability()
-    local bookSnapshot = self:_getBookSnapshot()
 
     for _, player in ipairs(Players:GetPlayers()) do
-        local playerSummary = self.PlayerService:getSummary(player)
-        local playerStateSummary = if playerSummary and playerSummary.PlayerState ~= nil
-            then playerSummary.PlayerState
-            else self.PlayerStateService:getSummary(player)
-        self.Remotes.RunState:FireClient(player, {
-            IsLaunched = self.IsLaunched,
-            Status = self.Status,
-            BuildFingerprint = self.BuildFingerprint,
-            Area = self:_getPlayerArea(player),
-            GateOpen = self.GateOpen,
-            Objective = self:_getObjectiveFor(player),
-            Roster = roster,
-            SessionId = self.CampSession.SessionId,
-            MazeStatus = self.CampSession.MazeStatus,
-            PlayersInMaze = activeMazeRoster,
-            ReturnedPlayerSummaries = returnedSummaries,
-            MazeEntryMode = mazeEntryAvailability.Mode,
-            MazeEntryReason = mazeEntryAvailability.Reason,
-            MazeEntryReasonCode = mazeEntryAvailability.ReasonCode,
-            TeamPages = bookSnapshot.TeamPages,
-            BookGoalAmount = bookSnapshot.BookGoalAmount,
-            BookGoalProgress = bookSnapshot.BookGoalProgress,
-            BookGoalReached = bookSnapshot.BookGoalReached,
-            Inventory = self.InventoryService:getSummary(player),
-            Movement = self:_getMovementSummaryFor(player),
-            ControlState = self.ControlStateService:getSummary(player),
-            PlayerState = playerStateSummary,
-        })
+        self.Remotes.RunState:FireClient(
+            player,
+            RunSnapshotBuilder.buildForPlayer(self, player, mazeEntryAvailability)
+        )
 
         self.Remotes.RunPrivateState:FireClient(player, nil)
     end
@@ -1443,9 +1430,7 @@ function RunSessionService:start()
             return
         end
 
-        if payload.Type == 'RequestLaunchRun' then
-            self:_launchRun(player)
-        elseif payload.Type == 'RequestEnterMaze' then
+        if payload.Type == 'RequestEnterMaze' then
             if self:_canProcessMazeEntryRequest(player) then
                 self:_requestMazeEntry(player, true)
             end

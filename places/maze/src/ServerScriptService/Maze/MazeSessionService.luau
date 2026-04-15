@@ -27,6 +27,7 @@ local SharedPackage = Packages:WaitForChild('Shared')
 
 local SessionConfig = Shared.Config.SessionConfig
 local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
+local SessionPhase = Shared.Session.SessionPhase
 local SessionSeedPolicy = Shared.Session.SessionSeedPolicy
 local Remotes = Shared.Network.Remotes.ensureScope(Shared.Network.Remotes.Scope.Maze)
 local InventoryService =
@@ -821,6 +822,13 @@ function MazeSessionService:_broadcastSnapshot()
         self.RunTracker:getReturnedSummaries()
     )
     local mazeStatus = self:_getMazeStatus()
+    local sessionPhase = SessionPhase.resolveFromCampSession({
+        GateOpen = self.CampSession.GateOpen,
+        MazeStatus = mazeStatus,
+        PlayersInMaze = self.CampSession.PlayersInMaze,
+        ReturnedPlayerSummaries = returnedSummaries,
+        SessionClosed = self.CampSession.SessionClosed,
+    })
     local worldBuildFields = self:_getWorldBuildMetadataFields()
 
     for _, player in ipairs(Players:GetPlayers()) do
@@ -830,6 +838,7 @@ function MazeSessionService:_broadcastSnapshot()
             Area = self:_getPlayerArea(player),
             Objective = self:_getObjectiveFor(),
             State = self.RunTracker:getState(),
+            SessionPhase = sessionPhase,
             Inventory = self.InventoryService:getSummary(player),
             Movement = self:_getMovementSummaryFor(player),
             ControlState = self.ControlStateService:getSummary(player),
