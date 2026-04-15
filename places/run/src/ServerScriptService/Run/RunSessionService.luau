@@ -494,6 +494,13 @@ function RunSessionService:_applyMovementMode(player)
         return
     end
 
+    -- If player is in ocean, force ocean slowdown WalkSpeed to override movement system
+    local oceanState = self:_getOceanState(player)
+    if oceanState == 'Touching' or oceanState == 'Immersed' then
+        humanoid.WalkSpeed = OCEAN_SLOWDOWN_WALK_SPEED
+        return
+    end
+
     FormalLocomotion.applyToHumanoid(humanoid, self:_getMovementSummaryFor(player))
 end
 
