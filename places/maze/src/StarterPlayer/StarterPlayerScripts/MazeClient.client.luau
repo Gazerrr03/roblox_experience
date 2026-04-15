@@ -279,10 +279,11 @@ local function connectMazeRemotes(remotes)
         local diagnosticDirect = snapshot.WorldBuildIsDirectBoot == true and 'true' or 'false'
         local diagnosticSource = snapshot.WorldBuildSource or 'Pending'
         statusLabel.Text = string.format(
-            '%s\nArea: %s | Phase: %s | Maze: %s%s\nBuild: %s | Seed: %s | Direct: %s',
+            '%s\nArea: %s | Expedition: %s | Session: %s | Maze: %s%s\nBuild: %s | Seed: %s | Direct: %s',
             snapshot.Status or 'Maze ready.',
             snapshot.Area or 'Unknown',
             snapshot.State or 'Camp',
+            snapshot.SessionPhase or 'MazeActive',
             snapshot.MazeStatus or 'active',
             snapshot.IsDirectBoot and ' | Direct Boot' or '',
             diagnosticSource,

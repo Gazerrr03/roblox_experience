@@ -20,6 +20,8 @@ end
 -- Optional — Light: Color (Light handled separately via cloneLightConfig)
 -- Optional — Melee tool: SwingRange, SwingArcDegrees, KnockbackStrength, MeleeDamage
 -- Optional — Consumable: ItemKind, ConsumableEffect, MaxCarryPerId
+-- Optional — Presentation: Description, IconAssetId, ToolTemplateName
+-- Optional — Heal: HealHealthPips
 local ITEM_COPY_FIELDS = table.freeze({
     -- Core
     'Id',
@@ -46,6 +48,12 @@ local ITEM_COPY_FIELDS = table.freeze({
     'ItemKind',
     'ConsumableEffect',
     'MaxCarryPerId',
+    -- Optional: Presentation
+    'Description',
+    'IconAssetId',
+    'ToolTemplateName',
+    -- Optional: Heal
+    'HealHealthPips',
 })
 
 local function copyItemFields(source, target)
@@ -173,16 +181,14 @@ function Inventory:consumeHeldItemState(nowSeconds)
     end
 
     -- Cooldown check applies to all tools (including zero-consume)
+    local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
     local cooldownSeconds = heldItem.CooldownSeconds
     if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
-        local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
         local lastUsedAt = heldItem.LastUsedAt
         if type(lastUsedAt) == 'number' and now - lastUsedAt < cooldownSeconds then
             return false, 'Cooldown', cooldownSeconds - (now - lastUsedAt)
         end
     end
-
-    local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
 
     -- Consume state only when ConsumePerUse > 0
     if heldItem.ConsumePerUse > 0 then

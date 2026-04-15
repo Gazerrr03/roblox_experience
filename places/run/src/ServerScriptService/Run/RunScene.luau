@@ -6,6 +6,7 @@ local RunPortal = require(script.Parent.RunPortal)
 local RunSpawnPoint = require(script.Parent.RunSpawnPoint)
 local RunStaticWorldContract = require(script.Parent.RunStaticWorldContract)
 local RunTerminal = require(script.Parent.RunTerminal)
+local ShipDoors = require(script.Parent.ShipDoors)
 
 local RunScene = {}
 RunScene.__index = RunScene
@@ -65,10 +66,14 @@ local function collectBaseParts(root)
     return parts
 end
 
-local function buildSpawnGroundParams(sceneCollisionRoot, shipCollisionRoot)
+local function buildSpawnGroundParams(sceneCollisionRoot, shipCollisionRoot, terrainMesh)
     local raycastParams = RaycastParams.new()
     raycastParams.FilterType = Enum.RaycastFilterType.Include
-    raycastParams.FilterDescendantsInstances = { sceneCollisionRoot, shipCollisionRoot }
+    local instances = { sceneCollisionRoot, shipCollisionRoot }
+    if terrainMesh and terrainMesh:IsA('BasePart') then
+        table.insert(instances, terrainMesh)
+    end
+    raycastParams.FilterDescendantsInstances = instances
     return raycastParams
 end
 
@@ -126,7 +131,25 @@ function RunScene.new(root)
         RunStaticWorldContract.OceanTriggerName,
         'RunStaticWorld Triggers'
     )
-    local spawnGroundParams = buildSpawnGroundParams(sceneCollisionRoot, shipCollisionRoot)
+    -- Find terrain mesh for spawn raycast: RunTerrain_Main.Scene.RunTerrain_OriginalHigh.RunTerrain_OriginalHighMesh
+    local terrainRoot = root:FindFirstChild('RunTerrain_Main')
+    local terrainMesh = nil
+    if terrainRoot and terrainRoot:IsA('Model') then
+        local sceneFolder = terrainRoot:FindFirstChild('Scene')
+        if sceneFolder then
+            local terrainGroup = sceneFolder:FindFirstChild('RunTerrain_OriginalHigh')
+            if terrainGroup then
+                terrainMesh = terrainGroup:FindFirstChild('RunTerrain_OriginalHighMesh')
+            end
+        end
+    end
+    -- Initialize ship doors: find the Sci-Fi Space Ship model under terrainRoot
+    local shipModel = terrainRoot and terrainRoot:FindFirstChild('Sci-Fi Space Ship')
+    if shipModel then
+        ShipDoors.init(shipModel)
+    end
+    local spawnGroundParams =
+        buildSpawnGroundParams(sceneCollisionRoot, shipCollisionRoot, terrainMesh)
     local spawnPoints = {}
     local spawnCFramesByKind = {}
     for markerName, kind in pairs(REQUIRED_MARKERS) do
