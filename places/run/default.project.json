@@ -27,19 +27,183 @@
         "SpawnMarker": {
           "$className": "Part",
           "$properties": {
-            "Anchored": true
+            "Anchored": true,
+            "CanCollide": false,
+            "CanTouch": false,
+            "CanQuery": true
           }
         },
         "ReturnMarker": {
           "$className": "Part",
           "$properties": {
-            "Anchored": true
+            "Anchored": true,
+            "CanCollide": false,
+            "CanTouch": false,
+            "CanQuery": true
           }
         },
         "MazeReturnMarker": {
           "$className": "Part",
           "$properties": {
-            "Anchored": true
+            "Anchored": true,
+            "CanCollide": false,
+            "CanTouch": false,
+            "CanQuery": true
+          }
+        },
+        "Collision": {
+          "$className": "Folder",
+          "Scene": {
+            "$className": "Folder",
+            "CampGround": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "CanQuery": true,
+                "Transparency": 1,
+                "Position": [
+                  50.842907,
+                  6.44950485,
+                  324.177368
+                ],
+                "Size": [
+                  220,
+                  4,
+                  220
+                ]
+              }
+            }
+          },
+          "Ship": {
+            "$className": "Folder",
+            "HullDeckMain": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "CanQuery": true,
+                "Transparency": 1,
+                "Position": [
+                  49.7613869,
+                  14.4495049,
+                  299.243103
+                ],
+                "Size": [
+                  72,
+                  2,
+                  72
+                ]
+              }
+            },
+            "HullRailNorth": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "CanQuery": true,
+                "Transparency": 1,
+                "Position": [
+                  49.7613869,
+                  17.4495049,
+                  334.243103
+                ],
+                "Size": [
+                  68,
+                  6,
+                  2
+                ]
+              }
+            },
+            "HullRailSouth": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "CanQuery": true,
+                "Transparency": 1,
+                "Position": [
+                  49.7613869,
+                  17.4495049,
+                  264.243103
+                ],
+                "Size": [
+                  68,
+                  6,
+                  2
+                ]
+              }
+            },
+            "HullRailEast": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "CanQuery": true,
+                "Transparency": 1,
+                "Position": [
+                  84.7613869,
+                  17.4495049,
+                  299.243103
+                ],
+                "Size": [
+                  2,
+                  6,
+                  72
+                ]
+              }
+            },
+            "HullRailWest": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": true,
+                "CanTouch": false,
+                "CanQuery": true,
+                "Transparency": 1,
+                "Position": [
+                  14.7613869,
+                  17.4495049,
+                  299.243103
+                ],
+                "Size": [
+                  2,
+                  6,
+                  72
+                ]
+              }
+            }
+          }
+        },
+        "Triggers": {
+          "$className": "Folder",
+          "Ocean": {
+            "$className": "Folder",
+            "OceanTrigger": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": true,
+                "CanQuery": true,
+                "Transparency": 1,
+                "Position": [
+                  575.470703,
+                  8.21289062,
+                  -190.05957
+                ],
+                "Size": [
+                  565,
+                  10,
+                  186.90863
+                ]
+              }
+            }
           }
         },
         "DoorLeft": {

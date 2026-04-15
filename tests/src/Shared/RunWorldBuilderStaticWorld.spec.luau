@@ -4,13 +4,43 @@ return function()
 
     local runModules = ReplicatedStorage:WaitForChild('PlaceModules'):WaitForChild('Run')
     local builder = require(runModules:WaitForChild('RunWorldBuilder'))
+    local RunStaticWorldContract = require(runModules:WaitForChild('RunStaticWorldContract'))
 
-    local root = Instance.new('Folder')
-    root.Name = 'RunStaticWorld'
-    root:SetAttribute('OutdoorThresholdZ', 88)
-    root.Parent = Workspace
+    local function createRunStaticWorldRoot(outdoorThresholdZ)
+        local root = Instance.new('Folder')
+        root.Name = 'RunStaticWorld'
+        root:SetAttribute('OutdoorThresholdZ', outdoorThresholdZ or 88)
+        root.Parent = Workspace
 
-    local function createPromptPart(name, cframe)
+        local collisionRoot = Instance.new('Folder')
+        collisionRoot.Name = 'Collision'
+        collisionRoot.Parent = root
+
+        local sceneCollisionRoot = Instance.new('Folder')
+        sceneCollisionRoot.Name = 'Scene'
+        sceneCollisionRoot.Parent = collisionRoot
+
+        local shipCollisionRoot = Instance.new('Folder')
+        shipCollisionRoot.Name = 'Ship'
+        shipCollisionRoot.Parent = collisionRoot
+
+        local triggersRoot = Instance.new('Folder')
+        triggersRoot.Name = 'Triggers'
+        triggersRoot.Parent = root
+
+        local oceanTriggerRoot = Instance.new('Folder')
+        oceanTriggerRoot.Name = 'Ocean'
+        oceanTriggerRoot.Parent = triggersRoot
+
+        return {
+            Root = root,
+            SceneCollisionRoot = sceneCollisionRoot,
+            ShipCollisionRoot = shipCollisionRoot,
+            OceanTriggerRoot = oceanTriggerRoot,
+        }
+    end
+
+    local function createPromptPart(root, name, cframe)
         local part = Instance.new('Part')
         part.Name = name
         part.Anchored = true
@@ -23,52 +53,129 @@ return function()
         return part, prompt
     end
 
-    local spawnMarker = Instance.new('Part')
-    spawnMarker.Name = 'SpawnMarker'
-    spawnMarker.Anchored = true
-    spawnMarker.CFrame = CFrame.new(10, 4, -3)
-    spawnMarker.Parent = root
+    local function createCollisionPart(parent, name, cframe, size)
+        local part = Instance.new('Part')
+        part.Name = name
+        part.Anchored = true
+        part.CanCollide = true
+        part.CanTouch = false
+        part.CanQuery = true
+        part.Transparency = 1
+        part.Size = size or Vector3.new(12, 1, 12)
+        part.CFrame = cframe or CFrame.new()
+        part.Parent = parent
+        return part
+    end
 
-    local returnMarker = Instance.new('Part')
-    returnMarker.Name = 'ReturnMarker'
-    returnMarker.Anchored = true
-    returnMarker.CFrame = CFrame.new(11, 4, -1)
-    returnMarker.Parent = root
+    local function createOceanTrigger(parent, name, cframe, size)
+        local part = Instance.new('Part')
+        part.Name = name or 'OceanSurface'
+        part.Anchored = true
+        part.CanCollide = false
+        part.CanTouch = true
+        part.Transparency = 1
+        part.Size = size or Vector3.new(64, 2, 64)
+        part.CFrame = cframe or CFrame.new()
+        part.Parent = parent
+        return part
+    end
 
-    local mazeReturnMarker = Instance.new('Part')
-    mazeReturnMarker.Name = 'MazeReturnMarker'
-    mazeReturnMarker.Anchored = true
-    mazeReturnMarker.CFrame = CFrame.new(3, 4, 120)
-    mazeReturnMarker.Parent = root
+    local function createMarker(root, name, cframe)
+        local marker = Instance.new('Part')
+        marker.Name = name
+        marker.Anchored = true
+        marker.CanCollide = false
+        marker.CanTouch = false
+        marker.CanQuery = true
+        marker.Size = Vector3.new(4, 1, 4)
+        marker.CFrame = cframe
+        marker.Parent = root
+        return marker
+    end
 
-    local doorLeft = Instance.new('Part')
-    doorLeft.Name = 'DoorLeft'
-    doorLeft.Anchored = true
-    doorLeft.Parent = root
+    local function createRequiredPromptParts(root, originX, originZ)
+        local promptNames = {
+            'ShopTerminal',
+            'SalvageTerminal',
+            'ObjectiveBoard',
+            'LoadoutBench',
+            'UgcLabConsole',
+            'GateSwitch',
+            'MazeGateMarker',
+        }
 
-    local doorRight = Instance.new('Part')
-    doorRight.Name = 'DoorRight'
-    doorRight.Anchored = true
-    doorRight.Parent = root
+        local prompts = {}
+        for index, name in ipairs(promptNames) do
+            local part, prompt =
+                createPromptPart(root, name, CFrame.new(originX + index * 4, 4, originZ))
+            prompts[name] = {
+                Part = part,
+                Prompt = prompt,
+            }
+        end
 
-    local _, shopPrompt = createPromptPart('ShopTerminal')
-    local _, sellPrompt = createPromptPart('SalvageTerminal')
-    local _, objectivePrompt = createPromptPart('ObjectiveBoard')
-    local _, loadoutPrompt = createPromptPart('LoadoutBench')
-    local _, ugcLabPrompt = createPromptPart('UgcLabConsole')
-    local _, gatePrompt = createPromptPart('GateSwitch')
-    local _, mazePrompt = createPromptPart('MazeGateMarker')
+        return prompts
+    end
+
+    local validWorld = createRunStaticWorldRoot(88)
+    createMarker(validWorld.Root, 'SpawnMarker', CFrame.new(10, 4, -3))
+    createMarker(validWorld.Root, 'ReturnMarker', CFrame.new(11, 4, -1))
+    local mazeReturnMarker =
+        createMarker(validWorld.Root, 'MazeReturnMarker', CFrame.new(3, 4, 120))
+    local doorLeft = createMarker(validWorld.Root, 'DoorLeft', CFrame.new(8, 4, 16))
+    local doorRight = createMarker(validWorld.Root, 'DoorRight', CFrame.new(12, 4, 16))
+    local validPrompts = createRequiredPromptParts(validWorld.Root, 10, 20)
+
+    local runTerrainMain = Instance.new('Model')
+    runTerrainMain.Name = 'RunTerrain_Main'
+    runTerrainMain.Parent = validWorld.Root
+
+    local visualScene = Instance.new('Model')
+    visualScene.Name = 'Scene'
+    visualScene.Parent = runTerrainMain
+
+    local visualScenePart = Instance.new('Part')
+    visualScenePart.Name = 'VisualScenePart'
+    visualScenePart.Anchored = false
+    visualScenePart.CanCollide = true
+    visualScenePart.Parent = visualScene
+
+    local visualShip = Instance.new('Model')
+    visualShip.Name = 'Sci-Fi Space Ship'
+    visualShip.Parent = runTerrainMain
+
+    local visualShipPart = Instance.new('Part')
+    visualShipPart.Name = 'VisualShipPart'
+    visualShipPart.Anchored = false
+    visualShipPart.CanCollide = true
+    visualShipPart.Parent = visualShip
+
+    createCollisionPart(
+        validWorld.SceneCollisionRoot,
+        'SpawnFloor',
+        CFrame.new(10, 0, -3),
+        Vector3.new(24, 1, 24)
+    )
+    createCollisionPart(
+        validWorld.ShipCollisionRoot,
+        'ShipDeck',
+        CFrame.new(24, 6, 12),
+        Vector3.new(16, 1, 16)
+    )
+    createOceanTrigger(validWorld.OceanTriggerRoot, 'OceanSurface', CFrame.new(10, -8, -3))
 
     local world = builder.build()
 
-    assert(world.Root == root, 'Run static world should preserve the authored root')
+    assert(world.Root == validWorld.Root, 'Run static world should preserve the authored root')
     assert(
-        world.SpawnCFrame == spawnMarker.CFrame,
-        'Run static world should expose the authored spawn marker'
+        math.abs(world.SpawnCFrame.Position.Y - (0.5 + RunStaticWorldContract.SpawnLiftStuds))
+            < 0.001,
+        'Run static world should lift the spawn point above authored collision shells'
     )
     assert(
-        world.ReturnCFrame == returnMarker.CFrame,
-        'Run static world should expose the authored return marker'
+        math.abs(world.ReturnCFrame.Position.Y - (0.5 + RunStaticWorldContract.SpawnLiftStuds))
+            < 0.001,
+        'Run static world should also lift grounded return markers above collision shells'
     )
     assert(
         world.MazeReturnCFrame == mazeReturnMarker.CFrame,
@@ -78,71 +185,237 @@ return function()
         world.OutdoorThresholdZ == 88,
         'Run static world should expose the authored outdoor threshold'
     )
-    assert(world.ShopPrompt == shopPrompt, 'Run static world should expose the shop prompt')
-    assert(world.SellPrompt == sellPrompt, 'Run static world should expose the salvage prompt')
     assert(
-        world.ObjectivePrompt == objectivePrompt,
+        world.ShopPrompt == validPrompts.ShopTerminal.Prompt,
+        'Run static world should expose the shop prompt'
+    )
+    assert(
+        world.SellPrompt == validPrompts.SalvageTerminal.Prompt,
+        'Run static world should expose the salvage prompt'
+    )
+    assert(
+        world.ObjectivePrompt == validPrompts.ObjectiveBoard.Prompt,
         'Run static world should expose the objective prompt'
     )
     assert(
-        world.LoadoutPrompt == loadoutPrompt,
+        world.LoadoutPrompt == validPrompts.LoadoutBench.Prompt,
         'Run static world should expose the loadout prompt'
     )
-    assert(world.UgcLabPrompt == ugcLabPrompt, 'Run static world should expose the UGC lab prompt')
-    assert(world.GatePrompt == gatePrompt, 'Run static world should expose the gate prompt')
-    assert(world.MazePrompt == mazePrompt, 'Run static world should expose the maze prompt')
+    assert(
+        world.UgcLabPrompt == validPrompts.UgcLabConsole.Prompt,
+        'Run static world should expose the UGC lab prompt'
+    )
+    assert(
+        world.GatePrompt == validPrompts.GateSwitch.Prompt,
+        'Run static world should expose the gate prompt'
+    )
+    assert(
+        world.MazePrompt == validPrompts.MazeGateMarker.Prompt,
+        'Run static world should expose the maze prompt'
+    )
+    assert(#world.OceanTriggers == 1, 'Run static world should expose authored ocean trigger parts')
+    assert(
+        visualScenePart.Anchored == true and visualScenePart.CanCollide == false,
+        'Run world builder should stabilize scene visual parts instead of letting them carry physics'
+    )
+    assert(
+        visualShipPart.Anchored == true and visualShipPart.CanCollide == false,
+        'Run world builder should stabilize ship visual parts instead of letting them break apart'
+    )
 
     world.OpenGate()
     assert(doorLeft.Transparency == 1, 'Opening the static gate should hide the left door')
     assert(doorRight.Transparency == 1, 'Opening the static gate should hide the right door')
     assert(
-        gatePrompt.ActionText == 'Gate Open',
+        validPrompts.GateSwitch.Prompt.ActionText == 'Gate Open',
         'Opening the static gate should update the prompt copy'
     )
 
-    root:Destroy()
+    validWorld.Root:Destroy()
 
-    local invalidRoot = Instance.new('Folder')
-    invalidRoot.Name = 'RunStaticWorld'
-    invalidRoot:SetAttribute('OutdoorThresholdZ', 12)
-    invalidRoot.Parent = Workspace
+    local missingPromptWorld = createRunStaticWorldRoot(12)
+    createMarker(missingPromptWorld.Root, 'SpawnMarker', CFrame.new(0, 4, 0))
+    createMarker(missingPromptWorld.Root, 'ReturnMarker', CFrame.new(4, 4, 0))
+    createMarker(missingPromptWorld.Root, 'MazeReturnMarker', CFrame.new(8, 4, 0))
+    createMarker(missingPromptWorld.Root, 'DoorLeft', CFrame.new(0, 2, 12))
+    createMarker(missingPromptWorld.Root, 'DoorRight', CFrame.new(4, 2, 12))
+    createCollisionPart(
+        missingPromptWorld.SceneCollisionRoot,
+        'SceneFloor',
+        CFrame.new(0, 0, 0),
+        Vector3.new(24, 1, 24)
+    )
+    createCollisionPart(
+        missingPromptWorld.ShipCollisionRoot,
+        'ShipDeck',
+        CFrame.new(16, 4, 0),
+        Vector3.new(16, 1, 16)
+    )
+    createOceanTrigger(missingPromptWorld.OceanTriggerRoot, 'OceanSurface', CFrame.new(0, -6, 0))
 
-    local invalidSpawn = Instance.new('Part')
-    invalidSpawn.Name = 'SpawnMarker'
-    invalidSpawn.Anchored = true
-    invalidSpawn.Parent = invalidRoot
-
-    local invalidReturn = Instance.new('Part')
-    invalidReturn.Name = 'ReturnMarker'
-    invalidReturn.Anchored = true
-    invalidReturn.Parent = invalidRoot
-
-    local invalidMazeReturn = Instance.new('Part')
-    invalidMazeReturn.Name = 'MazeReturnMarker'
-    invalidMazeReturn.Anchored = true
-    invalidMazeReturn.Parent = invalidRoot
-
-    local invalidDoorLeft = Instance.new('Part')
-    invalidDoorLeft.Name = 'DoorLeft'
-    invalidDoorLeft.Anchored = true
-    invalidDoorLeft.Parent = invalidRoot
-
-    local invalidDoorRight = Instance.new('Part')
-    invalidDoorRight.Name = 'DoorRight'
-    invalidDoorRight.Anchored = true
-    invalidDoorRight.Parent = invalidRoot
-
-    local ok, err = pcall(function()
+    local missingPromptOk, missingPromptErr = pcall(function()
         builder.build()
     end)
     assert(
-        ok == false,
+        missingPromptOk == false,
         'Run static world should fail loudly when required prompt parts are missing'
     )
     assert(
-        string.find(tostring(err), 'ShopTerminal', 1, true) ~= nil,
+        string.find(tostring(missingPromptErr), 'ShopTerminal', 1, true) ~= nil,
         'Run static world failures should mention the missing prompt part'
     )
 
-    invalidRoot:Destroy()
+    missingPromptWorld.Root:Destroy()
+
+    local missingFloorWorld = createRunStaticWorldRoot(24)
+    createMarker(missingFloorWorld.Root, 'SpawnMarker', CFrame.new(0, 20, 0))
+    createMarker(missingFloorWorld.Root, 'ReturnMarker', CFrame.new(4, 4, 0))
+    createMarker(missingFloorWorld.Root, 'MazeReturnMarker', CFrame.new(8, 4, 0))
+    createMarker(missingFloorWorld.Root, 'DoorLeft', CFrame.new(40, 2, 40))
+    createMarker(missingFloorWorld.Root, 'DoorRight', CFrame.new(44, 2, 40))
+    createRequiredPromptParts(missingFloorWorld.Root, 60, 60)
+    createCollisionPart(
+        missingFloorWorld.SceneCollisionRoot,
+        'SceneShelf',
+        CFrame.new(20, 0, 20),
+        Vector3.new(12, 1, 12)
+    )
+    createCollisionPart(
+        missingFloorWorld.ShipCollisionRoot,
+        'ShipDeck',
+        CFrame.new(30, 4, 30),
+        Vector3.new(16, 1, 16)
+    )
+    createOceanTrigger(missingFloorWorld.OceanTriggerRoot)
+
+    local missingFloorOk, missingFloorErr = pcall(function()
+        builder.build()
+    end)
+    assert(
+        missingFloorOk == false,
+        'Run static world should fail loudly when SpawnMarker has no authored floor below it'
+    )
+    assert(
+        string.find(tostring(missingFloorErr), 'SpawnMarker must raycast onto', 1, true) ~= nil,
+        'Missing spawn floor failures should mention the authored collision floor requirement'
+    )
+
+    missingFloorWorld.Root:Destroy()
+
+    local strayColliderWorld = createRunStaticWorldRoot(42)
+    createMarker(strayColliderWorld.Root, 'SpawnMarker', CFrame.new(0, 8, 0))
+    createMarker(strayColliderWorld.Root, 'ReturnMarker', CFrame.new(4, 4, 0))
+    createMarker(strayColliderWorld.Root, 'MazeReturnMarker', CFrame.new(8, 4, 0))
+    createMarker(strayColliderWorld.Root, 'DoorLeft', CFrame.new(0, 2, 12))
+    createMarker(strayColliderWorld.Root, 'DoorRight', CFrame.new(4, 2, 12))
+    createRequiredPromptParts(strayColliderWorld.Root, 40, 10)
+    createCollisionPart(
+        strayColliderWorld.SceneCollisionRoot,
+        'SceneDecoration',
+        CFrame.new(30, 2, 30),
+        Vector3.new(12, 1, 12)
+    )
+    createCollisionPart(
+        strayColliderWorld.ShipCollisionRoot,
+        'ShipDeck',
+        CFrame.new(32, 2, 32),
+        Vector3.new(16, 1, 16)
+    )
+    createOceanTrigger(strayColliderWorld.OceanTriggerRoot)
+
+    local fakeFloor = Instance.new('Part')
+    fakeFloor.Name = 'FakeFloor'
+    fakeFloor.Anchored = true
+    fakeFloor.CanCollide = true
+    fakeFloor.Size = Vector3.new(20, 1, 20)
+    fakeFloor.CFrame = CFrame.new(0, 2, 0)
+    fakeFloor.Parent = strayColliderWorld.Root
+
+    local strayColliderOk, strayColliderErr = pcall(function()
+        builder.build()
+    end)
+    assert(
+        strayColliderOk == false,
+        'Run static world should reject ordinary root-level collidable parts as spawn floors'
+    )
+    assert(
+        string.find(tostring(strayColliderErr), 'SpawnMarker must raycast onto', 1, true) ~= nil,
+        'Ordinary root-level blockers should not satisfy the authored collision floor requirement'
+    )
+
+    strayColliderWorld.Root:Destroy()
+
+    local edgeGapWorld = createRunStaticWorldRoot(58)
+    createMarker(edgeGapWorld.Root, 'SpawnMarker', CFrame.new(0, 8, 0))
+    createMarker(edgeGapWorld.Root, 'ReturnMarker', CFrame.new(4, 4, 0))
+    createMarker(edgeGapWorld.Root, 'MazeReturnMarker', CFrame.new(8, 4, 0))
+    createMarker(edgeGapWorld.Root, 'DoorLeft', CFrame.new(0, 2, 10))
+    createMarker(edgeGapWorld.Root, 'DoorRight', CFrame.new(4, 2, 10))
+    createRequiredPromptParts(edgeGapWorld.Root, 40, 10)
+    createCollisionPart(
+        edgeGapWorld.SceneCollisionRoot,
+        'TinyCenterFloor',
+        CFrame.new(0, 2, 0),
+        Vector3.new(1, 1, 1)
+    )
+    createCollisionPart(
+        edgeGapWorld.ShipCollisionRoot,
+        'ShipDeck',
+        CFrame.new(30, 2, 30),
+        Vector3.new(16, 1, 16)
+    )
+    createOceanTrigger(edgeGapWorld.OceanTriggerRoot)
+
+    local edgeGapOk, edgeGapErr = pcall(function()
+        builder.build()
+    end)
+    assert(
+        edgeGapOk == false,
+        'Run static world should reject a spawn floor that only supports the center point'
+    )
+    assert(
+        string.find(tostring(edgeGapErr), 'SpawnMarker must raycast onto', 1, true) ~= nil,
+        'Edge-gap failures should mention the authored collision floor requirement'
+    )
+
+    edgeGapWorld.Root:Destroy()
+
+    local collidableMarkerWorld = createRunStaticWorldRoot(64)
+    local collidableSpawnMarker =
+        createMarker(collidableMarkerWorld.Root, 'SpawnMarker', CFrame.new(0, 8, 0))
+    createMarker(collidableMarkerWorld.Root, 'ReturnMarker', CFrame.new(4, 4, 0))
+    createMarker(collidableMarkerWorld.Root, 'MazeReturnMarker', CFrame.new(8, 4, 0))
+    createMarker(collidableMarkerWorld.Root, 'DoorLeft', CFrame.new(0, 2, 10))
+    createMarker(collidableMarkerWorld.Root, 'DoorRight', CFrame.new(4, 2, 10))
+    createRequiredPromptParts(collidableMarkerWorld.Root, 40, 10)
+    createCollisionPart(
+        collidableMarkerWorld.SceneCollisionRoot,
+        'SceneFloor',
+        CFrame.new(0, 2, 0),
+        Vector3.new(24, 1, 24)
+    )
+    createCollisionPart(
+        collidableMarkerWorld.ShipCollisionRoot,
+        'ShipDeck',
+        CFrame.new(30, 2, 30),
+        Vector3.new(16, 1, 16)
+    )
+    createOceanTrigger(collidableMarkerWorld.OceanTriggerRoot)
+    collidableSpawnMarker.CanCollide = true
+
+    local collidableMarkerOk, collidableMarkerErr = pcall(function()
+        builder.build()
+    end)
+    assert(collidableMarkerOk == false, 'Run static world should reject collidable spawn markers')
+    assert(
+        string.find(
+            tostring(collidableMarkerErr),
+            'RunStaticWorld marker "SpawnMarker" must have CanCollide=false.',
+            1,
+            true
+        ) ~= nil,
+        'Marker validation should mention that spawn markers must not block player movement'
+    )
+
+    collidableMarkerWorld.Root:Destroy()
 end

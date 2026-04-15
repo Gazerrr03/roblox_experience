@@ -1,8 +1,10 @@
 local RunAreaResolver = require(script.Parent.RunAreaResolver)
 local RunDoor = require(script.Parent.RunDoor)
 local RunInteractionRegistry = require(script.Parent.RunInteractionRegistry)
+local RunOceanTrigger = require(script.Parent.RunOceanTrigger)
 local RunPortal = require(script.Parent.RunPortal)
 local RunSpawnPoint = require(script.Parent.RunSpawnPoint)
+local RunStaticWorldContract = require(script.Parent.RunStaticWorldContract)
 local RunTerminal = require(script.Parent.RunTerminal)
 
 local RunScene = {}
@@ -42,6 +44,59 @@ local function requirePart(root, name)
     return part
 end
 
+local function requireContainer(parent, name, contextLabel)
+    local child = parent:FindFirstChild(name)
+    if child == nil or not (child:IsA('Folder') or child:IsA('Model')) then
+        error(string.format('%s is missing required container "%s".', contextLabel, name), 0)
+    end
+
+    return child
+end
+
+local function collectBaseParts(root)
+    local parts = {}
+
+    for _, descendant in ipairs(root:GetDescendants()) do
+        if descendant:IsA('BasePart') then
+            table.insert(parts, descendant)
+        end
+    end
+
+    return parts
+end
+
+local function buildSpawnGroundParams(sceneCollisionRoot, shipCollisionRoot)
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Include
+    raycastParams.FilterDescendantsInstances = { sceneCollisionRoot, shipCollisionRoot }
+    return raycastParams
+end
+
+local function groundedSpawnCFrame(part, raycastParams)
+    local origin = part.Position + Vector3.new(0, (part.Size.Y * 0.5) + 2, 0)
+    local result = workspace:Raycast(
+        origin,
+        Vector3.new(0, -RunStaticWorldContract.SpawnGroundCheckDepth, 0),
+        raycastParams
+    )
+
+    if result and result.Instance and result.Instance.CanCollide and result.Normal.Y > 0.5 then
+        local groundedPosition = Vector3.new(
+            part.Position.X,
+            result.Position.Y + RunStaticWorldContract.SpawnLiftStuds,
+            part.Position.Z
+        )
+        return CFrame.fromMatrix(
+            groundedPosition,
+            part.CFrame.XVector,
+            part.CFrame.YVector,
+            part.CFrame.ZVector
+        )
+    end
+
+    return part.CFrame
+end
+
 function RunScene.new(root)
     if not (root:IsA('Folder') or root:IsA('Model')) then
         error('RunStaticWorld must be a Folder or Model.', 0)
@@ -52,9 +107,32 @@ function RunScene.new(root)
         error('RunStaticWorld is missing required attribute "OutdoorThresholdZ".', 0)
     end
 
+    local collisionRoot =
+        requireContainer(root, RunStaticWorldContract.CollisionRootName, 'RunStaticWorld')
+    local sceneCollisionRoot = requireContainer(
+        collisionRoot,
+        RunStaticWorldContract.SceneCollisionName,
+        'RunStaticWorld Collision'
+    )
+    local shipCollisionRoot = requireContainer(
+        collisionRoot,
+        RunStaticWorldContract.ShipCollisionName,
+        'RunStaticWorld Collision'
+    )
+    local triggersRoot =
+        requireContainer(root, RunStaticWorldContract.TriggersRootName, 'RunStaticWorld')
+    local oceanTriggerRoot = requireContainer(
+        triggersRoot,
+        RunStaticWorldContract.OceanTriggerName,
+        'RunStaticWorld Triggers'
+    )
+    local spawnGroundParams = buildSpawnGroundParams(sceneCollisionRoot, shipCollisionRoot)
     local spawnPoints = {}
+    local spawnCFramesByKind = {}
     for markerName, kind in pairs(REQUIRED_MARKERS) do
-        spawnPoints[kind] = RunSpawnPoint.new(kind, requirePart(root, markerName))
+        local markerPart = requirePart(root, markerName)
+        spawnPoints[kind] = RunSpawnPoint.new(kind, markerPart)
+        spawnCFramesByKind[kind] = groundedSpawnCFrame(markerPart, spawnGroundParams)
     end
 
     local terminals = {}
@@ -67,6 +145,11 @@ function RunScene.new(root)
         requirePart(root, 'DoorLeft'),
         requirePart(root, 'DoorRight'),
     })
+    local oceanTriggers = {}
+
+    for _, part in ipairs(collectBaseParts(oceanTriggerRoot)) do
+        table.insert(oceanTriggers, RunOceanTrigger.new(part))
+    end
 
     local self = setmetatable({
         Root = root,
@@ -74,12 +157,18 @@ function RunScene.new(root)
         Terminals = terminals,
         MazePortal = mazePortal,
         GateDoor = gateDoor,
+        Collision = {
+            Scene = sceneCollisionRoot,
+            Ship = shipCollisionRoot,
+        },
+        OceanTriggers = oceanTriggers,
         OutdoorThresholdZ = outdoorThresholdZ,
         AreaResolver = nil,
+        SpawnCFramesByKind = spawnCFramesByKind,
 
-        SpawnCFrame = spawnPoints[RunSpawnPoint.Kind.Spawn]:getCFrame(),
-        ReturnCFrame = spawnPoints[RunSpawnPoint.Kind.Return]:getCFrame(),
-        MazeReturnCFrame = spawnPoints[RunSpawnPoint.Kind.MazeReturn]:getCFrame(),
+        SpawnCFrame = spawnCFramesByKind[RunSpawnPoint.Kind.Spawn],
+        ReturnCFrame = spawnCFramesByKind[RunSpawnPoint.Kind.Return],
+        MazeReturnCFrame = spawnCFramesByKind[RunSpawnPoint.Kind.MazeReturn],
         ShopPrompt = terminals.Shop.Prompt,
         SellPrompt = terminals.Sell.Prompt,
         ObjectivePrompt = terminals.Objective.Prompt,
@@ -95,12 +184,12 @@ function RunScene.new(root)
 end
 
 function RunScene:getSpawnCFrame(kind)
-    local spawnPoint = self.SpawnPoints[kind]
-    if spawnPoint == nil then
+    local spawnCFrame = self.SpawnCFramesByKind[kind]
+    if spawnCFrame == nil then
         error(string.format('Unknown run spawn point kind %q.', tostring(kind)), 0)
     end
 
-    return spawnPoint:getCFrame()
+    return spawnCFrame
 end
 
 function RunScene:getAreaForPosition(position)
