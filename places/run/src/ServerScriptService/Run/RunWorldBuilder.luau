@@ -1,21 +1,57 @@
 local Workspace = game:GetService('Workspace')
 
 local RunScene = require(script.Parent.RunScene)
+local RunStaticWorldContract = require(script.Parent.RunStaticWorldContract)
+local RunStaticWorldValidator = require(script.Parent.RunStaticWorldValidator)
 local RunSpawnPoint = require(script.Parent.RunSpawnPoint)
 
 local RunWorldBuilder = {}
 
-local STATIC_WORLD_ROOT_NAME = 'RunStaticWorld'
+local function stabilizeVisualModel(model)
+    if model == nil then
+        return
+    end
+
+    for _, descendant in ipairs(model:GetDescendants()) do
+        if descendant:IsA('BasePart') then
+            descendant.Anchored = true
+            descendant.CanCollide = false
+            descendant.CanTouch = false
+            descendant.CanQuery = true
+            descendant.AssemblyLinearVelocity = Vector3.zero
+            descendant.AssemblyAngularVelocity = Vector3.zero
+        end
+    end
+end
+
+local function prepareRunTerrain(root)
+    local terrainRoot = root:FindFirstChild('RunTerrain_Main')
+    if terrainRoot == nil or not terrainRoot:IsA('Model') then
+        return
+    end
+
+    stabilizeVisualModel(terrainRoot:FindFirstChild('Scene'))
+    stabilizeVisualModel(terrainRoot:FindFirstChild('Sci-Fi Space Ship'))
+end
 
 function RunWorldBuilder.build()
-    local staticWorldRoot = Workspace:FindFirstChild(STATIC_WORLD_ROOT_NAME)
+    local staticWorldRoot = Workspace:FindFirstChild(RunStaticWorldContract.RootName)
     if staticWorldRoot == nil then
-        error('Workspace is missing required authored root "RunStaticWorld".', 0)
+        error(
+            string.format(
+                'Workspace is missing required authored root "%s".',
+                RunStaticWorldContract.RootName
+            ),
+            0
+        )
     end
 
     if not (staticWorldRoot:IsA('Folder') or staticWorldRoot:IsA('Model')) then
         error('RunStaticWorld must be a Folder or Model.', 0)
     end
+
+    prepareRunTerrain(staticWorldRoot)
+    RunStaticWorldValidator.validate(staticWorldRoot)
 
     return RunScene.new(staticWorldRoot)
 end
