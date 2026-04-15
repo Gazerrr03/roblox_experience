@@ -93,8 +93,8 @@ function Player:update(dt, context)
             DesiredAnimation = self.Blackboard.Transient.DesiredAnimation or 'Idle',
         },
         Inventory = {
-            Slots = self.Blackboard.Transient.Slots,
-            EquippedSlot = self.Blackboard.Transient.EquippedSlot,
+            SlotCount = self.Blackboard.Transient.SlotCount,
+            InteractionRange = self.Blackboard.Transient.InteractionRange,
         },
     }
 end

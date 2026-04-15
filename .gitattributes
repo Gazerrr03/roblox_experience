@@ -1,0 +1,3 @@
+# Match CI (Ubuntu) and stylua: normalized LF in the object database for Luau/Lua.
+*.luau text eol=lf
+*.lua text eol=lf
