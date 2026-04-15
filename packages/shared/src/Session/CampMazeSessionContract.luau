@@ -1,3 +1,7 @@
+local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local Packages = ReplicatedStorage:WaitForChild('Packages')
+local ItemFields = require(Packages:WaitForChild('Gameplay')).Config.ItemFields
+
 local CampMazeSessionContract = {}
 local SessionPhase = require(script.Parent.SessionPhase)
 
@@ -21,47 +25,8 @@ local function cloneTable(input)
     return table.clone(input or {})
 end
 
-local function cloneLightConfig(lightConfig)
-    if type(lightConfig) ~= 'table' then
-        return nil
-    end
-
-    return {
-        Brightness = lightConfig.Brightness,
-        Range = lightConfig.Range,
-        Color = lightConfig.Color,
-    }
-end
-
 local function cloneInventoryItem(itemEntry)
-    if type(itemEntry) ~= 'table' then
-        return nil
-    end
-
-    return {
-        InstanceId = itemEntry.InstanceId,
-        Id = itemEntry.Id,
-        Name = itemEntry.Name,
-        Weight = itemEntry.Weight,
-        Value = itemEntry.Value,
-        Color = itemEntry.Color,
-        Light = cloneLightConfig(itemEntry.Light),
-        Description = itemEntry.Description,
-        IconAssetId = itemEntry.IconAssetId,
-        ToolTemplateName = itemEntry.ToolTemplateName,
-        ToolCategory = itemEntry.ToolCategory,
-        StateModel = itemEntry.StateModel,
-        InitialState = itemEntry.InitialState,
-        CurrentState = itemEntry.CurrentState,
-        ConsumePerUse = itemEntry.ConsumePerUse,
-        CooldownSeconds = itemEntry.CooldownSeconds,
-        LastUsedAt = itemEntry.LastUsedAt,
-        SwingRange = itemEntry.SwingRange,
-        SwingArcDegrees = itemEntry.SwingArcDegrees,
-        KnockbackStrength = itemEntry.KnockbackStrength,
-        MeleeDamage = itemEntry.MeleeDamage,
-        HealHealthPips = itemEntry.HealHealthPips,
-    }
+    return ItemFields.copyItemEntry(itemEntry)
 end
 
 local function cloneInventorySummary(summary)

@@ -1,73 +1,10 @@
+local ItemFields = require(script.Parent.Config.ItemFields)
+
 local Inventory = {}
 Inventory.__index = Inventory
 
-local function cloneLightConfig(lightConfig)
-    if type(lightConfig) ~= 'table' then
-        return nil
-    end
-
-    return {
-        Brightness = lightConfig.Brightness,
-        Range = lightConfig.Range,
-        Color = lightConfig.Color,
-    }
-end
-
--- ItemEntry field groups aligned to the live item payload shape:
--- Core (must-have): InstanceId (handled separately), Id, Name, Value
--- Optional — Weight
--- Optional — Tool state: InitialState, CurrentState, ConsumePerUse, CooldownSeconds, LastUsedAt, ToolCategory, StateModel
--- Optional — Light: Color (Light handled separately via cloneLightConfig)
--- Optional — Melee tool: SwingRange, SwingArcDegrees, KnockbackStrength, MeleeDamage
--- Optional — Consumable: ItemKind, ConsumableEffect, MaxCarryPerId
--- Optional — Presentation: Description, IconAssetId, ToolTemplateName
--- Optional — Heal: HealHealthPips
-local ITEM_COPY_FIELDS = table.freeze({
-    -- Core
-    'Id',
-    'Name',
-    'Value',
-    -- Optional: Weight
-    'Weight',
-    -- Optional: Tool state
-    'InitialState',
-    'CurrentState',
-    'ConsumePerUse',
-    'CooldownSeconds',
-    'LastUsedAt',
-    'ToolCategory',
-    'StateModel',
-    -- Optional: Light
-    'Color',
-    -- Optional: Melee tool
-    'SwingRange',
-    'SwingArcDegrees',
-    'KnockbackStrength',
-    'MeleeDamage',
-    -- Optional: Consumable
-    'ItemKind',
-    'ConsumableEffect',
-    'MaxCarryPerId',
-    -- Optional: Presentation
-    'Description',
-    'IconAssetId',
-    'ToolTemplateName',
-    -- Optional: Heal
-    'HealHealthPips',
-})
-
-local function copyItemFields(source, target)
-    for _, field in ipairs(ITEM_COPY_FIELDS) do
-        target[field] = source[field]
-    end
-    target.Light = cloneLightConfig(source.Light)
-    return target
-end
-
 local function cloneItemEntry(itemEntry)
-    return copyItemFields(itemEntry, {
-        InstanceId = itemEntry.InstanceId,
-    })
+    return ItemFields.copyItemEntry(itemEntry)
 end
 
 local function cloneArray(items)
@@ -98,27 +35,37 @@ function Inventory:getCount()
 end
 
 function Inventory:_buildItemEntry(itemDef)
-    local itemEntry = copyItemFields(itemDef, {
-        InstanceId = self.NextItemInstanceId,
-    })
-    itemEntry.CurrentState = itemDef.InitialState
-
+    local instanceId = self.NextItemInstanceId
     self.NextItemInstanceId += 1
 
-    return itemEntry
+    return ItemFields.copyItemEntry({
+        InstanceId = instanceId,
+        Id = itemDef.Id,
+        Name = itemDef.Name,
+        Weight = itemDef.Weight,
+        Value = itemDef.Value,
+        Color = itemDef.Color,
+        Light = itemDef.Light,
+        Description = itemDef.Description,
+        IconAssetId = itemDef.IconAssetId,
+        ToolTemplateName = itemDef.ToolTemplateName,
+        ToolCategory = itemDef.ToolCategory,
+        StateModel = itemDef.StateModel,
+        InitialState = itemDef.InitialState,
+        CurrentState = itemDef.InitialState,
+        ConsumePerUse = itemDef.ConsumePerUse,
+        CooldownSeconds = itemDef.CooldownSeconds,
+        LastUsedAt = itemDef.LastUsedAt,
+        SwingRange = itemDef.SwingRange,
+        SwingArcDegrees = itemDef.SwingArcDegrees,
+        KnockbackStrength = itemDef.KnockbackStrength,
+        MeleeDamage = itemDef.MeleeDamage,
+        HealHealthPips = itemDef.HealHealthPips,
+    })
 end
 
 local function normalizeItemEntry(rawItemEntry)
-    if type(rawItemEntry) ~= 'table' or type(rawItemEntry.InstanceId) ~= 'number' then
-        return nil
-    end
-
-    local normalized = copyItemFields(rawItemEntry, {
-        InstanceId = rawItemEntry.InstanceId,
-    })
-    normalized.Weight = rawItemEntry.Weight or 0
-    normalized.Value = rawItemEntry.Value or 0
-    return normalized
+    return ItemFields.normalizeItemEntryForLoad(rawItemEntry)
 end
 
 function Inventory:add(itemDef)

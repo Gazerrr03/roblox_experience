@@ -21,6 +21,24 @@ local ToolItems = {
         CooldownSeconds = 0,
     },
 
+    -- 绳索：攀爬 / 套索等营地交互（与 ToolCategory == 'Rope' 对齐）
+    ['tool-rope'] = {
+        Id = 'tool-rope',
+        Name = 'Rope',
+        Description = '攀爬高处、跨越断层、固定目标。',
+        ToolCategory = 'Rope',
+        Weight = 2,
+        Value = 0,
+        Color = Color3.fromRGB(180, 160, 120),
+        IsEquipable = true,
+        IconAssetId = '',
+        ToolTemplateName = '',
+        StateModel = 'Durability',
+        InitialState = 5,
+        ConsumePerUse = 0,
+        CooldownSeconds = 0.5,
+    },
+
     -- 撬棍：近战挥舞击退怪物
     ['tool-crowbar'] = {
         Id = 'tool-crowbar',
