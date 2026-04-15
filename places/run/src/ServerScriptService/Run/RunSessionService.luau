@@ -551,7 +551,6 @@ function RunSessionService:_hydratePlayerInventory(player, teleportData)
 end
 
 function RunSessionService:_syncCampSession()
-    self.CampSession = CampMazeSessionContract.normalizeCampSession(self.CampSession)
     self.CampSession.GateOpen = self.GateOpen
     self.CampSession = CampMazeSessionContract.normalizeCampSession(self.CampSession)
 end
