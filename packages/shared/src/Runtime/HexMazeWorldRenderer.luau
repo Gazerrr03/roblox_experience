@@ -92,14 +92,6 @@ local function resolveSurfacePalette(surfacePalette)
     return resolvedPalette
 end
 
-local function edgeKey(roomIdA, roomIdB)
-    if roomIdA < roomIdB then
-        return roomIdA .. '|' .. roomIdB
-    end
-
-    return roomIdB .. '|' .. roomIdA
-end
-
 local function createPart(config, parent)
     local part = Instance_new('Part')
     part.Name = config.Name
@@ -393,11 +385,15 @@ local function createHexTiledSlab(parent, name, center, apothem, yOffset, color,
     local tileSizeVector = Vector3_new(FLOOR_TILE_SIZE, SLAB_THICKNESS, FLOOR_TILE_SIZE)
 
     for x = -maxOffset, maxOffset, FLOOR_TILE_SIZE do
+        -- Bolt: Early skip for X-axis containment before entering the inner loop
+        if math_abs(x) + TILE_BUFFER_A > apothem then
+            continue
+        end
+
         for z = -maxOffset, maxOffset, FLOOR_TILE_SIZE do
             -- Optimized single check for whole tile bounding box
             if
-                math_abs(x) + TILE_BUFFER_A <= apothem
-                and math_abs(0.5 * x - SIN_60 * z) + TILE_BUFFER_B <= apothem
+                math_abs(0.5 * x - SIN_60 * z) + TILE_BUFFER_B <= apothem
                 and math_abs(0.5 * x + SIN_60 * z) + TILE_BUFFER_B <= apothem
             then
                 local part = Instance_new('Part')
@@ -841,6 +837,7 @@ function HexMazeWorldRenderer.build(params)
     local connectors = {}
     local exitPassages = {}
     local doorways = {}
+    local doorwayByRoomIds = {}
     local externalDoorwaysByRoomId = {}
 
     for _, externalDoorway in ipairs(layout.ExternalDoorways or {}) do
@@ -928,6 +925,16 @@ function HexMazeWorldRenderer.build(params)
         doorway.DirectionFromA = doorwayLayout.DirectionFromA
         doorway.DirectionFromB = doorwayLayout.DirectionFromB
         doorways[doorwayId] = doorway
+
+        -- Bolt: Use nested table for O(1) doorway lookups without string concatenation
+        if not doorwayByRoomIds[doorway.RoomA] then
+            doorwayByRoomIds[doorway.RoomA] = {}
+        end
+        if not doorwayByRoomIds[doorway.RoomB] then
+            doorwayByRoomIds[doorway.RoomB] = {}
+        end
+        doorwayByRoomIds[doorway.RoomA][doorway.RoomB] = doorway
+        doorwayByRoomIds[doorway.RoomB][doorway.RoomA] = doorway
     end
 
     local detectionRadius = roomApothem + detectionBuffer
@@ -946,11 +953,11 @@ function HexMazeWorldRenderer.build(params)
         local pr = math_floor(pz / cellSize)
 
         for dq = -searchRadiusCells, searchRadiusCells do
+            -- Bolt: Hoist the bit-shifted component out of the inner dr loop
+            local qPart = bit32_lshift(bit32_band(pq + dq, 0xFFFF), 16)
+
             for dr = -searchRadiusCells, searchRadiusCells do
-                local key = bit32_bor(
-                    bit32_lshift(bit32_band(pq + dq, 0xFFFF), 16),
-                    bit32_band(pr + dr, 0xFFFF)
-                )
+                local key = bit32_bor(qPart, bit32_band(pr + dr, 0xFFFF))
                 local cell = spatialHash[key]
                 if cell then
                     for _, roomId in ipairs(cell) do
@@ -986,8 +993,8 @@ function HexMazeWorldRenderer.build(params)
             return true
         end
 
-        local doorwayId = edgeKey(fromRoom.Id, toRoom.Id)
-        local doorway = doorways[doorwayId]
+        -- Bolt: Replaced string-based edgeKey with O(1) nested table lookup
+        local doorway = doorwayByRoomIds[fromRoom.Id] and doorwayByRoomIds[fromRoom.Id][toRoom.Id]
         if not doorway then
             return false
         end
