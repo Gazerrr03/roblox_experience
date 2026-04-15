@@ -19,6 +19,7 @@ local PlayerStateService = Shared.Runtime.PlayerStateService
 local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 
 local RunSpawnPoint = require(script.Parent.RunSpawnPoint)
+local RunStaticWorldContract = require(script.Parent.RunStaticWorldContract)
 local RunToMazeTransition = require(script.Parent.RunToMazeTransition)
 local RunWorldBuilder = require(script.Parent.RunWorldBuilder)
 
@@ -37,6 +38,10 @@ local RUN_MAZE_GATE_RETURN_REASONS = table.freeze({
 })
 local INITIAL_TEMPLE_STATUS = 'Select Enter Temple to enter the temple.'
 local BOOK_GOAL_AMOUNT = 120
+local OCEAN_SPLASH_MESSAGE = 'Sea spray crashes over you.'
+local OCEAN_SLOWDOWN_DELAY_SECONDS = 1
+local OCEAN_SLOWDOWN_WALK_SPEED = 12
+local OCEAN_DAMAGE_INTERVAL_SECONDS = 5
 local SHOP_ITEMS = {
     {
         Id = 'temple_lantern',
@@ -209,6 +214,7 @@ function RunSessionService.new(options)
     local self = setmetatable({}, RunSessionService)
 
     self.Remotes = Remotes
+    self.BuildFingerprint = RunStaticWorldContract.BuildFingerprint
     self.SessionData = {
         Seed = SessionConfig.DefaultSeed,
         Quota = SessionConfig.DefaultQuota,
@@ -228,6 +234,10 @@ function RunSessionService.new(options)
     self.HasAuthoritativeSessionSeed = false
     self.SessionSeedRandom = nil
     self.LastMazeEntryRequestAtByUserId = {}
+    self.LastOceanSplashAtByUserId = {}
+    self.OceanStateByUserId = {}
+    self.OceanTimersByUserId = {}
+    self.OceanOriginalSpeedsByUserId = {}
     self.MazeEntryMode = MazeEntryAvailability.Mode.Blocked
     self.MazeEntryReason =
         'Set SessionConfig.PlaceIds.Maze or SessionPlaceIdMaze before using the maze gate.'
@@ -239,6 +249,7 @@ function RunSessionService.new(options)
     self.PlayerService = PlayerService.new()
     self.PlayerStateService = PlayerStateService.new()
     self.RunToMazeTransition = runtimeOptions.RunToMazeTransition or RunToMazeTransition.new()
+    self.WorldBuilder = runtimeOptions.RunWorldBuilder or RunWorldBuilder
 
     return self
 end
@@ -254,6 +265,220 @@ function RunSessionService:_removePlayerState(player)
     self.InventoryService:removePlayer(player)
     self.ControlStateService:removePlayer(player)
     self.PlayerService:removePlayer(player)
+end
+
+function RunSessionService:_handleOceanEntered(player)
+    local now = os.clock()
+    local lastSplashAt = self.LastOceanSplashAtByUserId[player.UserId]
+    if
+        lastSplashAt ~= nil
+        and now - lastSplashAt < RunStaticWorldContract.OceanSplashCooldownSeconds
+    then
+        return
+    end
+
+    self.LastOceanSplashAtByUserId[player.UserId] = now
+    self.Remotes.RunPrivateState:FireClient(player, {
+        Type = 'OceanSplash',
+        Message = OCEAN_SPLASH_MESSAGE,
+    })
+end
+
+function RunSessionService:_applyOceanSlowdown(player)
+    local character = player.Character
+    local humanoid = character and character:FindFirstChildOfClass('Humanoid')
+    if not humanoid then
+        return
+    end
+
+    local originalWalkSpeed = humanoid.WalkSpeed
+    local originalSprintSpeed = humanoid.WalkSpeed -- sprint speed mirrors walk speed in this system
+
+    self.OceanOriginalSpeedsByUserId[player.UserId] = {
+        WalkSpeed = originalWalkSpeed,
+        SprintSpeed = originalSprintSpeed,
+    }
+    humanoid.WalkSpeed = OCEAN_SLOWDOWN_WALK_SPEED
+end
+
+function RunSessionService:_removeOceanSlowdown(player)
+    local character = player.Character
+    local humanoid = character and character:FindFirstChildOfClass('Humanoid')
+    if not humanoid then
+        return
+    end
+
+    local original = self.OceanOriginalSpeedsByUserId[player.UserId]
+    if original then
+        humanoid.WalkSpeed = original.WalkSpeed
+        self.OceanOriginalSpeedsByUserId[player.UserId] = nil
+    end
+end
+
+function RunSessionService:_getOceanState(player)
+    return self.OceanStateByUserId[player.UserId] or 'None'
+end
+
+function RunSessionService:_setOceanState(player, newState)
+    local currentState = self:_getOceanState(player)
+    if currentState == newState then
+        return
+    end
+
+    self.OceanStateByUserId[player.UserId] = newState
+
+    if newState == 'Touching' and currentState == 'None' then
+        -- Schedule Immersed transition
+        self.OceanTimersByUserId[player.UserId] = {
+            TouchStartedAt = os.clock(),
+            LastDamageAt = nil,
+        }
+        -- Apply slowdown after delay
+        task.delay(OCEAN_SLOWDOWN_DELAY_SECONDS, function()
+            if self:_getOceanState(player) == 'Touching' then
+                self:_applyOceanSlowdown(player)
+            end
+        end)
+    elseif newState == 'Immersed' then
+        -- Player is fully immersed, start damage timer
+        self.OceanTimersByUserId[player.UserId].ImmersedStartedAt = os.clock()
+    elseif newState == 'None' then
+        -- Player left the ocean
+        self:_removeOceanSlowdown(player)
+        self.OceanTimersByUserId[player.UserId] = nil
+        self.Remotes.RunPrivateState:FireClient(player, {
+            Type = 'OceanExit',
+        })
+    end
+end
+
+function RunSessionService:_checkOceanImmersion(player)
+    if not self.World or not self.World.OceanTriggers then
+        return false
+    end
+
+    local character = player.Character
+    local rootPart = character and character:FindFirstChild('HumanoidRootPart')
+    if not rootPart then
+        return false
+    end
+
+    local position = rootPart.Position
+
+    for _, trigger in ipairs(self.World.OceanTriggers) do
+        local part = trigger.Part
+        local size = part.Size
+        local cf = part.CFrame
+
+        -- Check if root part center is within the trigger part's bounding box
+        local localPos = cf:PointToObjectSpace(position)
+        local halfSize = size * 0.5
+
+        if
+            math.abs(localPos.X) <= halfSize.X
+            and math.abs(localPos.Y) <= halfSize.Y
+            and math.abs(localPos.Z) <= halfSize.Z
+        then
+            return true
+        end
+    end
+
+    return false
+end
+
+function RunSessionService:_updateOceanPerPlayer(player, _dt)
+    local state = self:_getOceanState(player)
+
+    if state == 'None' then
+        return
+    end
+
+    local isImmersed = self:_checkOceanImmersion(player)
+
+    if state == 'Touching' and isImmersed then
+        self:_setOceanState(player, 'Immersed')
+        return
+    elseif state == 'Touching' and not isImmersed then
+        -- Still just touching, check if they left entirely
+        -- If the player is no longer near any ocean trigger, they left
+        if not self:_checkOceanNear(player) then
+            self:_setOceanState(player, 'None')
+        end
+        return
+    elseif state == 'Immersed' then
+        -- Check if still immersed
+        if not isImmersed then
+            self:_setOceanState(player, 'None')
+            return
+        end
+
+        -- Apply periodic damage
+        local timers = self.OceanTimersByUserId[player.UserId]
+        if not timers then
+            return
+        end
+
+        -- Skip damage if player is already dead
+        local playerObj = self.PlayerService:get(player)
+        if playerObj and playerObj.Components.Health.IsDead then
+            return
+        end
+
+        local now = os.clock()
+        local lastDamage = timers.LastDamageAt or timers.ImmersedStartedAt
+
+        if lastDamage and now - lastDamage >= OCEAN_DAMAGE_INTERVAL_SECONDS then
+            -- Apply 1 pip damage
+            if playerObj and playerObj.Components.Health then
+                playerObj.Components.Health:applyDamage(playerObj.Blackboard, 'Light')
+            end
+            timers.LastDamageAt = now
+
+            -- Notify client of damage tick
+            local currentPips = 0
+            if playerObj and playerObj.Components.Health then
+                currentPips = playerObj.Components.Health.CurrentHealthPips
+            end
+            self.Remotes.RunPrivateState:FireClient(player, {
+                Type = 'OceanDamage',
+                CurrentPips = currentPips,
+            })
+        end
+    end
+end
+
+function RunSessionService:_checkOceanNear(player)
+    if not self.World or not self.World.OceanTriggers then
+        return false
+    end
+
+    local character = player.Character
+    local rootPart = character and character:FindFirstChild('HumanoidRootPart')
+    if not rootPart then
+        return false
+    end
+
+    local position = rootPart.Position
+
+    for _, trigger in ipairs(self.World.OceanTriggers) do
+        local part = trigger.Part
+        local size = part.Size
+        local cf = part.CFrame
+
+        -- Expand bounding box slightly to detect "touching" (within half-stud buffer)
+        local localPos = cf:PointToObjectSpace(position)
+        local halfSize = size * 0.5 + Vector3.new(0.5, 0.5, 0.5)
+
+        if
+            math.abs(localPos.X) <= halfSize.X
+            and math.abs(localPos.Y) <= halfSize.Y
+            and math.abs(localPos.Z) <= halfSize.Z
+        then
+            return true
+        end
+    end
+
+    return false
 end
 
 function RunSessionService:_getMovementSummaryFor(player)
@@ -460,7 +685,7 @@ function RunSessionService:_rebuildWorld()
         self.WorldInteractions = nil
     end
 
-    self.World = RunWorldBuilder.build()
+    self.World = self.WorldBuilder.build()
     if self.GateOpen then
         self.World:openGate()
     end
@@ -506,6 +731,10 @@ function RunSessionService:_rebuildWorld()
             if self:_canProcessMazeEntryRequest(player) then
                 self:_requestMazeEntry(player, false)
             end
+        end,
+        OnOceanEntered = function(player, state)
+            self:_setOceanState(player, state or 'Touching')
+            self:_handleOceanEntered(player)
         end,
     })
 
@@ -775,6 +1004,7 @@ function RunSessionService:_broadcastSnapshot()
         self.Remotes.RunState:FireClient(player, {
             IsLaunched = self.IsLaunched,
             Status = self.Status,
+            BuildFingerprint = self.BuildFingerprint,
             Area = self:_getPlayerArea(player),
             GateOpen = self.GateOpen,
             Objective = self:_getObjectiveFor(player),
@@ -1022,12 +1252,13 @@ function RunSessionService:_launchRun(_player)
         return
     end
 
-    self.IsLaunched = true
-    Players.CharacterAutoLoads = true
     self.GateOpen = self.CampSession.GateOpen == true
     self:_syncCampSession()
 
     self:_rebuildWorld()
+
+    self.IsLaunched = true
+    Players.CharacterAutoLoads = true
 
     for _, player in ipairs(Players:GetPlayers()) do
         player:LoadCharacter()
@@ -1075,6 +1306,7 @@ function RunSessionService:_startSnapshotLoop()
                     local context = self:_getPlayerUpdateContext(player)
                     self.PlayerService:update(player, dt, context)
                     self:_syncPlayerMovement(player)
+                    self:_updateOceanPerPlayer(player, dt)
                 end
 
                 self:_broadcastSnapshot()
@@ -1154,6 +1386,7 @@ function RunSessionService:_ensureAuthoritativeSessionSeed()
 end
 
 function RunSessionService:start()
+    warn(string.format('[run-session] build=%s', self.BuildFingerprint))
     self:_loadSessionDataFromJoin()
     self:_ensureAuthoritativeSessionSeed()
     Players.CharacterAutoLoads = false
@@ -1182,6 +1415,10 @@ function RunSessionService:start()
 
     Players.PlayerRemoving:Connect(function(player)
         self.LastMazeEntryRequestAtByUserId[player.UserId] = nil
+        self.LastOceanSplashAtByUserId[player.UserId] = nil
+        self.OceanStateByUserId[player.UserId] = nil
+        self.OceanTimersByUserId[player.UserId] = nil
+        self.OceanOriginalSpeedsByUserId[player.UserId] = nil
         self.PendingSpawnByUserId[player.UserId] = nil
         self.CampSession = CampMazeSessionContract.prunePlayer(self.CampSession, player.UserId, {
             PreserveMazeEntry = CampMazeSessionContract.isPlayerInMaze(

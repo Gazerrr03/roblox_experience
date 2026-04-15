@@ -5,12 +5,28 @@ local DEFAULT_WALK_SPEED = 16
 local DEFAULT_SPRINT_SPEED = 24
 local DEFAULT_JUMP_VELOCITY = 50
 
+local function getComponentConfig(blackboard, componentName)
+    local context = if type(blackboard) == 'table' and type(blackboard.Context) == 'table'
+        then blackboard.Context
+        else {}
+    local componentConfig = if type(context.ComponentConfig) == 'table'
+        then context.ComponentConfig
+        else {}
+    local config = componentConfig[componentName]
+
+    if type(config) == 'table' then
+        return config
+    end
+
+    return {}
+end
+
 function MovementComponent.new()
     return setmetatable({}, MovementComponent)
 end
 
 function MovementComponent:init(blackboard)
-    local config = blackboard.Context.ComponentConfig.Movement or {}
+    local config = getComponentConfig(blackboard, 'Movement')
 
     self.MaxWalkSpeed = config.MaxWalkSpeed or DEFAULT_WALK_SPEED
     self.MaxSprintSpeed = config.MaxSprintSpeed or DEFAULT_SPRINT_SPEED

@@ -3,12 +3,28 @@ StaminaComponent.__index = StaminaComponent
 
 local DEFAULT_STAMINA_RECOVERY_DELAY_SECONDS = 1.5
 
+local function getComponentConfig(blackboard, componentName)
+    local context = if type(blackboard) == 'table' and type(blackboard.Context) == 'table'
+        then blackboard.Context
+        else {}
+    local componentConfig = if type(context.ComponentConfig) == 'table'
+        then context.ComponentConfig
+        else {}
+    local config = componentConfig[componentName]
+
+    if type(config) == 'table' then
+        return config
+    end
+
+    return {}
+end
+
 function StaminaComponent.new()
     return setmetatable({}, StaminaComponent)
 end
 
 function StaminaComponent:init(blackboard)
-    local config = blackboard.Context.ComponentConfig.Stamina or {}
+    local config = getComponentConfig(blackboard, 'Stamina')
 
     self.MaxStamina = config.MaxStamina or 100
     self.CurrentStamina = self.MaxStamina

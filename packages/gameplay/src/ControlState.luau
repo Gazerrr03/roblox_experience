@@ -27,6 +27,12 @@ function ControlState:getSummary()
 end
 
 function ControlState:requestSprintStart(playerStateSummary)
+    if type(playerStateSummary) ~= 'table' then
+        self.SprintRequested = false
+        self.Mode = MODE.Walk
+        return false, 'MissingPlayerState'
+    end
+
     if playerStateSummary.IsDead then
         self.SprintRequested = false
         self.Mode = MODE.Walk
@@ -51,6 +57,12 @@ function ControlState:requestSprintStop()
 end
 
 function ControlState:syncPlayerState(playerStateSummary)
+    if type(playerStateSummary) ~= 'table' then
+        self.SprintRequested = false
+        self.Mode = MODE.Walk
+        return self:getSummary()
+    end
+
     if playerStateSummary.IsDead then
         self.SprintRequested = false
         self.Mode = MODE.Walk

@@ -38,6 +38,9 @@ end
 
 function Player:spawn()
     self.Blackboard:setState(self.StateMachine:getState())
+    self.Blackboard:beginTick({
+        ComponentConfig = self.ComponentConfig,
+    })
     for _, component in pairs(self.Components) do
         if component.init then
             component:init(self.Blackboard)
