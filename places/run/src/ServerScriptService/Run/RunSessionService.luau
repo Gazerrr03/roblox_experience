@@ -19,6 +19,7 @@ local PlayerStateService = Shared.Runtime.PlayerStateService
 local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 
 local RunSpawnPoint = require(script.Parent.RunSpawnPoint)
+local RunStaticWorldContract = require(script.Parent.RunStaticWorldContract)
 local RunToMazeTransition = require(script.Parent.RunToMazeTransition)
 local RunWorldBuilder = require(script.Parent.RunWorldBuilder)
 
@@ -37,6 +38,7 @@ local RUN_MAZE_GATE_RETURN_REASONS = table.freeze({
 })
 local INITIAL_TEMPLE_STATUS = 'Select Enter Temple to enter the temple.'
 local BOOK_GOAL_AMOUNT = 120
+local OCEAN_SPLASH_MESSAGE = 'Sea spray crashes over you.'
 local SHOP_ITEMS = {
     {
         Id = 'temple_lantern',
@@ -209,6 +211,7 @@ function RunSessionService.new(options)
     local self = setmetatable({}, RunSessionService)
 
     self.Remotes = Remotes
+    self.BuildFingerprint = RunStaticWorldContract.BuildFingerprint
     self.SessionData = {
         Seed = SessionConfig.DefaultSeed,
         Quota = SessionConfig.DefaultQuota,
@@ -228,6 +231,7 @@ function RunSessionService.new(options)
     self.HasAuthoritativeSessionSeed = false
     self.SessionSeedRandom = nil
     self.LastMazeEntryRequestAtByUserId = {}
+    self.LastOceanSplashAtByUserId = {}
     self.MazeEntryMode = MazeEntryAvailability.Mode.Blocked
     self.MazeEntryReason =
         'Set SessionConfig.PlaceIds.Maze or SessionPlaceIdMaze before using the maze gate.'
@@ -239,6 +243,7 @@ function RunSessionService.new(options)
     self.PlayerService = PlayerService.new()
     self.PlayerStateService = PlayerStateService.new()
     self.RunToMazeTransition = runtimeOptions.RunToMazeTransition or RunToMazeTransition.new()
+    self.WorldBuilder = runtimeOptions.RunWorldBuilder or RunWorldBuilder
 
     return self
 end
@@ -254,6 +259,24 @@ function RunSessionService:_removePlayerState(player)
     self.InventoryService:removePlayer(player)
     self.ControlStateService:removePlayer(player)
     self.PlayerService:removePlayer(player)
+end
+
+function RunSessionService:_handleOceanEntered(player)
+    local now = os.clock()
+    local lastSplashAt = self.LastOceanSplashAtByUserId[player.UserId]
+    if
+        lastSplashAt ~= nil
+        and now - lastSplashAt < RunStaticWorldContract.OceanSplashCooldownSeconds
+    then
+        return
+    end
+
+    self.LastOceanSplashAtByUserId[player.UserId] = now
+    self.Remotes.RunPrivateState:FireClient(player, {
+        Type = 'OceanSplash',
+        Message = OCEAN_SPLASH_MESSAGE,
+        FutureEffect = 'DrownDamagePending',
+    })
 end
 
 function RunSessionService:_getMovementSummaryFor(player)
@@ -460,7 +483,7 @@ function RunSessionService:_rebuildWorld()
         self.WorldInteractions = nil
     end
 
-    self.World = RunWorldBuilder.build()
+    self.World = self.WorldBuilder.build()
     if self.GateOpen then
         self.World:openGate()
     end
@@ -506,6 +529,9 @@ function RunSessionService:_rebuildWorld()
             if self:_canProcessMazeEntryRequest(player) then
                 self:_requestMazeEntry(player, false)
             end
+        end,
+        OnOceanEntered = function(player)
+            self:_handleOceanEntered(player)
         end,
     })
 
@@ -775,6 +801,7 @@ function RunSessionService:_broadcastSnapshot()
         self.Remotes.RunState:FireClient(player, {
             IsLaunched = self.IsLaunched,
             Status = self.Status,
+            BuildFingerprint = self.BuildFingerprint,
             Area = self:_getPlayerArea(player),
             GateOpen = self.GateOpen,
             Objective = self:_getObjectiveFor(player),
@@ -1022,12 +1049,13 @@ function RunSessionService:_launchRun(_player)
         return
     end
 
-    self.IsLaunched = true
-    Players.CharacterAutoLoads = true
     self.GateOpen = self.CampSession.GateOpen == true
     self:_syncCampSession()
 
     self:_rebuildWorld()
+
+    self.IsLaunched = true
+    Players.CharacterAutoLoads = true
 
     for _, player in ipairs(Players:GetPlayers()) do
         player:LoadCharacter()
@@ -1154,6 +1182,7 @@ function RunSessionService:_ensureAuthoritativeSessionSeed()
 end
 
 function RunSessionService:start()
+    warn(string.format('[run-session] build=%s', self.BuildFingerprint))
     self:_loadSessionDataFromJoin()
     self:_ensureAuthoritativeSessionSeed()
     Players.CharacterAutoLoads = false
@@ -1182,6 +1211,7 @@ function RunSessionService:start()
 
     Players.PlayerRemoving:Connect(function(player)
         self.LastMazeEntryRequestAtByUserId[player.UserId] = nil
+        self.LastOceanSplashAtByUserId[player.UserId] = nil
         self.PendingSpawnByUserId[player.UserId] = nil
         self.CampSession = CampMazeSessionContract.prunePlayer(self.CampSession, player.UserId, {
             PreserveMazeEntry = CampMazeSessionContract.isPlayerInMaze(

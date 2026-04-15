@@ -15,12 +15,6 @@
         "UI": {
           "$path": "../../packages/ui/src"
         }
-      },
-      "Assets": {
-        "$className": "Folder",
-        "ToolTemplates": {
-          "$className": "Folder"
-        }
       }
     },
     "Workspace": {
@@ -46,6 +40,21 @@
           "$className": "Part",
           "$properties": {
             "Anchored": true
+          }
+        },
+        "Collision": {
+          "$className": "Folder",
+          "Scene": {
+            "$className": "Folder"
+          },
+          "Ship": {
+            "$className": "Folder"
+          }
+        },
+        "Triggers": {
+          "$className": "Folder",
+          "Ocean": {
+            "$className": "Folder"
           }
         },
         "DoorLeft": {
