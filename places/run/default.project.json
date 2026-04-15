@@ -212,6 +212,15 @@
             }
           }
         },
+        "RunTerrain_Main": {
+          "$className": "Model",
+          "Scene": {
+            "$className": "Folder"
+          },
+          "Sci-Fi Space Ship": {
+            "$className": "Folder"
+          }
+        },
         "DoorLeft": {
           "$className": "Part",
           "$properties": {

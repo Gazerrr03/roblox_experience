@@ -31,6 +31,10 @@ Required authored trigger structure:
 
 - `Triggers/Ocean`
 
+Required authored terrain model:
+
+- `RunTerrain_Main` (Model) — contains `Scene` and `Sci-Fi Space Ship` visual sub-models. Must be present at boot.
+
 Rules:
 
 - Keep all run-only geometry and prompts under `Workspace/RunStaticWorld`.
