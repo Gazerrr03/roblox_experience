@@ -144,11 +144,12 @@ function RunScene.new(root)
         end
     end
     -- Initialize ship doors: find the Sci-Fi Space Ship model under terrainRoot
-    local shipModel = terrainRoot and terrainRoot:FindFirstChild("Sci-Fi Space Ship")
+    local shipModel = terrainRoot and terrainRoot:FindFirstChild('Sci-Fi Space Ship')
     if shipModel then
         ShipDoors.init(shipModel)
     end
-    local spawnGroundParams = buildSpawnGroundParams(sceneCollisionRoot, shipCollisionRoot, terrainMesh)
+    local spawnGroundParams =
+        buildSpawnGroundParams(sceneCollisionRoot, shipCollisionRoot, terrainMesh)
     local spawnPoints = {}
     local spawnCFramesByKind = {}
     for markerName, kind in pairs(REQUIRED_MARKERS) do

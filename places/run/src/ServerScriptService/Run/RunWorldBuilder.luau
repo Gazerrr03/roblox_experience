@@ -34,7 +34,8 @@ local function prepareRunTerrain(root)
     stabilizeVisualModel(terrainRoot:FindFirstChild('Sci-Fi Space Ship'))
 
     -- Keep terrain mesh visual only - collision is handled by collision mesh in Collision.Scene
-    local terrainMesh = terrainRoot.Scene and terrainRoot.Scene:FindFirstChild('RunTerrain_OriginalHigh')
+    local terrainMesh = terrainRoot.Scene
+        and terrainRoot.Scene:FindFirstChild('RunTerrain_OriginalHigh')
         and terrainRoot.Scene.RunTerrain_OriginalHigh:FindFirstChild('RunTerrain_OriginalHighMesh')
     if terrainMesh and terrainMesh:IsA('BasePart') then
         terrainMesh.CanCollide = false

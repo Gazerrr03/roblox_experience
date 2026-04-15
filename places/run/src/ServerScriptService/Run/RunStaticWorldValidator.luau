@@ -129,13 +129,23 @@ local function validateSceneCollisionMesh(workspace)
 
     local node = collisionRoot:FindFirstChild(contract.NodeName)
     if node == nil or not node:IsA('Model') then
-        error(string.format('Scene_collision is missing required Model child "%s".', contract.NodeName), 0)
+        error(
+            string.format(
+                'Scene_collision is missing required Model child "%s".',
+                contract.NodeName
+            ),
+            0
+        )
     end
 
     local meshPart = node:FindFirstChild(contract.MeshPartName)
     if meshPart == nil or not meshPart:IsA('MeshPart') then
         error(
-            string.format('Scene_collision/%s is missing required MeshPart "%s".', contract.NodeName, contract.MeshPartName),
+            string.format(
+                'Scene_collision/%s is missing required MeshPart "%s".',
+                contract.NodeName,
+                contract.MeshPartName
+            ),
             0
         )
     end
