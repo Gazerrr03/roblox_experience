@@ -35,8 +35,8 @@ function RunInteractionRegistry:bindScene(scene, handlers)
     end))
 
     for _, oceanTrigger in ipairs(scene.OceanTriggers or {}) do
-        self:_track(oceanTrigger:bind(function(player, trigger)
-            handlers.OnOceanEntered(player, trigger)
+        self:_track(oceanTrigger:bind(function(player, state)
+            handlers.OnOceanEntered(player, state)
         end))
     end
 end

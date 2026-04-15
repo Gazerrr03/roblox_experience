@@ -3,7 +3,13 @@ local Players = game:GetService('Players')
 local RunOceanTrigger = {}
 RunOceanTrigger.__index = RunOceanTrigger
 
-local ENTRY_COOLDOWN_SECONDS = 0.75
+local OCEAN_ENTRY_COOLDOWN_SECONDS = 0.75
+
+local OceanState = {
+    None = 'None',
+    Touching = 'Touching',
+    Immersed = 'Immersed',
+}
 
 local function findPlayerFromHit(hit)
     if hit == nil then
@@ -30,6 +36,7 @@ function RunOceanTrigger.new(part)
     }, RunOceanTrigger)
 end
 
+-- Returns the state transition for a player: { state, isNewState }
 function RunOceanTrigger:bind(callback)
     return self.Part.Touched:Connect(function(hit)
         local player = findPlayerFromHit(hit)
@@ -39,13 +46,15 @@ function RunOceanTrigger:bind(callback)
 
         local now = os.clock()
         local lastEnteredAt = self.LastEnteredAtByUserId[player.UserId]
-        if lastEnteredAt ~= nil and now - lastEnteredAt < ENTRY_COOLDOWN_SECONDS then
+        if lastEnteredAt ~= nil and now - lastEnteredAt < OCEAN_ENTRY_COOLDOWN_SECONDS then
             return
         end
 
         self.LastEnteredAtByUserId[player.UserId] = now
-        callback(player, self)
+        callback(player, OceanState.Touching)
     end)
 end
+
+RunOceanTrigger.OceanState = OceanState
 
 return RunOceanTrigger
