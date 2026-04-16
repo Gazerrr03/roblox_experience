@@ -1036,15 +1036,12 @@ function MonsterService:tryApplyPlayerMeleeHit(player, meleeOptions)
         TargetUserId = player.UserId,
     })
 
+    if self.EnemyRuntime then
+        self.EnemyRuntime:applyDamage(damagePips, 'player')
+    end
+
     if killed then
-        if self.EnemyRuntime then
-            self.EnemyRuntime:applyDamage(damagePips, 'player')
-        end
         self:destroy()
-    else
-        if self.EnemyRuntime then
-            self.EnemyRuntime:applyDamage(damagePips, 'player')
-        end
     end
 
     return true, {

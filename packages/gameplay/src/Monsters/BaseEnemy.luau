@@ -1,3 +1,5 @@
+local HealthComponent = require(script.Parent.Components.HealthComponent)
+
 local BaseEnemy = {}
 
 function BaseEnemy.setupHealth(self, componentConfig)
@@ -13,7 +15,6 @@ function BaseEnemy.setupHealth(self, componentConfig)
         self.Components = {}
     end
 
-    local HealthComponent = require(script.Parent.Components.HealthComponent)
     self.Components.Health = HealthComponent.new(maxHp)
 end
 
