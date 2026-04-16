@@ -22,8 +22,6 @@ local REMOTE_NAMES_BY_SCOPE = table.freeze({
 })
 
 local ALL_REMOTE_NAMES = {
-    'LobbyAction',
-    'LobbyState',
     'RunAction',
     'RunState',
     'RunPrivateState',
