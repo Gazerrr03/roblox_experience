@@ -86,6 +86,10 @@ function MonsterRuntimeProfile.validate(profile)
     if attackConfigErr then
         return false, attackConfigErr
     end
+    local healthConfig, healthConfigErr = readComponentTable(profile, 'Health')
+    if healthConfigErr then
+        return false, healthConfigErr
+    end
 
     if
         perceptionConfig
@@ -132,6 +136,18 @@ function MonsterRuntimeProfile.validate(profile)
         if attackConfig.DamagePips ~= nil and not isValidDamagePips(attackConfig.DamagePips) then
             return false, 'InvalidRuntimeComponentAttackDamagePips'
         end
+    end
+
+    if
+        healthConfig
+        and healthConfig.MaxHp ~= nil
+        and (
+            type(healthConfig.MaxHp) ~= 'number'
+            or healthConfig.MaxHp < 1
+            or math.floor(healthConfig.MaxHp) ~= healthConfig.MaxHp
+        )
+    then
+        return false, 'InvalidRuntimeComponentHealthMaxHp'
     end
 
     local runtimeSpeed = profile.Speed
