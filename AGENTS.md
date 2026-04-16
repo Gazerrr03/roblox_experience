@@ -60,6 +60,35 @@ data contract explicit first.
   filtered through `packages/shared/src/Util/Visibility.luau` or an equally
   explicit visibility gate.
 
+## Feature Manifest（功能清单）
+
+每个 place 维护一份 `places/<place>/FEATURES.md`，作为该 place 当前代码状态的唯一权威文档。
+
+**格式规范：**
+- 语言：中文
+- 每条 feature 包含 `名称`、`状态`、`文件`、`description` 四列，AI 可 grep 路由
+- 状态：`active` = 已实现，`⚠️ missing` = 已知缺失（不可省略）
+
+**维护规则（强制）：**
+1. 新增功能：PR 必须同步更新 `FEATURES.md`，缺失更新视为 **PR 未完成**
+2. 删除/废弃功能：在 `FEATURES.md` 中将状态改为 `⚠️ missing` 或移除，禁止无声删除
+3. 功能改名/重构：同步更新 `FEATURES.md` 中的名称和文件路径
+4. 提交信息规范：feature 相关的 commit 应在 commit message 末尾注明 "（见 FEATURES.md）"
+5. CI 策略：`sync-and-serve.ps1` 自动将 `last-sync` 更新为当前 commit，不阻断启动但打印警告
+
+**FEATURES.md 结构（固定章节）：**
+1. Session & Flow（会话与流程）
+2. World & Navigation（世界与导航）
+3. Items & Tools（物品与工具）
+4. Interaction System（交互系统）
+5. Danger Systems（危险系统）
+6. Monster System（怪物系统）
+7. UI / HUD
+8. Network / Remotes
+9. Authoring Requirements（创作要求）
+10. State Matrix（状态矩阵）
+11. Recent Commits（近期交付）
+
 ## Roblox-Friendly Coding Rules
 
 - Prefer deterministic logic for anything that affects gameplay outcome. Pass a
