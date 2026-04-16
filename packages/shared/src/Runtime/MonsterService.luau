@@ -802,6 +802,7 @@ function MonsterService:_resolveAttackHitContext(pendingAttack)
         Hit = true,
         Reason = 'HitConfirmed',
         Distance = distance,
+        Effects = pendingAttack.Effects,
     }
 end
 
@@ -1112,6 +1113,17 @@ function MonsterService:_runLogicStep(dt)
         self:_emitDecisionLog('AttackQueued', {
             MonsterId = self.Definition.Id,
         })
+        local target = self.EnemyRuntime.Blackboard.CurrentTarget
+        if target then
+            self:_queueAttackIntent({
+                TargetPlayer = target,
+                DamagePips = self.ComponentConfig.Attack.DamagePips,
+                Range = self.ComponentConfig.Attack.Range,
+                ArcDegrees = self.ComponentConfig.Attack.ArcDegrees,
+                MarkerName = self.ComponentConfig.Attack.HitMarkerName,
+                Effects = self.Definition.Effects,
+            })
+        end
     end
 
     local nextPosition = decision.NextPosition
