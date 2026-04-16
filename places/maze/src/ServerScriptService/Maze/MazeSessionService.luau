@@ -286,13 +286,18 @@ end
 function MazeSessionService:_buildMonsterRuntimeOptions(randomSeed)
     return {
         RandomSeed = randomSeed,
-        OnAttackHit = function(player, damagePips)
+        OnAttackHit = function(player, damagePips, hitContext)
             local damageKind = damageKindFromPips(damagePips)
             if damageKind == nil then
                 return
             end
 
             self:_applyPlayerDamage(player, damageKind)
+            if hitContext and hitContext.Effects then
+                for _, effect in ipairs(hitContext.Effects) do
+                    self.PlayerStateService:applyEffect(player, effect.Id, effect.DurationSeconds)
+                end
+            end
         end,
     }
 end
