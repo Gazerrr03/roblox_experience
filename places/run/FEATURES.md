@@ -1,7 +1,6 @@
 # Run Place — Feature Manifest
 
 > last-sync: dcc8aaa (2026-04-16)
-> generated-by: sync-and-serve.ps1
 
 ---
 
