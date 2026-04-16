@@ -18,13 +18,13 @@
 1. 主创在 Studio 建好项目，分享链接
 2. 所有人进这个云端项目玩
 3. 程序本地写完代码 → git push
-4. rojo serve 自动把代码送进 Studio
+4. rojo serve 根据 default.project.json 配置实时将本地代码同步到 Studio
 5. 大家直接在 Studio 看到新代码的效果
 ```
 
 ## 简单理解
 
 - **想改场景/关卡？** → 进 Studio 改
-- **想改玩法逻辑？** → 程序员 git push，rojo serve 自动同步
+- **想改玩法逻辑？** → 程序员修改本地代码（如 src/server/Logic.lua），rojo serve 实时同步至 Studio
 
 不需要懂太多流程，进 Studio 就能参与协作。
