@@ -59,9 +59,18 @@ function Invoke-External {
 }
 
 # Step 1: Git sync
-Write-Step "Syncing main branch"
-git checkout main
-git pull origin main
+$currentBranch = git branch --show-current
+if (-not $currentBranch) {
+    Write-Host '[WARNING] Detached HEAD detected — skipping git pull for this worktree.' -ForegroundColor Yellow
+} else {
+    $upstreamRef = git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>$null
+    if ($LASTEXITCODE -eq 0 -and $upstreamRef) {
+        Write-Step "Syncing current branch ($currentBranch)"
+        git pull --ff-only
+    } else {
+        Write-Host "[WARNING] Branch '$currentBranch' has no upstream — skipping git pull." -ForegroundColor Yellow
+    }
+}
 
 # Step 2: Print Feature Manifest
 $featuresPath = switch ($Place) {
@@ -78,12 +87,18 @@ if (Test-Path $featuresPath) {
 
 # Step 3: Kill existing rojo serve process on target port only
 Write-Step 'Stopping existing rojo serve processes'
-$existingProcesses = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
-if ($existingProcesses) {
-    $existingProcesses | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
-    Write-Host ("Rojo process on port $Port stopped.") -ForegroundColor Yellow
+if ($IsWindows -or $PSVersionTable.PSVersion.Major -lt 6) {
+    $existingProcesses = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+    if ($existingProcesses) {
+        $existingProcesses.OwningProcess | Select-Object -Unique | ForEach-Object {
+            Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue
+        }
+        Write-Host ("Rojo process on port $Port stopped.") -ForegroundColor Yellow
+    } else {
+        Write-Host 'No rojo process found on target port.' -ForegroundColor Green
+    }
 } else {
-    Write-Host 'No rojo process found on target port.' -ForegroundColor Green
+    Write-Host 'Rojo process management via port is Windows-only. Use Task Manager if needed.' -ForegroundColor Cyan
 }
 
 Start-Sleep -Seconds 2
