@@ -227,7 +227,10 @@ end
 local function buildSpawnGroundParams(sceneCollisionRoot, shipCollisionRoot, terrainMesh)
     local raycastParams = RaycastParams.new()
     raycastParams.FilterType = Enum.RaycastFilterType.Include
-    local instances = { sceneCollisionRoot }
+    local instances = {}
+    if sceneCollisionRoot then
+        table.insert(instances, sceneCollisionRoot)
+    end
     if shipCollisionRoot then
         table.insert(instances, shipCollisionRoot)
     end
@@ -267,7 +270,7 @@ local function assertSpawnHasGround(sceneCollisionRoot, shipCollisionRoot, terra
 
     error(
         string.format(
-            'RunStaticWorld SpawnMarker must raycast onto Collision/Scene, optional Collision/Ship, or terrain mesh within %d studs below it.',
+            'RunStaticWorld SpawnMarker must raycast onto authored collision shells or terrain mesh within %d studs below it.',
             RunStaticWorldContract.SpawnGroundCheckDepth
         ),
         0
@@ -285,22 +288,41 @@ function RunStaticWorldValidator.validate(root)
     -- Validate the visual terrain has collision disabled
     validateVisualTerrain(root)
 
-    local collisionRoot =
-        requireContainer(root, RunStaticWorldContract.CollisionRootName, 'RunStaticWorld')
-    local sceneCollisionRoot = requireContainer(
-        collisionRoot,
-        RunStaticWorldContract.SceneCollisionName,
-        'RunStaticWorld Collision'
-    )
-    local shipCollisionRoot = collisionRoot:FindFirstChild(RunStaticWorldContract.ShipCollisionName)
-    if shipCollisionRoot and not (shipCollisionRoot:IsA('Folder') or shipCollisionRoot:IsA('Model')) then
+    local collisionRoot = root:FindFirstChild(RunStaticWorldContract.CollisionRootName)
+    if collisionRoot and not (collisionRoot:IsA('Folder') or collisionRoot:IsA('Model')) then
         error(
             string.format(
-                'RunStaticWorld Collision container "%s" must be a Folder or Model.',
-                RunStaticWorldContract.ShipCollisionName
+                'RunStaticWorld container "%s" must be a Folder or Model.',
+                RunStaticWorldContract.CollisionRootName
             ),
             0
         )
+    end
+
+    local sceneCollisionRoot = nil
+    local shipCollisionRoot = nil
+    if collisionRoot then
+        sceneCollisionRoot = collisionRoot:FindFirstChild(RunStaticWorldContract.SceneCollisionName)
+        if sceneCollisionRoot and not (sceneCollisionRoot:IsA('Folder') or sceneCollisionRoot:IsA('Model')) then
+            error(
+                string.format(
+                    'RunStaticWorld Collision container "%s" must be a Folder or Model.',
+                    RunStaticWorldContract.SceneCollisionName
+                ),
+                0
+            )
+        end
+
+        shipCollisionRoot = collisionRoot:FindFirstChild(RunStaticWorldContract.ShipCollisionName)
+        if shipCollisionRoot and not (shipCollisionRoot:IsA('Folder') or shipCollisionRoot:IsA('Model')) then
+            error(
+                string.format(
+                    'RunStaticWorld Collision container "%s" must be a Folder or Model.',
+                    RunStaticWorldContract.ShipCollisionName
+                ),
+                0
+            )
+        end
     end
     local triggersRoot =
         requireContainer(root, RunStaticWorldContract.TriggersRootName, 'RunStaticWorld')
@@ -310,10 +332,12 @@ function RunStaticWorldValidator.validate(root)
         'RunStaticWorld Triggers'
     )
 
-    validateCollisionParts(
-        requireBaseParts(sceneCollisionRoot, 'RunStaticWorld Collision/Scene'),
-        'RunStaticWorld Collision/Scene'
-    )
+    if sceneCollisionRoot then
+        validateCollisionParts(
+            requireBaseParts(sceneCollisionRoot, 'RunStaticWorld Collision/Scene'),
+            'RunStaticWorld Collision/Scene'
+        )
+    end
     if shipCollisionRoot then
         validateCollisionParts(
             requireBaseParts(shipCollisionRoot, 'RunStaticWorld Collision/Ship'),

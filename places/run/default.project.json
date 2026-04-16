@@ -57,32 +57,6 @@
             "CanQuery": true
           }
         },
-        "Collision": {
-          "$className": "Folder",
-          "Scene": {
-            "$className": "Folder",
-            "CampGround": {
-              "$className": "Part",
-              "$properties": {
-                "Anchored": true,
-                "CanCollide": true,
-                "CanTouch": false,
-                "CanQuery": true,
-                "Transparency": 1,
-                "Position": [
-                  50.842907,
-                  6.44950485,
-                  324.177368
-                ],
-                "Size": [
-                  220,
-                  4,
-                  220
-                ]
-              }
-            }
-          }
-        },
         "Triggers": {
           "$className": "Folder",
           "Ocean": {
