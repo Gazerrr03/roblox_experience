@@ -1,6 +1,7 @@
 # Run Place — Feature Manifest
 
 > last-sync: dcc8aaa (2026-04-16)
+> generated-by: sync-and-serve.ps1
 
 ---
 
@@ -123,7 +124,7 @@ RunStaticWorld/
 | Book of Sand | ✅ active | e10d75f | |
 | Monster Spawn | ⚠️ missing | — | 需Studio摆放SpawnPoint_* |
 | Monster Runtime | ✅ active | 本次提交 | 已接入RunSessionService |
-| RunTracker | ✅ active | 本次提交 | Camp→Expedition由GateSwitch触发 | |
+| RunTracker | ✅ active | 本次提交 | Camp→Expedition由GateSwitch触发 |
 
 ---
 

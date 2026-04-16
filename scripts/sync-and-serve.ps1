@@ -78,12 +78,17 @@ if (Test-Path $featuresPath) {
 
 # Step 3: Kill existing rojo serve process on target port only
 Write-Step 'Stopping existing rojo serve processes'
-$existingProcesses = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
-if ($existingProcesses) {
-    $existingProcesses | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
-    Write-Host ("Rojo process on port $Port stopped.") -ForegroundColor Yellow
+if ($IsWindows -or $PSVersionTable.PSVersion.Major -lt 6) {
+    $existingProcesses = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+    if ($existingProcesses) {
+        $existingProcesses | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
+        Write-Host ("Rojo process on port $Port stopped.") -ForegroundColor Yellow
+    } else {
+        Write-Host 'No rojo process found on target port.' -ForegroundColor Green
+    }
 } else {
-    Write-Host 'No rojo process found on target port.' -ForegroundColor Green
+    Write-Host 'Rojo process management via port is Windows-only. Use Task Manager if needed.' -ForegroundColor Cyan
+}
 }
 
 Start-Sleep -Seconds 2
