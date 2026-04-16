@@ -5,6 +5,7 @@ local Workspace = game:GetService('Workspace')
 
 local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
+local Gameplay = require(Packages:WaitForChild('Gameplay'))
 
 local SessionConfig = Shared.Config.SessionConfig
 local Remotes = Shared.Network.Remotes.ensureScope(Shared.Network.Remotes.Scope.Run)
@@ -16,9 +17,12 @@ local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local InventoryService = Shared.Runtime.InventoryService
 local PlayerService = Shared.Runtime.PlayerService
 local PlayerStateService = Shared.Runtime.PlayerStateService
+local MonsterService = Shared.Runtime.MonsterService
 local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 
 local RunSpawnPoint = require(script.Parent.RunSpawnPoint)
+local RunWorldScanner = require(script.Parent.RunWorldScanner)
+local RunMonsterSpawnPolicy = require(script.Parent.RunMonsterSpawnPolicy)
 local RunSnapshotBuilder = require(script.Parent.RunSnapshotBuilder)
 local RunStaticWorldContract = require(script.Parent.RunStaticWorldContract)
 local RunToMazeTransition = require(script.Parent.RunToMazeTransition)
@@ -257,6 +261,8 @@ function RunSessionService.new(options)
     self.PlayerStateService = PlayerStateService.new()
     self.RunToMazeTransition = runtimeOptions.RunToMazeTransition or RunToMazeTransition.new()
     self.WorldBuilder = runtimeOptions.RunWorldBuilder or RunWorldBuilder
+    self.RunTracker = Gameplay.Session.MazeRunTracker.new()
+    self.MonsterService = nil -- deferred: initialized in _rebuildWorld after self.World is built
 
     return self
 end
@@ -704,6 +710,11 @@ function RunSessionService:_rebuildWorld()
         self.World:openGate()
     end
 
+    -- Initialize MonsterService after World is built (needs self.World.Collision for canTraverse)
+    if not self.MonsterService then
+        self.MonsterService = self:_createMonsterService()
+    end
+
     self.WorldInteractions = self.World:bindInteractions({
         OnShop = function(player)
             if not self:_canManageInventory(player) then
@@ -1096,8 +1107,10 @@ function RunSessionService:_openGate(player)
 
     if not self.GateOpen then
         self.GateOpen = true
+        self.RunTracker:beginExpedition()
         self:_syncCampSession()
         self.World:openGate()
+        self:_beginExpedition()
         self:_setStatus(
             string.format(
                 '%s opened the temple gate. The wilderness trail is now accessible.',
@@ -1234,6 +1247,125 @@ function RunSessionService:_requestMazeEntry(player, requireDistanceCheck)
         )
     )
 end
+
+-- =======================================================
+-- Monster integration
+-- =======================================================
+
+-- Compile monster profile for Run (no MazeExecutable behavior filtering)
+function RunSessionService:_compileMonsterForRun(authorProfile)
+    local MonsterRuntimeProfile = Gameplay.Monsters.MonsterRuntimeProfile
+
+    local tuning = authorProfile.Tuning
+    local presentation = authorProfile.Executable.Presentation
+
+    local behaviors = {}
+    for _, intent in ipairs(authorProfile.Executable.BehaviorIntents or {}) do
+        if intent.Enabled ~= false then
+            behaviors[intent.Id] = true
+        end
+    end
+
+    local runtimeProfile = {
+        Id = authorProfile.Id,
+        Name = authorProfile.Name,
+        Presentation = table.freeze({
+            ModelAssetId = presentation.ModelAssetId,
+            RigType = presentation.RigType,
+            AnimationMode = presentation.AnimationMode,
+            ChaseLoopSoundAssetId = presentation.ChaseLoopSoundAssetId,
+        }),
+        AttackCooldownSeconds = tuning.AttackCooldownSeconds or 1,
+        AttackDamagePips = tuning.AttackDamagePips or 1,
+        AttackRange = tuning.AttackRange or 4,
+        Speed = tuning.Speed,
+        SightRange = tuning.SightRange,
+        PatrolSpeedMultiplier = tuning.PatrolSpeedMultiplier,
+        SpawnOffset = tuning.SpawnOffset or Vector3.new(0, 4, 0),
+        CombatHitPoints = tuning.CombatHitPoints or 1,
+        Behaviors = table.freeze(behaviors),
+        Effects = table.freeze({}),
+    }
+    runtimeProfile.Components =
+        Gameplay.Monsters.MonsterComponentConfig.fromRuntimeProfile(runtimeProfile)
+    runtimeProfile = table.freeze(runtimeProfile)
+
+    local valid, reason = MonsterRuntimeProfile.validate(runtimeProfile)
+    if not valid then
+        error(string.format('Run monster profile invalid: %s', tostring(reason)), 0)
+    end
+
+    return runtimeProfile
+end
+
+-- Build MonsterService with run-specific callbacks
+function RunSessionService:_createMonsterService()
+    local monsterProfile = self:_compileMonsterForRun(Gameplay.Config.Monsters[1])
+    local canTraverseFn = RunWorldScanner.buildCanTraverseFn(self.World)
+    local randomSource = Random.new(self.SessionData.Seed > 0 and self.SessionData.Seed or 42)
+
+    return MonsterService.new(
+        monsterProfile,
+        function()
+            return self.RunTracker:getState() == 'Expedition'
+        end,
+        function(player)
+            return self.RunTracker:isPlayerActive(player.UserId)
+        end,
+        canTraverseFn,
+        {
+            RandomSeed = self.SessionData.Seed,
+            RandomSource = randomSource,
+            OnAttackHit = function(player, damagePips, _hitContext)
+                self:_applyPlayerDamage(player, damagePips)
+            end,
+        }
+    )
+end
+
+-- Called when ShipDoors first opened: spawn monsters at eligible patrol points
+function RunSessionService:_beginExpedition()
+    if not self.MonsterService then
+        return
+    end
+
+    local allPositions = RunWorldScanner.scanSpawnPoints()
+    if #allPositions == 0 then
+        warn(
+            '[RunSessionService] No SpawnPoint_* found in RunStaticWorld — skipping monster spawn'
+        )
+        return
+    end
+
+    -- Get ship position for exclusion zone from world geometry
+    local shipPosition = nil
+    local shipCollision = self.World and self.World.Collision and self.World.Collision.Ship
+    if shipCollision then
+        if shipCollision:IsA('Model') and shipCollision.PrimaryPart then
+            shipPosition = shipCollision.PrimaryPart.Position
+        elseif shipCollision:IsA('BasePart') then
+            shipPosition = shipCollision.Position
+        end
+    end
+    if not shipPosition then
+        warn('[RunSessionService] Ship collision not found — skipping monster spawn')
+        return
+    end
+    local eligible = RunMonsterSpawnPolicy.collectEligiblePatrolPoints(allPositions, shipPosition)
+    if #eligible == 0 then
+        warn(
+            '[RunSessionService] No eligible patrol points after exclusion — skipping monster spawn'
+        )
+        return
+    end
+
+    local initialIndex = RunMonsterSpawnPolicy.selectInitialPatrolIndex(eligible)
+    self.MonsterService:spawn(eligible, initialIndex)
+end
+
+-- =======================================================
+-- End monster integration
+-- =======================================================
 
 function RunSessionService:_canProcessMazeEntryRequest(player)
     local now = os.clock()

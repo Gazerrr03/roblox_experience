@@ -63,11 +63,11 @@
 
 | 名称 | 状态 | 文件 | description |
 |------|------|------|-------------|
-| monster-runtime | defined | MonsterService.luau | 共享runtime，run尚未接入 |
-| monster-spawn-policy | ⚠️ missing | (需新建) | RunMonsterSpawnPolicy.luau，扫描SpawnPoint_* |
+| monster-runtime | active | MonsterService.luau | 共享runtime，已接入RunSessionService |
+| monster-spawn-policy | active | RunMonsterSpawnPolicy.luau | 巡逻点收集+选择策略，ship附近exclusion zone |
 | monster-spawn-points | ⚠️ missing | (需Studio摆放) | RunStaticWorld下需摆放SpawnPoint_* BasePart |
-| run-tracker | ⚠️ missing | (需新建) | Expedition状态机，首次Ship门打开时激活monster |
-| monster-world-scanner | ⚠️ missing | (需新建) | RunWorldScanner.luau，扫描patrol points + canTraverse |
+| run-tracker | active | MazeRunTracker.luau | Camp→Expedition状态机，Ship门首次打开时激活 |
+| monster-world-scanner | active | RunWorldScanner.luau | 扫描SpawnPoint_* + canTraverse raycast验证 |
 
 ---
 
@@ -122,13 +122,14 @@ RunStaticWorld/
 | Tool Potion | ✅ active | d326bc7 | |
 | Book of Sand | ✅ active | e10d75f | |
 | Monster Spawn | ⚠️ missing | — | 需Studio摆放SpawnPoint_* |
-| Monster Runtime | ⚠️ not-wired | — | 需接入RunSessionService |
-| RunTracker | ⚠️ missing | — | 需新建Expedition状态机 |
+| Monster Runtime | ✅ active | 本次提交 | 已接入RunSessionService |
+| RunTracker | ✅ active | 本次提交 | Camp→Expedition由GateSwitch触发 | |
 
 ---
 
 ## 11. Recent Commits（近期交付）
 
+- 本次提交: feat(run): Monster系统接入Run，RunWorldScanner+RunMonsterSpawnPolicy
 - dcc8aaa feat(gameplay): InventoryComponent与道具权威存储解耦
 - d326bc7 feat(gameplay,run): 消除ItemService双轨，ItemFields单源
 - e10d75f feat(run): ShipDoors+死代码UI移除+地形碰撞
