@@ -28,6 +28,7 @@ local ALL_REMOTE_NAMES = {
     'MazeAction',
     'MazeState',
     'MazePrivateState',
+    'TODState',
 }
 
 local function assertServer(operationName)

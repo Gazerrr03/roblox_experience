@@ -12,6 +12,8 @@ local Shared = require(Packages:WaitForChild('Shared'))
 local UI = require(Packages:WaitForChild('UI'))
 
 local Remotes = Shared.Network.Remotes.waitForScope(Shared.Network.Remotes.Scope.Run)
+local TODConfig = Shared.Config.SessionConfig.TOD
+local TODRemote = ReplicatedStorage:WaitForChild('Remotes'):WaitForChild('TODState')
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local heldItemController = Shared.Client.HeldItemController.new(localPlayer)
 local Theme = UI.Hud.Theme
@@ -43,6 +45,9 @@ local activeModal = nil
 local activeBuildFingerprint = 'unknown'
 local isInOcean = false
 local oceanSlowdownTween = nil
+local todClockTime = TODConfig.StartHour or 7
+local todRemainingSeconds = math.max(0, math.floor((TODConfig.RoundMinutes or 0) * 60 + 0.5))
+local todIsRunning = false
 ensureFirstPersonLock = function()
     disconnectFirstPersonLock = Shared.Client.FirstPersonController.start(localPlayer)
     ensureFirstPersonLock = function() end
@@ -227,6 +232,65 @@ end
 local function buildSessionPhaseText(snapshot)
     return string.format('Phase: %s', snapshot.SessionPhase or 'RunPrep')
 end
+
+local function formatClockTime(clockTime)
+    local normalizedClockTime = (clockTime or 0) % 24
+    local hours = math.floor(normalizedClockTime)
+    local minutes = math.floor(((normalizedClockTime - hours) * 60) + 0.5)
+
+    if minutes >= 60 then
+        minutes = 0
+        hours = (hours + 1) % 24
+    end
+
+    return string.format('%02d:%02d', hours, minutes)
+end
+
+local function formatCountdown(remainingSeconds)
+    local totalSeconds = math.max(0, math.floor((remainingSeconds or 0) + 0.5))
+    local minutes = math.floor(totalSeconds / 60)
+    local seconds = totalSeconds % 60
+    return string.format('%02d:%02d', minutes, seconds)
+end
+
+local watchPanel = Instance.new('Frame')
+watchPanel.Name = 'WatchPanel'
+watchPanel.AnchorPoint = Vector2.new(1, 0)
+watchPanel.Position = UDim2.new(1, -24, 0, 24)
+watchPanel.Size = UDim2.fromOffset(130, 58)
+watchPanel.BackgroundColor3 = Theme.Surface
+watchPanel.BorderSizePixel = 0
+watchPanel.Parent = screenGui
+
+applyPanelStyle(watchPanel, 14, 0.8)
+
+local watchPadding = Instance.new('UIPadding')
+watchPadding.PaddingTop = UDim.new(0, 8)
+watchPadding.PaddingLeft = UDim.new(0, 10)
+watchPadding.PaddingRight = UDim.new(0, 10)
+watchPadding.PaddingBottom = UDim.new(0, 8)
+watchPadding.Parent = watchPanel
+
+local watchList = Instance.new('UIListLayout')
+watchList.Padding = UDim.new(0, 2)
+watchList.Parent = watchPanel
+
+local watchTimeLabel = makeTextLabel(watchPanel, UDim2.new(1, 0, 0, 20), Theme.Text, 18, true)
+local watchCountdownLabel =
+    makeTextLabel(watchPanel, UDim2.new(1, 0, 0, 16), Theme.SubtleText, 14, false)
+
+local function updateWatchHud()
+    local accentColor = if todIsRunning then Theme.Text else Theme.SubtleText
+    local countdownColor = if todIsRunning then Theme.Accent else Theme.SubtleText
+
+    watchPanel.BackgroundTransparency = if todIsRunning then 0.12 else 0.24
+    watchTimeLabel.TextColor3 = accentColor
+    watchCountdownLabel.TextColor3 = countdownColor
+    watchTimeLabel.Text = formatClockTime(todClockTime)
+    watchCountdownLabel.Text = formatCountdown(todRemainingSeconds)
+end
+
+updateWatchHud()
 
 local menuBackdrop = Instance.new('Frame')
 menuBackdrop.Name = 'StartMenu'
@@ -839,6 +903,23 @@ sprintInputEndedConnection = UserInputService.InputEnded:Connect(function(input,
     Remotes.RunAction:FireServer({
         Type = 'RequestSprintStop',
     })
+end)
+
+TODRemote.OnClientEvent:Connect(function(payload)
+    if type(payload) ~= 'table' then
+        return
+    end
+
+    if type(payload.ClockTime) == 'number' then
+        todClockTime = payload.ClockTime
+    end
+
+    if type(payload.RoundTimeRemainingSeconds) == 'number' then
+        todRemainingSeconds = payload.RoundTimeRemainingSeconds
+    end
+
+    todIsRunning = payload.IsRunning == true
+    updateWatchHud()
 end)
 
 Remotes.RunPrivateState.OnClientEvent:Connect(function(payload)
