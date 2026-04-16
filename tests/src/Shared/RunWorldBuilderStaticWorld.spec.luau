@@ -20,10 +20,6 @@ return function()
         sceneCollisionRoot.Name = 'Scene'
         sceneCollisionRoot.Parent = collisionRoot
 
-        local shipCollisionRoot = Instance.new('Folder')
-        shipCollisionRoot.Name = 'Ship'
-        shipCollisionRoot.Parent = collisionRoot
-
         local triggersRoot = Instance.new('Folder')
         triggersRoot.Name = 'Triggers'
         triggersRoot.Parent = root
@@ -35,7 +31,6 @@ return function()
         return {
             Root = root,
             SceneCollisionRoot = sceneCollisionRoot,
-            ShipCollisionRoot = shipCollisionRoot,
             OceanTriggerRoot = oceanTriggerRoot,
         }
     end
@@ -122,8 +117,6 @@ return function()
     createMarker(validWorld.Root, 'ReturnMarker', CFrame.new(11, 4, -1))
     local mazeReturnMarker =
         createMarker(validWorld.Root, 'MazeReturnMarker', CFrame.new(3, 4, 120))
-    local doorLeft = createMarker(validWorld.Root, 'DoorLeft', CFrame.new(8, 4, 16))
-    local doorRight = createMarker(validWorld.Root, 'DoorRight', CFrame.new(12, 4, 16))
     local validPrompts = createRequiredPromptParts(validWorld.Root, 10, 20)
     local _, startGamePrompt =
         createPromptPart(validWorld.Root, 'StartGamePrompt', CFrame.new(14, 4, 12))
@@ -157,12 +150,6 @@ return function()
         'SpawnFloor',
         CFrame.new(10, 0, -3),
         Vector3.new(24, 1, 24)
-    )
-    createCollisionPart(
-        validWorld.ShipCollisionRoot,
-        'ShipDeck',
-        CFrame.new(24, 6, 12),
-        Vector3.new(16, 1, 16)
     )
     createOceanTrigger(validWorld.OceanTriggerRoot, 'OceanSurface', CFrame.new(10, -8, -3))
 
@@ -219,6 +206,7 @@ return function()
         world.StartGamePrompt == startGamePrompt,
         'Run static world should expose the optional ship start prompt when authored'
     )
+    assert(world.Collision.Ship == nil, 'Run static world should tolerate missing ship collision')
     assert(#world.OceanTriggers == 1, 'Run static world should expose authored ocean trigger parts')
     assert(
         visualScenePart.Anchored == true and visualScenePart.CanCollide == false,
@@ -230,8 +218,6 @@ return function()
     )
 
     world.OpenGate()
-    assert(doorLeft.Transparency == 1, 'Opening the static gate should hide the left door')
-    assert(doorRight.Transparency == 1, 'Opening the static gate should hide the right door')
     assert(
         validPrompts.GateSwitch.Prompt.ActionText == 'Gate Open',
         'Opening the static gate should update the prompt copy'
@@ -243,19 +229,11 @@ return function()
     createMarker(missingPromptWorld.Root, 'SpawnMarker', CFrame.new(0, 4, 0))
     createMarker(missingPromptWorld.Root, 'ReturnMarker', CFrame.new(4, 4, 0))
     createMarker(missingPromptWorld.Root, 'MazeReturnMarker', CFrame.new(8, 4, 0))
-    createMarker(missingPromptWorld.Root, 'DoorLeft', CFrame.new(0, 2, 12))
-    createMarker(missingPromptWorld.Root, 'DoorRight', CFrame.new(4, 2, 12))
     createCollisionPart(
         missingPromptWorld.SceneCollisionRoot,
         'SceneFloor',
         CFrame.new(0, 0, 0),
         Vector3.new(24, 1, 24)
-    )
-    createCollisionPart(
-        missingPromptWorld.ShipCollisionRoot,
-        'ShipDeck',
-        CFrame.new(16, 4, 0),
-        Vector3.new(16, 1, 16)
     )
     createOceanTrigger(missingPromptWorld.OceanTriggerRoot, 'OceanSurface', CFrame.new(0, -6, 0))
 
@@ -277,20 +255,12 @@ return function()
     createMarker(missingFloorWorld.Root, 'SpawnMarker', CFrame.new(0, 20, 0))
     createMarker(missingFloorWorld.Root, 'ReturnMarker', CFrame.new(4, 4, 0))
     createMarker(missingFloorWorld.Root, 'MazeReturnMarker', CFrame.new(8, 4, 0))
-    createMarker(missingFloorWorld.Root, 'DoorLeft', CFrame.new(40, 2, 40))
-    createMarker(missingFloorWorld.Root, 'DoorRight', CFrame.new(44, 2, 40))
     createRequiredPromptParts(missingFloorWorld.Root, 60, 60)
     createCollisionPart(
         missingFloorWorld.SceneCollisionRoot,
         'SceneShelf',
         CFrame.new(20, 0, 20),
         Vector3.new(12, 1, 12)
-    )
-    createCollisionPart(
-        missingFloorWorld.ShipCollisionRoot,
-        'ShipDeck',
-        CFrame.new(30, 4, 30),
-        Vector3.new(16, 1, 16)
     )
     createOceanTrigger(missingFloorWorld.OceanTriggerRoot)
 
@@ -312,20 +282,12 @@ return function()
     createMarker(strayColliderWorld.Root, 'SpawnMarker', CFrame.new(0, 8, 0))
     createMarker(strayColliderWorld.Root, 'ReturnMarker', CFrame.new(4, 4, 0))
     createMarker(strayColliderWorld.Root, 'MazeReturnMarker', CFrame.new(8, 4, 0))
-    createMarker(strayColliderWorld.Root, 'DoorLeft', CFrame.new(0, 2, 12))
-    createMarker(strayColliderWorld.Root, 'DoorRight', CFrame.new(4, 2, 12))
     createRequiredPromptParts(strayColliderWorld.Root, 40, 10)
     createCollisionPart(
         strayColliderWorld.SceneCollisionRoot,
         'SceneDecoration',
         CFrame.new(30, 2, 30),
         Vector3.new(12, 1, 12)
-    )
-    createCollisionPart(
-        strayColliderWorld.ShipCollisionRoot,
-        'ShipDeck',
-        CFrame.new(32, 2, 32),
-        Vector3.new(16, 1, 16)
     )
     createOceanTrigger(strayColliderWorld.OceanTriggerRoot)
 
@@ -355,20 +317,12 @@ return function()
     createMarker(edgeGapWorld.Root, 'SpawnMarker', CFrame.new(0, 8, 0))
     createMarker(edgeGapWorld.Root, 'ReturnMarker', CFrame.new(4, 4, 0))
     createMarker(edgeGapWorld.Root, 'MazeReturnMarker', CFrame.new(8, 4, 0))
-    createMarker(edgeGapWorld.Root, 'DoorLeft', CFrame.new(0, 2, 10))
-    createMarker(edgeGapWorld.Root, 'DoorRight', CFrame.new(4, 2, 10))
     createRequiredPromptParts(edgeGapWorld.Root, 40, 10)
     createCollisionPart(
         edgeGapWorld.SceneCollisionRoot,
         'TinyCenterFloor',
         CFrame.new(0, 2, 0),
         Vector3.new(1, 1, 1)
-    )
-    createCollisionPart(
-        edgeGapWorld.ShipCollisionRoot,
-        'ShipDeck',
-        CFrame.new(30, 2, 30),
-        Vector3.new(16, 1, 16)
     )
     createOceanTrigger(edgeGapWorld.OceanTriggerRoot)
 
@@ -391,20 +345,12 @@ return function()
         createMarker(collidableMarkerWorld.Root, 'SpawnMarker', CFrame.new(0, 8, 0))
     createMarker(collidableMarkerWorld.Root, 'ReturnMarker', CFrame.new(4, 4, 0))
     createMarker(collidableMarkerWorld.Root, 'MazeReturnMarker', CFrame.new(8, 4, 0))
-    createMarker(collidableMarkerWorld.Root, 'DoorLeft', CFrame.new(0, 2, 10))
-    createMarker(collidableMarkerWorld.Root, 'DoorRight', CFrame.new(4, 2, 10))
     createRequiredPromptParts(collidableMarkerWorld.Root, 40, 10)
     createCollisionPart(
         collidableMarkerWorld.SceneCollisionRoot,
         'SceneFloor',
         CFrame.new(0, 2, 0),
         Vector3.new(24, 1, 24)
-    )
-    createCollisionPart(
-        collidableMarkerWorld.ShipCollisionRoot,
-        'ShipDeck',
-        CFrame.new(30, 2, 30),
-        Vector3.new(16, 1, 16)
     )
     createOceanTrigger(collidableMarkerWorld.OceanTriggerRoot)
     collidableSpawnMarker.CanCollide = true

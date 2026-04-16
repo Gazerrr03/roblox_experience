@@ -160,6 +160,26 @@ local function findMeshPart(model)
     return nil
 end
 
+local function ensureDoorPrompt(parent, objectText)
+    local prompt = parent:FindFirstChild('ShipDoorPrompt')
+    if prompt ~= nil and not prompt:IsA('ProximityPrompt') then
+        prompt = nil
+    end
+
+    if prompt == nil then
+        prompt = Instance.new('ProximityPrompt')
+        prompt.Name = 'ShipDoorPrompt'
+        prompt.Parent = parent
+    end
+
+    prompt.ActionText = 'Open Door'
+    prompt.ObjectText = objectText
+    prompt.MaxActivationDistance = 10
+    prompt.HoldDuration = 0
+
+    return prompt
+end
+
 -- ============================================================
 -- INIT — set up all doors on the Sci-Fi Space Ship model
 -- Call this once after the ship model is available in the workspace
@@ -255,13 +275,7 @@ function ShipDoors.init(shipModel)
                 isLargeDoor = true,
             })
 
-            local prompt = Instance.new('ProximityPrompt')
-            prompt.Name = 'ShipDoorPrompt'
-            prompt.ActionText = 'Open Door'
-            prompt.ObjectText = config.name
-            prompt.MaxActivationDistance = 10
-            prompt.HoldDuration = 0
-            prompt.Parent = panel
+            local prompt = ensureDoorPrompt(panel, config.name)
 
             door._prompt = prompt
 
@@ -309,13 +323,7 @@ function ShipDoors.init(shipModel)
                 isLargeDoor = false,
             })
 
-            local prompt = Instance.new('ProximityPrompt')
-            prompt.Name = 'ShipDoorPrompt'
-            prompt.ActionText = 'Open Door'
-            prompt.ObjectText = config.name
-            prompt.MaxActivationDistance = 10
-            prompt.HoldDuration = 0
-            prompt.Parent = part
+            local prompt = ensureDoorPrompt(part, config.name)
 
             door._prompt = prompt
 
