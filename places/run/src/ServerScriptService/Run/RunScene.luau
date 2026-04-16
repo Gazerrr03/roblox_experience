@@ -69,7 +69,10 @@ end
 local function buildSpawnGroundParams(sceneCollisionRoot, shipCollisionRoot, terrainMesh)
     local raycastParams = RaycastParams.new()
     raycastParams.FilterType = Enum.RaycastFilterType.Include
-    local instances = { sceneCollisionRoot, shipCollisionRoot }
+    local instances = { sceneCollisionRoot }
+    if shipCollisionRoot then
+        table.insert(instances, shipCollisionRoot)
+    end
     if terrainMesh and terrainMesh:IsA('BasePart') then
         table.insert(instances, terrainMesh)
     end
@@ -119,11 +122,16 @@ function RunScene.new(root)
         RunStaticWorldContract.SceneCollisionName,
         'RunStaticWorld Collision'
     )
-    local shipCollisionRoot = requireContainer(
-        collisionRoot,
-        RunStaticWorldContract.ShipCollisionName,
-        'RunStaticWorld Collision'
-    )
+    local shipCollisionRoot = collisionRoot:FindFirstChild(RunStaticWorldContract.ShipCollisionName)
+    if shipCollisionRoot and not (shipCollisionRoot:IsA('Folder') or shipCollisionRoot:IsA('Model')) then
+        error(
+            string.format(
+                'RunStaticWorld Collision container "%s" must be a Folder or Model.',
+                RunStaticWorldContract.ShipCollisionName
+            ),
+            0
+        )
+    end
     local triggersRoot =
         requireContainer(root, RunStaticWorldContract.TriggersRootName, 'RunStaticWorld')
     local oceanTriggerRoot = requireContainer(
@@ -184,6 +192,7 @@ function RunScene.new(root)
             Scene = sceneCollisionRoot,
             Ship = shipCollisionRoot,
         },
+        ShipModel = shipModel,
         OceanTriggers = oceanTriggers,
         OutdoorThresholdZ = outdoorThresholdZ,
         AreaResolver = nil,

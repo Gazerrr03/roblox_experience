@@ -227,7 +227,10 @@ end
 local function buildSpawnGroundParams(sceneCollisionRoot, shipCollisionRoot, terrainMesh)
     local raycastParams = RaycastParams.new()
     raycastParams.FilterType = Enum.RaycastFilterType.Include
-    local instances = { sceneCollisionRoot, shipCollisionRoot }
+    local instances = { sceneCollisionRoot }
+    if shipCollisionRoot then
+        table.insert(instances, shipCollisionRoot)
+    end
     if terrainMesh and terrainMesh:IsA('BasePart') then
         table.insert(instances, terrainMesh)
     end
@@ -264,7 +267,7 @@ local function assertSpawnHasGround(sceneCollisionRoot, shipCollisionRoot, terra
 
     error(
         string.format(
-            'RunStaticWorld SpawnMarker must raycast onto Collision/Scene, Collision/Ship, or terrain mesh within %d studs below it.',
+            'RunStaticWorld SpawnMarker must raycast onto Collision/Scene, optional Collision/Ship, or terrain mesh within %d studs below it.',
             RunStaticWorldContract.SpawnGroundCheckDepth
         ),
         0
@@ -289,11 +292,16 @@ function RunStaticWorldValidator.validate(root)
         RunStaticWorldContract.SceneCollisionName,
         'RunStaticWorld Collision'
     )
-    local shipCollisionRoot = requireContainer(
-        collisionRoot,
-        RunStaticWorldContract.ShipCollisionName,
-        'RunStaticWorld Collision'
-    )
+    local shipCollisionRoot = collisionRoot:FindFirstChild(RunStaticWorldContract.ShipCollisionName)
+    if shipCollisionRoot and not (shipCollisionRoot:IsA('Folder') or shipCollisionRoot:IsA('Model')) then
+        error(
+            string.format(
+                'RunStaticWorld Collision container "%s" must be a Folder or Model.',
+                RunStaticWorldContract.ShipCollisionName
+            ),
+            0
+        )
+    end
     local triggersRoot =
         requireContainer(root, RunStaticWorldContract.TriggersRootName, 'RunStaticWorld')
     local oceanTriggerRoot = requireContainer(
@@ -306,10 +314,12 @@ function RunStaticWorldValidator.validate(root)
         requireBaseParts(sceneCollisionRoot, 'RunStaticWorld Collision/Scene'),
         'RunStaticWorld Collision/Scene'
     )
-    validateCollisionParts(
-        requireBaseParts(shipCollisionRoot, 'RunStaticWorld Collision/Ship'),
-        'RunStaticWorld Collision/Ship'
-    )
+    if shipCollisionRoot then
+        validateCollisionParts(
+            requireBaseParts(shipCollisionRoot, 'RunStaticWorld Collision/Ship'),
+            'RunStaticWorld Collision/Ship'
+        )
+    end
     validateOceanParts(
         requireBaseParts(oceanTriggerRoot, 'RunStaticWorld Triggers/Ocean'),
         'RunStaticWorld Triggers/Ocean'

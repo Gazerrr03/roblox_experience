@@ -25,7 +25,6 @@ Required markers:
 Required authored collision structure:
 
 - `Collision/Scene`
-- `Collision/Ship`
 
 Required authored trigger structure:
 
@@ -36,7 +35,8 @@ Rules:
 - Keep all run-only geometry and prompts under `Workspace/RunStaticWorld`.
 - `RunStaticWorld` is the only formal runtime source for the `run` place.
 - `RunWorldBuilder` no longer generates fallback camp or wilderness geometry at runtime.
-- `Collision/Scene` and `Collision/Ship` must contain invisible anchored collision shells.
+- `Collision/Scene` must contain invisible anchored collision shells.
+- `Collision/Ship` is optional and should only exist when ship-specific collision shells are actively used.
 - Collision shell parts must use `Anchored=true`, `CanCollide=true`, `CanTouch=false`, `CanQuery=true`, and `Transparency=1`.
 - `Triggers/Ocean` must contain invisible anchored non-collidable trigger parts for water-entry feedback.
 - Missing required markers, prompts, doors, or root attributes must fail loudly at runtime so content issues are fixed in Studio instead of hidden in code.

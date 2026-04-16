@@ -1379,10 +1379,26 @@ function RunSessionService:_beginExpedition()
             shipPosition = shipCollision.Position
         end
     end
-    if not shipPosition then
+    if not shipPosition and not (self.World and self.World.ShipModel) then
         warn('[RunSessionService] Ship collision not found — skipping monster spawn')
         return
     end
+    local shipModel = self.World and self.World.ShipModel
+    if not shipPosition and shipModel then
+        if shipModel:IsA('Model') and shipModel.PrimaryPart then
+            shipPosition = shipModel.PrimaryPart.Position
+        else
+            local shipPart = shipModel:FindFirstChildWhichIsA('BasePart', true)
+            if shipPart then
+                shipPosition = shipPart.Position
+            end
+        end
+    end
+    if not shipPosition then
+        warn('[RunSessionService] Ship position not found - skipping monster spawn')
+        return
+    end
+
     local eligible = RunMonsterSpawnPolicy.collectEligiblePatrolPoints(allPositions, shipPosition)
     if #eligible == 0 then
         warn(
