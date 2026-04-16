@@ -14,7 +14,6 @@ local TWEEN_INFO_CLOSE = TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDi
 local ROTATION_ANGLE = 80 -- degrees to swing from closed toward open
 local SLIDE_DISTANCE = 4 -- studs to slide for small doors
 local PROMPT_MAX_ACTIVATION_DISTANCE = 10
-local PROMPT_SURFACE_OFFSET = 0.5
 
 -- Rotate a CFrame around a pivot point by angle on Y axis
 local function rotateAroundPivot(cframe, pivotPos, angleDeg)
@@ -159,6 +158,7 @@ local function createPrompt(parent, name, objectText)
     prompt.Name = name
     prompt.ActionText = 'Open Door'
     prompt.ObjectText = objectText
+    prompt.KeyboardKeyCode = Enum.KeyCode.E
     prompt.MaxActivationDistance = PROMPT_MAX_ACTIVATION_DISTANCE
     prompt.HoldDuration = 0
     prompt.RequiresLineOfSight = false
@@ -166,32 +166,15 @@ local function createPrompt(parent, name, objectText)
     return prompt
 end
 
-local function attachBidirectionalPrompts(door, part, objectText)
+local function attachDoorPrompt(door, part, objectText)
     clearPromptArtifacts(part)
 
-    local promptOffset = (part.Size.Z * 0.5) + PROMPT_SURFACE_OFFSET
-    local insideAttachment = Instance.new('Attachment')
-    insideAttachment.Name = 'ShipDoorPromptInsideAttachment'
-    insideAttachment.Position = Vector3.new(0, 0, -promptOffset)
-    insideAttachment.Parent = part
-
-    local outsideAttachment = Instance.new('Attachment')
-    outsideAttachment.Name = 'ShipDoorPromptOutsideAttachment'
-    outsideAttachment.Position = Vector3.new(0, 0, promptOffset)
-    outsideAttachment.Parent = part
-
-    local insidePrompt = createPrompt(insideAttachment, 'ShipDoorPromptInside', objectText)
-    local outsidePrompt = createPrompt(outsideAttachment, 'ShipDoorPromptOutside', objectText)
-
-    insidePrompt.Triggered:Connect(function()
-        door:toggle()
-    end)
-    outsidePrompt.Triggered:Connect(function()
+    local prompt = createPrompt(part, 'ShipDoorPrompt', objectText)
+    prompt.Triggered:Connect(function()
         door:toggle()
     end)
 
-    table.insert(door._prompts, insidePrompt)
-    table.insert(door._prompts, outsidePrompt)
+    table.insert(door._prompts, prompt)
 end
 
 -- ============================================================
@@ -289,7 +272,7 @@ function ShipDoors.init(shipModel)
                 isLargeDoor = true,
             })
 
-            attachBidirectionalPrompts(door, panel, config.name)
+            attachDoorPrompt(door, panel, config.name)
 
             table.insert(allDoors, door)
             print('[ShipDoors] Registered large hinged door: ' .. config.name)
@@ -331,7 +314,7 @@ function ShipDoors.init(shipModel)
                 isLargeDoor = false,
             })
 
-            attachBidirectionalPrompts(door, part, config.name)
+            attachDoorPrompt(door, part, config.name)
 
             table.insert(allDoors, door)
             print('[ShipDoors] Registered small sliding door: ' .. config.name)

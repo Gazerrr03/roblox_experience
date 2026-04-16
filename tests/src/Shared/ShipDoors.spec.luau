@@ -74,20 +74,16 @@ return function()
     assert(#doors == 6, 'ShipDoors should register all four large doors and two sliding doors when authored parts exist')
 
     for folderName, panel in pairs(panels) do
-        local insideAttachment = panel:FindFirstChild('ShipDoorPromptInsideAttachment')
-        local outsideAttachment = panel:FindFirstChild('ShipDoorPromptOutsideAttachment')
+        local prompt = panel:FindFirstChild('ShipDoorPrompt')
 
-        assert(insideAttachment ~= nil, string.format('%s should get an inside prompt attachment', folderName))
-        assert(outsideAttachment ~= nil, string.format('%s should get an outside prompt attachment', folderName))
-
-        local insidePrompt = insideAttachment:FindFirstChild('ShipDoorPromptInside')
-        local outsidePrompt = outsideAttachment:FindFirstChild('ShipDoorPromptOutside')
-
-        assert(insidePrompt ~= nil, string.format('%s should get an inside prompt', folderName))
-        assert(outsidePrompt ~= nil, string.format('%s should get an outside prompt', folderName))
+        assert(prompt ~= nil, string.format('%s should get a direct prompt on the visible door panel', folderName))
         assert(
-            insidePrompt.RequiresLineOfSight == false and outsidePrompt.RequiresLineOfSight == false,
-            string.format('%s prompts should ignore line of sight so players can open from either side', folderName)
+            prompt.RequiresLineOfSight == false,
+            string.format('%s prompt should ignore line of sight so players can open from either side', folderName)
+        )
+        assert(
+            prompt.KeyboardKeyCode == Enum.KeyCode.E,
+            string.format('%s prompt should explicitly use E as the activation key', folderName)
         )
     end
 end
