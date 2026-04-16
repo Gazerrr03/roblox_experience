@@ -2,44 +2,41 @@
 -- Deterministic host (party leader) assignment policy for a run session.
 -- Rules:
 --  1. First player to join becomes the initial host.
---  2. Host leaving → randomly reassign from remaining players.
+--  2. Host leaving → promote the next waiting player still present.
 --  3. Empty session → no host (nil).
 
 local HostPolicy = {}
 
-function HostPolicy.assignHost(players, currentHostUserId)
-    if #players == 0 then
+function HostPolicy.assignHost(waitingPlayerOrderUserIds, currentHostUserId)
+    if #waitingPlayerOrderUserIds == 0 then
         return nil
     end
 
     -- If current host is still present, keep them
-    if currentHostUserId ~= nil then
-        for _, player in ipairs(players) do
-            if player.UserId == currentHostUserId then
-                return currentHostUserId
-            end
+    if HostPolicy.isValidHost(currentHostUserId, waitingPlayerOrderUserIds) then
+        return currentHostUserId
+    end
+
+    for _, userId in ipairs(waitingPlayerOrderUserIds) do
+        if type(userId) == 'number' then
+            return userId
         end
     end
 
-    -- No valid host; pick deterministically by lowest UserId
-    local candidate = players[1]
-    for _, player in ipairs(players) do
-        if player.UserId < candidate.UserId then
-            candidate = player
-        end
-    end
-    return candidate.UserId
+    return nil
 end
 
-function HostPolicy.isValidHost(hostUserId, players)
+function HostPolicy.isValidHost(hostUserId, waitingPlayerOrderUserIds)
     if hostUserId == nil then
         return false
     end
-    for _, player in ipairs(players) do
-        if player.UserId == hostUserId then
+
+    for _, userId in ipairs(waitingPlayerOrderUserIds) do
+        if userId == hostUserId then
             return true
         end
     end
+
     return false
 end
 

@@ -245,6 +245,7 @@ function RunSessionService.new(options)
     self.GateOpen = false
     self.GamePhase = 'Waiting'
     self.HostUserId = nil
+    self.WaitingPlayerOrderUserIds = {}
     self.World = nil
     self.WorldInteractions = nil
     self.SnapshotThread = nil
@@ -1708,6 +1709,7 @@ function RunSessionService:start()
         self:_removePlayerState(player)
 
         if self.GamePhase == 'Waiting' then
+            self:_removeWaitingPlayer(player.UserId)
             self:_assignHost(nil)
         end
 
@@ -1752,6 +1754,7 @@ function RunSessionService:start()
     self:_rebuildWorld()
     self.GamePhase = 'Waiting'
     self:_lockAllShipDoors()
+    self:_seedWaitingPlayerOrder(Players:GetPlayers())
     self:_assignHost(nil)
     Players.CharacterAutoLoads = true
 
@@ -1772,8 +1775,39 @@ function RunSessionService:_shouldLoadCharacterOnJoin(player)
     return player.Character == nil and Players.CharacterAutoLoads == false
 end
 
+function RunSessionService:_recordWaitingPlayer(userId)
+    if type(userId) ~= 'number' then
+        return
+    end
+
+    for _, existingUserId in ipairs(self.WaitingPlayerOrderUserIds) do
+        if existingUserId == userId then
+            return
+        end
+    end
+
+    table.insert(self.WaitingPlayerOrderUserIds, userId)
+end
+
+function RunSessionService:_removeWaitingPlayer(userId)
+    for index = #self.WaitingPlayerOrderUserIds, 1, -1 do
+        if self.WaitingPlayerOrderUserIds[index] == userId then
+            table.remove(self.WaitingPlayerOrderUserIds, index)
+        end
+    end
+end
+
+function RunSessionService:_seedWaitingPlayerOrder(players)
+    table.clear(self.WaitingPlayerOrderUserIds)
+
+    for _, player in ipairs(players) do
+        self:_recordWaitingPlayer(player.UserId)
+    end
+end
+
 function RunSessionService:_assignHost(newlyJoinedUserId)
-    self.HostUserId = HostPolicy.assignHost(Players:GetPlayers(), self.HostUserId)
+    self:_recordWaitingPlayer(newlyJoinedUserId)
+    self.HostUserId = HostPolicy.assignHost(self.WaitingPlayerOrderUserIds, self.HostUserId)
 end
 
 function RunSessionService:_onHostStartGame(player)
