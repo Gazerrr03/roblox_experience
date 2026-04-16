@@ -17,7 +17,9 @@ function RunWorldScanner.scanSpawnPoints()
 
     local positions = {}
     for _, descendant in ipairs(staticWorldRoot:GetDescendants()) do
-        if descendant:IsA('BasePart') and string.find(descendant.Name, SPAWN_POINT_PREFIX, 1, true) then
+        if
+            descendant:IsA('BasePart') and string.find(descendant.Name, SPAWN_POINT_PREFIX, 1, true)
+        then
             table.insert(positions, descendant.Position)
         end
     end

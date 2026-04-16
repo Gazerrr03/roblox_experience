@@ -1286,7 +1286,8 @@ function RunSessionService:_compileMonsterForRun(authorProfile)
         Behaviors = table.freeze(behaviors),
         Effects = table.freeze({}),
     }
-    runtimeProfile.Components = Gameplay.Monsters.MonsterComponentConfig.fromRuntimeProfile(runtimeProfile)
+    runtimeProfile.Components =
+        Gameplay.Monsters.MonsterComponentConfig.fromRuntimeProfile(runtimeProfile)
     runtimeProfile = table.freeze(runtimeProfile)
 
     local valid, reason = MonsterRuntimeProfile.validate(runtimeProfile)
@@ -1303,17 +1304,23 @@ function RunSessionService:_createMonsterService()
     local canTraverseFn = RunWorldScanner.buildCanTraverseFn(self.World)
     local randomSource = Random.new(self.SessionData.Seed > 0 and self.SessionData.Seed or 42)
 
-    return MonsterService.new(monsterProfile, function()
-        return self.RunTracker:getState() == 'Expedition'
-    end, function(player)
-        return self.RunTracker:isPlayerActive(player.UserId)
-    end, canTraverseFn, {
-        RandomSeed = self.SessionData.Seed,
-        RandomSource = randomSource,
-        OnAttackHit = function(player, damagePips, _hitContext)
-            self:_applyPlayerDamage(player, damagePips)
+    return MonsterService.new(
+        monsterProfile,
+        function()
+            return self.RunTracker:getState() == 'Expedition'
         end,
-    })
+        function(player)
+            return self.RunTracker:isPlayerActive(player.UserId)
+        end,
+        canTraverseFn,
+        {
+            RandomSeed = self.SessionData.Seed,
+            RandomSource = randomSource,
+            OnAttackHit = function(player, damagePips, _hitContext)
+                self:_applyPlayerDamage(player, damagePips)
+            end,
+        }
+    )
 end
 
 -- Called when ShipDoors first opened: spawn monsters at eligible patrol points
@@ -1324,7 +1331,9 @@ function RunSessionService:_beginExpedition()
 
     local allPositions = RunWorldScanner.scanSpawnPoints()
     if #allPositions == 0 then
-        warn('[RunSessionService] No SpawnPoint_* found in RunStaticWorld — skipping monster spawn')
+        warn(
+            '[RunSessionService] No SpawnPoint_* found in RunStaticWorld — skipping monster spawn'
+        )
         return
     end
 
@@ -1344,7 +1353,9 @@ function RunSessionService:_beginExpedition()
     end
     local eligible = RunMonsterSpawnPolicy.collectEligiblePatrolPoints(allPositions, shipPosition)
     if #eligible == 0 then
-        warn('[RunSessionService] No eligible patrol points after exclusion — skipping monster spawn')
+        warn(
+            '[RunSessionService] No eligible patrol points after exclusion — skipping monster spawn'
+        )
         return
     end
 
