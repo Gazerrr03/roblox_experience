@@ -53,6 +53,10 @@ local OCEAN_SPLASH_MESSAGE = 'Sea spray crashes over you.'
 local OCEAN_SLOWDOWN_DELAY_SECONDS = 1
 local OCEAN_SLOWDOWN_WALK_SPEED = 12
 local OCEAN_DAMAGE_INTERVAL_SECONDS = 5
+local DAMAGE_KIND_BY_PIPS = table.freeze({
+    [1] = Gameplay.PlayerState.DamageKind.Light,
+    [2] = Gameplay.PlayerState.DamageKind.Heavy,
+})
 local SHOP_ITEMS = {
     {
         Id = 'temple_lantern',
@@ -1321,6 +1325,25 @@ function RunSessionService:_createMonsterService()
             end,
         }
     )
+end
+
+function RunSessionService:_applyPlayerDamage(player, damagePips)
+    if not self.RunTracker:isPlayerActive(player.UserId) then
+        return
+    end
+    local damageKind = DAMAGE_KIND_BY_PIPS[damagePips]
+    if damageKind == nil then
+        return
+    end
+    local success, result = self.PlayerService:applyDamage(player, damageKind)
+    if not success then
+        warn(
+            ('[RunSessionService] applyDamage failed for %s: %s'):format(
+                player.DisplayName,
+                tostring(result)
+            )
+        )
+    end
 end
 
 -- Called when ShipDoors first opened: spawn monsters at eligible patrol points
