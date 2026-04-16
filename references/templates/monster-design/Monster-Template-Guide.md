@@ -117,18 +117,22 @@ assert(ok, 'Compile failed: ' .. tostring(runtimeProfile))
 
 ### Step 3 — 接入 MonsterService
 
-在 `MazeSessionService` 或 `RunSessionService` 的怪物生成逻辑中：
+在 `MazeSessionService` 或 `RunSessionService` 的怪物生成逻辑中，编译模板并传给 `MonsterService.new`：
 
 ```lua
-local runtimeProfiles = {}
-for _, template in ipairs(Monsters) do
-    local ok, profile = MonsterCompiler.compileMonsterForMaze(template)
-    if ok then
-        table.insert(runtimeProfiles, profile)
-    end
-end
--- 使用 runtimeProfiles 初始化怪物服务...
+local MonsterCompiler = require(Packages.Gameplay.Monsters.MonsterCompiler)
+local Monsters = require(Packages.Gameplay.Config.Monsters)
+
+local template = Monsters[2]  -- 新增的模板
+local ok, runtimeProfile = MonsterCompiler.compileMonsterForMaze(template)
+assert(ok, 'Compile failed: ' .. tostring(runtimeProfile))
+
+-- MonsterService.new 只接受单个 runtimeProfile
+local monsterService = MonsterService.new(runtimeProfile, isExpeditionActive, canTargetPlayer, canTraverse, options)
+monsterService:spawn(patrolPoints)
 ```
+
+如需管理多个怪物模板，在 Session 层维护一个 `{ [monsterId]: MonsterService }` 映射。
 
 ### Step 4 — 写测试（推荐）
 
@@ -207,7 +211,7 @@ print(hp.CurrentHp, hp.MaxHp, hp.IsDead)
 
 **Q: 行为列表可以为空吗？**
 
-可以，但怪物将不会有任何行为（不会移动、不会感知、不会攻击）。至少需要 `SenseNearestTarget` 才能检测玩家。
+不可以。schema 校验会报错 `MissingBehaviorIntents`。至少需要配置一个 behavior intent（如 `SenseNearestTarget`），否则怪物不会有任何感知/移动/攻击行为。
 
 **Q: 如何禁用某个效果但保留行为？**
 
