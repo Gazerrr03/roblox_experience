@@ -10,12 +10,12 @@ data contract explicit first.
 ## Vibe Framework
 
 - This repository uses a cross-agent "vibe" framework for long-lived code
-  domains: `lobby`, `run`, `maze`, and `contract`.
+  domains: `run`, `maze`, and `contract`.
 - Start with `references/place-parallel-development.md` for the repo-wide
   delivery model.
 - Treat code domains as the primary boundary. Branches, worktrees, issues, and
   PRs coordinate the work, but they do not replace code ownership.
-- When you work inside `places/lobby`, `places/run`, `places/maze`, or
+- When you work inside `places/run`, `places/maze`, or
   `packages/shared`, read the local `VIBE.md` first and the local `NOW.md`
   second.
 - Local `AGENTS.md` and `CLAUDE.md` files are intentionally thin adapters. The
@@ -29,7 +29,7 @@ data contract explicit first.
   logic. Keep it portable and mostly free of direct DataModel side effects.
 - `packages/ui/src` is the source of truth for shared UI helpers and theme
   data.
-- `places/lobby/src`, `places/run/src`, and `places/maze/src` are place-specific
+- `places/run/src` and `places/maze/src` are place-specific
   composition layers. They may depend on shared/gameplay packages, but
   shared/gameplay code must not depend on a specific place.
 - `tests/src` mirrors pure logic in `packages/**`. Any non-trivial rules
@@ -82,8 +82,8 @@ data contract explicit first.
 - If a new folder or script tree must appear in Studio, reflect it in the
   relevant `default.project.json` file in the same change.
 - Keep cross-place reuse in `packages/**`; do not copy logic between
-  `places/lobby` and `places/run`.
-- Treat place delivery as four lines: `lobby`, `run`, `maze`, and `contract`.
+  `places/run` and `places/maze`.
+- Treat place delivery as three lines: `run`, `maze`, and `contract`.
   The `contract` line owns cross-place handoffs, shared remote definitions, and
   deterministic tests.
 - Keep cross-place teleports inside place-local portal adapter modules. Do not
