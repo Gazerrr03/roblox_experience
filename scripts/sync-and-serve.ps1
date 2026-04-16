@@ -59,9 +59,18 @@ function Invoke-External {
 }
 
 # Step 1: Git sync
-Write-Step "Syncing main branch"
-git checkout main
-git pull origin main
+$currentBranch = git branch --show-current
+if (-not $currentBranch) {
+    Write-Host '[WARNING] Detached HEAD detected — skipping git pull for this worktree.' -ForegroundColor Yellow
+} else {
+    $upstreamRef = git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>$null
+    if ($LASTEXITCODE -eq 0 -and $upstreamRef) {
+        Write-Step "Syncing current branch ($currentBranch)"
+        git pull --ff-only
+    } else {
+        Write-Host "[WARNING] Branch '$currentBranch' has no upstream — skipping git pull." -ForegroundColor Yellow
+    }
+}
 
 # Step 2: Print Feature Manifest
 $featuresPath = switch ($Place) {
