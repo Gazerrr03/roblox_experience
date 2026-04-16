@@ -19,10 +19,6 @@ return function()
     sceneCollisionRoot.Name = 'Scene'
     sceneCollisionRoot.Parent = collisionRoot
 
-    local shipCollisionRoot = Instance.new('Folder')
-    shipCollisionRoot.Name = 'Ship'
-    shipCollisionRoot.Parent = collisionRoot
-
     local triggersRoot = Instance.new('Folder')
     triggersRoot.Name = 'Triggers'
     triggersRoot.Parent = root
@@ -71,16 +67,6 @@ return function()
     mazeReturnMarker.CFrame = CFrame.new(0, 4, 64)
     mazeReturnMarker.Parent = root
 
-    local doorLeft = Instance.new('Part')
-    doorLeft.Name = 'DoorLeft'
-    doorLeft.Anchored = true
-    doorLeft.Parent = root
-
-    local doorRight = Instance.new('Part')
-    doorRight.Name = 'DoorRight'
-    doorRight.Anchored = true
-    doorRight.Parent = root
-
     local sceneFloor = Instance.new('Part')
     sceneFloor.Name = 'SceneFloor'
     sceneFloor.Anchored = true
@@ -89,17 +75,6 @@ return function()
     sceneFloor.CanQuery = true
     sceneFloor.Transparency = 1
     sceneFloor.Parent = sceneCollisionRoot
-
-    local shipDeck = Instance.new('Part')
-    shipDeck.Name = 'ShipDeck'
-    shipDeck.Anchored = true
-    shipDeck.CanCollide = true
-    shipDeck.CanTouch = false
-    shipDeck.CanQuery = true
-    shipDeck.Transparency = 1
-    shipDeck.CFrame = CFrame.new(0, 0, 0)
-    shipDeck.Size = Vector3.new(24, 1, 24)
-    shipDeck.Parent = shipCollisionRoot
 
     local oceanTrigger = Instance.new('Part')
     oceanTrigger.Name = 'OceanSurface'
@@ -114,6 +89,7 @@ return function()
     createPromptPart('ObjectiveBoard', 4)
     createPromptPart('LoadoutBench', 6)
     createPromptPart('UgcLabConsole', 8)
+    local _, startGamePrompt = createPromptPart('StartGamePrompt', 9)
     local _, gatePrompt = createPromptPart('GateSwitch', 10)
     createPromptPart('MazeGateMarker', 72)
 
@@ -143,12 +119,17 @@ return function()
         scene.Collision.Scene == sceneCollisionRoot,
         'RunScene should expose scene collision root'
     )
-    assert(scene.Collision.Ship == shipCollisionRoot, 'RunScene should expose ship collision root')
+    assert(
+        scene.Collision.Ship == nil,
+        'RunScene should tolerate the ship collision root being absent'
+    )
     assert(#scene.OceanTriggers == 1, 'RunScene should expose authored ocean triggers')
+    assert(
+        scene.StartGamePrompt == startGamePrompt,
+        'RunScene should expose the optional ship start prompt when authored'
+    )
 
     scene:openGate()
-    assert(doorLeft.Transparency == 1, 'RunScene gate opening should hide the left door')
-    assert(doorRight.Transparency == 1, 'RunScene gate opening should hide the right door')
     assert(gatePrompt.ActionText == 'Gate Open', 'RunScene should update gate prompt copy')
 
     root:Destroy()

@@ -81,109 +81,6 @@
                 ]
               }
             }
-          },
-          "Ship": {
-            "$className": "Folder",
-            "HullDeckMain": {
-              "$className": "Part",
-              "$properties": {
-                "Anchored": true,
-                "CanCollide": true,
-                "CanTouch": false,
-                "CanQuery": true,
-                "Transparency": 1,
-                "Position": [
-                  49.7613869,
-                  14.4495049,
-                  299.243103
-                ],
-                "Size": [
-                  72,
-                  2,
-                  72
-                ]
-              }
-            },
-            "HullRailNorth": {
-              "$className": "Part",
-              "$properties": {
-                "Anchored": true,
-                "CanCollide": true,
-                "CanTouch": false,
-                "CanQuery": true,
-                "Transparency": 1,
-                "Position": [
-                  49.7613869,
-                  17.4495049,
-                  334.243103
-                ],
-                "Size": [
-                  68,
-                  6,
-                  2
-                ]
-              }
-            },
-            "HullRailSouth": {
-              "$className": "Part",
-              "$properties": {
-                "Anchored": true,
-                "CanCollide": true,
-                "CanTouch": false,
-                "CanQuery": true,
-                "Transparency": 1,
-                "Position": [
-                  49.7613869,
-                  17.4495049,
-                  264.243103
-                ],
-                "Size": [
-                  68,
-                  6,
-                  2
-                ]
-              }
-            },
-            "HullRailEast": {
-              "$className": "Part",
-              "$properties": {
-                "Anchored": true,
-                "CanCollide": true,
-                "CanTouch": false,
-                "CanQuery": true,
-                "Transparency": 1,
-                "Position": [
-                  84.7613869,
-                  17.4495049,
-                  299.243103
-                ],
-                "Size": [
-                  2,
-                  6,
-                  72
-                ]
-              }
-            },
-            "HullRailWest": {
-              "$className": "Part",
-              "$properties": {
-                "Anchored": true,
-                "CanCollide": true,
-                "CanTouch": false,
-                "CanQuery": true,
-                "Transparency": 1,
-                "Position": [
-                  14.7613869,
-                  17.4495049,
-                  299.243103
-                ],
-                "Size": [
-                  2,
-                  6,
-                  72
-                ]
-              }
-            }
           }
         },
         "Triggers": {
@@ -210,18 +107,6 @@
                 ]
               }
             }
-          }
-        },
-        "DoorLeft": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true
-          }
-        },
-        "DoorRight": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true
           }
         },
         "ShopTerminal": {
@@ -264,6 +149,20 @@
           "$className": "Part",
           "$properties": {
             "Anchored": true
+          },
+          "Prompt": {
+            "$className": "ProximityPrompt"
+          }
+        },
+        "StartGamePrompt": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true,
+            "Position": [
+              49.7613869,
+              15.5,
+              299.243103
+            ]
           },
           "Prompt": {
             "$className": "ProximityPrompt"

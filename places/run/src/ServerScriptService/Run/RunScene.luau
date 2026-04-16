@@ -1,5 +1,4 @@
 local RunAreaResolver = require(script.Parent.RunAreaResolver)
-local RunDoor = require(script.Parent.RunDoor)
 local RunInteractionRegistry = require(script.Parent.RunInteractionRegistry)
 local RunOceanTrigger = require(script.Parent.RunOceanTrigger)
 local RunPortal = require(script.Parent.RunPortal)
@@ -49,6 +48,26 @@ local function requireContainer(parent, name, contextLabel)
     local child = parent:FindFirstChild(name)
     if child == nil or not (child:IsA('Folder') or child:IsA('Model')) then
         error(string.format('%s is missing required container "%s".', contextLabel, name), 0)
+    end
+
+    return child
+end
+
+local function findOptionalContainer(parent, name, contextLabel)
+    local child = parent:FindFirstChild(name)
+    if child == nil then
+        return nil
+    end
+
+    if not (child:IsA('Folder') or child:IsA('Model')) then
+        error(
+            string.format(
+                '%s optional container "%s" must be a Folder or Model.',
+                contextLabel,
+                name
+            ),
+            0
+        )
     end
 
     return child
@@ -119,7 +138,7 @@ function RunScene.new(root)
         RunStaticWorldContract.SceneCollisionName,
         'RunStaticWorld Collision'
     )
-    local shipCollisionRoot = requireContainer(
+    local shipCollisionRoot = findOptionalContainer(
         collisionRoot,
         RunStaticWorldContract.ShipCollisionName,
         'RunStaticWorld Collision'
@@ -144,9 +163,10 @@ function RunScene.new(root)
         end
     end
     -- Initialize ship doors: find the Sci-Fi Space Ship model under terrainRoot
+    local allDoors = {}
     local shipModel = terrainRoot and terrainRoot:FindFirstChild('Sci-Fi Space Ship')
     if shipModel then
-        ShipDoors.init(shipModel)
+        allDoors = ShipDoors.init(shipModel) or {}
     end
     local spawnGroundParams =
         buildSpawnGroundParams(sceneCollisionRoot, shipCollisionRoot, terrainMesh)
@@ -162,12 +182,18 @@ function RunScene.new(root)
     for partName, kind in pairs(REQUIRED_PROMPT_PARTS) do
         terminals[kind] = RunTerminal.new(kind, requirePart(root, partName))
     end
+    local startGamePromptPart = root:FindFirstChild('StartGamePrompt')
+    if startGamePromptPart and startGamePromptPart:IsA('BasePart') then
+        terminals.StartGame = RunTerminal.new('StartGame', startGamePromptPart)
+    end
+
+    -- StartGamePrompt is optional; only create if the part exists in the static world
+    local startGamePart = root:FindFirstChild('StartGamePrompt')
+    if startGamePart and startGamePart:IsA('BasePart') then
+        terminals.StartGame = RunTerminal.new('StartGame', startGamePart)
+    end
 
     local mazePortal = RunPortal.new(RunPortal.Kind.MazeGate, requirePart(root, 'MazeGateMarker'))
-    local gateDoor = RunDoor.new('TempleGate', {
-        requirePart(root, 'DoorLeft'),
-        requirePart(root, 'DoorRight'),
-    })
     local oceanTriggers = {}
 
     for _, part in ipairs(collectBaseParts(oceanTriggerRoot)) do
@@ -179,7 +205,6 @@ function RunScene.new(root)
         SpawnPoints = spawnPoints,
         Terminals = terminals,
         MazePortal = mazePortal,
-        GateDoor = gateDoor,
         Collision = {
             Scene = sceneCollisionRoot,
             Ship = shipCollisionRoot,
@@ -187,6 +212,7 @@ function RunScene.new(root)
         OceanTriggers = oceanTriggers,
         OutdoorThresholdZ = outdoorThresholdZ,
         AreaResolver = nil,
+        ShipDoors = allDoors,
         SpawnCFramesByKind = spawnCFramesByKind,
 
         SpawnCFrame = spawnCFramesByKind[RunSpawnPoint.Kind.Spawn],
@@ -198,6 +224,7 @@ function RunScene.new(root)
         LoadoutPrompt = terminals.Loadout.Prompt,
         UgcLabPrompt = terminals.UgcLab.Prompt,
         GatePrompt = terminals.Gate.Prompt,
+        StartGamePrompt = terminals.StartGame and terminals.StartGame.Prompt or nil,
         MazePrompt = mazePortal.Prompt,
     }, RunScene)
 
@@ -220,8 +247,19 @@ function RunScene:getAreaForPosition(position)
 end
 
 function RunScene:openGate()
-    self.GateDoor:open()
     self.Terminals.Gate.Prompt.ActionText = 'Gate Open'
+end
+
+function RunScene:lockAllShipDoors()
+    for _, door in ipairs(self.ShipDoors or {}) do
+        door:lock()
+    end
+end
+
+function RunScene:unlockAllShipDoors()
+    for _, door in ipairs(self.ShipDoors or {}) do
+        door:unlock()
+    end
 end
 
 function RunScene:bindInteractions(handlers)

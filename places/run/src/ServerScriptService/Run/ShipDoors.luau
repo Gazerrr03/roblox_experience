@@ -32,6 +32,7 @@ function ShipDoors.new(config)
 
     self._isOpen = false
     self._isAnimating = false
+    self._isLocked = false
     self._originalCFrames = {}
     self._prompt = nil
 
@@ -113,11 +114,33 @@ function ShipDoors:close()
 end
 
 function ShipDoors:toggle()
+    if self._isLocked then
+        return
+    end
+
     if self._isOpen then
         self:close()
     else
         self:open()
     end
+end
+
+function ShipDoors:lock()
+    self._isLocked = true
+    if self._prompt then
+        self._prompt.Enabled = false
+    end
+end
+
+function ShipDoors:unlock()
+    self._isLocked = false
+    if self._prompt then
+        self._prompt.Enabled = true
+    end
+end
+
+function ShipDoors:isLocked()
+    return self._isLocked == true
 end
 
 -- ============================================================
@@ -135,6 +158,26 @@ local function findMeshPart(model)
         end
     end
     return nil
+end
+
+local function ensureDoorPrompt(parent, objectText)
+    local prompt = parent:FindFirstChild('ShipDoorPrompt')
+    if prompt ~= nil and not prompt:IsA('ProximityPrompt') then
+        prompt = nil
+    end
+
+    if prompt == nil then
+        prompt = Instance.new('ProximityPrompt')
+        prompt.Name = 'ShipDoorPrompt'
+        prompt.Parent = parent
+    end
+
+    prompt.ActionText = 'Open Door'
+    prompt.ObjectText = objectText
+    prompt.MaxActivationDistance = 10
+    prompt.HoldDuration = 0
+
+    return prompt
 end
 
 -- ============================================================
@@ -232,13 +275,7 @@ function ShipDoors.init(shipModel)
                 isLargeDoor = true,
             })
 
-            local prompt = Instance.new('ProximityPrompt')
-            prompt.Name = 'ShipDoorPrompt'
-            prompt.ActionText = 'Open Door'
-            prompt.ObjectText = config.name
-            prompt.MaxActivationDistance = 10
-            prompt.HoldDuration = 0
-            prompt.Parent = panel
+            local prompt = ensureDoorPrompt(panel, config.name)
 
             door._prompt = prompt
 
@@ -286,13 +323,7 @@ function ShipDoors.init(shipModel)
                 isLargeDoor = false,
             })
 
-            local prompt = Instance.new('ProximityPrompt')
-            prompt.Name = 'ShipDoorPrompt'
-            prompt.ActionText = 'Open Door'
-            prompt.ObjectText = config.name
-            prompt.MaxActivationDistance = 10
-            prompt.HoldDuration = 0
-            prompt.Parent = part
+            local prompt = ensureDoorPrompt(part, config.name)
 
             door._prompt = prompt
 

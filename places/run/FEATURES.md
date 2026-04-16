@@ -98,13 +98,17 @@
 ```
 RunStaticWorld/
 ├── SpawnMarker, ReturnMarker, MazeReturnMarker   # 出生点
-├── Ship/*                                       # Sci-Fi飞船模型
+├── RunTerrain_Main/
+│   ├── Scene/                                   # 视觉地形
+│   ├── ocean/                                   # 海面视觉层
+│   └── Sci-Fi Space Ship/                       # 飞船视觉模型；门交互由代码侧生成
 ├── ShopTerminal, SalvageTerminal                 # Terminals
 ├── ObjectiveBoard, LoadoutBench, UgcLabConsole  # Terminals
-├── ShipDoorsTrigger                              # 门触发ProximityPrompt
+├── GateSwitch                                    # 仅推进 gate open 状态，不再驱动 top-level 门片动画
 ├── MazeGateMarker                                # 传送门
 ├── Triggers/Ocean/                              # 溺水trigger
-├── Collision/Scene/, Collision/Ship/            # 碰撞体
+├── Collision/Scene/                             # 碰撞体
+├── Collision/Ship/ (optional)                   # 可选飞船碰撞层；当前Studio场景未摆放
 └── SpawnPoint_*                                 # ⚠️ 需人工摆放怪物生成点
 ```
 

@@ -13,8 +13,6 @@ return function()
     assert(container ~= nil, 'Remotes.ensure should create the Remotes folder')
 
     local expectedNames = {
-        'LobbyAction',
-        'LobbyState',
         'RunAction',
         'RunState',
         'RunPrivateState',

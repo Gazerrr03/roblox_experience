@@ -18,6 +18,26 @@ local function requireContainer(parent, name, contextLabel)
     return child
 end
 
+local function findOptionalContainer(parent, name, contextLabel)
+    local child = parent:FindFirstChild(name)
+    if child == nil then
+        return nil
+    end
+
+    if not (child:IsA('Folder') or child:IsA('Model')) then
+        error(
+            string.format(
+                '%s optional container "%s" must be a Folder or Model.',
+                contextLabel,
+                name
+            ),
+            0
+        )
+    end
+
+    return child
+end
+
 local function collectBaseParts(root)
     local parts = {}
 
@@ -264,7 +284,7 @@ local function assertSpawnHasGround(sceneCollisionRoot, shipCollisionRoot, terra
 
     error(
         string.format(
-            'RunStaticWorld SpawnMarker must raycast onto Collision/Scene, Collision/Ship, or terrain mesh within %d studs below it.',
+            'RunStaticWorld SpawnMarker must raycast onto Collision/Scene, optional Collision/Ship, or terrain mesh within %d studs below it.',
             RunStaticWorldContract.SpawnGroundCheckDepth
         ),
         0
@@ -289,7 +309,7 @@ function RunStaticWorldValidator.validate(root)
         RunStaticWorldContract.SceneCollisionName,
         'RunStaticWorld Collision'
     )
-    local shipCollisionRoot = requireContainer(
+    local shipCollisionRoot = findOptionalContainer(
         collisionRoot,
         RunStaticWorldContract.ShipCollisionName,
         'RunStaticWorld Collision'
@@ -306,10 +326,12 @@ function RunStaticWorldValidator.validate(root)
         requireBaseParts(sceneCollisionRoot, 'RunStaticWorld Collision/Scene'),
         'RunStaticWorld Collision/Scene'
     )
-    validateCollisionParts(
-        requireBaseParts(shipCollisionRoot, 'RunStaticWorld Collision/Ship'),
-        'RunStaticWorld Collision/Ship'
-    )
+    if shipCollisionRoot ~= nil then
+        validateCollisionParts(
+            requireBaseParts(shipCollisionRoot, 'RunStaticWorld Collision/Ship'),
+            'RunStaticWorld Collision/Ship'
+        )
+    end
     validateOceanParts(
         requireBaseParts(oceanTriggerRoot, 'RunStaticWorld Triggers/Ocean'),
         'RunStaticWorld Triggers/Ocean'

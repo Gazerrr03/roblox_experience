@@ -233,6 +233,46 @@ local function buildSessionPhaseText(snapshot)
     return string.format('Phase: %s', snapshot.SessionPhase or 'RunPrep')
 end
 
+local function resolveHostDisplayName(snapshot)
+    local hostUserId = snapshot.HostUserId
+    if type(hostUserId) ~= 'number' then
+        return nil
+    end
+
+    for _, rosterEntry in ipairs(snapshot.Roster or {}) do
+        if rosterEntry.UserId == hostUserId then
+            if hostUserId == localPlayer.UserId then
+                return 'You'
+            end
+
+            return rosterEntry.Name
+        end
+    end
+
+    if hostUserId == localPlayer.UserId then
+        return 'You'
+    end
+
+    return string.format('User %d', hostUserId)
+end
+
+local function buildWaitingHostText(snapshot)
+    if snapshot.GamePhase ~= 'Waiting' then
+        return 'Run state: Playing'
+    end
+
+    local hostDisplayName = resolveHostDisplayName(snapshot)
+    if hostDisplayName == nil then
+        return 'Run state: Waiting for host assignment'
+    end
+
+    if snapshot.HostUserId == localPlayer.UserId then
+        return 'Run state: Waiting | Host: You can start from the ship console'
+    end
+
+    return string.format('Run state: Waiting | Host: %s', hostDisplayName)
+end
+
 local function formatClockTime(clockTime)
     local normalizedClockTime = (clockTime or 0) % 24
     local hours = math.floor(normalizedClockTime)
@@ -563,6 +603,124 @@ goalBanner.Visible = false
 goalBanner.Parent = screenGui
 applyPanelStyle(goalBanner, 12, 0.7)
 
+-- Watch HUD: shows game time and remaining round time
+local watchFrame = Instance.new('Frame')
+watchFrame.Name = 'WatchHud'
+watchFrame.AnchorPoint = Vector2.new(1, 0)
+watchFrame.Position = UDim2.new(1, -16, 0, 16)
+watchFrame.Size = UDim2.fromOffset(130, 58)
+watchFrame.BackgroundColor3 = Color3.fromRGB(12, 10, 8)
+watchFrame.BackgroundTransparency = 0.15
+watchFrame.BorderSizePixel = 0
+watchFrame.Visible = false
+watchFrame.Parent = screenGui
+local watchCorner = Instance.new('UICorner')
+watchCorner.CornerRadius = UDim.new(0, 10)
+watchCorner.Parent = watchFrame
+local watchStroke = Instance.new('UIStroke')
+watchStroke.Color = Theme.Text
+watchStroke.Transparency = 0.7
+watchStroke.Thickness = 1
+watchStroke.Parent = watchFrame
+
+local watchClockIcon = Instance.new('TextLabel')
+watchClockIcon.Name = 'ClockIcon'
+watchClockIcon.Size = UDim2.fromOffset(16, 16)
+watchClockIcon.Position = UDim2.fromOffset(10, 10)
+watchClockIcon.BackgroundTransparency = 1
+watchClockIcon.Font = Enum.Font.GothamBold
+watchClockIcon.TextColor3 = Theme.Accent
+watchClockIcon.TextSize = 14
+watchClockIcon.Text = '\u{1F551}'
+watchClockIcon.Parent = watchFrame
+
+local watchGameTimeLabel = Instance.new('TextLabel')
+watchGameTimeLabel.Name = 'GameTime'
+watchGameTimeLabel.Size = UDim2.new(1, -36, 0, 22)
+watchGameTimeLabel.Position = UDim2.fromOffset(30, 6)
+watchGameTimeLabel.BackgroundTransparency = 1
+watchGameTimeLabel.Font = Enum.Font.GothamBold
+watchGameTimeLabel.TextColor3 = Theme.Text
+watchGameTimeLabel.TextSize = 18
+watchGameTimeLabel.TextXAlignment = Enum.TextXAlignment.Left
+watchGameTimeLabel.TextYAlignment = Enum.TextYAlignment.Center
+watchGameTimeLabel.Text = '07:00'
+watchGameTimeLabel.Parent = watchFrame
+
+local watchRemainLabel = Instance.new('TextLabel')
+watchRemainLabel.Name = 'Remaining'
+watchRemainLabel.Size = UDim2.new(1, -20, 0, 18)
+watchRemainLabel.Position = UDim2.fromOffset(10, 34)
+watchRemainLabel.BackgroundTransparency = 1
+watchRemainLabel.Font = Theme.Font
+watchRemainLabel.TextColor3 = Theme.SubtleText
+watchRemainLabel.TextSize = 13
+watchRemainLabel.TextXAlignment = Enum.TextXAlignment.Left
+watchRemainLabel.TextYAlignment = Enum.TextYAlignment.Center
+watchRemainLabel.Text = '\u{21BB} 15:00'
+watchRemainLabel.Parent = watchFrame
+
+local function formatGameTime(gameHour)
+    local totalMinutes = math.floor(gameHour * 60)
+    local h = math.floor(totalMinutes / 60)
+    local m = totalMinutes % 60
+    return string.format('%02d:%02d', h, m)
+end
+
+local function formatRemaining(seconds)
+    local m = math.floor(seconds / 60)
+    local s = math.floor(seconds % 60)
+    return string.format('\u{21BB} %02d:%02d', m, s)
+end
+
+local todConnection = nil
+local lastTodState = nil
+
+local function updateWatch(todState)
+    if not todState then
+        watchFrame.Visible = false
+        return
+    end
+    local gameHour = todState.GameHour or 7
+    local remaining = todState.RoundTimeRemaining or 0
+    watchTimeLabel.Text = formatGameTime(gameHour)
+    watchRemainLabel.Text = formatRemaining(remaining)
+    watchFrame.Visible = true
+    -- Tint red when under 3 minutes
+    if remaining < 180 then
+        watchTimeLabel.TextColor3 = Color3.fromRGB(220, 80, 80)
+        watchRemainLabel.TextColor3 = Color3.fromRGB(220, 80, 80)
+    else
+        watchTimeLabel.TextColor3 = Theme.Text
+        watchRemainLabel.TextColor3 = Theme.SubtleText
+    end
+end
+
+local function connectTODRemote()
+    if todConnection then
+        todConnection:Disconnect()
+        todConnection = nil
+    end
+    local remoteFolder = ReplicatedStorage:WaitForChild('Remotes', 5)
+    if not remoteFolder then
+        return
+    end
+    local todRemote = remoteFolder:WaitForChild('TODState', 3)
+    if not todRemote then
+        return
+    end
+    todConnection = todRemote.OnClientEvent:Connect(function(todState)
+        lastTodState = todState
+        updateWatch(todState)
+    end)
+    if lastTodState then
+        updateWatch(lastTodState)
+    end
+end
+
+-- Connect to TODState when the remote is available
+task.spawn(connectTODRemote)
+
 local shopPanel = createModalPanel('ShopPanel', UDim2.fromOffset(460, 520))
 local shopTitle = makeTextLabel(shopPanel, UDim2.new(1, 0, 0, 32), Theme.Text, 26, true)
 shopTitle.Text = 'Temple Shop'
@@ -622,7 +780,7 @@ progressBarBack.BorderSizePixel = 0
 progressBarBack.Parent = objectivePanel
 
 local progressBarFill = Instance.new('Frame')
-progressBarFill.Size = UDim2.new(0, 0, 1, 0)
+progressBarFill.Size = UDim2.fromScale(0, 1)
 progressBarFill.BackgroundColor3 = Theme.Accent
 progressBarFill.BorderSizePixel = 0
 progressBarFill.Parent = progressBarBack
@@ -658,7 +816,7 @@ local function updateObjectiveUi()
     objectiveGoalLabel.Text = string.format('Goal: %d %s', goalAmount, PAGE_LABEL)
     objectiveProgressLabel.Text =
         string.format('%s: %d%%', SAND_BOOK_PROGRESS_LABEL, math.floor(clampedProgress * 100 + 0.5))
-    progressBarFill.Size = UDim2.new(clampedProgress, 0, 1, 0)
+    progressBarFill.Size = UDim2.fromScale(clampedProgress, 1)
 end
 
 local function updatePageLabels()
@@ -1071,10 +1229,11 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
         visibleBackpackItems = {}
         heldItemController:applyInventory(nil)
         menuStatusLabel.Text = string.format(
-            '%s\n%s\n%s\nMaze Entry: %s',
+            '%s\n%s\n%s\n%s\nMaze Entry: %s',
             snapshot.Status,
             buildFingerprintText(snapshot),
             buildSessionPhaseText(snapshot),
+            buildWaitingHostText(snapshot),
             buildMazeEntryText(snapshot)
         )
         singlePlayerButton.Active = false
@@ -1090,10 +1249,11 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
     canRequestMazeEntry = snapshot.GateOpen == true
 
     statusLabel.Text = string.format(
-        '%s\n%s\n%s\nArea: %s | Gate: %s | Maze: %s\nEntry: %s',
+        '%s\n%s\n%s\n%s\nArea: %s | Gate: %s | Maze: %s\nEntry: %s',
         snapshot.Status,
         buildFingerprintText(snapshot),
         buildSessionPhaseText(snapshot),
+        buildWaitingHostText(snapshot),
         snapshot.Area,
         snapshot.GateOpen and 'Open' or 'Closed',
         snapshot.MazeStatus or 'idle',
@@ -1164,7 +1324,18 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
 
     local rosterLines = {}
     for _, rosterEntry in ipairs(snapshot.Roster) do
-        local marker = rosterEntry.UserId == localPlayer.UserId and ' (You)' or ''
+        local markers = {}
+        if rosterEntry.UserId == localPlayer.UserId then
+            table.insert(markers, 'You')
+        end
+        if rosterEntry.UserId == snapshot.HostUserId then
+            table.insert(markers, 'Host')
+        end
+
+        local marker = ''
+        if #markers > 0 then
+            marker = string.format(' (%s)', table.concat(markers, ', '))
+        end
         table.insert(rosterLines, string.format('%s%s', rosterEntry.Name, marker))
     end
 

@@ -21,6 +21,5 @@ build_harness() {
   rojo build "$project_path" -o "$output_path"
 }
 
-build_harness places/lobby/default.project.json places/lobby/harness/lobby.rbxlx
 build_harness places/run/default.project.json places/run/harness/run.rbxlx
 build_harness places/maze/default.project.json places/maze/harness/maze.rbxlx
