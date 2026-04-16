@@ -123,7 +123,7 @@ RunStaticWorld/
 | Book of Sand | ✅ active | e10d75f | |
 | Monster Spawn | ⚠️ missing | — | 需Studio摆放SpawnPoint_* |
 | Monster Runtime | ✅ active | 本次提交 | 已接入RunSessionService |
-| RunTracker | ✅ active | 本次提交 | Camp→Expedition由GateSwitch触发 | |
+| RunTracker | ✅ active | 本次提交 | Camp→Expedition由GateSwitch触发 |
 
 ---
 
