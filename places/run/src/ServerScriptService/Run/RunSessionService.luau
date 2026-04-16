@@ -1255,7 +1255,6 @@ end
 -- Compile monster profile for Run (no MazeExecutable behavior filtering)
 function RunSessionService:_compileMonsterForRun(authorProfile)
     local MonsterRuntimeProfile = Gameplay.Monsters.MonsterRuntimeProfile
-    local MonsterBehaviorCatalog = Gameplay.Monsters.MonsterBehaviorCatalog
 
     local tuning = authorProfile.Tuning
     local presentation = authorProfile.Executable.Presentation
