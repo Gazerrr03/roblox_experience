@@ -1679,9 +1679,13 @@ function RunSessionService:start()
 
         if self.GamePhase == 'Waiting' then
             self:_assignHost(player.UserId)
-            player:LoadCharacter()
+            if self:_shouldLoadCharacterOnJoin(player) then
+                player:LoadCharacter()
+            end
         elseif self.IsLaunched then
-            player:LoadCharacter()
+            if self:_shouldLoadCharacterOnJoin(player) then
+                player:LoadCharacter()
+            end
         end
 
         self:_broadcastSnapshot()
@@ -1762,6 +1766,10 @@ function RunSessionService:_lockAllShipDoors()
     if self.World and self.World.lockAllShipDoors then
         self.World:lockAllShipDoors()
     end
+end
+
+function RunSessionService:_shouldLoadCharacterOnJoin(player)
+    return player.Character == nil and Players.CharacterAutoLoads == false
 end
 
 function RunSessionService:_assignHost(newlyJoinedUserId)
