@@ -388,16 +388,18 @@ local function createHexTiledSlab(parent, name, center, apothem, yOffset, color,
     --   |x| + TILE_BUFFER_A <= apothem
     --   |0.5x +/- SIN_60 * z| + TILE_BUFFER_B <= apothem
     local xLimit = apothem - TILE_BUFFER_A
-    local xStart = math_ceil(-xLimit / FLOOR_TILE_SIZE) * FLOOR_TILE_SIZE
-    local xEnd = math_floor(xLimit / FLOOR_TILE_SIZE) * FLOOR_TILE_SIZE
+    local xLimitVal = math_floor(xLimit / FLOOR_TILE_SIZE) * FLOOR_TILE_SIZE
+    local xStart = -xLimitVal
+    local xEnd = xLimitVal
     local bPrime = apothem - TILE_BUFFER_B
 
     for x = xStart, xEnd, FLOOR_TILE_SIZE do
         -- Solve for z: |0.5x +/- SIN_60 * z| <= bPrime
         -- Yields: - (bPrime - 0.5|x|) / SIN_60 <= z <= (bPrime - 0.5|x|) / SIN_60
         local zMax = (bPrime - 0.5 * math_abs(x)) / SIN_60
-        local zStart = math_ceil(-zMax / FLOOR_TILE_SIZE) * FLOOR_TILE_SIZE
-        local zEnd = math_floor(zMax / FLOOR_TILE_SIZE) * FLOOR_TILE_SIZE
+        local zLimitVal = math_floor(zMax / FLOOR_TILE_SIZE) * FLOOR_TILE_SIZE
+        local zStart = -zLimitVal
+        local zEnd = zLimitVal
 
         for z = zStart, zEnd, FLOOR_TILE_SIZE do
             local part = Instance_new('Part')
