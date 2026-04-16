@@ -14,4 +14,6 @@ return {
     PlayerService = require(script.PlayerService),
     PlayerStateService = require(script.PlayerStateService),
     TeleportInventoryHydrator = require(script.TeleportInventoryHydrator),
+    TODProfile = require(script.TODProfile),
+    TODService = require(script.TODService),
 }

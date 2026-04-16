@@ -144,9 +144,10 @@ function RunScene.new(root)
         end
     end
     -- Initialize ship doors: find the Sci-Fi Space Ship model under terrainRoot
+    local allDoors = {}
     local shipModel = terrainRoot and terrainRoot:FindFirstChild('Sci-Fi Space Ship')
     if shipModel then
-        ShipDoors.init(shipModel)
+        allDoors = ShipDoors.init(shipModel) or {}
     end
     local spawnGroundParams =
         buildSpawnGroundParams(sceneCollisionRoot, shipCollisionRoot, terrainMesh)
@@ -161,6 +162,12 @@ function RunScene.new(root)
     local terminals = {}
     for partName, kind in pairs(REQUIRED_PROMPT_PARTS) do
         terminals[kind] = RunTerminal.new(kind, requirePart(root, partName))
+    end
+
+    -- StartGamePrompt is optional; only create if the part exists in the static world
+    local startGamePart = root:FindFirstChild('StartGamePrompt')
+    if startGamePart and startGamePart:IsA('BasePart') then
+        terminals.StartGame = RunTerminal.new('StartGame', startGamePart)
     end
 
     local mazePortal = RunPortal.new(RunPortal.Kind.MazeGate, requirePart(root, 'MazeGateMarker'))
@@ -188,6 +195,7 @@ function RunScene.new(root)
         OutdoorThresholdZ = outdoorThresholdZ,
         AreaResolver = nil,
         SpawnCFramesByKind = spawnCFramesByKind,
+        ShipDoors = allDoors,
 
         SpawnCFrame = spawnCFramesByKind[RunSpawnPoint.Kind.Spawn],
         ReturnCFrame = spawnCFramesByKind[RunSpawnPoint.Kind.Return],
@@ -222,6 +230,18 @@ end
 function RunScene:openGate()
     self.GateDoor:open()
     self.Terminals.Gate.Prompt.ActionText = 'Gate Open'
+end
+
+function RunScene:lockAllShipDoors()
+    for _, door in ipairs(self.ShipDoors or {}) do
+        door:lock()
+    end
+end
+
+function RunScene:unlockAllShipDoors()
+    for _, door in ipairs(self.ShipDoors or {}) do
+        door:unlock()
+    end
 end
 
 function RunScene:bindInteractions(handlers)

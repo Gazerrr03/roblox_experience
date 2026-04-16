@@ -5,7 +5,6 @@ return function()
 
     local teleportReady = availability.evaluate({
         PlaceIds = {
-            Lobby = 1,
             Run = 2,
             Maze = 3,
         },
@@ -26,7 +25,6 @@ return function()
 
     local blockedStudioLocalFile = availability.evaluate({
         PlaceIds = {
-            Lobby = 1,
             Run = 2,
             Maze = 3,
         },
@@ -47,7 +45,6 @@ return function()
 
     local blockedMissingPlaceId = availability.evaluate({
         PlaceIds = {
-            Lobby = 1,
             Run = 2,
             Maze = 0,
         },

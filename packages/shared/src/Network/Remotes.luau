@@ -4,16 +4,11 @@ local RunService = game:GetService('RunService')
 local Remotes = {}
 
 Remotes.Scope = table.freeze({
-    Lobby = 'Lobby',
     Run = 'Run',
     Maze = 'Maze',
 })
 
 local REMOTE_NAMES_BY_SCOPE = table.freeze({
-    [Remotes.Scope.Lobby] = {
-        'LobbyAction',
-        'LobbyState',
-    },
     [Remotes.Scope.Run] = {
         'RunAction',
         'RunState',
@@ -27,14 +22,13 @@ local REMOTE_NAMES_BY_SCOPE = table.freeze({
 })
 
 local ALL_REMOTE_NAMES = {
-    'LobbyAction',
-    'LobbyState',
     'RunAction',
     'RunState',
     'RunPrivateState',
     'MazeAction',
     'MazeState',
     'MazePrivateState',
+    'TODState',
 }
 
 local function assertServer(operationName)

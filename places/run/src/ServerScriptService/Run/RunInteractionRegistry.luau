@@ -34,6 +34,12 @@ function RunInteractionRegistry:bindScene(scene, handlers)
         handlers.OnMazePortal(player)
     end))
 
+    if scene.Terminals.StartGame then
+        self:_track(scene.Terminals.StartGame:bind(function(player)
+            handlers.OnStartGame(player)
+        end))
+    end
+
     for _, oceanTrigger in ipairs(scene.OceanTriggers or {}) do
         self:_track(oceanTrigger:bind(function(player, state)
             handlers.OnOceanEntered(player, state)
