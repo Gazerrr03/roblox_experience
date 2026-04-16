@@ -8,7 +8,7 @@ local Shared = require(Packages:WaitForChild('Shared'))
 local Gameplay = require(Packages:WaitForChild('Gameplay'))
 
 local SessionConfig = Shared.Config.SessionConfig
-local Remotes = Shared.Network.Remotes.ensureScope(Shared.Network.Remotes.Scope.Run)
+local Remotes = Shared.Network.Remotes.ensure()
 local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
 local MazeEntryAvailability = Shared.Session.MazeEntryAvailability
 local SessionSeedPolicy = Shared.Session.SessionSeedPolicy
@@ -18,6 +18,7 @@ local InventoryService = Shared.Runtime.InventoryService
 local PlayerService = Shared.Runtime.PlayerService
 local PlayerStateService = Shared.Runtime.PlayerStateService
 local MonsterService = Shared.Runtime.MonsterService
+local TODService = Shared.Runtime.TODService
 local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 
 local RunSpawnPoint = require(script.Parent.RunSpawnPoint)
@@ -265,6 +266,11 @@ function RunSessionService.new(options)
     self.PlayerStateService = PlayerStateService.new()
     self.RunToMazeTransition = runtimeOptions.RunToMazeTransition or RunToMazeTransition.new()
     self.WorldBuilder = runtimeOptions.RunWorldBuilder or RunWorldBuilder
+    self.TODService = runtimeOptions.TODService
+        or TODService.new({
+            Config = SessionConfig.TOD,
+            Remote = self.Remotes.TODState,
+        })
     self.RunTracker = Gameplay.Session.MazeRunTracker.new()
     self.MonsterService = nil -- deferred: initialized in _rebuildWorld after self.World is built
 
@@ -1114,6 +1120,7 @@ function RunSessionService:_openGate(player)
         self.RunTracker:beginExpedition()
         self:_syncCampSession()
         self.World:openGate()
+        self.TODService:start()
         self:_beginExpedition()
         self:_setStatus(
             string.format(
@@ -1672,6 +1679,7 @@ function RunSessionService:start()
         end
 
         self:_broadcastSnapshot()
+        self.TODService:sendToPlayer(player)
     end)
 
     Players.PlayerRemoving:Connect(function(player)
@@ -1723,6 +1731,7 @@ function RunSessionService:start()
         end
     end)
 
+    self.TODService:prime()
     self:_broadcastSnapshot()
 
     self:_launchRun(nil)

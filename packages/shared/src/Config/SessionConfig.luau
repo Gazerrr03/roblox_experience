@@ -64,6 +64,11 @@ local SessionConfig = {
     DefaultRunDurationSeconds = 180,
     SettlementDurationSeconds = 8,
     InventoryCapacity = 5,
+    TOD = table.freeze({
+        RoundMinutes = 15,
+        StartHour = 7,
+        EndHour = 22,
+    }),
     ProcGen = {
         RoomCount = 20,
         ExitMin = 2,
