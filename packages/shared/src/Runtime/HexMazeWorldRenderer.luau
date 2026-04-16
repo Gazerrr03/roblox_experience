@@ -380,33 +380,34 @@ local function createHexTiledSlab(parent, name, center, apothem, yOffset, color,
     slabFolder.Name = name
     slabFolder.Parent = parent
 
-    local radius = apothem * HEX_CIRCUMRADIUS_MULTIPLIER
-    local maxOffset = math_ceil(radius / FLOOR_TILE_SIZE) * FLOOR_TILE_SIZE
-
     local cx, cy, cz = center.X, center.Y, center.Z
     local tileSizeVector = Vector3_new(FLOOR_TILE_SIZE, SLAB_THICKNESS, FLOOR_TILE_SIZE)
 
-    for x = -maxOffset, maxOffset, FLOOR_TILE_SIZE do
-        -- Bolt: Early skip for X-axis containment before entering the inner loop
-        if math_abs(x) + TILE_BUFFER_A > apothem then
-            continue
-        end
+    -- Bolt: Optimized loop bounds to eliminate redundant inner-loop condition checks.
+    -- The hex boundary is defined by:
+    --   |x| + TILE_BUFFER_A <= apothem
+    --   |0.5x +/- SIN_60 * z| + TILE_BUFFER_B <= apothem
+    local xLimit = apothem - TILE_BUFFER_A
+    local xStart = math_ceil(-xLimit / FLOOR_TILE_SIZE) * FLOOR_TILE_SIZE
+    local xEnd = math_floor(xLimit / FLOOR_TILE_SIZE) * FLOOR_TILE_SIZE
+    local bPrime = apothem - TILE_BUFFER_B
 
-        for z = -maxOffset, maxOffset, FLOOR_TILE_SIZE do
-            -- Optimized single check for whole tile bounding box
-            if
-                math_abs(0.5 * x - SIN_60 * z) + TILE_BUFFER_B <= apothem
-                and math_abs(0.5 * x + SIN_60 * z) + TILE_BUFFER_B <= apothem
-            then
-                local part = Instance_new('Part')
-                part.Name = 'Tile'
-                part.Anchored = true
-                part.Size = tileSizeVector
-                part.CFrame = CFrame_new(cx + x, cy + yOffset, cz + z)
-                part.Color = color
-                part.Material = material
-                part.Parent = slabFolder
-            end
+    for x = xStart, xEnd, FLOOR_TILE_SIZE do
+        -- Solve for z: |0.5x +/- SIN_60 * z| <= bPrime
+        -- Yields: - (bPrime - 0.5|x|) / SIN_60 <= z <= (bPrime - 0.5|x|) / SIN_60
+        local zMax = (bPrime - 0.5 * math_abs(x)) / SIN_60
+        local zStart = math_ceil(-zMax / FLOOR_TILE_SIZE) * FLOOR_TILE_SIZE
+        local zEnd = math_floor(zMax / FLOOR_TILE_SIZE) * FLOOR_TILE_SIZE
+
+        for z = zStart, zEnd, FLOOR_TILE_SIZE do
+            local part = Instance_new('Part')
+            part.Name = 'Tile'
+            part.Anchored = true
+            part.Size = tileSizeVector
+            part.CFrame = CFrame_new(cx + x, cy + yOffset, cz + z)
+            part.Color = color
+            part.Material = material
+            part.Parent = slabFolder
         end
     end
 
