@@ -39,6 +39,12 @@ local function applyProperties(instance, properties)
     end
 end
 
+local function destroyIfAlive(instance)
+    if instance and instance.Parent ~= nil then
+        instance:Destroy()
+    end
+end
+
 local function isColorGradingTarget(instance)
     return instance:IsA('ColorGradingEffect') or instance:IsA('ColorCorrectionEffect')
 end
@@ -155,6 +161,26 @@ function TODService:_captureBaseline()
     return self.Baseline
 end
 
+function TODService:_restoreTargets()
+    if self.Targets == nil or self.Baseline == nil then
+        return
+    end
+
+    local targets = self.Targets
+
+    if targets.CreatedAtmosphere then
+        destroyIfAlive(targets.Atmosphere)
+    else
+        applyProperties(targets.Atmosphere, self.Baseline.Atmosphere)
+    end
+
+    if targets.CreatedColorGrading then
+        destroyIfAlive(targets.ColorGrading)
+    else
+        applyProperties(targets.ColorGrading, self.Baseline.ColorGrading)
+    end
+end
+
 function TODService:_buildPayload(snapshot, isRunning)
     return {
         ClockTime = snapshot.ClockTime,
@@ -259,6 +285,26 @@ function TODService:stop()
     self.IsRunning = false
     self.LoopToken += 1
     return self.CurrentState
+end
+
+function TODService:restore()
+    self:stop()
+
+    if self.Baseline == nil then
+        return
+    end
+
+    applyProperties(self.Lighting, self.Baseline.Lighting)
+    self:_restoreTargets()
+    self.Targets = nil
+    self.CurrentState = nil
+    self.Initialized = false
+    self.StartedAtClock = nil
+    self.Baseline = nil
+end
+
+function TODService:destroy()
+    self:restore()
 end
 
 return TODService

@@ -147,5 +147,27 @@ return function()
         'TOD service should stop its running flag after the final step'
     )
 
+    service:destroy()
+    assert(
+        Lighting.ClockTime == originalLighting.ClockTime,
+        'Destroying TOD should restore the original Lighting clock time'
+    )
+    assert(
+        Lighting:FindFirstChild(TODService.ManagedNames.Atmosphere) == nil,
+        'Destroying TOD should remove managed atmosphere instances it created'
+    )
+    assert(
+        Lighting:FindFirstChild(TODService.ManagedNames.ColorGrading) == nil,
+        'Destroying TOD should remove managed color grading instances it created'
+    )
+    assert(
+        existingAtmosphere.Parent == Lighting,
+        'Destroying TOD should keep the authored atmosphere instance in Lighting'
+    )
+    assert(
+        existingColorGrading.Parent == Lighting,
+        'Destroying TOD should keep the authored color grading instance in Lighting'
+    )
+
     restoreLighting()
 end
