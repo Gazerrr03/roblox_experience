@@ -1328,8 +1328,20 @@ function RunSessionService:_beginExpedition()
         return
     end
 
-    -- Get ship position for exclusion zone (use a fixed position near ship doors)
-    local shipPosition = Vector3.new(50, 25, 300) -- approximate ship center
+    -- Get ship position for exclusion zone from world geometry
+    local shipPosition = nil
+    local shipCollision = self.World and self.World.Collision and self.World.Collision.Ship
+    if shipCollision then
+        if shipCollision:IsA('Model') and shipCollision.PrimaryPart then
+            shipPosition = shipCollision.PrimaryPart.Position
+        elseif shipCollision:IsA('BasePart') then
+            shipPosition = shipCollision.Position
+        end
+    end
+    if not shipPosition then
+        warn('[RunSessionService] Ship collision not found — skipping monster spawn')
+        return
+    end
     local eligible = RunMonsterSpawnPolicy.collectEligiblePatrolPoints(allPositions, shipPosition)
     if #eligible == 0 then
         warn('[RunSessionService] No eligible patrol points after exclusion — skipping monster spawn')
