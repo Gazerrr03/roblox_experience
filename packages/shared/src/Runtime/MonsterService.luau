@@ -1036,6 +1036,10 @@ function MonsterService:tryApplyPlayerMeleeHit(player, meleeOptions)
         TargetUserId = player.UserId,
     })
 
+    if self.EnemyRuntime then
+        self.EnemyRuntime:applyDamage(damagePips, 'player')
+    end
+
     if killed then
         self:destroy()
     end
@@ -1096,6 +1100,15 @@ function MonsterService:_runLogicStep(dt)
 
     local decision = self.EnemyRuntime:update(dt)
     self.PatrolIndex = self.EnemyRuntime.Context.PatrolIndex
+
+    if decision.IsDead then
+        self:_recordDecisionEvent('Died', {
+            MonsterId = self.Definition.Id,
+            DeathEvent = decision.DeathEvent,
+        })
+        self:destroy()
+        return
+    end
 
     if decision.TargetChanged then
         self:_emitDecisionLog('TargetChanged', {

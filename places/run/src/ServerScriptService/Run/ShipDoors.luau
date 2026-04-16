@@ -117,6 +117,7 @@ function ShipDoors:toggle()
     if self._isLocked then
         return
     end
+
     if self._isOpen then
         self:close()
     else

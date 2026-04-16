@@ -19,6 +19,7 @@ return function()
         'MazeAction',
         'MazeState',
         'MazePrivateState',
+        'TODState',
     }
     local unexpectedRunLegacyNames = {
         'ShowNarrative',

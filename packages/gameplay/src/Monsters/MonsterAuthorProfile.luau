@@ -37,6 +37,7 @@ local BOUNDARY_REASONS = table.freeze({
     BoundarySemanticsContainsNonSemanticField = true,
     BoundaryTuningContainsNonTuningField = true,
     BoundaryExecutableContainsNonExecutableField = true,
+    BoundaryHealthContainsNonHealthField = true,
 })
 
 MonsterAuthorProfile.ErrorCategory = ERROR_CATEGORY
@@ -157,11 +158,27 @@ local function normalizeSections(profile)
         return nil, 'BoundaryExecutableContainsNonExecutableField'
     end
 
+    local health = profile.Health
+    if health ~= nil and type(health) ~= 'table' then
+        return nil, 'InvalidHealth'
+    end
+
+    if health ~= nil then
+        if
+            hasAnyField(health, SEMANTIC_FIELDS)
+            or hasAnyField(health, TUNING_FIELDS)
+            or hasAnyField(health, EXECUTABLE_FIELDS)
+        then
+            return nil, 'BoundaryHealthContainsNonHealthField'
+        end
+    end
+
     return {
         SchemaMode = SCHEMA_MODE.Layered,
         Semantics = semantics,
         Tuning = tuning,
         Executable = executable,
+        Health = health,
     }
 end
 

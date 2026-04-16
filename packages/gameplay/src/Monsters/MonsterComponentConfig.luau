@@ -78,6 +78,17 @@ function MonsterComponentConfig.fromRuntimeProfile(runtimeProfile)
                 else DEFAULT_ATTACK_HIT_MARKER_NAME,
             Range = getPositiveNumber(attack.Range, profile.AttackRange, DEFAULT_ATTACK_RANGE),
         }),
+        Health = table.freeze({
+            MaxHp = getPositiveNumber(
+                components.Health and components.Health.MaxHp,
+                getPositiveNumber(
+                    profile.Health and profile.Health.MaxHp,
+                    profile.CombatHitPoints,
+                    1
+                ),
+                1
+            ),
+        }),
     }
 
     return table.freeze(componentConfig)

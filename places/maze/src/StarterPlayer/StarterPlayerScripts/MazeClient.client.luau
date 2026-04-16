@@ -141,7 +141,7 @@ local function formatRemainingMaze(seconds)
     return string.format('\u{21BB} %02d:%02d', m, s)
 end
 
-local todConnectionMaze = nil
+local _todConnectionMaze = nil
 local lastTodStateMaze = nil
 
 local function updateWatchMaze(todState)
@@ -172,7 +172,7 @@ task.spawn(function()
     if not todRemote then
         return
     end
-    todConnectionMaze = todRemote.OnClientEvent:Connect(function(todState)
+    _todConnectionMaze = todRemote.OnClientEvent:Connect(function(todState)
         lastTodStateMaze = todState
         updateWatchMaze(todState)
     end)

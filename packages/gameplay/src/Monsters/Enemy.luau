@@ -1,3 +1,4 @@
+local BaseEnemy = require(script.Parent.BaseEnemy)
 local EnemyBlackboard = require(script.Parent.EnemyBlackboard)
 local EnemyStateMachine = require(script.Parent.EnemyStateMachine)
 
@@ -7,6 +8,7 @@ local PerceptionComponent = require(script.Parent.Components.PerceptionComponent
 
 local Enemy = {}
 Enemy.__index = Enemy
+setmetatable(Enemy, { __index = BaseEnemy })
 
 local UPDATE_ORDER = table.freeze({
     'Perception',
@@ -33,13 +35,16 @@ function Enemy.new(definition, options)
     local stateMachine = enemyOptions.StateMachine or EnemyStateMachine.new()
     local components = enemyOptions.Components or defaultComponents()
 
-    return setmetatable({
+    local self = setmetatable({
         Blackboard = blackboard,
         ComponentConfig = enemyOptions.ComponentConfig or {},
         StateMachine = stateMachine,
         Components = components,
         StageObserver = enemyOptions.StageObserver,
     }, Enemy)
+
+    self:setupHealth(self.ComponentConfig)
+    return self
 end
 
 function Enemy:_emitStage(stageName)
@@ -74,6 +79,10 @@ function Enemy:update(dt, context)
     self:_emitStage('Attack')
     self.Components.Attack:update(self.Blackboard, dt)
 
+    if self.Components.Health then
+        self.Components.Health:update(self.Blackboard, dt)
+    end
+
     return {
         AttackIntent = self.Blackboard.Transient.AttackIntent,
         State = self.Blackboard:getState(),
@@ -84,6 +93,8 @@ function Enemy:update(dt, context)
         DesiredAnimationSpeed = self.Blackboard.Transient.DesiredAnimationSpeed or 1,
         ShouldPlayChaseLoop = self.Blackboard.Transient.ShouldPlayChaseLoop == true,
         TravelOffset = self.Blackboard.Transient.TravelOffset or Vector3.zero,
+        IsDead = self.Components.Health and self.Components.Health:isDead() or false,
+        DeathEvent = self.Blackboard.Transient.DeathEvent,
     }
 end
 

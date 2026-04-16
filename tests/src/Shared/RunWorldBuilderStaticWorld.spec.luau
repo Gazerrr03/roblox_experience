@@ -125,6 +125,8 @@ return function()
     local doorLeft = createMarker(validWorld.Root, 'DoorLeft', CFrame.new(8, 4, 16))
     local doorRight = createMarker(validWorld.Root, 'DoorRight', CFrame.new(12, 4, 16))
     local validPrompts = createRequiredPromptParts(validWorld.Root, 10, 20)
+    local _, startGamePrompt =
+        createPromptPart(validWorld.Root, 'StartGamePrompt', CFrame.new(14, 4, 12))
 
     local runTerrainMain = Instance.new('Model')
     runTerrainMain.Name = 'RunTerrain_Main'
@@ -212,6 +214,10 @@ return function()
     assert(
         world.MazePrompt == validPrompts.MazeGateMarker.Prompt,
         'Run static world should expose the maze prompt'
+    )
+    assert(
+        world.StartGamePrompt == startGamePrompt,
+        'Run static world should expose the optional ship start prompt when authored'
     )
     assert(#world.OceanTriggers == 1, 'Run static world should expose authored ocean trigger parts')
     assert(

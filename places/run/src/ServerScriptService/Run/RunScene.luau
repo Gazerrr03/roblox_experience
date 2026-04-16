@@ -163,6 +163,10 @@ function RunScene.new(root)
     for partName, kind in pairs(REQUIRED_PROMPT_PARTS) do
         terminals[kind] = RunTerminal.new(kind, requirePart(root, partName))
     end
+    local startGamePromptPart = root:FindFirstChild('StartGamePrompt')
+    if startGamePromptPart and startGamePromptPart:IsA('BasePart') then
+        terminals.StartGame = RunTerminal.new('StartGame', startGamePromptPart)
+    end
 
     -- StartGamePrompt is optional; only create if the part exists in the static world
     local startGamePart = root:FindFirstChild('StartGamePrompt')
@@ -194,8 +198,8 @@ function RunScene.new(root)
         OceanTriggers = oceanTriggers,
         OutdoorThresholdZ = outdoorThresholdZ,
         AreaResolver = nil,
-        SpawnCFramesByKind = spawnCFramesByKind,
         ShipDoors = allDoors,
+        SpawnCFramesByKind = spawnCFramesByKind,
 
         SpawnCFrame = spawnCFramesByKind[RunSpawnPoint.Kind.Spawn],
         ReturnCFrame = spawnCFramesByKind[RunSpawnPoint.Kind.Return],
@@ -206,6 +210,7 @@ function RunScene.new(root)
         LoadoutPrompt = terminals.Loadout.Prompt,
         UgcLabPrompt = terminals.UgcLab.Prompt,
         GatePrompt = terminals.Gate.Prompt,
+        StartGamePrompt = terminals.StartGame and terminals.StartGame.Prompt or nil,
         MazePrompt = mazePortal.Prompt,
     }, RunScene)
 

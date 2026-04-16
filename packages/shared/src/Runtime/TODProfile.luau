@@ -1,118 +1,272 @@
--- TODProfile.luau
--- Keyframe-based Time-of-Day profile for global lighting.
--- Drives Lighting.ClockTime + Atmosphere + ColorCorrectionEffect over a 15-hour
--- game-day (7:00 → 22:00) mapped to a configurable real-minute round.
+local TODProfile = {}
 
-local SessionConfig = require(script.Parent.Parent.Config.SessionConfig)
-
-local EFFECT_NAME_ATMOSPHERE = 'TODAtmosphere'
-local EFFECT_NAME_COLOR_CORRECTION = 'TODColorCorrection'
-
--- Hour → ClockTime is 1:1 (hour 7 → ClockTime 7, hour 12 → ClockTime 12, etc.)
--- Keyframes: hour, brightness, tintColor (RGB), atmosphereColor (RGB), atmosphereDensity
-local KEYFRAMES = table.freeze({
-    { hour = 7,  clockTime = 7,  brightness = 0.5,  tintColor = Color3.fromRGB(255, 235, 210), atmosphereColor = Color3.fromRGB(200, 175, 130), atmosphereDensity = 0.18 }, -- early morning, warm glow
-    { hour = 8,  clockTime = 8,  brightness = 0.7,  tintColor = Color3.fromRGB(255, 240, 220), atmosphereColor = Color3.fromRGB(210, 185, 145), atmosphereDensity = 0.15 }, -- morning
-    { hour = 9,  clockTime = 9,  brightness = 0.8,  tintColor = Color3.fromRGB(255, 245, 230), atmosphereColor = Color3.fromRGB(190, 175, 150), atmosphereDensity = 0.12 }, -- late morning
-    { hour = 10, clockTime = 10, brightness = 0.9,  tintColor = Color3.fromRGB(255, 250, 240), atmosphereColor = Color3.fromRGB(175, 170, 155), atmosphereDensity = 0.10 }, -- approaching noon
-    { hour = 11, clockTime = 11, brightness = 1.0,  tintColor = Color3.fromRGB(255, 255, 245), atmosphereColor = Color3.fromRGB(165, 165, 155), atmosphereDensity = 0.08 }, -- late morning
-    { hour = 12, clockTime = 12, brightness = 1.05, tintColor = Color3.fromRGB(255, 255, 250), atmosphereColor = Color3.fromRGB(155, 160, 160), atmosphereDensity = 0.07 }, -- noon, peak brightness
-    { hour = 13, clockTime = 13, brightness = 1.0,  tintColor = Color3.fromRGB(255, 252, 240), atmosphereColor = Color3.fromRGB(165, 165, 160), atmosphereDensity = 0.08 }, -- early afternoon
-    { hour = 14, clockTime = 14, brightness = 0.9,  tintColor = Color3.fromRGB(255, 248, 230), atmosphereColor = Color3.fromRGB(175, 170, 160), atmosphereDensity = 0.10 }, -- afternoon
-    { hour = 15, clockTime = 15, brightness = 0.75, tintColor = Color3.fromRGB(255, 240, 215), atmosphereColor = Color3.fromRGB(185, 170, 150), atmosphereDensity = 0.13 }, -- mid afternoon, warm
-    { hour = 16, clockTime = 16, brightness = 0.6,  tintColor = Color3.fromRGB(255, 225, 195), atmosphereColor = Color3.fromRGB(195, 165, 135), atmosphereDensity = 0.16 }, -- late afternoon
-    { hour = 17, clockTime = 17, brightness = 0.4,  tintColor = Color3.fromRGB(255, 205, 165), atmosphereColor = Color3.fromRGB(205, 155, 115), atmosphereDensity = 0.22 }, -- golden hour
-    { hour = 18, clockTime = 18, brightness = 0.2,  tintColor = Color3.fromRGB(255, 175, 130), atmosphereColor = Color3.fromRGB(215, 140, 100), atmosphereDensity = 0.30 }, -- dusk
-    { hour = 19, clockTime = 19, brightness = 0.0,  tintColor = Color3.fromRGB(255, 155, 110), atmosphereColor = Color3.fromRGB(130, 110, 140), atmosphereDensity = 0.35 }, -- sunset
-    { hour = 20, clockTime = 20, brightness = -0.2, tintColor = Color3.fromRGB(220, 150, 130), atmosphereColor = Color3.fromRGB(90, 95, 120), atmosphereDensity = 0.38 }, -- near night
-    { hour = 21, clockTime = 21, brightness = -0.3, tintColor = Color3.fromRGB(180, 140, 160), atmosphereColor = Color3.fromRGB(60, 70, 100), atmosphereDensity = 0.40 }, -- night
-    { hour = 22, clockTime = 22, brightness = -0.4, tintColor = Color3.fromRGB(140, 130, 170), atmosphereColor = Color3.fromRGB(40, 50, 90), atmosphereDensity = 0.45 }, -- deep night
+TODProfile.LightingPropertyNames = table.freeze({
+    'Brightness',
+    'ClockTime',
+    'ExposureCompensation',
+    'ShadowSoftness',
+    'Ambient',
+    'OutdoorAmbient',
+    'EnvironmentDiffuseScale',
+    'EnvironmentSpecularScale',
 })
 
-local TwilightTone = Color3.fromRGB(100, 80, 120)
+TODProfile.AtmospherePropertyNames = table.freeze({
+    'Color',
+    'Decay',
+    'Density',
+    'Glare',
+    'Haze',
+    'Offset',
+})
 
-local function findKeyframePair(hour)
-    local startKF = KEYFRAMES[1]
-    local endKF = KEYFRAMES[#KEYFRAMES]
+TODProfile.ColorGradingPropertyNames = table.freeze({
+    'Brightness',
+    'Contrast',
+    'Saturation',
+    'TintColor',
+})
 
-    for i = 1, #KEYFRAMES - 1 do
-        if KEYFRAMES[i].hour <= hour and KEYFRAMES[i + 1].hour >= hour then
-            startKF = KEYFRAMES[i]
-            endKF = KEYFRAMES[i + 1]
+TODProfile.Keyframes = table.freeze({
+    {
+        Hour = 7,
+        Lighting = table.freeze({
+            Brightness = 1.9,
+            ClockTime = 7,
+            ExposureCompensation = -0.15,
+            ShadowSoftness = 0.2,
+            Ambient = Color3.fromRGB(70, 72, 76),
+            OutdoorAmbient = Color3.fromRGB(90, 94, 100),
+            EnvironmentDiffuseScale = 0.45,
+            EnvironmentSpecularScale = 0.25,
+        }),
+        Atmosphere = table.freeze({
+            Color = Color3.fromRGB(199, 171, 140),
+            Decay = Color3.fromRGB(111, 94, 80),
+            Density = 0.28,
+            Glare = 0.05,
+            Haze = 1.8,
+            Offset = -0.15,
+        }),
+        ColorGrading = table.freeze({
+            Brightness = -0.02,
+            Contrast = 0.06,
+            Saturation = -0.08,
+            TintColor = Color3.fromRGB(255, 232, 214),
+        }),
+    },
+    {
+        Hour = 10,
+        Lighting = table.freeze({
+            Brightness = 2.05,
+            ClockTime = 10,
+            ExposureCompensation = -0.02,
+            ShadowSoftness = 0.24,
+            Ambient = Color3.fromRGB(94, 98, 106),
+            OutdoorAmbient = Color3.fromRGB(124, 132, 142),
+            EnvironmentDiffuseScale = 0.5,
+            EnvironmentSpecularScale = 0.3,
+        }),
+        Atmosphere = table.freeze({
+            Color = Color3.fromRGB(182, 196, 216),
+            Decay = Color3.fromRGB(116, 130, 154),
+            Density = 0.22,
+            Glare = 0.08,
+            Haze = 1.1,
+            Offset = -0.08,
+        }),
+        ColorGrading = table.freeze({
+            Brightness = 0.01,
+            Contrast = 0.1,
+            Saturation = -0.02,
+            TintColor = Color3.fromRGB(238, 244, 255),
+        }),
+    },
+    {
+        Hour = 13,
+        Lighting = table.freeze({
+            Brightness = 2.2,
+            ClockTime = 13,
+            ExposureCompensation = 0.08,
+            ShadowSoftness = 0.28,
+            Ambient = Color3.fromRGB(110, 116, 128),
+            OutdoorAmbient = Color3.fromRGB(148, 160, 174),
+            EnvironmentDiffuseScale = 0.58,
+            EnvironmentSpecularScale = 0.34,
+        }),
+        Atmosphere = table.freeze({
+            Color = Color3.fromRGB(166, 198, 235),
+            Decay = Color3.fromRGB(127, 155, 191),
+            Density = 0.18,
+            Glare = 0.12,
+            Haze = 0.65,
+            Offset = -0.04,
+        }),
+        ColorGrading = table.freeze({
+            Brightness = 0.03,
+            Contrast = 0.14,
+            Saturation = 0.02,
+            TintColor = Color3.fromRGB(255, 255, 255),
+        }),
+    },
+    {
+        Hour = 16,
+        Lighting = table.freeze({
+            Brightness = 2.08,
+            ClockTime = 16,
+            ExposureCompensation = 0.02,
+            ShadowSoftness = 0.3,
+            Ambient = Color3.fromRGB(102, 100, 108),
+            OutdoorAmbient = Color3.fromRGB(142, 136, 146),
+            EnvironmentDiffuseScale = 0.55,
+            EnvironmentSpecularScale = 0.31,
+        }),
+        Atmosphere = table.freeze({
+            Color = Color3.fromRGB(214, 189, 156),
+            Decay = Color3.fromRGB(164, 128, 102),
+            Density = 0.21,
+            Glare = 0.09,
+            Haze = 0.95,
+            Offset = -0.08,
+        }),
+        ColorGrading = table.freeze({
+            Brightness = 0.01,
+            Contrast = 0.12,
+            Saturation = -0.02,
+            TintColor = Color3.fromRGB(255, 238, 214),
+        }),
+    },
+    {
+        Hour = 19,
+        Lighting = table.freeze({
+            Brightness = 1.72,
+            ClockTime = 19,
+            ExposureCompensation = -0.22,
+            ShadowSoftness = 0.34,
+            Ambient = Color3.fromRGB(74, 64, 82),
+            OutdoorAmbient = Color3.fromRGB(104, 92, 118),
+            EnvironmentDiffuseScale = 0.42,
+            EnvironmentSpecularScale = 0.24,
+        }),
+        Atmosphere = table.freeze({
+            Color = Color3.fromRGB(170, 125, 134),
+            Decay = Color3.fromRGB(84, 62, 97),
+            Density = 0.28,
+            Glare = 0.04,
+            Haze = 1.45,
+            Offset = -0.16,
+        }),
+        ColorGrading = table.freeze({
+            Brightness = -0.03,
+            Contrast = 0.16,
+            Saturation = -0.08,
+            TintColor = Color3.fromRGB(238, 214, 255),
+        }),
+    },
+    {
+        Hour = 22,
+        Lighting = table.freeze({
+            Brightness = 1.34,
+            ClockTime = 22,
+            ExposureCompensation = -0.45,
+            ShadowSoftness = 0.38,
+            Ambient = Color3.fromRGB(36, 38, 56),
+            OutdoorAmbient = Color3.fromRGB(54, 58, 86),
+            EnvironmentDiffuseScale = 0.26,
+            EnvironmentSpecularScale = 0.18,
+        }),
+        Atmosphere = table.freeze({
+            Color = Color3.fromRGB(88, 100, 136),
+            Decay = Color3.fromRGB(24, 28, 42),
+            Density = 0.34,
+            Glare = 0.02,
+            Haze = 2.1,
+            Offset = -0.22,
+        }),
+        ColorGrading = table.freeze({
+            Brightness = -0.08,
+            Contrast = 0.18,
+            Saturation = -0.14,
+            TintColor = Color3.fromRGB(208, 220, 255),
+        }),
+    },
+})
+
+local function lerpValue(leftValue, rightValue, alpha)
+    local leftType = typeof(leftValue)
+    if leftType == 'Color3' then
+        return leftValue:Lerp(rightValue, alpha)
+    end
+
+    if leftType == 'number' then
+        return leftValue + ((rightValue - leftValue) * alpha)
+    end
+
+    if alpha >= 1 then
+        return rightValue
+    end
+
+    return leftValue
+end
+
+local function interpolateTable(leftTable, rightTable, alpha)
+    local resolved = {}
+
+    for propertyName, leftValue in pairs(leftTable) do
+        resolved[propertyName] = lerpValue(leftValue, rightTable[propertyName], alpha)
+    end
+
+    return resolved
+end
+
+function TODProfile.getDurationSeconds(config)
+    return math.max(0, math.floor((config.RoundMinutes or 0) * 60 + 0.5))
+end
+
+function TODProfile.evaluate(config, elapsedRoundSeconds)
+    local startHour = config.StartHour or 7
+    local endHour = config.EndHour or 22
+    local durationSeconds = TODProfile.getDurationSeconds(config)
+    local clampedElapsed = math.clamp(elapsedRoundSeconds or 0, 0, durationSeconds)
+    local progress = if durationSeconds <= 0 then 1 else clampedElapsed / durationSeconds
+    local currentHour = startHour + ((endHour - startHour) * progress)
+
+    local leftKeyframe = TODProfile.Keyframes[1]
+    local rightKeyframe = TODProfile.Keyframes[#TODProfile.Keyframes]
+
+    for keyframeIndex = 1, #TODProfile.Keyframes - 1 do
+        local candidateLeft = TODProfile.Keyframes[keyframeIndex]
+        local candidateRight = TODProfile.Keyframes[keyframeIndex + 1]
+
+        if currentHour <= candidateRight.Hour then
+            leftKeyframe = candidateLeft
+            rightKeyframe = candidateRight
             break
         end
     end
 
-    return startKF, endKF
-end
-
-local function lerpNumber(a, b, t)
-    return a + (b - a) * t
-end
-
-local function lerpColor(a, b, t)
-    return a:Lerp(b, t)
-end
-
-local TODProfile = {}
-
--- Interpolate a profile for a given game hour (float, 7.0 ~ 22.0)
-function TODProfile.interpolateForHour(hour)
-    local startKF, endKF = findKeyframePair(hour)
-    local span = endKF.hour - startKF.hour
-    local t = 0
-    if span > 0 then
-        t = math.clamp((hour - startKF.hour) / span, 0, 1)
-    end
+    local frameSpan = math.max(rightKeyframe.Hour - leftKeyframe.Hour, 0.0001)
+    local frameAlpha = math.clamp((currentHour - leftKeyframe.Hour) / frameSpan, 0, 1)
+    local lighting = interpolateTable(leftKeyframe.Lighting, rightKeyframe.Lighting, frameAlpha)
+    lighting.ClockTime = currentHour
 
     return {
-        clockTime = lerpNumber(startKF.clockTime, endKF.clockTime, t),
-        brightness = lerpNumber(startKF.brightness, endKF.brightness, t),
-        tintColor = lerpColor(startKF.tintColor, endKF.tintColor, t),
-        atmosphereColor = lerpColor(startKF.atmosphereColor, endKF.atmosphereColor, t),
-        atmosphereDensity = lerpNumber(startKF.atmosphereDensity, endKF.atmosphereDensity, t),
+        ClockTime = currentHour,
+        ElapsedRoundSeconds = clampedElapsed,
+        RoundTimeRemainingSeconds = math.max(0, durationSeconds - clampedElapsed),
+        Progress = progress,
+        Lighting = lighting,
+        Atmosphere = interpolateTable(
+            leftKeyframe.Atmosphere,
+            rightKeyframe.Atmosphere,
+            frameAlpha
+        ),
+        ColorGrading = interpolateTable(
+            leftKeyframe.ColorGrading,
+            rightKeyframe.ColorGrading,
+            frameAlpha
+        ),
     }
-end
-
--- Apply interpolated profile to Lighting + Atmosphere + ColorCorrection
-function TODProfile.apply(lighting, profile)
-    lighting.ClockTime = profile.clockTime
-
-    local atmosphere = lighting:FindFirstChild(EFFECT_NAME_ATMOSPHERE)
-    if not atmosphere then
-        atmosphere = Instance.new('Atmosphere')
-        atmosphere.Name = EFFECT_NAME_ATMOSPHERE
-        atmosphere.Parent = lighting
-    end
-    atmosphere.Color = profile.atmosphereColor
-    atmosphere.Density = profile.atmosphereDensity
-
-    local cc = lighting:FindFirstChild(EFFECT_NAME_COLOR_CORRECTION)
-    if not cc then
-        cc = Instance.new('ColorCorrectionEffect')
-        cc.Name = EFFECT_NAME_COLOR_CORRECTION
-        cc.Parent = lighting
-    end
-    cc.Brightness = profile.brightness
-    cc.TintColor = profile.tintColor
-    cc.Saturation = lerpNumber(-0.15, -0.25, (profile.clockTime - 7) / 15)
-    cc.Contrast = lerpNumber(0.1, 0.05, (profile.clockTime - 7) / 15)
-end
-
--- Given elapsed real minutes, return game hour (float, 7.0 ~ 22.0)
-function TODProfile.gameHourFromElapsedMinutes(elapsedMinutes)
-    local cfg = SessionConfig.TOD
-    local totalHours = cfg.EndHour - cfg.StartHour -- 15
-    local minuteFraction = elapsedMinutes / 60
-    local hour = cfg.StartHour + totalHours * minuteFraction
-    return math.clamp(hour, cfg.StartHour, cfg.EndHour)
-end
-
--- Given elapsed real minutes, return remaining real seconds
-function TODProfile.remainingSeconds(elapsedSeconds)
-    local cfg = SessionConfig.TOD
-    local totalSeconds = cfg.RoundMinutes * 60
-    return math.max(0, totalSeconds - elapsedSeconds)
 end
 
 return TODProfile

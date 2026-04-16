@@ -1,9 +1,8 @@
--- HostPolicy.luau
--- Deterministic host (party leader) assignment policy for a run session.
+-- Deterministic host assignment for the run waiting phase.
 -- Rules:
---  1. First player to join becomes the initial host.
---  2. Host leaving → promote the next waiting player still present.
---  3. Empty session → no host (nil).
+--  1. The first waiting player becomes host.
+--  2. If the host leaves, promote the next waiting player still present.
+--  3. An empty waiting roster has no host.
 
 local HostPolicy = {}
 
@@ -12,7 +11,6 @@ function HostPolicy.assignHost(waitingPlayerOrderUserIds, currentHostUserId)
         return nil
     end
 
-    -- If current host is still present, keep them
     if HostPolicy.isValidHost(currentHostUserId, waitingPlayerOrderUserIds) then
         return currentHostUserId
     end

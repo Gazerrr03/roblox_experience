@@ -25,6 +25,6 @@ return function()
     service:_assignHost(100)
     assert(
         #service.WaitingPlayerOrderUserIds == 1,
-        'Waiting host order should deduplicate repeated joins for the same player'
+        'Waiting join order should deduplicate repeated joins for the same player'
     )
 end

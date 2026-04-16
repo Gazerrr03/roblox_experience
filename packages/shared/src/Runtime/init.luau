@@ -13,7 +13,7 @@ return {
     MonsterService = require(script.MonsterService),
     PlayerService = require(script.PlayerService),
     PlayerStateService = require(script.PlayerStateService),
-    TeleportInventoryHydrator = require(script.TeleportInventoryHydrator),
     TODProfile = require(script.TODProfile),
     TODService = require(script.TODService),
+    TeleportInventoryHydrator = require(script.TeleportInventoryHydrator),
 }

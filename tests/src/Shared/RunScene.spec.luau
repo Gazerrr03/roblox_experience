@@ -114,6 +114,7 @@ return function()
     createPromptPart('ObjectiveBoard', 4)
     createPromptPart('LoadoutBench', 6)
     createPromptPart('UgcLabConsole', 8)
+    local _, startGamePrompt = createPromptPart('StartGamePrompt', 9)
     local _, gatePrompt = createPromptPart('GateSwitch', 10)
     createPromptPart('MazeGateMarker', 72)
 
@@ -145,6 +146,10 @@ return function()
     )
     assert(scene.Collision.Ship == shipCollisionRoot, 'RunScene should expose ship collision root')
     assert(#scene.OceanTriggers == 1, 'RunScene should expose authored ocean triggers')
+    assert(
+        scene.StartGamePrompt == startGamePrompt,
+        'RunScene should expose the optional ship start prompt when authored'
+    )
 
     scene:openGate()
     assert(doorLeft.Transparency == 1, 'RunScene gate opening should hide the left door')
