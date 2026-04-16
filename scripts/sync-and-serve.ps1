@@ -76,21 +76,19 @@ if (Test-Path $featuresPath) {
     Write-Host "[WARNING] $featuresPath not found — skip feature manifest" -ForegroundColor Yellow
 }
 
-# Step 3: Kill existing rojo serve processes
+# Step 3: Kill existing rojo serve process on target port only
 Write-Step 'Stopping existing rojo serve processes'
-$rojoProceses = Get-Process -Name 'rojo' -ErrorAction SilentlyContinue
-if ($rojoProceses) {
-    $rojoProceses | ForEach-Object { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }
-    Write-Host 'Rojo processes stopped.' -ForegroundColor Yellow
+$existingProcesses = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+if ($existingProcesses) {
+    $existingProcesses | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
+    Write-Host ("Rojo process on port $Port stopped.") -ForegroundColor Yellow
 } else {
-    Write-Host 'No rojo processes found.' -ForegroundColor Green
+    Write-Host 'No rojo process found on target port.' -ForegroundColor Green
 }
 
 Start-Sleep -Seconds 2
 
-# Step 4: Resolve rojo path
-$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$repoRoot = (Resolve-Path (Join-Path $scriptDir '..')).Path
+# Step 4: Resolve rojo path (reuse $scriptDir/$repoRoot from Step 0)
 $localToolDir = Join-Path $repoRoot '.aftman\bin'
 $userToolDir = Join-Path $HOME '.aftman\bin'
 $rojoPath = Join-Path $localToolDir 'rojo.exe'
