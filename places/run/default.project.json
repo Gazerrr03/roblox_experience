@@ -118,34 +118,7 @@
             "$className": "ProximityPrompt"
           }
         },
-        "SalvageTerminal": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true
-          },
-          "Prompt": {
-            "$className": "ProximityPrompt"
-          }
-        },
-        "ObjectiveBoard": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true
-          },
-          "Prompt": {
-            "$className": "ProximityPrompt"
-          }
-        },
-        "LoadoutBench": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true
-          },
-          "Prompt": {
-            "$className": "ProximityPrompt"
-          }
-        },
-        "UgcLabConsole": {
+        "BookOfSand": {
           "$className": "Part",
           "$properties": {
             "Anchored": true

@@ -221,6 +221,7 @@ function RunScene.new(root)
         ShopPrompt = terminals.Shop.Prompt,
         SellPrompt = terminals.Sell.Prompt,
         ObjectivePrompt = terminals.Objective.Prompt,
+        BookPrompt = terminals.Objective.Prompt,
         LoadoutPrompt = terminals.Loadout.Prompt,
         UgcLabPrompt = terminals.UgcLab.Prompt,
         GatePrompt = terminals.Gate.Prompt,

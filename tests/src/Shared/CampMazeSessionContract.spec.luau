@@ -8,6 +8,7 @@ return function()
     local campSession = contract.newCampSession({
         SessionId = 'camp-session-1',
         CampAccessCode = 'camp-access-code',
+        SignalScope = 'run:test-scope',
     })
 
     assert(
@@ -18,6 +19,60 @@ return function()
         campSession.SessionPhase == contract.SessionPhase.RunPrep,
         'New camp sessions should start in RunPrep'
     )
+    assert(
+        campSession.SignalScope == 'run:test-scope',
+        'Signal scope should normalize through camp sessions'
+    )
+    assert(
+        campSession.RoundStarted == false,
+        'New camp sessions should start before the round opens'
+    )
+    assert(
+        campSession.DangerActive == false,
+        'New camp sessions should start in the safe camp state'
+    )
+
+    local assignedHost = contract.assignHost(campSession, 42)
+    assert(assignedHost.HostUserId == 42, 'Host assignment should persist on the camp session')
+
+    local roundLive = contract.markRoundStarted(assignedHost, {
+        HostUserId = 42,
+        RoundStartTime = 10,
+        RoundEndTime = 190,
+        DangerActive = true,
+    })
+    assert(roundLive.GateOpen == true, 'Round start should open the gate')
+    assert(roundLive.RoundStarted == true, 'Round start should mark the round live')
+    assert(roundLive.DangerActive == true, 'Round start should enable danger')
+    assert(
+        roundLive.RoundStartTime == 10 and roundLive.RoundEndTime == 190,
+        'Round timing should be recorded'
+    )
+
+    local settledFromBook = contract.markSettlementTriggered(roundLive, {
+        SettlementReason = 'book_settlement',
+        TriggeredByUserId = 42,
+        TriggeredByName = 'Scout',
+    })
+    assert(settledFromBook.GateOpen == false, 'Settlement should close the gate')
+    assert(settledFromBook.RoundStarted == false, 'Settlement should end the live round flag')
+    assert(settledFromBook.DangerActive == false, 'Settlement should disable danger')
+    assert(
+        settledFromBook.SettlementReason == 'book_settlement',
+        'Settlement should record the triggering reason'
+    )
+    assert(
+        settledFromBook.SettlementTriggeredByUserId == 42
+            and settledFromBook.SettlementTriggeredByName == 'Scout',
+        'Settlement should record the triggering player'
+    )
+
+    local resetRound = contract.resetForNextRound(settledFromBook)
+    assert(
+        resetRound.RoundStarted == false and resetRound.DangerActive == false,
+        'Reset should return to the safe camp state'
+    )
+    assert(resetRound.SettlementReason == nil, 'Reset should clear settlement tracking')
 
     local entered = contract.markPlayerEntered(campSession, {
         UserId = 42,
@@ -33,6 +88,27 @@ return function()
     assert(
         entered.SessionPhase == contract.SessionPhase.MazeActive,
         'Entering the maze should move the shared session into MazeActive'
+    )
+
+    local lobbyToRun = contract.buildLobbyToRunTeleportData({
+        SessionId = 'camp-session-1',
+        CampAccessCode = 'camp-access-code',
+        SessionConfig = {
+            Seed = 12345,
+        },
+    })
+    assert(
+        lobbyToRun.Entry.Kind == 'LobbyLaunch',
+        'Lobby -> run teleport payload should mark the handoff entry kind'
+    )
+    assert(
+        lobbyToRun.CampSession.SessionPhase == contract.SessionPhase.RunPrep,
+        'Lobby -> run payload should preserve direct-entry run prep phase'
+    )
+    assert(
+        lobbyToRun.CampSession.RoundStarted == false
+            and lobbyToRun.CampSession.DangerActive == false,
+        'Lobby -> run payload should start with a safe camp round state'
     )
 
     local campToMaze = contract.buildRunToMazeTeleportData({
@@ -228,6 +304,10 @@ return function()
         'Return summaries should preserve collected value'
     )
     assert(
+        resumed.ReturnedPlayerSummaries[1].CountedInSettlement == true,
+        'Return summaries should count inventory by default'
+    )
+    assert(
         contract.hasReturnedSummary(resumed, 42) == true,
         'Returned players should remain discoverable through the summary helper'
     )
@@ -277,6 +357,10 @@ return function()
         WasExtracted = true,
         WasSettled = true,
     })
+    assert(
+        settled.CountedInSettlement == true,
+        'Settled return summaries should count inventory unless explicitly disabled'
+    )
     local completed = contract.applyReturn(
         contract.markPlayerEntered(resumed, {
             UserId = 7,
