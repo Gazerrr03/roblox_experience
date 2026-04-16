@@ -41,8 +41,9 @@ Rules:
 - `Collision/Ship`, when authored, must also contain invisible anchored collision shells.
 - Collision shell parts must use `Anchored=true`, `CanCollide=true`, `CanTouch=false`, `CanQuery=true`, and `Transparency=1`.
 - `Triggers/Ocean` must contain invisible anchored non-collidable trigger parts for water-entry feedback.
-- Missing required markers, prompts, or root attributes must fail loudly at runtime so content issues are fixed in Studio instead of hidden in code.
-- `SpawnMarker` must have a collidable authored floor within 32 studs below it.
+- Missing required markers, prompts, doors, or root attributes must fail loudly at runtime so content issues are fixed in Studio instead of hidden in code.
+- `SpawnMarker`, `ReturnMarker`, and `MazeReturnMarker` must each have a collidable authored floor within 32 studs below them.
+- `ReturnMarker` and `MazeReturnMarker` must not remain at the default origin `(0, 0, 0)` in source or Studio.
 - `MazeGateMarker` is the run-to-maze transition object. Scene code only identifies it; cross-place teleport is handled by the dedicated transition layer.
 - `GateSwitch` only advances gate-open state; the run place no longer depends on top-level `DoorLeft` / `DoorRight` parts for temple-door animation.
 - Flyship door interaction is provided by `ServerScriptService/Run/ShipDoors.luau`; do not keep a separate embedded `ShipDoors` Workspace script under the dropship model.

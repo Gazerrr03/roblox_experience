@@ -19,6 +19,10 @@ return function()
     sceneCollisionRoot.Name = 'Scene'
     sceneCollisionRoot.Parent = collisionRoot
 
+    local shipCollisionRoot = Instance.new('Folder')
+    shipCollisionRoot.Name = 'Ship'
+    shipCollisionRoot.Parent = collisionRoot
+
     local triggersRoot = Instance.new('Folder')
     triggersRoot.Name = 'Triggers'
     triggersRoot.Parent = root
@@ -58,14 +62,14 @@ return function()
     returnMarker.CFrame = CFrame.new(0, 4, 8)
     returnMarker.Parent = root
 
-    local mazeReturnMarker = Instance.new('Part')
-    mazeReturnMarker.Name = 'MazeReturnMarker'
-    mazeReturnMarker.Anchored = true
-    mazeReturnMarker.CanCollide = false
-    mazeReturnMarker.CanTouch = false
-    mazeReturnMarker.CanQuery = true
-    mazeReturnMarker.CFrame = CFrame.new(0, 4, 64)
-    mazeReturnMarker.Parent = root
+    local mazeReturnPart = Instance.new('Part')
+    mazeReturnPart.Name = 'MazeReturnMarker'
+    mazeReturnPart.Anchored = true
+    mazeReturnPart.CanCollide = false
+    mazeReturnPart.CanTouch = false
+    mazeReturnPart.CanQuery = true
+    mazeReturnPart.CFrame = CFrame.new(0, 4, 64)
+    mazeReturnPart.Parent = root
 
     local sceneFloor = Instance.new('Part')
     sceneFloor.Name = 'SceneFloor'
@@ -75,6 +79,28 @@ return function()
     sceneFloor.CanQuery = true
     sceneFloor.Transparency = 1
     sceneFloor.Parent = sceneCollisionRoot
+
+    local shipDeck = Instance.new('Part')
+    shipDeck.Name = 'ShipDeck'
+    shipDeck.Anchored = true
+    shipDeck.CanCollide = true
+    shipDeck.CanTouch = false
+    shipDeck.CanQuery = true
+    shipDeck.Transparency = 1
+    shipDeck.CFrame = CFrame.new(0, 0, 0)
+    shipDeck.Size = Vector3.new(24, 1, 24)
+    shipDeck.Parent = shipCollisionRoot
+
+    local mazeReturnFloor = Instance.new('Part')
+    mazeReturnFloor.Name = 'MazeReturnFloor'
+    mazeReturnFloor.Anchored = true
+    mazeReturnFloor.CanCollide = true
+    mazeReturnFloor.CanTouch = false
+    mazeReturnFloor.CanQuery = true
+    mazeReturnFloor.Transparency = 1
+    mazeReturnFloor.CFrame = CFrame.new(mazeReturnPart.Position.X, 0, mazeReturnPart.Position.Z)
+    mazeReturnFloor.Size = Vector3.new(24, 1, 24)
+    mazeReturnFloor.Parent = sceneCollisionRoot
 
     local oceanTrigger = Instance.new('Part')
     oceanTrigger.Name = 'OceanSurface'
@@ -104,8 +130,8 @@ return function()
         'RunScene should also ground return markers when collision exists beneath them'
     )
     assert(
-        scene:getSpawnCFrame(RunSpawnPoint.Kind.MazeReturn) == mazeReturnMarker.CFrame,
-        'RunScene should fall back to the authored marker when no collision shell exists beneath it'
+        math.abs(scene:getSpawnCFrame(RunSpawnPoint.Kind.MazeReturn).Position.Y - 4.5) < 0.001,
+        'RunScene should also ground maze return markers when collision exists beneath them'
     )
     assert(
         scene:getAreaForPosition(Vector3.new(0, 0, 80)) == 'Wilderness',

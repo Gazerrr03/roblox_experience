@@ -333,113 +333,41 @@ end
 updateWatchHud()
 
 local menuBackdrop = Instance.new('Frame')
-menuBackdrop.Name = 'StartMenu'
-menuBackdrop.Size = UDim2.fromScale(1, 1)
-menuBackdrop.BackgroundColor3 = Theme.Background
+menuBackdrop.Name = 'StartupBanner'
+menuBackdrop.AnchorPoint = Vector2.new(0.5, 0)
+menuBackdrop.Position = UDim2.fromScale(0.5, 0.03)
+menuBackdrop.Size = UDim2.new(0.92, 0, 0, 140)
+menuBackdrop.BackgroundColor3 = Theme.Surface
+menuBackdrop.BorderSizePixel = 0
+menuBackdrop.Visible = false
 menuBackdrop.Parent = screenGui
 
-local menuBackdropGradient = Instance.new('UIGradient')
-menuBackdropGradient.Rotation = 120
-menuBackdropGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Theme.Background:Lerp(Color3.new(1, 1, 1), 0.02)),
-    ColorSequenceKeypoint.new(1, Theme.Background:Lerp(Color3.new(0, 0, 0), 0.12)),
-})
-menuBackdropGradient.Parent = menuBackdrop
-
-local menuPanel = Instance.new('Frame')
-menuPanel.Name = 'Panel'
-menuPanel.AnchorPoint = Vector2.new(0.5, 0.5)
-menuPanel.Position = UDim2.fromScale(0.5, 0.5)
-menuPanel.Size = UDim2.fromOffset(520, 360)
-menuPanel.BackgroundColor3 = Theme.Surface
-menuPanel.BorderSizePixel = 0
-menuPanel.Parent = menuBackdrop
-
-applyPanelStyle(menuPanel, 18, 0.8)
+applyPanelStyle(menuBackdrop, 16, 0.82)
 
 local menuPadding = Instance.new('UIPadding')
-menuPadding.PaddingTop = UDim.new(0, 28)
-menuPadding.PaddingLeft = UDim.new(0, 28)
-menuPadding.PaddingRight = UDim.new(0, 28)
-menuPadding.PaddingBottom = UDim.new(0, 28)
-menuPadding.Parent = menuPanel
+menuPadding.PaddingTop = UDim.new(0, 18)
+menuPadding.PaddingLeft = UDim.new(0, 20)
+menuPadding.PaddingRight = UDim.new(0, 20)
+menuPadding.PaddingBottom = UDim.new(0, 18)
+menuPadding.Parent = menuBackdrop
 
 local menuList = Instance.new('UIListLayout')
-menuList.Padding = UDim.new(0, 14)
-menuList.Parent = menuPanel
+menuList.Padding = UDim.new(0, 8)
+menuList.Parent = menuBackdrop
 
-local eyebrow = makeTextLabel(menuPanel, UDim2.new(1, 0, 0, 20), Theme.Accent, 16, true)
-eyebrow.Text = 'TEMPLE DIRECT ENTRY'
+local eyebrow = makeTextLabel(menuBackdrop, UDim2.new(1, 0, 0, 18), Theme.Accent, 15, true)
+eyebrow.Text = 'RUN SYNC'
 
-local menuTitle = makeTextLabel(menuPanel, UDim2.new(1, 0, 0, 72), Theme.Text, 34, true)
-menuTitle.Text = string.format('Enter the %s', TEMPLE_LABEL)
+local menuTitle = makeTextLabel(menuBackdrop, UDim2.new(1, 0, 0, 28), Theme.Text, 24, true)
+menuTitle.Text = 'Camp session syncing'
 
-local menuBody = makeTextLabel(menuPanel, UDim2.new(1, 0, 0, 78), Theme.SubtleText, 18, false)
+local menuBody = makeTextLabel(menuBackdrop, UDim2.new(1, 0, 0, 30), Theme.SubtleText, 15, false)
 menuBody.Text =
-    'Run now boots directly into the temple flow. Hold while the camp session syncs, then regroup inside before opening the gate to the wilderness and the shared maze.'
-
-local singlePlayerButton = Instance.new('TextButton')
-singlePlayerButton.Size = UDim2.new(1, 0, 0, 52)
-singlePlayerButton.BackgroundColor3 = Theme.Accent
-singlePlayerButton.TextColor3 = Theme.Background
-singlePlayerButton.Font = Enum.Font.GothamBold
-singlePlayerButton.TextSize = 20
-singlePlayerButton.Text = string.format('Syncing %s...', TEMPLE_LABEL)
-singlePlayerButton.Parent = menuPanel
-singlePlayerButton.Active = false
-singlePlayerButton.AutoButtonColor = false
-
-local singlePlayerCorner = Instance.new('UICorner')
-singlePlayerCorner.CornerRadius = UDim.new(0, 12)
-singlePlayerCorner.Parent = singlePlayerButton
-
-local singlePlayerStroke = Instance.new('UIStroke')
-singlePlayerStroke.Color = Theme.Background
-singlePlayerStroke.Transparency = 0.55
-singlePlayerStroke.Thickness = 1
-singlePlayerStroke.Parent = singlePlayerButton
-
-local singlePlayerGradient = Instance.new('UIGradient')
-singlePlayerGradient.Rotation = 90
-singlePlayerGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Theme.Accent:Lerp(Color3.new(1, 1, 1), 0.1)),
-    ColorSequenceKeypoint.new(1, Theme.Accent:Lerp(Color3.new(0, 0, 0), 0.12)),
-})
-singlePlayerGradient.Parent = singlePlayerButton
+    'Startup is now informational only. You will spawn directly onto the ship deck once the run session is ready.'
 
 local menuStatusLabel =
-    makeTextLabel(menuPanel, UDim2.new(1, 0, 0, 52), Theme.SubtleText, 16, false)
-menuStatusLabel.Text = string.format('Preparing %s access...', TEMPLE_LABEL)
-
-local placeholders = Instance.new('Frame')
-placeholders.Size = UDim2.new(1, 0, 0, 78)
-placeholders.BackgroundTransparency = 1
-placeholders.Parent = menuPanel
-
-local placeholderList = Instance.new('UIListLayout')
-placeholderList.Padding = UDim.new(0, 10)
-placeholderList.FillDirection = Enum.FillDirection.Horizontal
-placeholderList.Parent = placeholders
-
-local function makePlaceholder(text)
-    local button = Instance.new('TextButton')
-    button.Size = UDim2.new(0.5, -5, 1, 0)
-    button.BackgroundColor3 = Theme.Background
-    button.TextColor3 = Theme.SubtleText
-    button.Font = Theme.Font
-    button.TextSize = 16
-    button.Text = text
-    button.AutoButtonColor = false
-    button.Active = false
-    button.Parent = placeholders
-
-    local corner = Instance.new('UICorner')
-    corner.CornerRadius = UDim.new(0, 12)
-    corner.Parent = button
-end
-
-makePlaceholder('Temple Shop (Soon)')
-makePlaceholder('Shared Maze Gate')
+    makeTextLabel(menuBackdrop, UDim2.new(1, 0, 0, 44), Theme.SubtleText, 15, false)
+menuStatusLabel.Text = string.format('Preparing %s session...', TEMPLE_LABEL)
 
 local panel = Instance.new('Frame')
 panel.Name = 'CampPanel'
@@ -1236,9 +1164,6 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
             buildWaitingHostText(snapshot),
             buildMazeEntryText(snapshot)
         )
-        singlePlayerButton.Active = false
-        singlePlayerButton.AutoButtonColor = false
-        singlePlayerButton.Text = string.format('Syncing %s...', TEMPLE_LABEL)
         inventoryLabel.Text = 'Inventory: --'
         inventoryDetailLabel.Text = ''
         playerStateLabel.Text = 'Health: --\nStamina: --\nState: --\nMovement: --'
