@@ -32,6 +32,7 @@ function ShipDoors.new(config)
 
     self._isOpen = false
     self._isAnimating = false
+    self._isLocked = false
     self._originalCFrames = {}
     self._prompt = nil
 
@@ -113,11 +114,33 @@ function ShipDoors:close()
 end
 
 function ShipDoors:toggle()
+    if self._isLocked then
+        return
+    end
+
     if self._isOpen then
         self:close()
     else
         self:open()
     end
+end
+
+function ShipDoors:lock()
+    self._isLocked = true
+    if self._prompt then
+        self._prompt.Enabled = false
+    end
+end
+
+function ShipDoors:unlock()
+    self._isLocked = false
+    if self._prompt then
+        self._prompt.Enabled = true
+    end
+end
+
+function ShipDoors:isLocked()
+    return self._isLocked == true
 end
 
 -- ============================================================

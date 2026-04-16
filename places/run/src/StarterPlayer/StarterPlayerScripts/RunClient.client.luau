@@ -233,6 +233,46 @@ local function buildSessionPhaseText(snapshot)
     return string.format('Phase: %s', snapshot.SessionPhase or 'RunPrep')
 end
 
+local function resolveHostDisplayName(snapshot)
+    local hostUserId = snapshot.HostUserId
+    if type(hostUserId) ~= 'number' then
+        return nil
+    end
+
+    for _, rosterEntry in ipairs(snapshot.Roster or {}) do
+        if rosterEntry.UserId == hostUserId then
+            if hostUserId == localPlayer.UserId then
+                return 'You'
+            end
+
+            return rosterEntry.Name
+        end
+    end
+
+    if hostUserId == localPlayer.UserId then
+        return 'You'
+    end
+
+    return string.format('User %d', hostUserId)
+end
+
+local function buildWaitingHostText(snapshot)
+    if snapshot.GamePhase ~= 'Waiting' then
+        return 'Run state: Playing'
+    end
+
+    local hostDisplayName = resolveHostDisplayName(snapshot)
+    if hostDisplayName == nil then
+        return 'Run state: Waiting for host assignment'
+    end
+
+    if snapshot.HostUserId == localPlayer.UserId then
+        return 'Run state: Waiting | Host: You can start from the ship console'
+    end
+
+    return string.format('Run state: Waiting | Host: %s', hostDisplayName)
+end
+
 local function formatClockTime(clockTime)
     local normalizedClockTime = (clockTime or 0) % 24
     local hours = math.floor(normalizedClockTime)
@@ -622,7 +662,7 @@ progressBarBack.BorderSizePixel = 0
 progressBarBack.Parent = objectivePanel
 
 local progressBarFill = Instance.new('Frame')
-progressBarFill.Size = UDim2.new(0, 0, 1, 0)
+progressBarFill.Size = UDim2.fromScale(0, 1)
 progressBarFill.BackgroundColor3 = Theme.Accent
 progressBarFill.BorderSizePixel = 0
 progressBarFill.Parent = progressBarBack
@@ -658,7 +698,7 @@ local function updateObjectiveUi()
     objectiveGoalLabel.Text = string.format('Goal: %d %s', goalAmount, PAGE_LABEL)
     objectiveProgressLabel.Text =
         string.format('%s: %d%%', SAND_BOOK_PROGRESS_LABEL, math.floor(clampedProgress * 100 + 0.5))
-    progressBarFill.Size = UDim2.new(clampedProgress, 0, 1, 0)
+    progressBarFill.Size = UDim2.fromScale(clampedProgress, 1)
 end
 
 local function updatePageLabels()
@@ -1090,10 +1130,11 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
     canRequestMazeEntry = snapshot.GateOpen == true
 
     statusLabel.Text = string.format(
-        '%s\n%s\n%s\nArea: %s | Gate: %s | Maze: %s\nEntry: %s',
+        '%s\n%s\n%s\n%s\nArea: %s | Gate: %s | Maze: %s\nEntry: %s',
         snapshot.Status,
         buildFingerprintText(snapshot),
         buildSessionPhaseText(snapshot),
+        buildWaitingHostText(snapshot),
         snapshot.Area,
         snapshot.GateOpen and 'Open' or 'Closed',
         snapshot.MazeStatus or 'idle',
@@ -1164,7 +1205,18 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
 
     local rosterLines = {}
     for _, rosterEntry in ipairs(snapshot.Roster) do
-        local marker = rosterEntry.UserId == localPlayer.UserId and ' (You)' or ''
+        local markers = {}
+        if rosterEntry.UserId == localPlayer.UserId then
+            table.insert(markers, 'You')
+        end
+        if rosterEntry.UserId == snapshot.HostUserId then
+            table.insert(markers, 'Host')
+        end
+
+        local marker = ''
+        if #markers > 0 then
+            marker = string.format(' (%s)', table.concat(markers, ', '))
+        end
         table.insert(rosterLines, string.format('%s%s', rosterEntry.Name, marker))
     end
 

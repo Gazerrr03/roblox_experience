@@ -30,6 +30,11 @@ function RunInteractionRegistry:bindScene(scene, handlers)
     self:_track(scene.Terminals.Gate:bind(function(player)
         handlers.OnGate(player)
     end))
+    if scene.Terminals.StartGame then
+        self:_track(scene.Terminals.StartGame:bind(function(player)
+            handlers.OnStartGame(player)
+        end))
+    end
     self:_track(scene.MazePortal:bind(function(player)
         handlers.OnMazePortal(player)
     end))

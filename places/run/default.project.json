@@ -269,6 +269,20 @@
             "$className": "ProximityPrompt"
           }
         },
+        "StartGamePrompt": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true,
+            "Position": [
+              49.7613869,
+              15.5,
+              299.243103
+            ]
+          },
+          "Prompt": {
+            "$className": "ProximityPrompt"
+          }
+        },
         "GateSwitch": {
           "$className": "Part",
           "$properties": {

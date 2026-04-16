@@ -12,6 +12,7 @@ local Remotes = Shared.Network.Remotes.ensure()
 local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
 local MazeEntryAvailability = Shared.Session.MazeEntryAvailability
 local SessionSeedPolicy = Shared.Session.SessionSeedPolicy
+local HostPolicy = Shared.Util.HostPolicy
 local ControlStateService = Shared.Runtime.ControlStateService
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local InventoryService = Shared.Runtime.InventoryService
@@ -49,6 +50,8 @@ local RUN_MAZE_GATE_RETURN_REASONS = table.freeze({
     extracted = true,
 })
 local INITIAL_TEMPLE_STATUS = 'Select Enter Temple to enter the temple.'
+local WAITING_PHASE = 'Waiting'
+local PLAYING_PHASE = 'Playing'
 local BOOK_GOAL_AMOUNT = 120
 local OCEAN_SPLASH_MESSAGE = 'Sea spray crashes over you.'
 local OCEAN_SLOWDOWN_DELAY_SECONDS = 1
@@ -242,6 +245,9 @@ function RunSessionService.new(options)
     self.IsLaunched = false
     self.ShouldAutoLaunch = false
     self.GateOpen = false
+    self.GamePhase = WAITING_PHASE
+    self.HostUserId = nil
+    self.WaitingPlayerOrderUserIds = {}
     self.World = nil
     self.WorldInteractions = nil
     self.SnapshotThread = nil
@@ -762,6 +768,9 @@ function RunSessionService:_rebuildWorld()
         OnGate = function(player)
             self:_openGate(player)
         end,
+        OnStartGame = function(player)
+            self:_onHostStartGame(player)
+        end,
         OnMazePortal = function(player)
             if self:_canProcessMazeEntryRequest(player) then
                 self:_requestMazeEntry(player, false)
@@ -818,6 +827,14 @@ end
 function RunSessionService:_getObjectiveFor(player)
     local area = self:_getPlayerArea(player)
     local sessionPhase = self.CampSession.SessionPhase
+
+    if self.GamePhase == WAITING_PHASE then
+        if player.UserId == self.HostUserId then
+            return 'Use the ship console to start the run, then lead the crew out to the gate.'
+        end
+
+        return 'Regroup aboard ship and wait for the host to start the run.'
+    end
 
     if sessionPhase == CampMazeSessionContract.SessionPhase.RunPrep then
         return 'Inspect the temple terminals and open the gate when the group is ready.'
@@ -1112,6 +1129,16 @@ end
 
 function RunSessionService:_openGate(player)
     if not self.World then
+        return
+    end
+
+    if self.GamePhase ~= PLAYING_PHASE then
+        self:_setStatus(
+            string.format(
+                '%s checked the temple gate. The host must start the run from the ship first.',
+                player.DisplayName
+            )
+        )
         return
     end
 
@@ -1444,6 +1471,108 @@ function RunSessionService:_launchRun(_player)
     end
 end
 
+function RunSessionService:_lockAllShipDoors()
+    if self.World and self.World.lockAllShipDoors then
+        self.World:lockAllShipDoors()
+    end
+end
+
+function RunSessionService:_unlockAllShipDoors()
+    if self.World and self.World.unlockAllShipDoors then
+        self.World:unlockAllShipDoors()
+    end
+end
+
+function RunSessionService:_syncStartGamePrompt()
+    if not self.World or not self.World.StartGamePrompt then
+        return
+    end
+
+    local prompt = self.World.StartGamePrompt
+    if self.GamePhase == WAITING_PHASE then
+        prompt.Enabled = true
+        prompt.ActionText = 'Start Run'
+        prompt.ObjectText = 'Ship Console'
+    else
+        prompt.Enabled = false
+    end
+end
+
+function RunSessionService:_shouldLoadCharacterOnJoin(player)
+    return player.Character == nil and Players.CharacterAutoLoads == false
+end
+
+function RunSessionService:_recordWaitingPlayer(userId)
+    if type(userId) ~= 'number' then
+        return
+    end
+
+    for _, existingUserId in ipairs(self.WaitingPlayerOrderUserIds) do
+        if existingUserId == userId then
+            return
+        end
+    end
+
+    table.insert(self.WaitingPlayerOrderUserIds, userId)
+end
+
+function RunSessionService:_removeWaitingPlayer(userId)
+    for index = #self.WaitingPlayerOrderUserIds, 1, -1 do
+        if self.WaitingPlayerOrderUserIds[index] == userId then
+            table.remove(self.WaitingPlayerOrderUserIds, index)
+        end
+    end
+end
+
+function RunSessionService:_seedWaitingPlayerOrder(players)
+    table.clear(self.WaitingPlayerOrderUserIds)
+
+    for _, player in ipairs(players) do
+        self:_recordWaitingPlayer(player.UserId)
+    end
+end
+
+function RunSessionService:_assignHost(newlyJoinedUserId)
+    self:_recordWaitingPlayer(newlyJoinedUserId)
+    self.HostUserId = HostPolicy.assignHost(self.WaitingPlayerOrderUserIds, self.HostUserId)
+end
+
+function RunSessionService:_setWaitingPhase()
+    self.GamePhase = WAITING_PHASE
+    self:_seedWaitingPlayerOrder(Players:GetPlayers())
+    self:_assignHost(nil)
+    self:_lockAllShipDoors()
+    self:_syncStartGamePrompt()
+end
+
+function RunSessionService:_setPlayingPhase()
+    self.GamePhase = PLAYING_PHASE
+    self:_unlockAllShipDoors()
+    self:_syncStartGamePrompt()
+end
+
+function RunSessionService:_onHostStartGame(player)
+    if self.GamePhase ~= WAITING_PHASE or player.UserId ~= self.HostUserId then
+        if self.GamePhase == WAITING_PHASE then
+            self:_setStatus(
+                string.format(
+                    '%s checked the ship console. Only the host can start the run.',
+                    player.DisplayName
+                )
+            )
+        end
+        return
+    end
+
+    self:_setPlayingPhase()
+    self:_setStatus(
+        string.format(
+            '%s started the run. Ship doors are unlocked; head outside to the gate.',
+            player.DisplayName
+        )
+    )
+end
+
 function RunSessionService:_getPlayerUpdateContext(player)
     local character = player.Character
     local humanoid = character and character:FindFirstChildOfClass('Humanoid')
@@ -1674,7 +1803,12 @@ function RunSessionService:start()
         self:_addPlayerState(player)
         self:_handlePlayerTeleportData(player)
 
-        if self.IsLaunched then
+        if self.GamePhase == WAITING_PHASE then
+            self:_assignHost(player.UserId)
+            if self.IsLaunched and self:_shouldLoadCharacterOnJoin(player) then
+                player:LoadCharacter()
+            end
+        elseif self.IsLaunched and self:_shouldLoadCharacterOnJoin(player) then
             player:LoadCharacter()
         end
 
@@ -1697,6 +1831,12 @@ function RunSessionService:start()
         })
         self.GateOpen = self.CampSession.GateOpen
         self:_removePlayerState(player)
+
+        if self.GamePhase == WAITING_PHASE then
+            self:_removeWaitingPlayer(player.UserId)
+            self:_assignHost(nil)
+        end
+
         self:_broadcastSnapshot()
     end)
 
@@ -1735,6 +1875,14 @@ function RunSessionService:start()
     self:_broadcastSnapshot()
 
     self:_launchRun(nil)
+    if self.GateOpen then
+        self:_setPlayingPhase()
+    else
+        self:_setWaitingPhase()
+        self:_setStatus(
+            'Crew assembled aboard ship. The host can start the run from the ship console.'
+        )
+    end
 end
 
 return RunSessionService
