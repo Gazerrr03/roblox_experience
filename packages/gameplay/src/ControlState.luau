@@ -45,6 +45,15 @@ function ControlState:requestSprintStart(playerStateSummary)
         return false, 'StaminaDepleted'
     end
 
+    if
+        playerStateSummary.ActiveEffects
+        and playerStateSummary.ActiveEffects['SprintSuppressed']
+    then
+        self.SprintRequested = false
+        self.Mode = MODE.Walk
+        return false, 'SprintSuppressed'
+    end
+
     self.SprintRequested = true
     self.Mode = MODE.Sprint
     return true, self:getSummary()
@@ -70,6 +79,15 @@ function ControlState:syncPlayerState(playerStateSummary)
     end
 
     if playerStateSummary.CanSprint ~= true then
+        self.SprintRequested = false
+        self.Mode = MODE.Walk
+        return self:getSummary()
+    end
+
+    if
+        playerStateSummary.ActiveEffects
+        and playerStateSummary.ActiveEffects['SprintSuppressed']
+    then
         self.SprintRequested = false
         self.Mode = MODE.Walk
         return self:getSummary()

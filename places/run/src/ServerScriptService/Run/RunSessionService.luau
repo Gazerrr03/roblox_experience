@@ -1320,8 +1320,17 @@ function RunSessionService:_createMonsterService()
         {
             RandomSeed = self.SessionData.Seed,
             RandomSource = randomSource,
-            OnAttackHit = function(player, damagePips, _hitContext)
+            OnAttackHit = function(player, damagePips, hitContext)
                 self:_applyPlayerDamage(player, damagePips)
+                if hitContext and hitContext.Effects then
+                    for _, effect in ipairs(hitContext.Effects) do
+                        self.PlayerStateService:applyEffect(
+                            player,
+                            effect.Id,
+                            effect.DurationSeconds
+                        )
+                    end
+                end
             end,
         }
     )
