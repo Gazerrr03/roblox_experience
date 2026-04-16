@@ -129,10 +129,26 @@ return function()
         'Starting TOD should flip the payload into a running state'
     )
     assert(
+        #remote.AllPayloads == 2,
+        'Starting TOD should broadcast the initial running payload once'
+    )
+    assert(
         sky.SkyboxBk == 'rbxassetid://111',
         'TOD should not mutate the existing skybox asset configuration'
     )
     assert(bloom.Intensity == 0.42, 'TOD should not mutate the authored bloom effect')
+
+    service:step(currentClock + 0.25)
+    assert(
+        #remote.AllPayloads == 2,
+        'Sub-second TOD updates should not rebroadcast when the HUD display has not changed yet'
+    )
+
+    service:step(currentClock + 1.1)
+    assert(
+        #remote.AllPayloads == 3,
+        'TOD should broadcast again once the displayed time/countdown changes'
+    )
 
     currentClock += profile.getDurationSeconds(shared.Config.SessionConfig.TOD)
     local finishedPayload = service:step(currentClock)

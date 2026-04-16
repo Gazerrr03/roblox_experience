@@ -12,6 +12,14 @@ TODService.ManagedNames = table.freeze({
 
 TODService.UpdateIntervalSeconds = 0.5
 
+local function getDisplayClockMinute(clockTime)
+    return math.floor(((clockTime or 0) % 24) * 60 + 0.5)
+end
+
+local function getDisplayRemainingSeconds(remainingSeconds)
+    return math.max(0, math.floor((remainingSeconds or 0) + 0.5))
+end
+
 local function copyProperties(instance, propertyNames)
     local snapshot = {}
 
@@ -122,6 +130,7 @@ function TODService.new(options)
     self.StartedAtClock = nil
     self.LoopThread = nil
     self.LoopToken = 0
+    self.LastBroadcastSignature = nil
 
     return self
 end
@@ -197,11 +206,30 @@ function TODService:_applySnapshot(snapshot)
     applyProperties(targets.ColorGrading, snapshot.ColorGrading)
 end
 
-function TODService:_emit(payload)
+function TODService:_buildDisplaySignature(payload)
+    return string.format(
+        '%d:%d:%s',
+        getDisplayClockMinute(payload.ClockTime),
+        getDisplayRemainingSeconds(payload.RoundTimeRemainingSeconds),
+        tostring(payload.IsRunning == true)
+    )
+end
+
+function TODService:_emit(payload, forceBroadcast)
     self.CurrentState = payload
 
-    if self.Remote and type(self.Remote.FireAllClients) == 'function' then
+    local shouldBroadcast = forceBroadcast == true
+    local nextSignature = self:_buildDisplaySignature(payload)
+    if not shouldBroadcast then
+        shouldBroadcast = self.LastBroadcastSignature ~= nextSignature
+    end
+
+    if shouldBroadcast and self.Remote and type(self.Remote.FireAllClients) == 'function' then
         self.Remote:FireAllClients(payload)
+    end
+
+    if shouldBroadcast then
+        self.LastBroadcastSignature = nextSignature
     end
 end
 
@@ -222,7 +250,7 @@ function TODService:prime()
     self:_applySnapshot(snapshot)
 
     local payload = self:_buildPayload(snapshot, false)
-    self:_emit(payload)
+    self:_emit(payload, true)
     self.Initialized = true
 
     return payload
@@ -301,6 +329,7 @@ function TODService:restore()
     self.Initialized = false
     self.StartedAtClock = nil
     self.Baseline = nil
+    self.LastBroadcastSignature = nil
 end
 
 function TODService:destroy()
