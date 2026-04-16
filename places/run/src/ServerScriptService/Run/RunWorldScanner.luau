@@ -74,7 +74,7 @@ function RunWorldScanner.buildCanTraverseFn(runScene)
         end
 
         local normalizedDir = direction.Unit
-        local rayResult = Workspace:Raycast(fromPosition, normalizedDir * (distance + 0.5), raycastParams)
+        local rayResult = Workspace:Raycast(fromPosition, normalizedDir * distance, raycastParams)
         return rayResult == nil
     end
 end
