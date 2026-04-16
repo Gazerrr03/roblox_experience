@@ -94,6 +94,7 @@ function MonsterCompiler.compileMonsterForMaze(authorProfile)
         PatrolSpeedMultiplier = normalizedProfile.Tuning.PatrolSpeedMultiplier,
         SpawnOffset = normalizedProfile.Tuning.SpawnOffset or DEFAULT_SPAWN_OFFSET,
         CombatHitPoints = combatHitPoints,
+        Health = normalizedProfile.Health,
         Behaviors = table.freeze(behaviors),
         Effects = table.freeze(runtimeEffects),
     }

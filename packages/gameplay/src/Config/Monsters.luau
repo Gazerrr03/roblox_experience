@@ -19,6 +19,9 @@ return {
                 Tool = 'No dedicated suppression tool in v1',
             },
         },
+        Health = {
+            MaxHp = 3,
+        },
         Tuning = {
             AttackCooldownSeconds = 1,
             AttackDamagePips = 1,
