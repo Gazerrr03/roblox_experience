@@ -4,7 +4,8 @@ return function()
     local ItemPresentation = gameplay.Config.ItemPresentation
     local ToolItems = gameplay.Config.ToolItems
 
-    local assetsFolder = ReplicatedStorage:WaitForChild(ItemPresentation.REPLICATED_STORAGE_ASSETS_FOLDER, 10)
+    local assetsFolder =
+        ReplicatedStorage:WaitForChild(ItemPresentation.REPLICATED_STORAGE_ASSETS_FOLDER, 10)
     assert(
         assetsFolder ~= nil,
         'ReplicatedStorage should contain Assets folder (check tests/default.project.json)'
