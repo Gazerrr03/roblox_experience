@@ -9,6 +9,8 @@ function RunSnapshotBuilder.buildForPlayer(service, player, mazeEntryAvailabilit
 
     return {
         IsLaunched = service.IsLaunched,
+        GamePhase = service.GamePhase,
+        HostUserId = service.HostUserId,
         Status = service.Status,
         BuildFingerprint = service.BuildFingerprint,
         Area = service:_getPlayerArea(player),

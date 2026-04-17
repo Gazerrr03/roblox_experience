@@ -2,6 +2,7 @@ local RunStaticWorldContract = table.freeze({
     RootName = 'RunStaticWorld',
     CollisionRootName = 'Collision',
     SceneCollisionName = 'Scene',
+    -- Optional authored ship collision shell; absent in the current Studio-authored world.
     ShipCollisionName = 'Ship',
     TriggersRootName = 'Triggers',
     OceanTriggerName = 'Ocean',
