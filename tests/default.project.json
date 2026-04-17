@@ -24,9 +24,6 @@
       },
       "PlaceModules": {
         "$className": "Folder",
-        "Lobby": {
-          "$path": "../places/lobby/src/ServerScriptService/Lobby"
-        },
         "Run": {
           "$path": "../places/run/src/ServerScriptService/Run"
         },

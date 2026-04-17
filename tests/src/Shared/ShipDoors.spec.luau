@@ -71,19 +71,32 @@ return function()
 
     local doors = ShipDoors.init(shipModel)
 
-    assert(#doors == 6, 'ShipDoors should register all four large doors and two sliding doors when authored parts exist')
+    assert(
+        #doors == 6,
+        'ShipDoors should register all four large doors and two sliding doors when authored parts exist'
+    )
 
     for folderName, panel in pairs(panels) do
         local prompt = panel:FindFirstChild('ShipDoorPrompt')
 
-        assert(prompt ~= nil, string.format('%s should get a direct prompt on the visible door panel', folderName))
+        assert(
+            prompt ~= nil,
+            string.format('%s should get a direct prompt on the visible door panel', folderName)
+        )
         assert(
             prompt.RequiresLineOfSight == false,
-            string.format('%s prompt should ignore line of sight so players can open from either side', folderName)
+            string.format(
+                '%s prompt should ignore line of sight so players can open from either side',
+                folderName
+            )
         )
         assert(
             prompt.KeyboardKeyCode == Enum.KeyCode.E,
             string.format('%s prompt should explicitly use E as the activation key', folderName)
+        )
+        assert(
+            prompt.ActionText == 'Close Door',
+            string.format('%s prompt should match the authored open-door state', folderName)
         )
     end
 end
