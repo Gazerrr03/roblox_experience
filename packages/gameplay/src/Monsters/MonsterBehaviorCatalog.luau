@@ -19,6 +19,7 @@ local MonsterBehaviorCatalog = table.freeze({
         [BEHAVIOR.Patrol] = true,
         [BEHAVIOR.SenseNearestTarget] = true,
         [BEHAVIOR.Chase] = true,
+        [BEHAVIOR.Attack] = true,
     }),
 })
 

@@ -1,4 +1,9 @@
+local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local Packages = ReplicatedStorage:WaitForChild('Packages')
+local ItemFields = require(Packages:WaitForChild('Gameplay')).Config.ItemFields
+
 local CampMazeSessionContract = {}
+local SessionPhase = require(script.Parent.SessionPhase)
 
 local MAZE_STATUS = {
     Idle = 'idle',
@@ -18,6 +23,101 @@ end
 
 local function cloneTable(input)
     return table.clone(input or {})
+end
+
+local function cloneInventoryItem(itemEntry)
+    return ItemFields.copyItemEntry(itemEntry)
+end
+
+local function cloneInventorySummary(summary)
+    if type(summary) ~= 'table' then
+        return nil
+    end
+
+    local backpackItems = {}
+    for index, itemEntry in ipairs(summary.BackpackItems or {}) do
+        backpackItems[index] = cloneInventoryItem(itemEntry)
+    end
+
+    return {
+        Capacity = summary.Capacity or 0,
+        Weight = summary.Weight or 0,
+        Count = summary.Count or 0,
+        BackpackCount = summary.BackpackCount or #backpackItems,
+        HeldCount = summary.HeldCount or (summary.HeldItem and 1 or 0),
+        Value = summary.Value or 0,
+        BackpackItems = backpackItems,
+        HeldItem = cloneInventoryItem(summary.HeldItem),
+    }
+end
+
+local function clonePlayerInventories(playerInventories)
+    local cloned = {}
+
+    for _, entry in ipairs(playerInventories or {}) do
+        if type(entry) == 'table' and type(entry.UserId) == 'number' then
+            table.insert(cloned, {
+                UserId = entry.UserId,
+                Inventory = cloneInventorySummary(entry.Inventory),
+            })
+        end
+    end
+
+    table.sort(cloned, function(left, right)
+        return left.UserId < right.UserId
+    end)
+
+    return cloned
+end
+
+local function cloneUgcRuntimeProfile(runtimeProfile)
+    if type(runtimeProfile) ~= 'table' then
+        return nil
+    end
+
+    return {
+        Id = runtimeProfile.Id,
+        Name = runtimeProfile.Name,
+        Presentation = type(runtimeProfile.Presentation) == 'table' and table.clone(
+            runtimeProfile.Presentation
+        ) or nil,
+        Speed = runtimeProfile.Speed,
+        SightRange = runtimeProfile.SightRange,
+        PatrolSpeedMultiplier = runtimeProfile.PatrolSpeedMultiplier,
+        SpawnOffset = runtimeProfile.SpawnOffset,
+        Behaviors = type(runtimeProfile.Behaviors) == 'table' and table.clone(
+            runtimeProfile.Behaviors
+        ) or {},
+        Effects = cloneArray(runtimeProfile.Effects),
+    }
+end
+
+local function cloneUgcDiagnostics(diagnostics)
+    if type(diagnostics) ~= 'table' then
+        return nil
+    end
+
+    return {
+        SkippedBehaviorIds = cloneArray(diagnostics.SkippedBehaviorIds),
+        SkippedEffectIds = cloneArray(diagnostics.SkippedEffectIds),
+        ClampedFields = cloneArray(diagnostics.ClampedFields),
+    }
+end
+
+local function clonePendingUgcMonsterPayload(payload)
+    if type(payload) ~= 'table' then
+        return nil
+    end
+
+    return {
+        OwnerUserId = payload.OwnerUserId,
+        MonsterId = payload.MonsterId,
+        MonsterName = payload.MonsterName,
+        Seed = payload.Seed,
+        RecipeHash = payload.RecipeHash,
+        RuntimeProfile = cloneUgcRuntimeProfile(payload.RuntimeProfile),
+        Diagnostics = cloneUgcDiagnostics(payload.Diagnostics),
+    }
 end
 
 local function sortPlayers(players)
@@ -64,15 +164,26 @@ function CampMazeSessionContract.normalizeCampSession(session)
     local normalized = {
         SessionId = session and session.SessionId or 'local-debug-camp',
         CampAccessCode = session and session.CampAccessCode or 'local-debug-camp',
+        SignalScope = session and session.SignalScope or nil,
+        HostUserId = session and session.HostUserId or nil,
         GateOpen = session ~= nil and session.GateOpen == true or false,
+        RoundStarted = session ~= nil and session.RoundStarted == true or false,
+        DangerActive = session ~= nil and session.DangerActive == true or false,
+        RoundStartTime = session and session.RoundStartTime or nil,
+        RoundEndTime = session and session.RoundEndTime or nil,
+        SettlementReason = session and session.SettlementReason or nil,
+        SettlementTriggeredByUserId = session and session.SettlementTriggeredByUserId or nil,
+        SettlementTriggeredByName = session and session.SettlementTriggeredByName or nil,
         MazeStatus = session and session.MazeStatus or MAZE_STATUS.Idle,
         MazeAccessCode = session and session.MazeAccessCode or nil,
         PlayersInMaze = cloneArray(session and session.PlayersInMaze or {}),
         ReturnedPlayerSummaries = cloneArray(session and session.ReturnedPlayerSummaries or {}),
+        SessionClosed = session ~= nil and session.SessionClosed == true or false,
     }
 
     sortPlayers(normalized.PlayersInMaze)
     sortSummaries(normalized.ReturnedPlayerSummaries)
+    normalized.SessionPhase = SessionPhase.resolveFromCampSession(normalized)
 
     return normalized
 end
@@ -128,7 +239,47 @@ function CampMazeSessionContract.buildReturnSummary(params)
         Weight = params.Weight or 0,
         WasExtracted = params.WasExtracted == true,
         WasSettled = params.WasSettled == true,
+        CountedInSettlement = params.CountedInSettlement ~= false,
     }
+end
+
+function CampMazeSessionContract.assignHost(session, hostUserId)
+    local nextSession = CampMazeSessionContract.normalizeCampSession(session)
+    nextSession.HostUserId = if type(hostUserId) == 'number' then hostUserId else nil
+    nextSession.SessionPhase = SessionPhase.resolveFromCampSession(nextSession)
+    return nextSession
+end
+
+function CampMazeSessionContract.markRoundStarted(session, params)
+    local nextSession = CampMazeSessionContract.normalizeCampSession(session)
+    local resolved = params or {}
+
+    nextSession.HostUserId = resolved.HostUserId or nextSession.HostUserId
+    nextSession.GateOpen = true
+    nextSession.RoundStarted = true
+    nextSession.DangerActive = resolved.DangerActive ~= false
+    nextSession.RoundStartTime = resolved.RoundStartTime
+    nextSession.RoundEndTime = resolved.RoundEndTime
+    nextSession.SettlementReason = nil
+    nextSession.SettlementTriggeredByUserId = nil
+    nextSession.SettlementTriggeredByName = nil
+    nextSession.SessionClosed = false
+    nextSession.SessionPhase = SessionPhase.resolveFromCampSession(nextSession)
+    return nextSession
+end
+
+function CampMazeSessionContract.markSettlementTriggered(session, params)
+    local nextSession = CampMazeSessionContract.normalizeCampSession(session)
+    local resolved = params or {}
+
+    nextSession.GateOpen = false
+    nextSession.RoundStarted = false
+    nextSession.DangerActive = false
+    nextSession.SettlementReason = resolved.SettlementReason or 'settlement'
+    nextSession.SettlementTriggeredByUserId = resolved.TriggeredByUserId
+    nextSession.SettlementTriggeredByName = resolved.TriggeredByName
+    nextSession.SessionPhase = SessionPhase.resolveFromCampSession(nextSession)
+    return nextSession
 end
 
 function CampMazeSessionContract.markPlayerEntered(session, player)
@@ -158,6 +309,7 @@ function CampMazeSessionContract.markPlayerEntered(session, player)
     nextSession.ReturnedPlayerSummaries = nextSummaries
 
     nextSession.MazeStatus = MAZE_STATUS.Active
+    nextSession.SessionPhase = SessionPhase.resolveFromCampSession(nextSession)
 
     return nextSession
 end
@@ -187,6 +339,7 @@ function CampMazeSessionContract.prunePlayer(session, userId, options)
     sortSummaries(nextSummaries)
     nextSession.ReturnedPlayerSummaries = nextSummaries
     updateMazeStatus(nextSession)
+    nextSession.SessionPhase = SessionPhase.resolveFromCampSession(nextSession)
 
     return nextSession
 end
@@ -222,6 +375,29 @@ function CampMazeSessionContract.applyReturn(session, summary, mazeCompleted)
         updateMazeStatus(nextSession)
     end
 
+    nextSession.SessionPhase = SessionPhase.resolveFromCampSession(nextSession)
+
+    return nextSession
+end
+
+function CampMazeSessionContract.resetForNextRound(session)
+    local nextSession = CampMazeSessionContract.normalizeCampSession(session)
+
+    nextSession.GateOpen = false
+    nextSession.RoundStarted = false
+    nextSession.DangerActive = false
+    nextSession.RoundStartTime = nil
+    nextSession.RoundEndTime = nil
+    nextSession.SettlementReason = nil
+    nextSession.SettlementTriggeredByUserId = nil
+    nextSession.SettlementTriggeredByName = nil
+    nextSession.MazeStatus = MAZE_STATUS.Idle
+    nextSession.MazeAccessCode = nil
+    nextSession.PlayersInMaze = {}
+    nextSession.ReturnedPlayerSummaries = {}
+    nextSession.SessionClosed = false
+    nextSession.SessionPhase = SessionPhase.resolveFromCampSession(nextSession)
+
     return nextSession
 end
 
@@ -231,7 +407,10 @@ function CampMazeSessionContract.buildLobbyToRunTeleportData(params)
         CampSession = CampMazeSessionContract.newCampSession({
             SessionId = params.SessionId,
             CampAccessCode = params.CampAccessCode,
+            SignalScope = params.SignalScope,
             GateOpen = false,
+            RoundStarted = false,
+            DangerActive = false,
             MazeStatus = MAZE_STATUS.Idle,
             MazeAccessCode = nil,
             PlayersInMaze = {},
@@ -240,6 +419,7 @@ function CampMazeSessionContract.buildLobbyToRunTeleportData(params)
         Entry = {
             Kind = 'LobbyLaunch',
         },
+        PlayerInventories = {},
     }
 end
 
@@ -247,7 +427,25 @@ function CampMazeSessionContract.buildLobbyToCampTeleportData(params)
     return CampMazeSessionContract.buildLobbyToRunTeleportData(params)
 end
 
+function CampMazeSessionContract.closeCampSession(session)
+    local nextSession = CampMazeSessionContract.normalizeCampSession(session)
+    nextSession.SessionClosed = true
+    nextSession.SessionPhase = SessionPhase.SessionClosed
+    return nextSession
+end
+
 function CampMazeSessionContract.buildRunToMazeTeleportData(params)
+    local playerInventories = {}
+    if
+        type(params.EnteringPlayer) == 'table'
+        and type(params.EnteringPlayer.UserId) == 'number'
+    then
+        table.insert(playerInventories, {
+            UserId = params.EnteringPlayer.UserId,
+            Inventory = cloneInventorySummary(params.PlayerInventory),
+        })
+    end
+
     return {
         SessionConfig = cloneTable(params.SessionConfig),
         CampSession = CampMazeSessionContract.normalizeCampSession(params.CampSession),
@@ -257,7 +455,11 @@ function CampMazeSessionContract.buildRunToMazeTeleportData(params)
             MazeAccessCode = params.CampSession.MazeAccessCode,
             EntryReason = params.EntryReason or 'camp_gate',
             EnteringPlayer = table.clone(params.EnteringPlayer),
+            PendingUgcMonsterPayload = clonePendingUgcMonsterPayload(
+                params.PendingUgcMonsterPayload
+            ),
         },
+        PlayerInventories = clonePlayerInventories(playerInventories),
     }
 end
 
@@ -273,6 +475,7 @@ function CampMazeSessionContract.buildMazeToRunTeleportData(params)
             MazeCompleted = params.MazeCompleted == true,
             Summaries = cloneArray(params.Summaries),
         },
+        PlayerInventories = clonePlayerInventories(params.PlayerInventories),
     }
 end
 
@@ -295,6 +498,31 @@ function CampMazeSessionContract.findReturnSummary(teleportData, userId)
     return nil
 end
 
+function CampMazeSessionContract.findPlayerInventory(teleportData, userId)
+    local playerInventories = teleportData and teleportData.PlayerInventories
+    if type(playerInventories) ~= 'table' then
+        return nil
+    end
+
+    for _, entry in ipairs(playerInventories) do
+        if entry.UserId == userId then
+            return cloneInventorySummary(entry.Inventory)
+        end
+    end
+
+    return nil
+end
+
+function CampMazeSessionContract.findPendingUgcMonsterPayload(teleportData)
+    local mazeSession = teleportData and teleportData.MazeSession
+    if type(mazeSession) ~= 'table' then
+        return nil
+    end
+
+    return clonePendingUgcMonsterPayload(mazeSession.PendingUgcMonsterPayload)
+end
+
 CampMazeSessionContract.MazeStatus = MAZE_STATUS
+CampMazeSessionContract.SessionPhase = SessionPhase
 
 return CampMazeSessionContract

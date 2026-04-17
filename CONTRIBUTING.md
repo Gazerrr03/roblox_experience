@@ -36,7 +36,6 @@ The active runtime package source lives under:
 The current Rojo project files point at `packages/**`, including:
 
 - `default.project.json`
-- `places/lobby/default.project.json`
 - `places/run/default.project.json`
 - `places/maze/default.project.json`
 - `tests/default.project.json`
@@ -49,7 +48,6 @@ files first.
 This repository uses code-domain vibes to keep multi-place work reviewable.
 Before you start editing, identify the owning domain:
 
-- `places/lobby` for lobby launch flow
 - `places/run` for camp orchestration and maze entry
 - `places/maze` for expedition runtime and maze return
 - `packages/shared` for the `contract` workstream that defines shared handoff
@@ -65,7 +63,7 @@ If the change alters teleport payload shape, shared remote meaning, return
 summary shape, or place configuration that multiple places must agree on, stage
 the `contract` change first and then update the place-local consumers.
 
-For multi-place work, the long-lived delivery lines are `lobby`, `run`, `maze`,
+For multi-place work, the long-lived delivery lines are `run`, `maze`,
 and `contract`. The `contract` line owns the shared handoff surface and the
 deterministic tests that lock it down. Place lines should stay focused on their
 own `places/<name>/**` content plus any local portal adapter or consumer logic.
@@ -86,7 +84,6 @@ verify the relevant project files still build or serve correctly.
 Useful local commands:
 
 - `rojo serve`
-- `cd places/lobby && rojo serve`
 - `cd places/run && rojo serve`
 - `rojo build tests/default.project.json -o <output.rbxlx>`
 

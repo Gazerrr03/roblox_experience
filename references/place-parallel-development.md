@@ -12,14 +12,12 @@ make sure a human or an agent can enter one code domain and quickly understand:
 
 The current first-class `vibe`s are:
 
-- `lobby`
 - `run`
 - `maze`
 - `contract`
 
 The current code-domain anchors are:
 
-- `lobby` -> `places/lobby/**`
 - `run` -> `places/run/**`
 - `maze` -> `places/maze/**`
 - `contract` ->
@@ -60,7 +58,6 @@ Code domains come first. Branches and worktrees come second.
 Recommended worktree layout:
 
 ```bash
-git worktree add -b lobby ../roblox_experience-lobby origin/lobby
 git worktree add -b run ../roblox_experience-run origin/run
 git worktree add -b maze ../roblox_experience-maze origin/maze
 git worktree add -b contract ../roblox_experience-contract origin/contract

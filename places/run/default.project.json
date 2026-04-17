@@ -15,6 +15,137 @@
         "UI": {
           "$path": "../../packages/ui/src"
         }
+      },
+      "Assets": {
+        "$className": "Folder",
+        "ToolTemplates": {
+          "$className": "Folder"
+        }
+      }
+    },
+    "Workspace": {
+      "$className": "Workspace",
+      "RunStaticWorld": {
+        "$className": "Folder",
+        "$attributes": {
+          "OutdoorThresholdZ": 50
+        },
+        "SpawnMarker": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true,
+            "CanCollide": false,
+            "CanTouch": false,
+            "CanQuery": true,
+            "Position": [
+              50.842907,
+              18.44950485,
+              300.177368
+            ]
+          }
+        },
+        "ReturnMarker": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true,
+            "CanCollide": false,
+            "CanTouch": false,
+            "CanQuery": true,
+            "Position": [
+              44.842907,
+              18.44950485,
+              300.177368
+            ]
+          }
+        },
+        "MazeReturnMarker": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true,
+            "CanCollide": false,
+            "CanTouch": false,
+            "CanQuery": true,
+            "Position": [
+              56.842907,
+              18.44950485,
+              300.177368
+            ]
+          }
+        },
+        "Triggers": {
+          "$className": "Folder",
+          "Ocean": {
+            "$className": "Folder",
+            "OceanTrigger": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "CanTouch": true,
+                "CanQuery": true,
+                "Transparency": 1,
+                "Position": [
+                  575.470703,
+                  8.21289062,
+                  -190.05957
+                ],
+                "Size": [
+                  565,
+                  10,
+                  186.90863
+                ]
+              }
+            }
+          }
+        },
+        "DoorLeft": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true
+          }
+        },
+        "DoorRight": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true
+          }
+        },
+        "ShopTerminal": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true
+          },
+          "Prompt": {
+            "$className": "ProximityPrompt"
+          }
+        },
+        "BookOfSand": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true
+          },
+          "Prompt": {
+            "$className": "ProximityPrompt"
+          }
+        },
+        "GateSwitch": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true
+          },
+          "Prompt": {
+            "$className": "ProximityPrompt"
+          }
+        },
+        "MazeGateMarker": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true
+          },
+          "Prompt": {
+            "$className": "ProximityPrompt"
+          }
+        }
       }
     },
     "ServerScriptService": {

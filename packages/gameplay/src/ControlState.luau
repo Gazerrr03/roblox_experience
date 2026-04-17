@@ -27,6 +27,12 @@ function ControlState:getSummary()
 end
 
 function ControlState:requestSprintStart(playerStateSummary)
+    if type(playerStateSummary) ~= 'table' then
+        self.SprintRequested = false
+        self.Mode = MODE.Walk
+        return false, 'MissingPlayerState'
+    end
+
     if playerStateSummary.IsDead then
         self.SprintRequested = false
         self.Mode = MODE.Walk
@@ -37,6 +43,15 @@ function ControlState:requestSprintStart(playerStateSummary)
         self.SprintRequested = false
         self.Mode = MODE.Walk
         return false, 'StaminaDepleted'
+    end
+
+    if
+        playerStateSummary.ActiveEffects
+        and playerStateSummary.ActiveEffects['SprintSuppressed']
+    then
+        self.SprintRequested = false
+        self.Mode = MODE.Walk
+        return false, 'SprintSuppressed'
     end
 
     self.SprintRequested = true
@@ -51,6 +66,12 @@ function ControlState:requestSprintStop()
 end
 
 function ControlState:syncPlayerState(playerStateSummary)
+    if type(playerStateSummary) ~= 'table' then
+        self.SprintRequested = false
+        self.Mode = MODE.Walk
+        return self:getSummary()
+    end
+
     if playerStateSummary.IsDead then
         self.SprintRequested = false
         self.Mode = MODE.Walk
@@ -58,6 +79,15 @@ function ControlState:syncPlayerState(playerStateSummary)
     end
 
     if playerStateSummary.CanSprint ~= true then
+        self.SprintRequested = false
+        self.Mode = MODE.Walk
+        return self:getSummary()
+    end
+
+    if
+        playerStateSummary.ActiveEffects
+        and playerStateSummary.ActiveEffects['SprintSuppressed']
+    then
         self.SprintRequested = false
         self.Mode = MODE.Walk
         return self:getSummary()
