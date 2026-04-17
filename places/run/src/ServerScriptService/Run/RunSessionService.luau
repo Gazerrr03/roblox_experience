@@ -307,7 +307,7 @@ function RunSessionService:_getServerTimeNow()
         return result
     end
 
-    return os.clock()
+    return os.time()
 end
 
 function RunSessionService:_ensureHost()
