@@ -11,6 +11,114 @@
         <Properties>
           <string name="Name">ToolTemplates</string>
         </Properties>
+        <Item class="Model" referent="RBXHarnessToolFlashlight">
+          <Properties>
+            <string name="Name">ToolFlashlight</string>
+          </Properties>
+          <Item class="Part" referent="RBXHarnessToolFlashlightHandle">
+            <Properties>
+              <string name="Name">Handle</string>
+              <bool name="Anchored">true</bool>
+              <bool name="CanCollide">false</bool>
+              <Vector3 name="Size">
+                <X>0.2</X>
+                <Y>0.35</Y>
+                <Z>0.2</Z>
+              </Vector3>
+              <CoordinateFrame name="CFrame">
+                <X>0</X>
+                <Y>0</Y>
+                <Z>0</Z>
+                <R00>1</R00>
+                <R01>0</R01>
+                <R02>0</R02>
+                <R10>0</R10>
+                <R11>1</R11>
+                <R12>0</R12>
+                <R20>0</R20>
+                <R21>0</R21>
+                <R22>1</R22>
+              </CoordinateFrame>
+              <Color3 name="Color">
+                <R>0.5803921818733215</R>
+                <G>0.6392157077789307</G>
+                <B>0.7215686440467834</B>
+              </Color3>
+            </Properties>
+          </Item>
+        </Item>
+        <Item class="Model" referent="RBXHarnessToolCrowbar">
+          <Properties>
+            <string name="Name">ToolCrowbar</string>
+          </Properties>
+          <Item class="Part" referent="RBXHarnessToolCrowbarHandle">
+            <Properties>
+              <string name="Name">Handle</string>
+              <bool name="Anchored">true</bool>
+              <bool name="CanCollide">false</bool>
+              <Vector3 name="Size">
+                <X>0.15</X>
+                <Y>0.55</Y>
+                <Z>0.12</Z>
+              </Vector3>
+              <CoordinateFrame name="CFrame">
+                <X>0</X>
+                <Y>0</Y>
+                <Z>0</Z>
+                <R00>1</R00>
+                <R01>0</R01>
+                <R02>0</R02>
+                <R10>0</R10>
+                <R11>1</R11>
+                <R12>0</R12>
+                <R20>0</R20>
+                <R21>0</R21>
+                <R22>1</R22>
+              </CoordinateFrame>
+              <Color3 name="Color">
+                <R>0.7843137383460999</R>
+                <G>0.7843137383460999</G>
+                <B>0.7843137383460999</B>
+              </Color3>
+            </Properties>
+          </Item>
+        </Item>
+        <Item class="Model" referent="RBXHarnessToolPotion">
+          <Properties>
+            <string name="Name">ToolPotion</string>
+          </Properties>
+          <Item class="Part" referent="RBXHarnessToolPotionHandle">
+            <Properties>
+              <string name="Name">Handle</string>
+              <bool name="Anchored">true</bool>
+              <bool name="CanCollide">false</bool>
+              <Vector3 name="Size">
+                <X>0.25</X>
+                <Y>0.45</Y>
+                <Z>0.25</Z>
+              </Vector3>
+              <CoordinateFrame name="CFrame">
+                <X>0</X>
+                <Y>0</Y>
+                <Z>0</Z>
+                <R00>1</R00>
+                <R01>0</R01>
+                <R02>0</R02>
+                <R10>0</R10>
+                <R11>1</R11>
+                <R12>0</R12>
+                <R20>0</R20>
+                <R21>0</R21>
+                <R22>1</R22>
+              </CoordinateFrame>
+              <Color3 name="Color">
+                <R>0.9254902005195618</R>
+                <G>0.2823529541492462</G>
+                <B>0.6000000238418579</B>
+              </Color3>
+            </Properties>
+          </Item>
+        </Item>
       </Item>
     </Item>
     <Item class="Folder" referent="3">
@@ -6532,6 +6640,7 @@ return SessionStateMachine
             <string name="Source"><![CDATA[return {
     FirstPersonController = require(script.FirstPersonController),
     HeldItemController = require(script.HeldItemController),
+    HeldToolVisual = require(script.HeldToolVisual),
 }
 ]]></string>
           </Properties>
