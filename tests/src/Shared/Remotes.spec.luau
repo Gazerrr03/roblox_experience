@@ -82,7 +82,7 @@ return function()
         'waitForScope should reuse an existing MazeState remote without creating a new one'
     )
 
-    existingContainer:Destroy()
+    container:Destroy()
     local missingWaitOk, missingWaitError = pcall(function()
         shared.Network.Remotes.waitForScope(shared.Network.Remotes.Scope.Maze, 0)
     end)
