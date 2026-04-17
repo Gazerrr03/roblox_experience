@@ -1,17 +1,78 @@
 return function()
     local ReplicatedStorage = game:GetService('ReplicatedStorage')
+    local gameplay = require(ReplicatedStorage:WaitForChild('Packages'):WaitForChild('Gameplay'))
     local shared = require(ReplicatedStorage:WaitForChild('Packages'):WaitForChild('Shared'))
     local contract = shared.Session.CampMazeSessionContract
+    local monsterAssetIds = gameplay.Monsters.MonsterAssetIds
 
     local campSession = contract.newCampSession({
         SessionId = 'camp-session-1',
         CampAccessCode = 'camp-access-code',
+        SignalScope = 'run:test-scope',
     })
 
     assert(
         campSession.MazeStatus == contract.MazeStatus.Idle,
         'New camp sessions should start idle'
     )
+    assert(
+        campSession.SessionPhase == contract.SessionPhase.RunPrep,
+        'New camp sessions should start in RunPrep'
+    )
+    assert(
+        campSession.SignalScope == 'run:test-scope',
+        'Signal scope should normalize through camp sessions'
+    )
+    assert(
+        campSession.RoundStarted == false,
+        'New camp sessions should start before the round opens'
+    )
+    assert(
+        campSession.DangerActive == false,
+        'New camp sessions should start in the safe camp state'
+    )
+
+    local assignedHost = contract.assignHost(campSession, 42)
+    assert(assignedHost.HostUserId == 42, 'Host assignment should persist on the camp session')
+
+    local roundLive = contract.markRoundStarted(assignedHost, {
+        HostUserId = 42,
+        RoundStartTime = 10,
+        RoundEndTime = 190,
+        DangerActive = true,
+    })
+    assert(roundLive.GateOpen == true, 'Round start should open the gate')
+    assert(roundLive.RoundStarted == true, 'Round start should mark the round live')
+    assert(roundLive.DangerActive == true, 'Round start should enable danger')
+    assert(
+        roundLive.RoundStartTime == 10 and roundLive.RoundEndTime == 190,
+        'Round timing should be recorded'
+    )
+
+    local settledFromBook = contract.markSettlementTriggered(roundLive, {
+        SettlementReason = 'book_settlement',
+        TriggeredByUserId = 42,
+        TriggeredByName = 'Scout',
+    })
+    assert(settledFromBook.GateOpen == false, 'Settlement should close the gate')
+    assert(settledFromBook.RoundStarted == false, 'Settlement should end the live round flag')
+    assert(settledFromBook.DangerActive == false, 'Settlement should disable danger')
+    assert(
+        settledFromBook.SettlementReason == 'book_settlement',
+        'Settlement should record the triggering reason'
+    )
+    assert(
+        settledFromBook.SettlementTriggeredByUserId == 42
+            and settledFromBook.SettlementTriggeredByName == 'Scout',
+        'Settlement should record the triggering player'
+    )
+
+    local resetRound = contract.resetForNextRound(settledFromBook)
+    assert(
+        resetRound.RoundStarted == false and resetRound.DangerActive == false,
+        'Reset should return to the safe camp state'
+    )
+    assert(resetRound.SettlementReason == nil, 'Reset should clear settlement tracking')
 
     local entered = contract.markPlayerEntered(campSession, {
         UserId = 42,
@@ -24,6 +85,10 @@ return function()
         'Entering the maze should activate the maze status'
     )
     assert(#entered.PlayersInMaze == 1, 'Entering should track the player inside the maze')
+    assert(
+        entered.SessionPhase == contract.SessionPhase.MazeActive,
+        'Entering the maze should move the shared session into MazeActive'
+    )
 
     local lobbyToRun = contract.buildLobbyToRunTeleportData({
         SessionId = 'camp-session-1',
@@ -35,6 +100,15 @@ return function()
     assert(
         lobbyToRun.Entry.Kind == 'LobbyLaunch',
         'Lobby -> run teleport payload should mark the handoff entry kind'
+    )
+    assert(
+        lobbyToRun.CampSession.SessionPhase == contract.SessionPhase.RunPrep,
+        'Lobby -> run payload should preserve direct-entry run prep phase'
+    )
+    assert(
+        lobbyToRun.CampSession.RoundStarted == false
+            and lobbyToRun.CampSession.DangerActive == false,
+        'Lobby -> run payload should start with a safe camp round state'
     )
 
     local campToMaze = contract.buildRunToMazeTeleportData({
@@ -50,6 +124,60 @@ return function()
             Name = 'Scout',
         },
         EntryReason = 'maze_gate',
+        PlayerInventory = {
+            Capacity = 5,
+            Weight = 1,
+            Count = 1,
+            BackpackCount = 0,
+            HeldCount = 1,
+            Value = 24,
+            BackpackItems = {},
+            HeldItem = {
+                InstanceId = 4,
+                Id = 'glow-orb',
+                Name = 'Glow Orb',
+                Weight = 1,
+                Value = 24,
+                Color = Color3.fromRGB(142, 236, 255),
+                Light = {
+                    Brightness = 2.5,
+                    Range = 18,
+                    Color = Color3.fromRGB(170, 240, 255),
+                },
+            },
+        },
+        PendingUgcMonsterPayload = {
+            OwnerUserId = 42,
+            MonsterId = 'ugc-42-100',
+            MonsterName = 'Scrap Whisper',
+            Seed = 100,
+            RecipeHash = 'recipe-1234',
+            RuntimeProfile = {
+                Id = 'ugc-42-100',
+                Name = 'Scrap Whisper',
+                Presentation = {
+                    ModelAssetId = monsterAssetIds.DefaultModelAssetId,
+                    RigType = 'R6',
+                    AnimationMode = 'defaultR6',
+                    ChaseLoopSoundAssetId = monsterAssetIds.DefaultChaseLoopSoundAssetId,
+                },
+                Speed = 14,
+                SightRange = 36,
+                PatrolSpeedMultiplier = 0.45,
+                SpawnOffset = Vector3.new(0, 4, 0),
+                CombatHitPoints = 2,
+                Behaviors = {
+                    SenseNearestTarget = true,
+                    Chase = true,
+                },
+                Effects = {},
+            },
+            Diagnostics = {
+                SkippedBehaviorIds = { 'LoseTarget' },
+                SkippedEffectIds = {},
+                ClampedFields = {},
+            },
+        },
     })
 
     assert(
@@ -59,6 +187,94 @@ return function()
     assert(
         campToMaze.CampSession.SessionId == 'camp-session-1',
         'Camp session id should survive camp -> maze teleport shaping'
+    )
+    assert(
+        campToMaze.CampSession.SessionPhase == contract.SessionPhase.MazeActive,
+        'Camp -> maze payload should carry the MazeActive phase for shared re-entry'
+    )
+    local enteringInventory = contract.findPlayerInventory(campToMaze, 42)
+    assert(
+        enteringInventory ~= nil,
+        'Run -> maze payload should carry the entering player inventory'
+    )
+    assert(
+        enteringInventory.HeldItem.Id == 'glow-orb',
+        'Run -> maze inventory payload should preserve the held glow orb'
+    )
+    local pendingUgcPayload = contract.findPendingUgcMonsterPayload(campToMaze)
+    assert(
+        pendingUgcPayload ~= nil and pendingUgcPayload.OwnerUserId == 42,
+        'Run -> maze payload should preserve pending UGC spawn payloads'
+    )
+    assert(
+        pendingUgcPayload.RuntimeProfile ~= nil
+            and pendingUgcPayload.RuntimeProfile.Presentation.ModelAssetId
+                == monsterAssetIds.DefaultModelAssetId,
+        'Pending UGC payload should preserve runtime monster presentation data'
+    )
+
+    local toolHoldTeleport = contract.buildRunToMazeTeleportData({
+        SessionConfig = {
+            Seed = 12345,
+            Quota = 120,
+            RunDurationSeconds = 180,
+            InventoryCapacity = 8,
+        },
+        CampSession = entered,
+        EnteringPlayer = {
+            UserId = 42,
+            Name = 'Scout',
+        },
+        EntryReason = 'maze_gate',
+        PlayerInventory = {
+            Capacity = 8,
+            Weight = 1,
+            Count = 1,
+            BackpackCount = 0,
+            HeldCount = 1,
+            Value = 0,
+            BackpackItems = {},
+            HeldItem = {
+                InstanceId = 10,
+                Id = 'tool-potion',
+                Name = 'Potion',
+                Weight = 1,
+                Value = 0,
+                Color = Color3.fromRGB(236, 72, 153),
+                ToolCategory = 'Potion',
+                StateModel = 'Charges',
+                InitialState = 3,
+                CurrentState = 3,
+                ConsumePerUse = 1,
+                CooldownSeconds = 1,
+                IconAssetId = '',
+                ToolTemplateName = 'ToolPotion',
+                Description = 'Contract potion row',
+                HealHealthPips = 2,
+                SwingRange = 4,
+                SwingArcDegrees = 50,
+                KnockbackStrength = 9,
+                MeleeDamage = 2,
+            },
+        },
+        PendingUgcMonsterPayload = nil,
+    })
+    local toolHoldInventory = contract.findPlayerInventory(toolHoldTeleport, 42)
+    assert(
+        toolHoldInventory.HeldItem.ToolCategory == 'Potion',
+        'Run -> maze inventory clone should preserve ToolCategory for tools'
+    )
+    assert(
+        toolHoldInventory.HeldItem.ToolTemplateName == 'ToolPotion',
+        'Run -> maze inventory clone should preserve ToolTemplateName for presentation'
+    )
+    assert(
+        toolHoldInventory.HeldItem.HealHealthPips == 2,
+        'Run -> maze inventory clone should preserve HealHealthPips for potion tools'
+    )
+    assert(
+        toolHoldInventory.HeldItem.MeleeDamage == 2,
+        'Run -> maze inventory clone should preserve MeleeDamage for tool entries'
     )
 
     local earlyReturn = contract.buildReturnSummary({
@@ -80,8 +296,16 @@ return function()
         'Maze stays active when it was opened but not completed'
     )
     assert(
+        resumed.SessionPhase == contract.SessionPhase.Debrief,
+        'Returned players should move the shared session into Debrief while no crew remains in maze'
+    )
+    assert(
         resumed.ReturnedPlayerSummaries[1].Value == 18,
         'Return summaries should preserve collected value'
+    )
+    assert(
+        resumed.ReturnedPlayerSummaries[1].CountedInSettlement == true,
+        'Return summaries should count inventory by default'
     )
     assert(
         contract.hasReturnedSummary(resumed, 42) == true,
@@ -133,6 +357,10 @@ return function()
         WasExtracted = true,
         WasSettled = true,
     })
+    assert(
+        settled.CountedInSettlement == true,
+        'Settled return summaries should count inventory unless explicitly disabled'
+    )
     local completed = contract.applyReturn(
         contract.markPlayerEntered(resumed, {
             UserId = 7,
@@ -150,6 +378,10 @@ return function()
         #completed.PlayersInMaze == 0,
         'Completed maze sessions should not retain active maze players'
     )
+    assert(
+        completed.SessionPhase == contract.SessionPhase.Debrief,
+        'Completed maze sessions should stay in Debrief until the camp session closes'
+    )
 
     local mazeToCamp = contract.buildMazeToRunTeleportData({
         SessionConfig = {
@@ -161,6 +393,33 @@ return function()
         CampSession = completed,
         Summaries = completed.ReturnedPlayerSummaries,
         MazeCompleted = true,
+        PlayerInventories = {
+            {
+                UserId = 42,
+                Inventory = {
+                    Capacity = 5,
+                    Weight = 1,
+                    Count = 1,
+                    BackpackCount = 0,
+                    HeldCount = 1,
+                    Value = 24,
+                    BackpackItems = {},
+                    HeldItem = {
+                        InstanceId = 4,
+                        Id = 'glow-orb',
+                        Name = 'Glow Orb',
+                        Weight = 1,
+                        Value = 24,
+                        Color = Color3.fromRGB(142, 236, 255),
+                        Light = {
+                            Brightness = 2.5,
+                            Range = 18,
+                            Color = Color3.fromRGB(170, 240, 255),
+                        },
+                    },
+                },
+            },
+        },
     })
 
     local returnedScout = contract.findReturnSummary(mazeToCamp, 42)
@@ -173,6 +432,25 @@ return function()
     assert(
         returnedLead.WasSettled == true,
         'Maze return payload should preserve settlement summaries'
+    )
+    local returnedInventory = contract.findPlayerInventory(mazeToCamp, 42)
+    assert(
+        returnedInventory ~= nil,
+        'Maze -> run payload should carry the returning player inventory'
+    )
+    assert(
+        returnedInventory.HeldItem.Light ~= nil,
+        'Maze -> run payload should preserve held item light metadata'
+    )
+
+    local closed = contract.closeCampSession(completed)
+    assert(
+        closed.SessionPhase == contract.SessionPhase.SessionClosed,
+        'Closed sessions should expose a terminal SessionClosed phase'
+    )
+    assert(
+        closed.SessionClosed == true,
+        'Closing the session should preserve an explicit terminal marker'
     )
 
     local reconciledPlaceholder, placeholderAccepted = contract.reconcileIncomingCampSession(

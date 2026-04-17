@@ -49,6 +49,7 @@ function PlayerState.new(config)
         CanSprint = true,
         CorpseActive = false,
         IsSprinting = false,
+        ActiveEffects = {}, -- {[effectId] = remainingSeconds}
     }, PlayerState)
 end
 
@@ -61,6 +62,7 @@ function PlayerState:getSummary()
         IsDead = self.IsDead,
         CanSprint = self.CanSprint,
         CorpseActive = self.CorpseActive,
+        ActiveEffects = self.ActiveEffects,
     }
 end
 
@@ -96,12 +98,43 @@ function PlayerState:applyDamage(damageKind)
     return true, self:getSummary()
 end
 
+function PlayerState:applyEffect(effectId, durationSeconds)
+    if type(effectId) ~= 'string' or effectId == '' then
+        return
+    end
+    local duration = if type(durationSeconds) == 'number' and durationSeconds > 0
+        then durationSeconds
+        else math.huge
+    local currentRemaining = self.ActiveEffects[effectId]
+    if currentRemaining == nil or duration > currentRemaining then
+        self.ActiveEffects[effectId] = duration
+    end
+end
+
+function PlayerState:hasEffect(effectId)
+    if type(effectId) ~= 'string' then
+        return false
+    end
+    return self.ActiveEffects[effectId] ~= nil
+end
+
 function PlayerState:step(dt)
     if self.IsDead then
         return self:getSummary()
     end
 
     local deltaTime = math.max(0, dt or 0)
+
+    -- Tick down active effects
+    for effectId, remaining in pairs(self.ActiveEffects) do
+        local nextRemaining = remaining - deltaTime
+        if nextRemaining <= 0 then
+            self.ActiveEffects[effectId] = nil
+        else
+            self.ActiveEffects[effectId] = nextRemaining
+        end
+    end
+
     if self.IsSprinting and self.CanSprint then
         self.CurrentStamina =
             clamp(self.CurrentStamina - self.StaminaDrainPerSecond * deltaTime, 0, self.MaxStamina)

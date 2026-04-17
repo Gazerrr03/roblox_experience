@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('run', 'lobby', 'maze')]
+    [ValidateSet('run', 'maze')]
     [string]$Place = 'run',
     [int]$Port = 34872,
     [switch]$RefreshTools,
@@ -116,7 +116,6 @@ if ($RefreshDeps -or -not (Test-DirectoryHasContent $devPackagesPath)) {
 
 $projectRelativePath = switch ($Place) {
     'run' { 'places/run/default.project.json' }
-    'lobby' { 'places/lobby/default.project.json' }
     'maze' { 'places/maze/default.project.json' }
     default { throw "Unsupported place: $Place" }
 }

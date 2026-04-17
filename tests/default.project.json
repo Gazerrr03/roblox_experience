@@ -15,6 +15,21 @@
         "UI": {
           "$path": "../packages/ui/src"
         }
+      },
+      "Assets": {
+        "$className": "Folder",
+        "ToolTemplates": {
+          "$className": "Folder"
+        }
+      },
+      "PlaceModules": {
+        "$className": "Folder",
+        "Run": {
+          "$path": "../places/run/src/ServerScriptService/Run"
+        },
+        "Maze": {
+          "$path": "../places/maze/src/ServerScriptService/Maze"
+        }
       }
     },
     "ServerScriptService": {

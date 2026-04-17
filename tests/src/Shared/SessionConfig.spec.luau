@@ -3,10 +3,8 @@ return function()
     local shared = require(ReplicatedStorage:WaitForChild('Packages'):WaitForChild('Shared'))
     local config = shared.Config.SessionConfig
 
-    assert(type(config.PlaceIds.Lobby) == 'number', 'Lobby place id should always be numeric')
     assert(type(config.PlaceIds.Maze) == 'number', 'Maze place id should always be numeric')
     assert(type(config.PlaceIds.Run) == 'number', 'Run place id should always be numeric')
-    assert(config.PlaceIds.Lobby > 0, 'Lobby place id should default to a published place id')
     assert(config.PlaceIds.Maze > 0, 'Maze place id should default to a published place id')
     assert(config.PlaceIds.Run > 0, 'Run place id should default to a published place id')
     assert(

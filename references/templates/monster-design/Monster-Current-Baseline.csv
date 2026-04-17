@@ -1,0 +1,2 @@
+﻿怪物ID,怪物名,视觉模型ID,骨架,动画模式,追击音效ID,移动速度,视野范围,巡逻速度倍率,出生偏移,已配置行为意图,Maze可执行行为,已配置效果意图,Maze可执行效果,最大生命值,当前生命值,攻击范围,攻击前摇,命中窗口,攻击冷却,伤害类型,单次伤害,反制窗口描述
+scrap-wisp,Scrap Wisp,4446576906,R6,defaultR6,9118823108,14,36,0.45,"(0,4,0)","Patrol(关);SenseNearestTarget;Chase;LoseTarget","SenseNearestTarget;Chase","SprintSuppressed(2.5s)",,,,,,,,,,
