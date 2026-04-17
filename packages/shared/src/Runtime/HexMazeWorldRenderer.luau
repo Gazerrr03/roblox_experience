@@ -50,16 +50,35 @@ local SIDE_NORMALS_X = {}
 local SIDE_NORMALS_Z = {}
 local SIDE_VECTORS_NORMAL = {}
 local SIDE_VECTORS_TANGENT = {}
+local SIDE_ORIENTATIONS = {}
+local WALL_NAMES = {}
+local WALL_SEGMENT_NAMES = {}
+local WALL_LINTEL_NAMES = {}
 
 for directionIndex = 1, 6 do
     local angle = math_rad((-(directionIndex - 1) * 60) + SIDE_ANGLE_OFFSET_DEGREES)
     local nx = math_cos(angle)
     local nz = math_sin(angle)
+    local normal = Vector3_new(nx, 0, nz)
     SIDE_NORMALS_X[directionIndex] = nx
     SIDE_NORMALS_Z[directionIndex] = nz
-    SIDE_VECTORS_NORMAL[directionIndex] = Vector3_new(nx, 0, nz)
+    SIDE_VECTORS_NORMAL[directionIndex] = normal
     SIDE_VECTORS_TANGENT[directionIndex] = Vector3_new(-nz, 0, nx)
+    SIDE_ORIENTATIONS[directionIndex] = CFrame_lookAt(Vector3_zero, normal)
+    WALL_NAMES[directionIndex] = 'Wall_' .. directionIndex
+    WALL_SEGMENT_NAMES[directionIndex] = 'Wall_' .. directionIndex .. '_Segment'
+    WALL_LINTEL_NAMES[directionIndex] = 'Wall_' .. directionIndex .. '_Lintel'
 end
+
+local WALL_Y_OFFSET = Vector3_new(0, WALL_HEIGHT / 2, 0)
+local DOORWAY_Y_OFFSET = Vector3_new(0, DOORWAY_HEIGHT / 2, 0)
+local PROMPT_Y_OFFSET = Vector3_new(0, 2, 0)
+
+local LINTEL_HEIGHT = WALL_HEIGHT - DOORWAY_HEIGHT
+local LINTEL_SIZE = Vector3_new(DOORWAY_WIDTH, LINTEL_HEIGHT, WALL_THICKNESS)
+local LINTEL_RELATIVE_OFFSET = Vector3_new(0, DOORWAY_HEIGHT + (LINTEL_HEIGHT / 2), 0)
+
+local TILE_SIZE = Vector3_new(FLOOR_TILE_SIZE, SLAB_THICKNESS, FLOOR_TILE_SIZE)
 
 local TILE_BUFFER_A = FLOOR_TILE_SIZE / 2
 local TILE_BUFFER_B = (FLOOR_TILE_SIZE / 2) * (math_cos(math_rad(60)) + math_sin(math_rad(60)))
@@ -107,29 +126,6 @@ local function createPart(config, parent)
     part.Shape = config.Shape or Enum.PartType.Block
     part.Parent = parent
     return part
-end
-
-local function createPromptPart(config, parent)
-    local part = createPart({
-        Name = config.Name,
-        Size = config.Size or Vector3_new(4, 4, 4),
-        CFrame = config.CFrame,
-        Color = config.Color,
-        Material = config.Material or Enum.Material.Metal,
-        Transparency = config.Transparency or 0,
-        CanCollide = config.CanCollide,
-        Shape = config.Shape,
-    }, parent)
-
-    local prompt = Instance_new('ProximityPrompt')
-    prompt.ActionText = config.ActionText
-    prompt.ObjectText = config.ObjectText
-    prompt.HoldDuration = 0
-    prompt.MaxActivationDistance = config.MaxActivationDistance or 10
-    prompt.RequiresLineOfSight = false
-    prompt.Parent = part
-
-    return part, prompt
 end
 
 local function applyArchetypeShellAsset(roomFolder, roomCenter, room, moduleAssetsRoot)
@@ -414,7 +410,6 @@ local function createHexTiledSlab(parent, name, center, apothem, yOffset, color,
     slabFolder.Parent = parent
 
     local cx, cy, cz = center.X, center.Y, center.Z
-    local tileSizeVector = Vector3_new(FLOOR_TILE_SIZE, SLAB_THICKNESS, FLOOR_TILE_SIZE)
 
     -- Bolt: Optimized loop bounds to eliminate redundant inner-loop condition checks.
     -- The hex boundary is defined by:
@@ -436,7 +431,7 @@ local function createHexTiledSlab(parent, name, center, apothem, yOffset, color,
             local part = Instance_new('Part')
             part.Name = 'Tile'
             part.Anchored = true
-            part.Size = tileSizeVector
+            part.Size = TILE_SIZE
             part.CFrame = CFrame_new(cx + x, cy + yOffset, cz + z)
             part.Color = color
             part.Material = material
@@ -457,42 +452,46 @@ local function createHexSideWall(
     surfacePalette
 )
     local normal, tangent = sideVectors(directionIndex)
-    local wallCenter = center + normal * apothem + Vector3_new(0, WALL_HEIGHT / 2, 0)
-    local wallForward = CFrame_lookAt(wallCenter, wallCenter + normal)
+    local wallCenter = center + normal * apothem + WALL_Y_OFFSET
+    local wallForward = CFrame_new(wallCenter) * SIDE_ORIENTATIONS[directionIndex]
 
     if not hasDoorway then
-        createPart({
-            Name = string.format('Wall_%d', directionIndex),
-            Size = Vector3_new(sideLength, WALL_HEIGHT, WALL_THICKNESS),
-            CFrame = wallForward,
-            Color = surfacePalette.WallColor,
-            Material = surfacePalette.WallMaterial,
-        }, parent)
+        local part = Instance_new('Part')
+        part.Name = WALL_NAMES[directionIndex]
+        part.Anchored = true
+        part.Size = Vector3_new(sideLength, WALL_HEIGHT, WALL_THICKNESS)
+        part.CFrame = wallForward
+        part.Color = surfacePalette.WallColor
+        part.Material = surfacePalette.WallMaterial
+        part.Parent = parent
         return
     end
 
     local segmentLength = (sideLength - DOORWAY_WIDTH) / 2
     local segmentOffset = (DOORWAY_WIDTH / 2) + (segmentLength / 2)
+    local segmentSize = Vector3_new(segmentLength, WALL_HEIGHT, WALL_THICKNESS)
+    local segmentName = WALL_SEGMENT_NAMES[directionIndex]
 
     for _, sign in ipairs({ -1, 1 }) do
-        createPart({
-            Name = string.format('Wall_%d_Segment', directionIndex),
-            Size = Vector3_new(segmentLength, WALL_HEIGHT, WALL_THICKNESS),
-            CFrame = wallForward + (tangent * (segmentOffset * sign)),
-            Color = surfacePalette.WallColor,
-            Material = surfacePalette.WallMaterial,
-        }, parent)
+        local part = Instance_new('Part')
+        part.Name = segmentName
+        part.Anchored = true
+        part.Size = segmentSize
+        part.CFrame = wallForward + (tangent * (segmentOffset * sign))
+        part.Color = surfacePalette.WallColor
+        part.Material = surfacePalette.WallMaterial
+        part.Parent = parent
     end
 
-    local lintelHeight = WALL_HEIGHT - DOORWAY_HEIGHT
-    if lintelHeight > 0 then
-        createPart({
-            Name = string.format('Wall_%d_Lintel', directionIndex),
-            Size = Vector3_new(DOORWAY_WIDTH, lintelHeight, WALL_THICKNESS),
-            CFrame = wallForward + Vector3_new(0, DOORWAY_HEIGHT + (lintelHeight / 2), 0),
-            Color = surfacePalette.WallColor,
-            Material = surfacePalette.WallMaterial,
-        }, parent)
+    if LINTEL_HEIGHT > 0 then
+        local part = Instance_new('Part')
+        part.Name = WALL_LINTEL_NAMES[directionIndex]
+        part.Anchored = true
+        part.Size = LINTEL_SIZE
+        part.CFrame = wallForward + LINTEL_RELATIVE_OFFSET
+        part.Color = surfacePalette.WallColor
+        part.Material = surfacePalette.WallMaterial
+        part.Parent = parent
     end
 end
 
@@ -534,53 +533,61 @@ local function createDoorwayInstance(
     local leafWidth = (DOORWAY_WIDTH - (DOOR_CLEARANCE * 3)) / 2
     local closedLeftCenter = openingCenter
         - tangent * ((leafWidth / 2) + (DOOR_CLEARANCE / 2))
-        + Vector3_new(0, DOORWAY_HEIGHT / 2, 0)
+        + DOORWAY_Y_OFFSET
     local closedRightCenter = openingCenter
         + tangent * ((leafWidth / 2) + (DOOR_CLEARANCE / 2))
-        + Vector3_new(0, DOORWAY_HEIGHT / 2, 0)
+        + DOORWAY_Y_OFFSET
 
     local openOffset = (DOORWAY_WIDTH / 2) + (leafWidth / 2) + DOOR_CLEARANCE
-    local openLeftCenter = openingCenter
-        - tangent * openOffset
-        + Vector3_new(0, DOORWAY_HEIGHT / 2, 0)
-    local openRightCenter = openingCenter
-        + tangent * openOffset
-        + Vector3_new(0, DOORWAY_HEIGHT / 2, 0)
+    local openLeftCenter = openingCenter - tangent * openOffset + DOORWAY_Y_OFFSET
+    local openRightCenter = openingCenter + tangent * openOffset + DOORWAY_Y_OFFSET
 
-    local leafOrientation = CFrame_lookAt(Vector3_zero, normal)
+    local leafOrientation = SIDE_ORIENTATIONS[directionIndex]
     doorway.ClosedLeftCFrame = CFrame_new(closedLeftCenter) * leafOrientation
     doorway.ClosedRightCFrame = CFrame_new(closedRightCenter) * leafOrientation
     doorway.OpenLeftCFrame = CFrame_new(openLeftCenter) * leafOrientation
     doorway.OpenRightCFrame = CFrame_new(openRightCenter) * leafOrientation
 
-    doorway.LeftLeaf = createPart({
-        Name = string.format('Door_%s_Left', doorwayId),
-        Size = Vector3_new(leafWidth, DOORWAY_HEIGHT, DOOR_LEAF_THICKNESS),
-        CFrame = doorway.ClosedLeftCFrame,
-        Color = surfacePalette.DoorColor,
-        Material = surfacePalette.DoorMaterial,
-    }, parent)
+    local leafSize = Vector3_new(leafWidth, DOORWAY_HEIGHT, DOOR_LEAF_THICKNESS)
 
-    doorway.RightLeaf = createPart({
-        Name = string.format('Door_%s_Right', doorwayId),
-        Size = Vector3_new(leafWidth, DOORWAY_HEIGHT, DOOR_LEAF_THICKNESS),
-        CFrame = doorway.ClosedRightCFrame,
-        Color = surfacePalette.DoorColor,
-        Material = surfacePalette.DoorMaterial,
-    }, parent)
+    local leftLeaf = Instance_new('Part')
+    leftLeaf.Name = 'Door_' .. doorwayId .. '_Left'
+    leftLeaf.Anchored = true
+    leftLeaf.Size = leafSize
+    leftLeaf.CFrame = doorway.ClosedLeftCFrame
+    leftLeaf.Color = surfacePalette.DoorColor
+    leftLeaf.Material = surfacePalette.DoorMaterial
+    leftLeaf.Parent = parent
+    doorway.LeftLeaf = leftLeaf
 
-    local _, prompt = createPromptPart({
-        Name = string.format('DoorPrompt_%s', doorwayId),
-        Size = Vector3_new(2, 2, 2),
-        CFrame = CFrame_new(openingCenter + Vector3_new(0, 2, 0)),
-        Color = Color3.fromRGB(118, 136, 150),
-        Material = Enum.Material.Metal,
-        Transparency = 1,
-        CanCollide = false,
-        ActionText = 'Open',
-        ObjectText = 'Double Door',
-        MaxActivationDistance = 12,
-    }, parent)
+    local rightLeaf = Instance_new('Part')
+    rightLeaf.Name = 'Door_' .. doorwayId .. '_Right'
+    rightLeaf.Anchored = true
+    rightLeaf.Size = leafSize
+    rightLeaf.CFrame = doorway.ClosedRightCFrame
+    rightLeaf.Color = surfacePalette.DoorColor
+    rightLeaf.Material = surfacePalette.DoorMaterial
+    rightLeaf.Parent = parent
+    doorway.RightLeaf = rightLeaf
+
+    local promptPart = Instance_new('Part')
+    promptPart.Name = 'DoorPrompt_' .. doorwayId
+    promptPart.Anchored = true
+    promptPart.Size = Vector3_new(2, 2, 2)
+    promptPart.CFrame = CFrame_new(openingCenter + PROMPT_Y_OFFSET)
+    promptPart.Color = Color3.fromRGB(118, 136, 150)
+    promptPart.Material = Enum.Material.Metal
+    promptPart.Transparency = 1
+    promptPart.CanCollide = false
+    promptPart.Parent = parent
+
+    local prompt = Instance_new('ProximityPrompt')
+    prompt.ActionText = 'Open'
+    prompt.ObjectText = 'Double Door'
+    prompt.HoldDuration = 0
+    prompt.MaxActivationDistance = 12
+    prompt.RequiresLineOfSight = false
+    prompt.Parent = promptPart
     doorway.Prompt = prompt
 
     applyDoorState(doorway, false)
