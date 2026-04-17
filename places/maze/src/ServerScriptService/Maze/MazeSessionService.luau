@@ -37,6 +37,7 @@ local ControlStateService = Shared.Runtime.ControlStateService
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local PlayerStateService = Shared.Runtime.PlayerStateService
 local PlayerService = Shared.Runtime.PlayerService
+local RoundSignalBus = Shared.Runtime.RoundSignalBus
 local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 
 local MazeBootstrapStatus = require(script.Parent.MazeBootstrapStatus)
@@ -451,8 +452,12 @@ function MazeSessionService.new(options)
     self.UgcMonsterServices = {}
     self.PendingUgcMonsterPayloads = {}
     self.CorpsesByUserId = {}
+    self.DeathSummaryByUserId = {}
     self.BootPhase = 'New'
     self.SurfacePalette = Shared.Runtime.MazeLightingProfile.SurfacePalette
+    self.RoundSignalBus = runtimeOptions.RoundSignalBus or RoundSignalBus.new()
+    self.RoundSignalConnection = nil
+    self.RoundClosureInProgress = false
 
     self:_emitDiagnostic('InitDefaultState', {
         InitialIsDirectBoot = self.IsDirectBoot,
@@ -462,6 +467,79 @@ function MazeSessionService.new(options)
     })
 
     return self
+end
+
+function MazeSessionService:_getServerTimeNow()
+    local ok, result = pcall(function()
+        return Workspace:GetServerTimeNow()
+    end)
+    if ok and type(result) == 'number' then
+        return result
+    end
+
+    return os.time()
+end
+
+function MazeSessionService:_isPlayerDead(player)
+    local summary = self.PlayerService:getSummary(player)
+    return summary ~= nil and summary.Health ~= nil and summary.Health.IsDead == true
+end
+
+function MazeSessionService:_getAliveActiveCount()
+    local count = 0
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if self.RunTracker:isPlayerActive(player.UserId) and not self:_isPlayerDead(player) then
+            count += 1
+        end
+    end
+
+    return count
+end
+
+function MazeSessionService:_publishMazePresence()
+    self.RoundSignalBus:publish(self.CampSession, {
+        Kind = RoundSignalBus.MessageKind.MazePresence,
+        AliveCount = self:_getAliveActiveCount(),
+        ActiveCount = self.RunTracker:getActiveCount(),
+        IssuedAt = self:_getServerTimeNow(),
+    })
+end
+
+function MazeSessionService:_handleRoundSignal(payload)
+    if type(payload) ~= 'table' or payload.Kind ~= RoundSignalBus.MessageKind.RoundClosure then
+        return
+    end
+
+    if self.RoundClosureInProgress then
+        return
+    end
+
+    self.RoundClosureInProgress = true
+    self.CampSession = CampMazeSessionContract.markSettlementTriggered(self.CampSession, {
+        SettlementReason = payload.Reason,
+        TriggeredByUserId = payload.TriggeredByUserId,
+        TriggeredByName = payload.TriggeredByName,
+    })
+    self.CampSession.GateOpen = false
+    self.CampSession.RoundStarted = false
+    self.CampSession.RoundEndTime = payload.IssuedAt or self:_getServerTimeNow()
+    self.CampSession = CampMazeSessionContract.normalizeCampSession(self.CampSession)
+    self:_forceCloseToCamp(payload.Reason, payload.CountInventories ~= false)
+end
+
+function MazeSessionService:_subscribeToRoundSignals()
+    if self.RoundSignalConnection and self.RoundSignalConnection.Disconnect then
+        self.RoundSignalConnection:Disconnect()
+        self.RoundSignalConnection = nil
+    end
+
+    local connection, ok = self.RoundSignalBus:subscribe(self.CampSession, function(payload)
+        self:_handleRoundSignal(payload)
+    end)
+    if ok then
+        self.RoundSignalConnection = connection
+    end
 end
 
 function MazeSessionService:_setBootPhase(phase)
@@ -554,6 +632,7 @@ function MazeSessionService:_mergeTeleportData(teleportData, resetInventoryServi
     self.CampSession = nextSession
     self.IsDirectBoot = false
     self.Status = 'Maze session is live. Explore, loot, and find an extraction point.'
+    self:_subscribeToRoundSignals()
     result.AcceptedBeforeBuild = self:_markAcceptedTeleportData(teleportData)
     result.Merged = true
     local pendingUgcMonsterPayload =
@@ -718,6 +797,7 @@ function MazeSessionService:_addPlayerState(player)
     self.ControlStateService:addPlayer(player)
     self.PlayerService:addPlayer(player)
     self.PlayerStateService:addPlayer(player)
+    self:_publishMazePresence()
 end
 
 function MazeSessionService:_removePlayerState(player)
@@ -729,6 +809,8 @@ function MazeSessionService:_removePlayerState(player)
     self.ControlStateService:removePlayer(player)
     self.PlayerService:removePlayer(player)
     self.PlayerStateService:removePlayer(player)
+    self.DeathSummaryByUserId[player.UserId] = nil
+    self:_publishMazePresence()
 end
 
 function MazeSessionService:_getMovementSummaryFor(player)
@@ -809,11 +891,15 @@ function MazeSessionService:_getPlayerArea(player)
 end
 
 function MazeSessionService:_getObjectiveFor()
+    if self.RoundClosureInProgress or self.CampSession.SettlementReason ~= nil then
+        return 'Camp has triggered settlement. Hold position until the forced return to camp completes.'
+    end
+
     if self.RunTracker.IsCompleted then
         return 'The maze run is complete. Review the returned summaries back in camp.'
     end
 
-    return 'Collect loot, avoid the monster, and use a return marker to head back to the run maze gate.'
+    return 'Collect loot, survive the maze, and use a return marker whenever you want to head back to camp.'
 end
 
 function MazeSessionService:_broadcastSnapshot()
@@ -827,13 +913,23 @@ function MazeSessionService:_broadcastSnapshot()
         self.RunTracker:getReturnedSummaries()
     )
     local mazeStatus = self:_getMazeStatus()
-    local sessionPhase = SessionPhase.resolveFromCampSession({
+    local roundEndTime = self.CampSession.RoundEndTime
+    local roundTimeRemainingSeconds = nil
+    if type(roundEndTime) == 'number' then
+        roundTimeRemainingSeconds = math.max(0, roundEndTime - self:_getServerTimeNow())
+    end
+
+    local sessionPhaseInput = {
         GateOpen = self.CampSession.GateOpen,
+        RoundStarted = self.CampSession.RoundStarted,
+        DangerActive = self.CampSession.DangerActive,
+        SettlementReason = self.CampSession.SettlementReason,
         MazeStatus = mazeStatus,
         PlayersInMaze = self.CampSession.PlayersInMaze,
         ReturnedPlayerSummaries = returnedSummaries,
         SessionClosed = self.CampSession.SessionClosed,
-    })
+    }
+    local sessionPhase = SessionPhase.resolveFromCampSession(sessionPhaseInput)
     local worldBuildFields = self:_getWorldBuildMetadataFields()
 
     for _, player in ipairs(Players:GetPlayers()) do
@@ -844,6 +940,11 @@ function MazeSessionService:_broadcastSnapshot()
             Objective = self:_getObjectiveFor(),
             State = self.RunTracker:getState(),
             SessionPhase = sessionPhase,
+            HostUserId = self.CampSession.HostUserId,
+            RoundStarted = self.CampSession.RoundStarted == true,
+            DangerActive = self.CampSession.DangerActive == true,
+            RoundTimeRemainingSeconds = roundTimeRemainingSeconds,
+            SettlementReason = self.CampSession.SettlementReason,
             Inventory = self.InventoryService:getSummary(player),
             Movement = self:_getMovementSummaryFor(player),
             ControlState = self.ControlStateService:getSummary(player),
@@ -928,28 +1029,45 @@ function MazeSessionService:_toggleDoor(player, doorwayId)
     end
 end
 
-function MazeSessionService:_buildSummaryFor(player, returnReason, wasSettled)
+function MazeSessionService:_buildSummaryFor(player, returnReason, wasSettled, countInventory)
     local inventorySummary = self.InventoryService:getSummary(player)
+    local shouldCountInventory = countInventory ~= false
+    local value = shouldCountInventory and inventorySummary.Value or 0
+    local itemCount = shouldCountInventory and inventorySummary.Count or 0
+    local weight = shouldCountInventory and inventorySummary.Weight or 0
 
     return CampMazeSessionContract.buildReturnSummary({
         UserId = player.UserId,
         Name = player.DisplayName,
         ReturnReason = returnReason,
-        Value = inventorySummary.Value,
-        ItemCount = inventorySummary.Count,
-        Weight = inventorySummary.Weight,
+        Value = value,
+        ItemCount = itemCount,
+        Weight = weight,
         WasExtracted = returnReason == 'extracted' or returnReason == 'settled',
         WasSettled = wasSettled == true,
+        CountedInSettlement = shouldCountInventory,
     })
 end
 
-function MazeSessionService:_buildPlayerInventories(players)
+function MazeSessionService:_buildPlayerInventories(players, countInventory)
     local playerInventories = {}
+    local shouldCountInventory = countInventory ~= false
 
     for _, player in ipairs(players) do
         table.insert(playerInventories, {
             UserId = player.UserId,
-            Inventory = self.InventoryService:getSummary(player),
+            Inventory = if shouldCountInventory
+                then self.InventoryService:getSummary(player)
+                else {
+                    Capacity = self.SessionData.InventoryCapacity,
+                    Weight = 0,
+                    Count = 0,
+                    BackpackCount = 0,
+                    HeldCount = 0,
+                    Value = 0,
+                    BackpackItems = {},
+                    HeldItem = nil,
+                },
         })
     end
 
@@ -964,7 +1082,7 @@ function MazeSessionService:_canReturnToCamp()
     return SessionConfig.PlaceIds.Run ~= 0 and self.CampSession.CampAccessCode ~= 'local-debug-camp'
 end
 
-function MazeSessionService:_teleportToCamp(players, summaries, mazeCompleted)
+function MazeSessionService:_teleportToCamp(players, summaries, mazeCompleted, countInventory)
     return runWithCampSessionLock(self, function()
         if not self:_canReturnToCamp() then
             self:_setStatus(
@@ -981,7 +1099,7 @@ function MazeSessionService:_teleportToCamp(players, summaries, mazeCompleted)
             CampSession = self.CampSession,
             Summaries = mergedSummaries,
             MazeCompleted = mazeCompleted,
-            PlayerInventories = self:_buildPlayerInventories(players),
+            PlayerInventories = self:_buildPlayerInventories(players, countInventory),
         })
         if not result.Ok then
             self:_setStatus(string.format('Camp return failed: %s', tostring(result.Reason)))
@@ -991,6 +1109,45 @@ function MazeSessionService:_teleportToCamp(players, summaries, mazeCompleted)
         self.CampSession = result.NextCampSession
         return true
     end)
+end
+
+function MazeSessionService:_forceCloseToCamp(reason, countInventories)
+    local playersToReturn = {}
+    local summaries = {}
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if self.RunTracker:isPlayerActive(player.UserId) then
+            table.insert(playersToReturn, player)
+            if self:_isPlayerDead(player) then
+                table.insert(
+                    summaries,
+                    self.DeathSummaryByUserId[player.UserId]
+                        or self:_buildSummaryFor(player, 'death', false, false)
+                )
+            else
+                table.insert(
+                    summaries,
+                    self:_buildSummaryFor(player, reason or 'settled', true, countInventories)
+                )
+            end
+        end
+    end
+
+    if #playersToReturn == 0 then
+        return
+    end
+
+    self.MonsterService:destroy()
+    self:_destroyUgcMonsters()
+    table.clear(self.PendingUgcMonsterPayloads)
+    self:_publishMazePresence()
+
+    if self:_teleportToCamp(playersToReturn, summaries, true, countInventories) then
+        self:_setStatus('The shared round ended from camp. Maze survivors are being returned now.')
+        return
+    end
+
+    self:_setStatus('The shared round ended, but the forced return to camp failed.')
 end
 
 function MazeSessionService:_beginFormalExpedition()
@@ -1017,6 +1174,13 @@ function MazeSessionService:_canManageInventory(player)
                 '%s already returned and cannot change inventory state.',
                 player.DisplayName
             )
+        )
+        return false
+    end
+
+    if self:_isPlayerDead(player) then
+        self:_setStatus(
+            string.format('%s is dead for this round and cannot use inventory.', player.DisplayName)
         )
         return false
     end
@@ -1268,30 +1432,9 @@ end
 
 function MazeSessionService:_handlePlayerDeath(player, damageKind)
     self:_spawnCorpseForPlayer(player)
-    self:_syncPlayerMovement(player)
-
-    local summary = self:_buildSummaryFor(player, 'death', false)
-    local recorded = self.RunTracker:recordReturn(summary)
-    if not recorded then
-        return
-    end
-
-    local mazeCompleted, completionReason = self:_completeExpeditionIfNoActivePlayers()
-    if mazeCompleted == nil then
-        self:_setStatus(string.format('Maze completion failed: %s', tostring(completionReason)))
-        return
-    end
-
-    if self:_teleportToCamp({ player }, { summary }, mazeCompleted) then
-        self:_setStatus(
-            string.format(
-                '%s took %s damage and was returned to camp.',
-                player.DisplayName,
-                string.lower(damageKind)
-            )
-        )
-        return
-    end
+    self:_clearPlayerMovement(player)
+    self.DeathSummaryByUserId[player.UserId] = self:_buildSummaryFor(player, 'death', false, false)
+    self:_publishMazePresence()
 
     local character = player.Character
     if character and character.Parent and self.World then
@@ -1404,6 +1547,13 @@ function MazeSessionService:_returnPlayerToRunEntrance(player, returnReason, _in
         return
     end
 
+    if self:_isPlayerDead(player) then
+        self:_setStatus(
+            string.format('%s is dead and must wait for the round to end.', player.DisplayName)
+        )
+        return
+    end
+
     local summary = self:_buildSummaryFor(player, returnReason, false)
     local recorded, reason = self.RunTracker:recordReturn(summary)
     if not recorded then
@@ -1423,7 +1573,9 @@ function MazeSessionService:_returnPlayerToRunEntrance(player, returnReason, _in
 
     self:_clearPlayerMovement(player)
 
-    if self:_teleportToCamp({ player }, { summary }, mazeCompleted) then
+    self:_publishMazePresence()
+
+    if self:_teleportToCamp({ player }, { summary }, mazeCompleted, true) then
         self:_setStatus(
             string.format(
                 '%s returned to the run maze gate with %d value (%s).',
@@ -1468,6 +1620,7 @@ function MazeSessionService:_launchMaze()
 
     self:_rebuildWorld()
     self:_emitDiagnostic('LaunchMazePostBuild', self:_getWorldBuildMetadataFields())
+    self:_subscribeToRoundSignals()
 
     self:_setBootPhase('LoadCharacters')
     for _, player in ipairs(Players:GetPlayers()) do
@@ -1514,6 +1667,26 @@ function MazeSessionService:_startSnapshotLoop()
                     local context = self:_getPlayerUpdateContext(player)
                     self.PlayerService:update(player, dt, context)
                     self:_syncPlayerMovement(player)
+                end
+
+                if not self.RoundClosureInProgress then
+                    local roundEndTime = self.CampSession.RoundEndTime
+                    if
+                        type(roundEndTime) == 'number'
+                        and roundEndTime > 0
+                        and self:_getServerTimeNow() >= roundEndTime
+                    then
+                        self.RoundClosureInProgress = true
+                        self.CampSession =
+                            CampMazeSessionContract.markSettlementTriggered(self.CampSession, {
+                                SettlementReason = 'timeout',
+                            })
+                        self.CampSession.GateOpen = false
+                        self.CampSession.RoundStarted = false
+                        self.CampSession =
+                            CampMazeSessionContract.normalizeCampSession(self.CampSession)
+                        self:_forceCloseToCamp('timeout', true)
+                    end
                 end
 
                 self:_broadcastSnapshot()

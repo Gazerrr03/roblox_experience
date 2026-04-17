@@ -36,7 +36,12 @@
             "Anchored": true,
             "CanCollide": false,
             "CanTouch": false,
-            "CanQuery": true
+            "CanQuery": true,
+            "Position": [
+              50.842907,
+              18.44950485,
+              300.177368
+            ]
           }
         },
         "ReturnMarker": {
@@ -45,7 +50,12 @@
             "Anchored": true,
             "CanCollide": false,
             "CanTouch": false,
-            "CanQuery": true
+            "CanQuery": true,
+            "Position": [
+              44.842907,
+              18.44950485,
+              300.177368
+            ]
           }
         },
         "MazeReturnMarker": {
@@ -54,7 +64,12 @@
             "Anchored": true,
             "CanCollide": false,
             "CanTouch": false,
-            "CanQuery": true
+            "CanQuery": true,
+            "Position": [
+              56.842907,
+              18.44950485,
+              300.177368
+            ]
           }
         },
         "Triggers": {
@@ -104,34 +119,7 @@
             "$className": "ProximityPrompt"
           }
         },
-        "SalvageTerminal": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true
-          },
-          "Prompt": {
-            "$className": "ProximityPrompt"
-          }
-        },
-        "ObjectiveBoard": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true
-          },
-          "Prompt": {
-            "$className": "ProximityPrompt"
-          }
-        },
-        "LoadoutBench": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true
-          },
-          "Prompt": {
-            "$className": "ProximityPrompt"
-          }
-        },
-        "UgcLabConsole": {
+        "BookOfSand": {
           "$className": "Part",
           "$properties": {
             "Anchored": true

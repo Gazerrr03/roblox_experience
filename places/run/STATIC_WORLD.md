@@ -35,5 +35,6 @@ Rules:
 - Collision shell parts must use `Anchored=true`, `CanCollide=true`, `CanTouch=false`, `CanQuery=true`, and `Transparency=1`.
 - `Triggers/Ocean` must contain invisible anchored non-collidable trigger parts for water-entry feedback.
 - Missing required markers, prompts, doors, or root attributes must fail loudly at runtime so content issues are fixed in Studio instead of hidden in code.
-- `SpawnMarker` must have a collidable authored floor within 32 studs below it.
+- `SpawnMarker`, `ReturnMarker`, and `MazeReturnMarker` must each have a collidable authored floor within 32 studs below them.
+- `ReturnMarker` and `MazeReturnMarker` must not remain at the default origin `(0, 0, 0)` in source or Studio.
 - `MazeGateMarker` is the run-to-maze transition object. Scene code only identifies it; cross-place teleport is handled by the dedicated transition layer.

@@ -164,7 +164,16 @@ function CampMazeSessionContract.normalizeCampSession(session)
     local normalized = {
         SessionId = session and session.SessionId or 'local-debug-camp',
         CampAccessCode = session and session.CampAccessCode or 'local-debug-camp',
+        SignalScope = session and session.SignalScope or nil,
+        HostUserId = session and session.HostUserId or nil,
         GateOpen = session ~= nil and session.GateOpen == true or false,
+        RoundStarted = session ~= nil and session.RoundStarted == true or false,
+        DangerActive = session ~= nil and session.DangerActive == true or false,
+        RoundStartTime = session and session.RoundStartTime or nil,
+        RoundEndTime = session and session.RoundEndTime or nil,
+        SettlementReason = session and session.SettlementReason or nil,
+        SettlementTriggeredByUserId = session and session.SettlementTriggeredByUserId or nil,
+        SettlementTriggeredByName = session and session.SettlementTriggeredByName or nil,
         MazeStatus = session and session.MazeStatus or MAZE_STATUS.Idle,
         MazeAccessCode = session and session.MazeAccessCode or nil,
         PlayersInMaze = cloneArray(session and session.PlayersInMaze or {}),
@@ -174,7 +183,7 @@ function CampMazeSessionContract.normalizeCampSession(session)
 
     sortPlayers(normalized.PlayersInMaze)
     sortSummaries(normalized.ReturnedPlayerSummaries)
-    normalized.SessionPhase = SessionPhase.resolveFromCampSession(session or normalized)
+    normalized.SessionPhase = SessionPhase.resolveFromCampSession(normalized)
 
     return normalized
 end
@@ -230,7 +239,47 @@ function CampMazeSessionContract.buildReturnSummary(params)
         Weight = params.Weight or 0,
         WasExtracted = params.WasExtracted == true,
         WasSettled = params.WasSettled == true,
+        CountedInSettlement = params.CountedInSettlement ~= false,
     }
+end
+
+function CampMazeSessionContract.assignHost(session, hostUserId)
+    local nextSession = CampMazeSessionContract.normalizeCampSession(session)
+    nextSession.HostUserId = if type(hostUserId) == 'number' then hostUserId else nil
+    nextSession.SessionPhase = SessionPhase.resolveFromCampSession(nextSession)
+    return nextSession
+end
+
+function CampMazeSessionContract.markRoundStarted(session, params)
+    local nextSession = CampMazeSessionContract.normalizeCampSession(session)
+    local resolved = params or {}
+
+    nextSession.HostUserId = resolved.HostUserId or nextSession.HostUserId
+    nextSession.GateOpen = true
+    nextSession.RoundStarted = true
+    nextSession.DangerActive = resolved.DangerActive ~= false
+    nextSession.RoundStartTime = resolved.RoundStartTime
+    nextSession.RoundEndTime = resolved.RoundEndTime
+    nextSession.SettlementReason = nil
+    nextSession.SettlementTriggeredByUserId = nil
+    nextSession.SettlementTriggeredByName = nil
+    nextSession.SessionClosed = false
+    nextSession.SessionPhase = SessionPhase.resolveFromCampSession(nextSession)
+    return nextSession
+end
+
+function CampMazeSessionContract.markSettlementTriggered(session, params)
+    local nextSession = CampMazeSessionContract.normalizeCampSession(session)
+    local resolved = params or {}
+
+    nextSession.GateOpen = false
+    nextSession.RoundStarted = false
+    nextSession.DangerActive = false
+    nextSession.SettlementReason = resolved.SettlementReason or 'settlement'
+    nextSession.SettlementTriggeredByUserId = resolved.TriggeredByUserId
+    nextSession.SettlementTriggeredByName = resolved.TriggeredByName
+    nextSession.SessionPhase = SessionPhase.resolveFromCampSession(nextSession)
+    return nextSession
 end
 
 function CampMazeSessionContract.markPlayerEntered(session, player)
@@ -260,6 +309,7 @@ function CampMazeSessionContract.markPlayerEntered(session, player)
     nextSession.ReturnedPlayerSummaries = nextSummaries
 
     nextSession.MazeStatus = MAZE_STATUS.Active
+    nextSession.SessionPhase = SessionPhase.resolveFromCampSession(nextSession)
 
     return nextSession
 end
@@ -289,6 +339,7 @@ function CampMazeSessionContract.prunePlayer(session, userId, options)
     sortSummaries(nextSummaries)
     nextSession.ReturnedPlayerSummaries = nextSummaries
     updateMazeStatus(nextSession)
+    nextSession.SessionPhase = SessionPhase.resolveFromCampSession(nextSession)
 
     return nextSession
 end
@@ -324,7 +375,56 @@ function CampMazeSessionContract.applyReturn(session, summary, mazeCompleted)
         updateMazeStatus(nextSession)
     end
 
+    nextSession.SessionPhase = SessionPhase.resolveFromCampSession(nextSession)
+
     return nextSession
+end
+
+function CampMazeSessionContract.resetForNextRound(session)
+    local nextSession = CampMazeSessionContract.normalizeCampSession(session)
+
+    nextSession.GateOpen = false
+    nextSession.RoundStarted = false
+    nextSession.DangerActive = false
+    nextSession.RoundStartTime = nil
+    nextSession.RoundEndTime = nil
+    nextSession.SettlementReason = nil
+    nextSession.SettlementTriggeredByUserId = nil
+    nextSession.SettlementTriggeredByName = nil
+    nextSession.MazeStatus = MAZE_STATUS.Idle
+    nextSession.MazeAccessCode = nil
+    nextSession.PlayersInMaze = {}
+    nextSession.ReturnedPlayerSummaries = {}
+    nextSession.SessionClosed = false
+    nextSession.SessionPhase = SessionPhase.resolveFromCampSession(nextSession)
+
+    return nextSession
+end
+
+function CampMazeSessionContract.buildLobbyToRunTeleportData(params)
+    return {
+        SessionConfig = cloneTable(params.SessionConfig),
+        CampSession = CampMazeSessionContract.newCampSession({
+            SessionId = params.SessionId,
+            CampAccessCode = params.CampAccessCode,
+            SignalScope = params.SignalScope,
+            GateOpen = false,
+            RoundStarted = false,
+            DangerActive = false,
+            MazeStatus = MAZE_STATUS.Idle,
+            MazeAccessCode = nil,
+            PlayersInMaze = {},
+            ReturnedPlayerSummaries = {},
+        }),
+        Entry = {
+            Kind = 'LobbyLaunch',
+        },
+        PlayerInventories = {},
+    }
+end
+
+function CampMazeSessionContract.buildLobbyToCampTeleportData(params)
+    return CampMazeSessionContract.buildLobbyToRunTeleportData(params)
 end
 
 function CampMazeSessionContract.closeCampSession(session)

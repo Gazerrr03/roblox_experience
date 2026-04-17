@@ -254,14 +254,20 @@ local function buildSpawnGroundSampleOffsets(spawnMarker)
     }
 end
 
-local function assertSpawnHasGround(sceneCollisionRoot, shipCollisionRoot, terrainMesh, spawnMarker)
+local function assertMarkerHasGround(
+    sceneCollisionRoot,
+    shipCollisionRoot,
+    terrainMesh,
+    markerName,
+    markerPart
+)
     local raycastParams = buildSpawnGroundParams(sceneCollisionRoot, shipCollisionRoot, terrainMesh)
-    local sampleOffsets = buildSpawnGroundSampleOffsets(spawnMarker)
+    local sampleOffsets = buildSpawnGroundSampleOffsets(markerPart)
     local raycastDistance = Vector3.new(0, -RunStaticWorldContract.SpawnGroundCheckDepth, 0)
-    local raycastStartHeight = (spawnMarker.Size.Y * 0.5) + 2
+    local raycastStartHeight = (markerPart.Size.Y * 0.5) + 2
 
     for _, offset in ipairs(sampleOffsets) do
-        local origin = spawnMarker.Position + Vector3.new(offset.X, raycastStartHeight, offset.Z)
+        local origin = markerPart.Position + Vector3.new(offset.X, raycastStartHeight, offset.Z)
         local result = Workspace:Raycast(origin, raycastDistance, raycastParams)
         if result and result.Instance and result.Instance.CanCollide and result.Normal.Y > 0.5 then
             return
@@ -270,11 +276,25 @@ local function assertSpawnHasGround(sceneCollisionRoot, shipCollisionRoot, terra
 
     error(
         string.format(
-            'RunStaticWorld SpawnMarker must raycast onto authored collision shells or terrain mesh within %d studs below it.',
+            'RunStaticWorld marker "%s" must raycast onto Collision/Scene, Collision/Ship, or terrain mesh within %d studs below it.',
+            markerName,
             RunStaticWorldContract.SpawnGroundCheckDepth
         ),
         0
     )
+end
+
+local function assertMarkerNotAtOrigin(markerName, markerPart)
+    local position = markerPart.Position
+    if position:FuzzyEq(Vector3.zero) then
+        error(
+            string.format(
+                'RunStaticWorld marker "%s" must not stay at the default origin (0, 0, 0). Author a real return point in Studio/source.',
+                markerName
+            ),
+            0
+        )
+    end
 end
 
 function RunStaticWorldValidator.validate(root)
@@ -355,7 +375,7 @@ function RunStaticWorldValidator.validate(root)
         'RunStaticWorld Triggers/Ocean'
     )
 
-    local spawnMarker = nil
+    local markersByName = {}
     for _, markerName in ipairs(REQUIRED_MARKER_NAMES) do
         local markerPart = root:FindFirstChild(markerName, true)
         if markerPart == nil or not markerPart:IsA('BasePart') then
@@ -363,10 +383,7 @@ function RunStaticWorldValidator.validate(root)
         end
 
         validateMarkerPart(markerPart, string.format('RunStaticWorld marker "%s"', markerName))
-
-        if markerName == 'SpawnMarker' then
-            spawnMarker = markerPart
-        end
+        markersByName[markerName] = markerPart
     end
 
     -- Find terrain mesh: RunTerrain_Main.Scene.RunTerrain_OriginalHigh.RunTerrain_OriginalHighMesh
@@ -382,7 +399,16 @@ function RunStaticWorldValidator.validate(root)
         end
     end
 
-    assertSpawnHasGround(sceneCollisionRoot, shipCollisionRoot, terrainMesh, spawnMarker)
+    for markerName, markerPart in pairs(markersByName) do
+        assertMarkerNotAtOrigin(markerName, markerPart)
+        assertMarkerHasGround(
+            sceneCollisionRoot,
+            shipCollisionRoot,
+            terrainMesh,
+            markerName,
+            markerPart
+        )
+    end
 end
 
 return RunStaticWorldValidator
