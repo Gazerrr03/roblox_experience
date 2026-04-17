@@ -15,7 +15,7 @@
 - Client presentation and expedition input live in `MazeClient.client.luau`.
 - `maze` owns maze-side authored world setup, expedition progression,
   loot/extract flow, and the return trigger back into run.
-- `maze` does not own lobby readiness or run-side settlement rules.
+- `maze` does not own run-side settlement rules or host/start game logic.
 
 ### Key State Flow
 
@@ -54,7 +54,6 @@ Direct dependency zone:
 
 No-touch zone:
 
-- `places/lobby/**`
 - `places/run/**` unless the issue is explicitly about the maze return seam
 - shared contract files when changing teleport shape, return summary semantics,
   remote naming, or replicated snapshot meaning

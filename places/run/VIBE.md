@@ -5,7 +5,7 @@
 ### Gameplay Template
 
 - `run` is the camp and expedition hub of the published flow
-  `Lobby -> Run -> Maze -> Run`.
+  `Run (entry) -> Maze -> Run`.
 - The player loop here is: arrive at camp, start the run, explore the outdoor
   shell, enter maze, receive returning players, settle, and reset.
 - This place is the orchestration center of the current vertical slice.
@@ -21,7 +21,7 @@
 
 ### Key State Flow
 
-1. Players arrive with optional teleport data from lobby or maze.
+1. Players arrive with optional teleport data from maze.
 2. `RunSessionService` reconciles the incoming session state.
 3. The place starts or resumes the camp session and broadcasts snapshots.
 4. Players request maze entry through the run gate.
@@ -59,7 +59,7 @@ Direct dependency zone:
 
 No-touch zone:
 
-- `places/lobby/**` unless the issue is explicitly about the lobby-to-run seam
+- `places/lobby/**` — lobby has been removed; if re-adding a lobby layer is needed, start with `packages/shared/VIBE.md`
 - `places/maze/**` unless the issue is explicitly about the run-to-maze seam
 - shared contract files when changing handoff schema, remote names, or return
   summary meaning

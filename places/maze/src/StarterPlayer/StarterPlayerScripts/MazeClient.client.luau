@@ -71,6 +71,116 @@ screenGui.IgnoreGuiInset = true
 screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
+-- Watch HUD: shows game time and remaining round time
+local watchFrame = Instance.new('Frame')
+watchFrame.Name = 'WatchHud'
+watchFrame.AnchorPoint = Vector2.new(1, 0)
+watchFrame.Position = UDim2.new(1, -16, 0, 16)
+watchFrame.Size = UDim2.fromOffset(130, 58)
+watchFrame.BackgroundColor3 = Color3.fromRGB(12, 10, 8)
+watchFrame.BackgroundTransparency = 0.15
+watchFrame.BorderSizePixel = 0
+watchFrame.Visible = false
+watchFrame.Parent = screenGui
+local watchCorner = Instance.new('UICorner')
+watchCorner.CornerRadius = UDim.new(0, 10)
+watchCorner.Parent = watchFrame
+local watchStroke = Instance.new('UIStroke')
+watchStroke.Color = Theme.Text
+watchStroke.Transparency = 0.7
+watchStroke.Thickness = 1
+watchStroke.Parent = watchFrame
+
+local watchClockIcon = Instance.new('TextLabel')
+watchClockIcon.Name = 'ClockIcon'
+watchClockIcon.Size = UDim2.fromOffset(16, 16)
+watchClockIcon.Position = UDim2.fromOffset(10, 10)
+watchClockIcon.BackgroundTransparency = 1
+watchClockIcon.Font = Enum.Font.GothamBold
+watchClockIcon.TextColor3 = Theme.Accent
+watchClockIcon.TextSize = 14
+watchClockIcon.Text = '\u{1F551}'
+watchClockIcon.Parent = watchFrame
+
+local watchTimeLabel = Instance.new('TextLabel')
+watchTimeLabel.Name = 'GameTime'
+watchTimeLabel.Size = UDim2.new(1, -36, 0, 22)
+watchTimeLabel.Position = UDim2.fromOffset(30, 6)
+watchTimeLabel.BackgroundTransparency = 1
+watchTimeLabel.Font = Enum.Font.GothamBold
+watchTimeLabel.TextColor3 = Theme.Text
+watchTimeLabel.TextSize = 18
+watchTimeLabel.TextXAlignment = Enum.TextXAlignment.Left
+watchTimeLabel.TextYAlignment = Enum.TextYAlignment.Center
+watchTimeLabel.Text = '07:00'
+watchTimeLabel.Parent = watchFrame
+
+local watchRemainLabel = Instance.new('TextLabel')
+watchRemainLabel.Name = 'Remaining'
+watchRemainLabel.Size = UDim2.new(1, -20, 0, 18)
+watchRemainLabel.Position = UDim2.fromOffset(10, 34)
+watchRemainLabel.BackgroundTransparency = 1
+watchRemainLabel.Font = Theme.Font
+watchRemainLabel.TextColor3 = Theme.SubtleText
+watchRemainLabel.TextSize = 13
+watchRemainLabel.TextXAlignment = Enum.TextXAlignment.Left
+watchRemainLabel.TextYAlignment = Enum.TextYAlignment.Center
+watchRemainLabel.Text = '\u{21BB} 15:00'
+watchRemainLabel.Parent = watchFrame
+
+local function formatGameTimeMaze(gameHour)
+    local totalMinutes = math.floor(gameHour * 60)
+    local h = math.floor(totalMinutes / 60)
+    local m = totalMinutes % 60
+    return string.format('%02d:%02d', h, m)
+end
+
+local function formatRemainingMaze(seconds)
+    local m = math.floor(seconds / 60)
+    local s = math.floor(seconds % 60)
+    return string.format('\u{21BB} %02d:%02d', m, s)
+end
+
+local _todConnectionMaze = nil
+local lastTodStateMaze = nil
+
+local function updateWatchMaze(todState)
+    if not todState then
+        watchFrame.Visible = false
+        return
+    end
+    local gameHour = todState.GameHour or 7
+    local remaining = todState.RoundTimeRemaining or 0
+    watchTimeLabel.Text = formatGameTimeMaze(gameHour)
+    watchRemainLabel.Text = formatRemainingMaze(remaining)
+    watchFrame.Visible = true
+    if remaining < 180 then
+        watchTimeLabel.TextColor3 = Color3.fromRGB(220, 80, 80)
+        watchRemainLabel.TextColor3 = Color3.fromRGB(220, 80, 80)
+    else
+        watchTimeLabel.TextColor3 = Theme.Text
+        watchRemainLabel.TextColor3 = Theme.SubtleText
+    end
+end
+
+task.spawn(function()
+    local remoteFolder = ReplicatedStorage:WaitForChild('Remotes', 5)
+    if not remoteFolder then
+        return
+    end
+    local todRemote = remoteFolder:WaitForChild('TODState', 3)
+    if not todRemote then
+        return
+    end
+    _todConnectionMaze = todRemote.OnClientEvent:Connect(function(todState)
+        lastTodStateMaze = todState
+        updateWatchMaze(todState)
+    end)
+    if lastTodStateMaze then
+        updateWatchMaze(lastTodStateMaze)
+    end
+end)
+
 local function makeTextLabel(parent, size, color, textSize, bold)
     local label = Instance.new('TextLabel')
     label.Size = size

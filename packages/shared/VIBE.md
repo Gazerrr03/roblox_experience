@@ -5,7 +5,7 @@
 ### Gameplay Template
 
 - `contract` is not a player-facing place. It is the handoff layer that keeps
-  `lobby`, `run`, and `maze` from inventing incompatible meanings.
+  `run` and `maze` from inventing incompatible meanings.
 - Its job is to provide stable cross-place language for remotes, session shape,
   teleport payloads, and shared place-routing config.
 - If a change feels like "multiple sides need to agree on this first," it
@@ -57,7 +57,6 @@ Owner zone:
 Direct dependency zone:
 
 - Place services that consume the contract:
-  `places/lobby/src/ServerScriptService/Lobby/LobbyService.luau`
   `places/run/src/ServerScriptService/Run/RunSessionService.luau`
   `places/maze/src/ServerScriptService/Maze/MazeSessionService.luau`
 
@@ -71,7 +70,7 @@ No-touch zone:
 Boundary interfaces:
 
 - Remotes:
-  `LobbyAction`, `LobbyState`, `RunAction`, `RunSnapshot`, `PrivateState`
+  `RunAction`, `RunSnapshot`, `PrivateState`
 - Session contract:
   `CampMazeSessionContract`
 - Gate policy:

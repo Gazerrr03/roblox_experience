@@ -33,6 +33,7 @@ function ShipDoors.new(config)
 
     self._isOpen = true
     self._isAnimating = false
+    self._isLocked = false
     self._originalCFrames = {}
     self._prompts = {}
 
@@ -70,6 +71,12 @@ end
 function ShipDoors:_setPromptActionText(actionText)
     for _, prompt in ipairs(self._prompts) do
         prompt.ActionText = actionText
+    end
+end
+
+function ShipDoors:_setPromptEnabled(enabled)
+    for _, prompt in ipairs(self._prompts) do
+        prompt.Enabled = enabled
     end
 end
 
@@ -116,11 +123,29 @@ function ShipDoors:close()
 end
 
 function ShipDoors:toggle()
+    if self._isLocked then
+        return
+    end
+
     if self._isOpen then
         self:close()
     else
         self:open()
     end
+end
+
+function ShipDoors:lock()
+    self._isLocked = true
+    self:_setPromptEnabled(false)
+end
+
+function ShipDoors:unlock()
+    self._isLocked = false
+    self:_setPromptEnabled(true)
+end
+
+function ShipDoors:isLocked()
+    return self._isLocked == true
 end
 
 -- ============================================================

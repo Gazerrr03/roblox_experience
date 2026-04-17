@@ -4,7 +4,6 @@
 
 Roblox game skeleton for a multi-place experience:
 
-- `places/lobby`: team assembly, ready checks, and run launch
 - `places/run`: camp, wilderness, maze entry, and settlement handoff
 - `places/maze`: maze expedition, loot, extraction, and return to the Run place
 - `packages/shared`: shared enums, networking, schema helpers, and utilities
@@ -14,9 +13,8 @@ Roblox game skeleton for a multi-place experience:
 
 ## Place Delivery Lines
 
-Parallel work on the experience is split into four long-lived lines:
+Parallel work on the experience is split into three long-lived lines:
 
-- `lobby`
 - `run`
 - `maze`
 - `contract`
@@ -54,7 +52,6 @@ entrypoint:
 If you want a different place or port, use the PowerShell helper directly:
 
 ```powershell
-.\scripts\dev.ps1 -Place lobby
 .\scripts\dev.ps1 -Place maze -Port 34873
 .\scripts\dev.ps1 -Place run -RefreshDeps
 ```
@@ -104,12 +101,6 @@ rojo serve
 Serves the root project, which is currently wired to the run place.
 
 ```powershell
-rojo serve places/lobby/default.project.json
-```
-
-Serves the lobby place.
-
-```powershell
 rojo serve places/run/default.project.json
 ```
 
@@ -125,7 +116,6 @@ If you need to run more than one Rojo server at the same time, give each one a
 different port, for example:
 
 ```powershell
-rojo serve places/lobby/default.project.json --port 34873
 ```
 
 If you want one Studio harness file per place that can be opened and published
@@ -143,13 +133,11 @@ Or on Windows PowerShell:
 
 This writes:
 
-- `places/lobby/harness/lobby.rbxlx`
 - `places/run/harness/run.rbxlx`
 - `places/maze/harness/maze.rbxlx`
 
 Keep authored scene content under the matching static world root:
 
-- `Workspace/LobbyStaticWorld`
 - `Workspace/RunStaticWorld`
 - `Workspace/MazeStaticWorld`
 
@@ -166,7 +154,7 @@ Keep authored scene content under the matching static world root:
 - `start-run.cmd`, `scripts/dev.ps1`, and `rojo serve` only start local source sync and place composition.
 - They do **not** turn a local `.rbxl` or Studio session into a published Roblox place.
 - In a local Studio session, `game.PlaceId` and `game.GameId` may still be `0`, so cross-place maze teleports can remain blocked even when Rojo is connected.
-- To test the real maze teleport flow, use published `Lobby` / `Run` / `Maze` place ids.
+- To test the real maze teleport flow, use published `Run` / `Maze` place ids.
 - `Run` and `Maze` no longer provide an in-place debug fallback. If teleport is blocked locally, the authored maze gate stays blocked until real place ids are configured.
 
 ### Validation Commands
@@ -212,8 +200,7 @@ integration checks stay attached to every change.
 
 The repository currently treats these as first-class vibes:
 
-- `places/lobby` -> lobby launch and ready flow
-- `places/run` -> camp orchestration and maze entry
+- `places/run` -> camp orchestration, host-based game start, and maze entry
 - `places/maze` -> expedition runtime and maze return
 - `packages/shared` -> the `contract` workstream for shared handoff definitions
 
@@ -246,7 +233,7 @@ and integration work in the same blurry patch.
 Each vibe has a small set of files with different jobs:
 
 - `references/place-parallel-development.md`
-  The repo-wide map. It explains how `lobby`, `run`, `maze`, and `contract`
+  The repo-wide map. It explains how `run`, `maze`, and `contract`
   relate to each other.
 - local `VIBE.md`
   The stable handbook for one code domain. It explains the purpose, mental
@@ -269,8 +256,8 @@ In practice, the normal reading order is:
 
 ### Published Runtime Path
 
-- `Lobby -> Run -> Maze -> Run`
-- `LobbyService` starts the experience by reserving a private `Run` server and teleporting the ready crew there.
+- `Run (entry) -> Maze -> Run`
+- Players enter directly into `Run`. The host starts the game via an in-ship interaction point.
 - `RunSessionService` owns the camp session, opens wilderness access, and teleports players into the shared `Maze` server when the maze gate is used.
 - `MazeSessionService` owns the maze-side expedition and teleports players back to `Run` when they return early or when settlement completes.
 
@@ -282,10 +269,10 @@ In practice, the normal reading order is:
 
 ## Runtime Assumptions
 
-- Teleport flow needs real place IDs for `Lobby`, `Run`, and `Maze`.
+- Teleport flow needs real place IDs for `Run` and `Maze`.
 - You can configure place IDs in either of these ways:
   - source-controlled defaults in `packages/shared/src/Config/SessionConfig.luau`
-  - Studio attributes on `game` or `ReplicatedStorage`: `SessionPlaceIdLobby`, `SessionPlaceIdRun`, `SessionPlaceIdMaze`
+  - Studio attributes on `game` or `ReplicatedStorage`: `SessionPlaceIdRun`, `SessionPlaceIdMaze`
 - You can enable the local in-place maze debug route with `SessionDebugLocalMazeHandoff` on `game` or `ReplicatedStorage`.
 - The run loop is intentionally simple: camp, expedition, loot, extract, settle, reset.
 - Hidden-role gameplay is deferred, but visibility and permission interfaces are already present.

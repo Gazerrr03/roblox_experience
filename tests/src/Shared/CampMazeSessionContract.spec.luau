@@ -35,22 +35,6 @@ return function()
         'Entering the maze should move the shared session into MazeActive'
     )
 
-    local lobbyToRun = contract.buildLobbyToRunTeleportData({
-        SessionId = 'camp-session-1',
-        CampAccessCode = 'camp-access-code',
-        SessionConfig = {
-            Seed = 12345,
-        },
-    })
-    assert(
-        lobbyToRun.Entry.Kind == 'LobbyLaunch',
-        'Lobby -> run teleport payload should mark the handoff entry kind'
-    )
-    assert(
-        lobbyToRun.CampSession.SessionPhase == contract.SessionPhase.RunPrep,
-        'Lobby -> run payload should preserve direct-entry run prep phase'
-    )
-
     local campToMaze = contract.buildRunToMazeTeleportData({
         SessionConfig = {
             Seed = 12345,

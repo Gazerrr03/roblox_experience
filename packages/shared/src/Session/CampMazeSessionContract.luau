@@ -327,29 +327,6 @@ function CampMazeSessionContract.applyReturn(session, summary, mazeCompleted)
     return nextSession
 end
 
-function CampMazeSessionContract.buildLobbyToRunTeleportData(params)
-    return {
-        SessionConfig = cloneTable(params.SessionConfig),
-        CampSession = CampMazeSessionContract.newCampSession({
-            SessionId = params.SessionId,
-            CampAccessCode = params.CampAccessCode,
-            GateOpen = false,
-            MazeStatus = MAZE_STATUS.Idle,
-            MazeAccessCode = nil,
-            PlayersInMaze = {},
-            ReturnedPlayerSummaries = {},
-        }),
-        Entry = {
-            Kind = 'LobbyLaunch',
-        },
-        PlayerInventories = {},
-    }
-end
-
-function CampMazeSessionContract.buildLobbyToCampTeleportData(params)
-    return CampMazeSessionContract.buildLobbyToRunTeleportData(params)
-end
-
 function CampMazeSessionContract.closeCampSession(session)
     local nextSession = CampMazeSessionContract.normalizeCampSession(session)
     nextSession.SessionClosed = true
