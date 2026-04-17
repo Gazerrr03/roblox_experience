@@ -9,19 +9,19 @@ Remotes.Scope = table.freeze({
 })
 
 local REMOTE_NAMES_BY_SCOPE = table.freeze({
-    [Remotes.Scope.Run] = {
+    [Remotes.Scope.Run] = table.freeze({
         'RunAction',
         'RunState',
         'RunPrivateState',
-    },
-    [Remotes.Scope.Maze] = {
+    }),
+    [Remotes.Scope.Maze] = table.freeze({
         'MazeAction',
         'MazeState',
         'MazePrivateState',
-    },
+    }),
 })
 
-local ALL_REMOTE_NAMES = {
+local ALL_REMOTE_NAMES = table.freeze({
     'RunAction',
     'RunState',
     'RunPrivateState',
@@ -29,7 +29,7 @@ local ALL_REMOTE_NAMES = {
     'MazeState',
     'MazePrivateState',
     'TODState',
-}
+})
 
 local function assertServer(operationName)
     if RunService:IsClient() then

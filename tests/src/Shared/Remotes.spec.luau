@@ -67,6 +67,14 @@ return function()
         'Maze scope should reuse MazePrivateState'
     )
 
+    local runScoped = shared.Network.Remotes.ensureScope(shared.Network.Remotes.Scope.Run)
+    assert(runScoped.RunAction == remotes.RunAction, 'Run scope should reuse RunAction')
+    assert(runScoped.RunState == remotes.RunState, 'Run scope should reuse RunState')
+    assert(
+        runScoped.RunPrivateState == remotes.RunPrivateState,
+        'Run scope should reuse RunPrivateState'
+    )
+
     local waitedMazeScope =
         shared.Network.Remotes.waitForScope(shared.Network.Remotes.Scope.Maze, 0)
     assert(
