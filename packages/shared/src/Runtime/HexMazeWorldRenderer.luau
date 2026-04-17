@@ -205,15 +205,16 @@ local function createConnectorAuthoringSockets(connectorFolder, connectorPivot)
 end
 
 local function addDecorPart(parent, roomCenter, name, size, offset, color, material, transparency)
-    createPart({
-        Name = name,
-        Size = size,
-        CFrame = CFrame_new(roomCenter + offset),
-        Color = color,
-        Material = material,
-        Transparency = transparency or 0,
-        CanCollide = false,
-    }, parent)
+    local part = Instance_new('Part')
+    part.Name = name
+    part.Anchored = true
+    part.Size = size
+    part.CFrame = CFrame_new(roomCenter + offset)
+    part.Color = color
+    part.Material = material or Enum.Material.SmoothPlastic
+    part.Transparency = transparency or 0
+    part.CanCollide = false
+    part.Parent = parent
 end
 
 local function buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem, surfacePalette)
