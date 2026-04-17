@@ -13,6 +13,7 @@ local TWEEN_INFO_OPEN = TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDir
 local TWEEN_INFO_CLOSE = TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 local ROTATION_ANGLE = 80 -- degrees to swing from closed toward open
 local SLIDE_DISTANCE = 4 -- studs to slide for small doors
+local PROMPT_MAX_ACTIVATION_DISTANCE = 10
 
 -- Rotate a CFrame around a pivot point by angle on Y axis
 local function rotateAroundPivot(cframe, pivotPos, angleDeg)
@@ -30,11 +31,11 @@ function ShipDoors.new(config)
     self.SlideOffset = config.slideOffset or Vector3.new(0, 0, 0)
     self.IsLargeDoor = config.isLargeDoor or false
 
-    self._isOpen = false
+    self._isOpen = true
     self._isAnimating = false
     self._isLocked = false
     self._originalCFrames = {}
-    self._prompt = nil
+    self._prompts = {}
 
     -- Store original CFrames (OPEN position = ship's as-built state)
     for _, part in ipairs(self.Parts) do
@@ -67,6 +68,18 @@ function ShipDoors:_setCollision(enabled)
     end
 end
 
+function ShipDoors:_setPromptActionText(actionText)
+    for _, prompt in ipairs(self._prompts) do
+        prompt.ActionText = actionText
+    end
+end
+
+function ShipDoors:_setPromptEnabled(enabled)
+    for _, prompt in ipairs(self._prompts) do
+        prompt.Enabled = enabled
+    end
+end
+
 function ShipDoors:open()
     if self._isOpen or self._isAnimating then
         return
@@ -84,9 +97,7 @@ function ShipDoors:open()
     task.delay(TWEEN_INFO_OPEN.Time, function()
         self._isOpen = true
         self._isAnimating = false
-        if self._prompt then
-            self._prompt.ActionText = 'Close Door'
-        end
+        self:_setPromptActionText('Close Door')
     end)
 end
 
@@ -107,9 +118,7 @@ function ShipDoors:close()
         self._isOpen = false
         self._isAnimating = false
         self:_setCollision(true)
-        if self._prompt then
-            self._prompt.ActionText = 'Open Door'
-        end
+        self:_setPromptActionText('Open Door')
     end)
 end
 
@@ -127,16 +136,12 @@ end
 
 function ShipDoors:lock()
     self._isLocked = true
-    if self._prompt then
-        self._prompt.Enabled = false
-    end
+    self:_setPromptEnabled(false)
 end
 
 function ShipDoors:unlock()
     self._isLocked = false
-    if self._prompt then
-        self._prompt.Enabled = true
-    end
+    self:_setPromptEnabled(true)
 end
 
 function ShipDoors:isLocked()
@@ -160,28 +165,51 @@ local function findMeshPart(model)
     return nil
 end
 
-local function ensureDoorPrompt(parent, objectText)
-    local prompt = parent:FindFirstChild('ShipDoorPrompt')
-    if prompt ~= nil and not prompt:IsA('ProximityPrompt') then
-        prompt = nil
+local function clearPromptArtifacts(part)
+    for _, child in ipairs(part:GetChildren()) do
+        if
+            child.Name == 'ShipDoorPrompt'
+            or child.Name == 'ShipDoorPromptInside'
+            or child.Name == 'ShipDoorPromptOutside'
+            or child.Name == 'ShipDoorPromptInsideAttachment'
+            or child.Name == 'ShipDoorPromptOutsideAttachment'
+        then
+            child:Destroy()
+        end
     end
+end
 
-    if prompt == nil then
-        prompt = Instance.new('ProximityPrompt')
-        prompt.Name = 'ShipDoorPrompt'
-        prompt.Parent = parent
-    end
-
-    prompt.ActionText = 'Open Door'
+local function createPrompt(parent, name, objectText, actionText)
+    local prompt = Instance.new('ProximityPrompt')
+    prompt.Name = name
+    prompt.ActionText = actionText or 'Open Door'
     prompt.ObjectText = objectText
-    prompt.MaxActivationDistance = 10
+    prompt.KeyboardKeyCode = Enum.KeyCode.E
+    prompt.MaxActivationDistance = PROMPT_MAX_ACTIVATION_DISTANCE
     prompt.HoldDuration = 0
-
+    prompt.RequiresLineOfSight = false
+    prompt.Parent = parent
     return prompt
 end
 
+local function attachDoorPrompt(door, part, objectText)
+    clearPromptArtifacts(part)
+
+    local prompt = createPrompt(
+        part,
+        'ShipDoorPrompt',
+        objectText,
+        door._isOpen and 'Close Door' or 'Open Door'
+    )
+    prompt.Triggered:Connect(function()
+        door:toggle()
+    end)
+
+    table.insert(door._prompts, prompt)
+end
+
 -- ============================================================
--- INIT — set up all doors on the Sci-Fi Space Ship model
+-- INIT - set up all doors on the Sci-Fi Space Ship model
 -- Call this once after the ship model is available in the workspace
 -- ============================================================
 
@@ -275,13 +303,7 @@ function ShipDoors.init(shipModel)
                 isLargeDoor = true,
             })
 
-            local prompt = ensureDoorPrompt(panel, config.name)
-
-            door._prompt = prompt
-
-            prompt.Triggered:Connect(function()
-                door:toggle()
-            end)
+            attachDoorPrompt(door, panel, config.name)
 
             table.insert(allDoors, door)
             print('[ShipDoors] Registered large hinged door: ' .. config.name)
@@ -323,13 +345,7 @@ function ShipDoors.init(shipModel)
                 isLargeDoor = false,
             })
 
-            local prompt = ensureDoorPrompt(part, config.name)
-
-            door._prompt = prompt
-
-            prompt.Triggered:Connect(function()
-                door:toggle()
-            end)
+            attachDoorPrompt(door, part, config.name)
 
             table.insert(allDoors, door)
             print('[ShipDoors] Registered small sliding door: ' .. config.name)
