@@ -382,9 +382,7 @@ function RunStaticWorldValidator.validate(root)
     end
 
     for markerName, markerPart in pairs(markersByName) do
-        if markerName ~= 'SpawnMarker' then
-            assertMarkerNotAtOrigin(markerName, markerPart)
-        end
+        assertMarkerNotAtOrigin(markerName, markerPart)
         assertMarkerHasGround(
             sceneCollisionRoot,
             shipCollisionRoot,

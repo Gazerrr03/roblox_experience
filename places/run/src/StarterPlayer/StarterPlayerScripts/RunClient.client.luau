@@ -336,7 +336,7 @@ local menuBackdrop = Instance.new('Frame')
 menuBackdrop.Name = 'StartupBanner'
 menuBackdrop.AnchorPoint = Vector2.new(0.5, 0)
 menuBackdrop.Position = UDim2.fromScale(0.5, 0.03)
-menuBackdrop.Size = UDim2.new(0.92, 0, 0, 140)
+menuBackdrop.Size = UDim2.new(0.92, 0, 0, 180)
 menuBackdrop.BackgroundColor3 = Theme.Surface
 menuBackdrop.BorderSizePixel = 0
 menuBackdrop.Visible = false
@@ -366,7 +366,7 @@ menuBody.Text =
     'Startup is now informational only. You will spawn directly onto the ship deck once the run session is ready.'
 
 local menuStatusLabel =
-    makeTextLabel(menuBackdrop, UDim2.new(1, 0, 0, 44), Theme.SubtleText, 15, false)
+    makeTextLabel(menuBackdrop, UDim2.new(1, 0, 0, 80), Theme.SubtleText, 15, false)
 menuStatusLabel.Text = string.format('Preparing %s session...', TEMPLE_LABEL)
 
 local panel = Instance.new('Frame')
