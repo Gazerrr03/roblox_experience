@@ -16,6 +16,13 @@ return function()
         return char
     end
 
+    local function withMinimalCharacter(callback)
+        local char = makeMinimalCharacter()
+        local ok, err = pcall(callback, char)
+        char:Destroy()
+        assert(ok, err)
+    end
+
     for _, itemId in ipairs({ 'tool-potion', 'tool-flashlight', 'tool-crowbar' }) do
         local entry = ToolItems[itemId]
         assert(entry ~= nil, string.format('ToolItems should define %q', itemId))
@@ -24,21 +31,18 @@ return function()
             string.format('%q should have ToolTemplateName for visual spec', itemId)
         )
 
-        local char = makeMinimalCharacter()
-        char.Parent = workspace
+        withMinimalCharacter(function(char)
+            HeldToolVisual.sync(char, entry)
+            local hand = char:FindFirstChild('RightHand')
+            assert(hand ~= nil, 'Spec character should have RightHand')
+            local clone = hand:FindFirstChild(HeldToolVisual.CLONE_NAME)
+            assert(clone ~= nil, string.format('sync should parent clone for %q', itemId))
 
-        HeldToolVisual.sync(char, entry)
-        local hand = char:FindFirstChild('RightHand')
-        assert(hand ~= nil, 'Spec character should have RightHand')
-        local clone = hand:FindFirstChild('HeldToolVisualClone')
-        assert(clone ~= nil, string.format('sync should parent clone for %q', itemId))
-
-        HeldToolVisual.clear(char)
-        assert(
-            hand:FindFirstChild('HeldToolVisualClone') == nil,
-            string.format('clear should remove clone for %q', itemId)
-        )
-
-        char:Destroy()
+            HeldToolVisual.clear(char)
+            assert(
+                hand:FindFirstChild(HeldToolVisual.CLONE_NAME) == nil,
+                string.format('clear should remove clone for %q', itemId)
+            )
+        end)
     end
 end

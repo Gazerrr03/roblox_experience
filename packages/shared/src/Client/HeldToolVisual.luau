@@ -7,6 +7,7 @@ local ItemPresentation = Gameplay.Config.ItemPresentation
 local CLONE_NAME = 'HeldToolVisualClone'
 
 local HeldToolVisual = {}
+HeldToolVisual.CLONE_NAME = CLONE_NAME
 
 local function getHandPart(character: Model): BasePart?
     local hand = character:FindFirstChild('RightHand') or character:FindFirstChild('Right Arm')
