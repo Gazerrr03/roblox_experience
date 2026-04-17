@@ -91,10 +91,7 @@ return function()
     local function createRequiredPromptParts(root, originX, originZ)
         local promptNames = {
             'ShopTerminal',
-            'SalvageTerminal',
-            'ObjectiveBoard',
-            'LoadoutBench',
-            'UgcLabConsole',
+            'BookOfSand',
             'GateSwitch',
             'MazeGateMarker',
         }
@@ -115,8 +112,9 @@ return function()
     local validWorld = createRunStaticWorldRoot(88)
     createMarker(validWorld.Root, 'SpawnMarker', CFrame.new(10, 4, -3))
     createMarker(validWorld.Root, 'ReturnMarker', CFrame.new(11, 4, -1))
-    local mazeReturnMarker =
-        createMarker(validWorld.Root, 'MazeReturnMarker', CFrame.new(3, 4, 120))
+    createMarker(validWorld.Root, 'MazeReturnMarker', CFrame.new(3, 4, 120))
+    local _doorLeft = createMarker(validWorld.Root, 'DoorLeft', CFrame.new(8, 4, 16))
+    local _doorRight = createMarker(validWorld.Root, 'DoorRight', CFrame.new(12, 4, 16))
     local validPrompts = createRequiredPromptParts(validWorld.Root, 10, 20)
     local _, startGamePrompt =
         createPromptPart(validWorld.Root, 'StartGamePrompt', CFrame.new(14, 4, 12))
@@ -151,6 +149,18 @@ return function()
         CFrame.new(10, 0, -3),
         Vector3.new(24, 1, 24)
     )
+    createCollisionPart(
+        validWorld.SceneCollisionRoot,
+        'MazeReturnFloor',
+        CFrame.new(3, 0, 120),
+        Vector3.new(24, 1, 24)
+    )
+    createCollisionPart(
+        validWorld.ShipCollisionRoot,
+        'ShipDeck',
+        CFrame.new(24, 6, 12),
+        Vector3.new(16, 1, 16)
+    )
     createOceanTrigger(validWorld.OceanTriggerRoot, 'OceanSurface', CFrame.new(10, -8, -3))
 
     local world = builder.build()
@@ -167,8 +177,9 @@ return function()
         'Run static world should also lift grounded return markers above collision shells'
     )
     assert(
-        world.MazeReturnCFrame == mazeReturnMarker.CFrame,
-        'Run static world should expose the authored maze return marker'
+        math.abs(world.MazeReturnCFrame.Position.Y - (0.5 + RunStaticWorldContract.SpawnLiftStuds))
+            < 0.001,
+        'Run static world should ground maze return markers above authored collision shells'
     )
     assert(
         world.OutdoorThresholdZ == 88,
@@ -179,20 +190,12 @@ return function()
         'Run static world should expose the shop prompt'
     )
     assert(
-        world.SellPrompt == validPrompts.SalvageTerminal.Prompt,
-        'Run static world should expose the salvage prompt'
+        world.BookPrompt == validPrompts.BookOfSand.Prompt,
+        'Run static world should expose the book prompt'
     )
     assert(
-        world.ObjectivePrompt == validPrompts.ObjectiveBoard.Prompt,
-        'Run static world should expose the objective prompt'
-    )
-    assert(
-        world.LoadoutPrompt == validPrompts.LoadoutBench.Prompt,
-        'Run static world should expose the loadout prompt'
-    )
-    assert(
-        world.UgcLabPrompt == validPrompts.UgcLabConsole.Prompt,
-        'Run static world should expose the UGC lab prompt'
+        world.ObjectivePrompt == validPrompts.BookOfSand.Prompt,
+        'Run static world should alias the legacy objective prompt to the book prompt'
     )
     assert(
         world.GatePrompt == validPrompts.GateSwitch.Prompt,
@@ -219,7 +222,7 @@ return function()
 
     world.OpenGate()
     assert(
-        validPrompts.GateSwitch.Prompt.ActionText == 'Gate Open',
+        validPrompts.GateSwitch.Prompt.ActionText == 'Round Live',
         'Opening the static gate should update the prompt copy'
     )
 
@@ -272,7 +275,8 @@ return function()
         'Run static world should fail loudly when SpawnMarker has no authored floor below it'
     )
     assert(
-        string.find(tostring(missingFloorErr), 'SpawnMarker must raycast onto', 1, true) ~= nil,
+        string.find(tostring(missingFloorErr), 'marker "SpawnMarker" must raycast onto', 1, true)
+            ~= nil,
         'Missing spawn floor failures should mention the authored collision floor requirement'
     )
 
@@ -307,7 +311,8 @@ return function()
         'Run static world should reject ordinary root-level collidable parts as spawn floors'
     )
     assert(
-        string.find(tostring(strayColliderErr), 'SpawnMarker must raycast onto', 1, true) ~= nil,
+        string.find(tostring(strayColliderErr), 'marker "SpawnMarker" must raycast onto', 1, true)
+            ~= nil,
         'Ordinary root-level blockers should not satisfy the authored collision floor requirement'
     )
 
@@ -334,7 +339,7 @@ return function()
         'Run static world should reject a spawn floor that only supports the center point'
     )
     assert(
-        string.find(tostring(edgeGapErr), 'SpawnMarker must raycast onto', 1, true) ~= nil,
+        string.find(tostring(edgeGapErr), 'marker "SpawnMarker" must raycast onto', 1, true) ~= nil,
         'Edge-gap failures should mention the authored collision floor requirement'
     )
 
@@ -370,4 +375,90 @@ return function()
     )
 
     collidableMarkerWorld.Root:Destroy()
+
+    local originReturnWorld = createRunStaticWorldRoot(72)
+    createMarker(originReturnWorld.Root, 'SpawnMarker', CFrame.new(0, 8, 0))
+    createMarker(originReturnWorld.Root, 'ReturnMarker', CFrame.new(0, 0, 0))
+    createMarker(originReturnWorld.Root, 'MazeReturnMarker', CFrame.new(8, 8, 0))
+    createMarker(originReturnWorld.Root, 'DoorLeft', CFrame.new(0, 2, 10))
+    createMarker(originReturnWorld.Root, 'DoorRight', CFrame.new(4, 2, 10))
+    createRequiredPromptParts(originReturnWorld.Root, 40, 10)
+    createCollisionPart(
+        originReturnWorld.SceneCollisionRoot,
+        'SceneFloor',
+        CFrame.new(0, 2, 0),
+        Vector3.new(24, 1, 24)
+    )
+    createCollisionPart(
+        originReturnWorld.SceneCollisionRoot,
+        'MazeReturnFloor',
+        CFrame.new(8, 2, 0),
+        Vector3.new(24, 1, 24)
+    )
+    createCollisionPart(
+        originReturnWorld.ShipCollisionRoot,
+        'ShipDeck',
+        CFrame.new(30, 2, 30),
+        Vector3.new(16, 1, 16)
+    )
+    createOceanTrigger(originReturnWorld.OceanTriggerRoot)
+
+    local originReturnOk, originReturnErr = pcall(function()
+        builder.build()
+    end)
+    assert(
+        originReturnOk == false,
+        'Run static world should reject ReturnMarker left at the default origin'
+    )
+    assert(
+        string.find(
+            tostring(originReturnErr),
+            'marker "ReturnMarker" must not stay at the default origin',
+            1,
+            true
+        ) ~= nil,
+        'Return-marker origin failures should point back to source authoring'
+    )
+
+    originReturnWorld.Root:Destroy()
+
+    local unsupportedMazeReturnWorld = createRunStaticWorldRoot(76)
+    createMarker(unsupportedMazeReturnWorld.Root, 'SpawnMarker', CFrame.new(0, 8, 0))
+    createMarker(unsupportedMazeReturnWorld.Root, 'ReturnMarker', CFrame.new(4, 8, 0))
+    createMarker(unsupportedMazeReturnWorld.Root, 'MazeReturnMarker', CFrame.new(8, 8, 48))
+    createMarker(unsupportedMazeReturnWorld.Root, 'DoorLeft', CFrame.new(0, 2, 10))
+    createMarker(unsupportedMazeReturnWorld.Root, 'DoorRight', CFrame.new(4, 2, 10))
+    createRequiredPromptParts(unsupportedMazeReturnWorld.Root, 40, 10)
+    createCollisionPart(
+        unsupportedMazeReturnWorld.SceneCollisionRoot,
+        'SceneFloor',
+        CFrame.new(0, 2, 0),
+        Vector3.new(24, 1, 24)
+    )
+    createCollisionPart(
+        unsupportedMazeReturnWorld.ShipCollisionRoot,
+        'ShipDeck',
+        CFrame.new(30, 2, 30),
+        Vector3.new(16, 1, 16)
+    )
+    createOceanTrigger(unsupportedMazeReturnWorld.OceanTriggerRoot)
+
+    local unsupportedMazeReturnOk, unsupportedMazeReturnErr = pcall(function()
+        builder.build()
+    end)
+    assert(
+        unsupportedMazeReturnOk == false,
+        'Run static world should reject MazeReturnMarker when no authored floor exists beneath it'
+    )
+    assert(
+        string.find(
+            tostring(unsupportedMazeReturnErr),
+            'marker "MazeReturnMarker" must raycast onto',
+            1,
+            true
+        ) ~= nil,
+        'Maze-return floor failures should mention the authored collision floor requirement'
+    )
+
+    unsupportedMazeReturnWorld.Root:Destroy()
 end

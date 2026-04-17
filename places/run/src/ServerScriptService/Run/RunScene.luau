@@ -1,4 +1,5 @@
 local RunAreaResolver = require(script.Parent.RunAreaResolver)
+local RunDoor = require(script.Parent.RunDoor)
 local RunInteractionRegistry = require(script.Parent.RunInteractionRegistry)
 local RunOceanTrigger = require(script.Parent.RunOceanTrigger)
 local RunPortal = require(script.Parent.RunPortal)
@@ -53,26 +54,6 @@ local function requireContainer(parent, name, contextLabel)
     return child
 end
 
-local function findOptionalContainer(parent, name, contextLabel)
-    local child = parent:FindFirstChild(name)
-    if child == nil then
-        return nil
-    end
-
-    if not (child:IsA('Folder') or child:IsA('Model')) then
-        error(
-            string.format(
-                '%s optional container "%s" must be a Folder or Model.',
-                contextLabel,
-                name
-            ),
-            0
-        )
-    end
-
-    return child
-end
-
 local function collectBaseParts(root)
     local parts = {}
 
@@ -88,7 +69,13 @@ end
 local function buildSpawnGroundParams(sceneCollisionRoot, shipCollisionRoot, terrainMesh)
     local raycastParams = RaycastParams.new()
     raycastParams.FilterType = Enum.RaycastFilterType.Include
-    local instances = { sceneCollisionRoot, shipCollisionRoot }
+    local instances = {}
+    if sceneCollisionRoot then
+        table.insert(instances, sceneCollisionRoot)
+    end
+    if shipCollisionRoot then
+        table.insert(instances, shipCollisionRoot)
+    end
     if terrainMesh and terrainMesh:IsA('BasePart') then
         table.insert(instances, terrainMesh)
     end
@@ -131,18 +118,48 @@ function RunScene.new(root)
         error('RunStaticWorld is missing required attribute "OutdoorThresholdZ".', 0)
     end
 
-    local collisionRoot =
-        requireContainer(root, RunStaticWorldContract.CollisionRootName, 'RunStaticWorld')
-    local sceneCollisionRoot = requireContainer(
-        collisionRoot,
-        RunStaticWorldContract.SceneCollisionName,
-        'RunStaticWorld Collision'
-    )
-    local shipCollisionRoot = findOptionalContainer(
-        collisionRoot,
-        RunStaticWorldContract.ShipCollisionName,
-        'RunStaticWorld Collision'
-    )
+    local collisionRoot = root:FindFirstChild(RunStaticWorldContract.CollisionRootName)
+    if collisionRoot and not (collisionRoot:IsA('Folder') or collisionRoot:IsA('Model')) then
+        error(
+            string.format(
+                'RunStaticWorld container "%s" must be a Folder or Model.',
+                RunStaticWorldContract.CollisionRootName
+            ),
+            0
+        )
+    end
+
+    local sceneCollisionRoot = nil
+    local shipCollisionRoot = nil
+    if collisionRoot then
+        sceneCollisionRoot = collisionRoot:FindFirstChild(RunStaticWorldContract.SceneCollisionName)
+        if
+            sceneCollisionRoot
+            and not (sceneCollisionRoot:IsA('Folder') or sceneCollisionRoot:IsA('Model'))
+        then
+            error(
+                string.format(
+                    'RunStaticWorld Collision container "%s" must be a Folder or Model.',
+                    RunStaticWorldContract.SceneCollisionName
+                ),
+                0
+            )
+        end
+
+        shipCollisionRoot = collisionRoot:FindFirstChild(RunStaticWorldContract.ShipCollisionName)
+        if
+            shipCollisionRoot
+            and not (shipCollisionRoot:IsA('Folder') or shipCollisionRoot:IsA('Model'))
+        then
+            error(
+                string.format(
+                    'RunStaticWorld Collision container "%s" must be a Folder or Model.',
+                    RunStaticWorldContract.ShipCollisionName
+                ),
+                0
+            )
+        end
+    end
     local triggersRoot =
         requireContainer(root, RunStaticWorldContract.TriggersRootName, 'RunStaticWorld')
     local oceanTriggerRoot = requireContainer(
@@ -163,10 +180,9 @@ function RunScene.new(root)
         end
     end
     -- Initialize ship doors: find the Sci-Fi Space Ship model under terrainRoot
-    local allDoors = {}
     local shipModel = terrainRoot and terrainRoot:FindFirstChild('Sci-Fi Space Ship')
     if shipModel then
-        allDoors = ShipDoors.init(shipModel) or {}
+        ShipDoors.init(shipModel)
     end
     local spawnGroundParams =
         buildSpawnGroundParams(sceneCollisionRoot, shipCollisionRoot, terrainMesh)
@@ -182,18 +198,12 @@ function RunScene.new(root)
     for partName, kind in pairs(REQUIRED_PROMPT_PARTS) do
         terminals[kind] = RunTerminal.new(kind, requirePart(root, partName))
     end
-    local startGamePromptPart = root:FindFirstChild('StartGamePrompt')
-    if startGamePromptPart and startGamePromptPart:IsA('BasePart') then
-        terminals.StartGame = RunTerminal.new('StartGame', startGamePromptPart)
-    end
-
-    -- StartGamePrompt is optional; only create if the part exists in the static world
-    local startGamePart = root:FindFirstChild('StartGamePrompt')
-    if startGamePart and startGamePart:IsA('BasePart') then
-        terminals.StartGame = RunTerminal.new('StartGame', startGamePart)
-    end
 
     local mazePortal = RunPortal.new(RunPortal.Kind.MazeGate, requirePart(root, 'MazeGateMarker'))
+    local gateDoor = RunDoor.new('TempleGate', {
+        requirePart(root, 'DoorLeft'),
+        requirePart(root, 'DoorRight'),
+    })
     local oceanTriggers = {}
 
     for _, part in ipairs(collectBaseParts(oceanTriggerRoot)) do
@@ -205,14 +215,15 @@ function RunScene.new(root)
         SpawnPoints = spawnPoints,
         Terminals = terminals,
         MazePortal = mazePortal,
+        GateDoor = gateDoor,
         Collision = {
             Scene = sceneCollisionRoot,
             Ship = shipCollisionRoot,
         },
+        ShipModel = shipModel,
         OceanTriggers = oceanTriggers,
         OutdoorThresholdZ = outdoorThresholdZ,
         AreaResolver = nil,
-        ShipDoors = allDoors,
         SpawnCFramesByKind = spawnCFramesByKind,
 
         SpawnCFrame = spawnCFramesByKind[RunSpawnPoint.Kind.Spawn],
@@ -221,10 +232,10 @@ function RunScene.new(root)
         ShopPrompt = terminals.Shop.Prompt,
         SellPrompt = terminals.Sell.Prompt,
         ObjectivePrompt = terminals.Objective.Prompt,
+        BookPrompt = terminals.Objective.Prompt,
         LoadoutPrompt = terminals.Loadout.Prompt,
         UgcLabPrompt = terminals.UgcLab.Prompt,
         GatePrompt = terminals.Gate.Prompt,
-        StartGamePrompt = terminals.StartGame and terminals.StartGame.Prompt or nil,
         MazePrompt = mazePortal.Prompt,
     }, RunScene)
 
@@ -247,19 +258,8 @@ function RunScene:getAreaForPosition(position)
 end
 
 function RunScene:openGate()
+    self.GateDoor:open()
     self.Terminals.Gate.Prompt.ActionText = 'Gate Open'
-end
-
-function RunScene:lockAllShipDoors()
-    for _, door in ipairs(self.ShipDoors or {}) do
-        door:lock()
-    end
-end
-
-function RunScene:unlockAllShipDoors()
-    for _, door in ipairs(self.ShipDoors or {}) do
-        door:unlock()
-    end
 end
 
 function RunScene:bindInteractions(handlers)

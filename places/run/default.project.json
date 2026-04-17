@@ -36,7 +36,12 @@
             "Anchored": true,
             "CanCollide": false,
             "CanTouch": false,
-            "CanQuery": true
+            "CanQuery": true,
+            "Position": [
+              50.842907,
+              18.44950485,
+              300.177368
+            ]
           }
         },
         "ReturnMarker": {
@@ -45,7 +50,12 @@
             "Anchored": true,
             "CanCollide": false,
             "CanTouch": false,
-            "CanQuery": true
+            "CanQuery": true,
+            "Position": [
+              44.842907,
+              18.44950485,
+              300.177368
+            ]
           }
         },
         "MazeReturnMarker": {
@@ -54,33 +64,12 @@
             "Anchored": true,
             "CanCollide": false,
             "CanTouch": false,
-            "CanQuery": true
-          }
-        },
-        "Collision": {
-          "$className": "Folder",
-          "Scene": {
-            "$className": "Folder",
-            "CampGround": {
-              "$className": "Part",
-              "$properties": {
-                "Anchored": true,
-                "CanCollide": true,
-                "CanTouch": false,
-                "CanQuery": true,
-                "Transparency": 1,
-                "Position": [
-                  50.842907,
-                  6.44950485,
-                  324.177368
-                ],
-                "Size": [
-                  220,
-                  4,
-                  220
-                ]
-              }
-            }
+            "CanQuery": true,
+            "Position": [
+              56.842907,
+              18.44950485,
+              300.177368
+            ]
           }
         },
         "Triggers": {
@@ -109,6 +98,18 @@
             }
           }
         },
+        "DoorLeft": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true
+          }
+        },
+        "DoorRight": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true
+          }
+        },
         "ShopTerminal": {
           "$className": "Part",
           "$properties": {
@@ -118,51 +119,10 @@
             "$className": "ProximityPrompt"
           }
         },
-        "SalvageTerminal": {
+        "BookOfSand": {
           "$className": "Part",
           "$properties": {
             "Anchored": true
-          },
-          "Prompt": {
-            "$className": "ProximityPrompt"
-          }
-        },
-        "ObjectiveBoard": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true
-          },
-          "Prompt": {
-            "$className": "ProximityPrompt"
-          }
-        },
-        "LoadoutBench": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true
-          },
-          "Prompt": {
-            "$className": "ProximityPrompt"
-          }
-        },
-        "UgcLabConsole": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true
-          },
-          "Prompt": {
-            "$className": "ProximityPrompt"
-          }
-        },
-        "StartGamePrompt": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "Position": [
-              49.7613869,
-              15.5,
-              299.243103
-            ]
           },
           "Prompt": {
             "$className": "ProximityPrompt"

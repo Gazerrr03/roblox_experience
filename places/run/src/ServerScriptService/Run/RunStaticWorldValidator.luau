@@ -18,26 +18,6 @@ local function requireContainer(parent, name, contextLabel)
     return child
 end
 
-local function findOptionalContainer(parent, name, contextLabel)
-    local child = parent:FindFirstChild(name)
-    if child == nil then
-        return nil
-    end
-
-    if not (child:IsA('Folder') or child:IsA('Model')) then
-        error(
-            string.format(
-                '%s optional container "%s" must be a Folder or Model.',
-                contextLabel,
-                name
-            ),
-            0
-        )
-    end
-
-    return child
-end
-
 local function collectBaseParts(root)
     local parts = {}
 
@@ -247,7 +227,13 @@ end
 local function buildSpawnGroundParams(sceneCollisionRoot, shipCollisionRoot, terrainMesh)
     local raycastParams = RaycastParams.new()
     raycastParams.FilterType = Enum.RaycastFilterType.Include
-    local instances = { sceneCollisionRoot, shipCollisionRoot }
+    local instances = {}
+    if sceneCollisionRoot then
+        table.insert(instances, sceneCollisionRoot)
+    end
+    if shipCollisionRoot then
+        table.insert(instances, shipCollisionRoot)
+    end
     if terrainMesh and terrainMesh:IsA('BasePart') then
         table.insert(instances, terrainMesh)
     end
@@ -268,14 +254,20 @@ local function buildSpawnGroundSampleOffsets(spawnMarker)
     }
 end
 
-local function assertSpawnHasGround(sceneCollisionRoot, shipCollisionRoot, terrainMesh, spawnMarker)
+local function assertMarkerHasGround(
+    sceneCollisionRoot,
+    shipCollisionRoot,
+    terrainMesh,
+    markerName,
+    markerPart
+)
     local raycastParams = buildSpawnGroundParams(sceneCollisionRoot, shipCollisionRoot, terrainMesh)
-    local sampleOffsets = buildSpawnGroundSampleOffsets(spawnMarker)
+    local sampleOffsets = buildSpawnGroundSampleOffsets(markerPart)
     local raycastDistance = Vector3.new(0, -RunStaticWorldContract.SpawnGroundCheckDepth, 0)
-    local raycastStartHeight = (spawnMarker.Size.Y * 0.5) + 2
+    local raycastStartHeight = (markerPart.Size.Y * 0.5) + 2
 
     for _, offset in ipairs(sampleOffsets) do
-        local origin = spawnMarker.Position + Vector3.new(offset.X, raycastStartHeight, offset.Z)
+        local origin = markerPart.Position + Vector3.new(offset.X, raycastStartHeight, offset.Z)
         local result = Workspace:Raycast(origin, raycastDistance, raycastParams)
         if result and result.Instance and result.Instance.CanCollide and result.Normal.Y > 0.5 then
             return
@@ -284,11 +276,25 @@ local function assertSpawnHasGround(sceneCollisionRoot, shipCollisionRoot, terra
 
     error(
         string.format(
-            'RunStaticWorld SpawnMarker must raycast onto Collision/Scene, optional Collision/Ship, or terrain mesh within %d studs below it.',
+            'RunStaticWorld marker "%s" must raycast onto Collision/Scene, Collision/Ship, or terrain mesh within %d studs below it.',
+            markerName,
             RunStaticWorldContract.SpawnGroundCheckDepth
         ),
         0
     )
+end
+
+local function assertMarkerNotAtOrigin(markerName, markerPart)
+    local position = markerPart.Position
+    if position:FuzzyEq(Vector3.zero) then
+        error(
+            string.format(
+                'RunStaticWorld marker "%s" must not stay at the default origin (0, 0, 0). Author a real return point in Studio/source.',
+                markerName
+            ),
+            0
+        )
+    end
 end
 
 function RunStaticWorldValidator.validate(root)
@@ -302,18 +308,48 @@ function RunStaticWorldValidator.validate(root)
     -- Validate the visual terrain has collision disabled
     validateVisualTerrain(root)
 
-    local collisionRoot =
-        requireContainer(root, RunStaticWorldContract.CollisionRootName, 'RunStaticWorld')
-    local sceneCollisionRoot = requireContainer(
-        collisionRoot,
-        RunStaticWorldContract.SceneCollisionName,
-        'RunStaticWorld Collision'
-    )
-    local shipCollisionRoot = findOptionalContainer(
-        collisionRoot,
-        RunStaticWorldContract.ShipCollisionName,
-        'RunStaticWorld Collision'
-    )
+    local collisionRoot = root:FindFirstChild(RunStaticWorldContract.CollisionRootName)
+    if collisionRoot and not (collisionRoot:IsA('Folder') or collisionRoot:IsA('Model')) then
+        error(
+            string.format(
+                'RunStaticWorld container "%s" must be a Folder or Model.',
+                RunStaticWorldContract.CollisionRootName
+            ),
+            0
+        )
+    end
+
+    local sceneCollisionRoot = nil
+    local shipCollisionRoot = nil
+    if collisionRoot then
+        sceneCollisionRoot = collisionRoot:FindFirstChild(RunStaticWorldContract.SceneCollisionName)
+        if
+            sceneCollisionRoot
+            and not (sceneCollisionRoot:IsA('Folder') or sceneCollisionRoot:IsA('Model'))
+        then
+            error(
+                string.format(
+                    'RunStaticWorld Collision container "%s" must be a Folder or Model.',
+                    RunStaticWorldContract.SceneCollisionName
+                ),
+                0
+            )
+        end
+
+        shipCollisionRoot = collisionRoot:FindFirstChild(RunStaticWorldContract.ShipCollisionName)
+        if
+            shipCollisionRoot
+            and not (shipCollisionRoot:IsA('Folder') or shipCollisionRoot:IsA('Model'))
+        then
+            error(
+                string.format(
+                    'RunStaticWorld Collision container "%s" must be a Folder or Model.',
+                    RunStaticWorldContract.ShipCollisionName
+                ),
+                0
+            )
+        end
+    end
     local triggersRoot =
         requireContainer(root, RunStaticWorldContract.TriggersRootName, 'RunStaticWorld')
     local oceanTriggerRoot = requireContainer(
@@ -322,11 +358,13 @@ function RunStaticWorldValidator.validate(root)
         'RunStaticWorld Triggers'
     )
 
-    validateCollisionParts(
-        requireBaseParts(sceneCollisionRoot, 'RunStaticWorld Collision/Scene'),
-        'RunStaticWorld Collision/Scene'
-    )
-    if shipCollisionRoot ~= nil then
+    if sceneCollisionRoot then
+        validateCollisionParts(
+            requireBaseParts(sceneCollisionRoot, 'RunStaticWorld Collision/Scene'),
+            'RunStaticWorld Collision/Scene'
+        )
+    end
+    if shipCollisionRoot then
         validateCollisionParts(
             requireBaseParts(shipCollisionRoot, 'RunStaticWorld Collision/Ship'),
             'RunStaticWorld Collision/Ship'
@@ -337,7 +375,7 @@ function RunStaticWorldValidator.validate(root)
         'RunStaticWorld Triggers/Ocean'
     )
 
-    local spawnMarker = nil
+    local markersByName = {}
     for _, markerName in ipairs(REQUIRED_MARKER_NAMES) do
         local markerPart = root:FindFirstChild(markerName, true)
         if markerPart == nil or not markerPart:IsA('BasePart') then
@@ -345,10 +383,7 @@ function RunStaticWorldValidator.validate(root)
         end
 
         validateMarkerPart(markerPart, string.format('RunStaticWorld marker "%s"', markerName))
-
-        if markerName == 'SpawnMarker' then
-            spawnMarker = markerPart
-        end
+        markersByName[markerName] = markerPart
     end
 
     -- Find terrain mesh: RunTerrain_Main.Scene.RunTerrain_OriginalHigh.RunTerrain_OriginalHighMesh
@@ -364,7 +399,16 @@ function RunStaticWorldValidator.validate(root)
         end
     end
 
-    assertSpawnHasGround(sceneCollisionRoot, shipCollisionRoot, terrainMesh, spawnMarker)
+    for markerName, markerPart in pairs(markersByName) do
+        assertMarkerNotAtOrigin(markerName, markerPart)
+        assertMarkerHasGround(
+            sceneCollisionRoot,
+            shipCollisionRoot,
+            terrainMesh,
+            markerName,
+            markerPart
+        )
+    end
 end
 
 return RunStaticWorldValidator

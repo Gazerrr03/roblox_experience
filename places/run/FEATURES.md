@@ -75,7 +75,7 @@
 
 | 名称 | 状态 | 文件 | description |
 |------|------|------|-------------|
-| start-menu | active | RunClient.client.luau | "Enter the Temple"全屏菜单 |
+| startup-sync-banner | active | RunClient.client.luau | 非阻塞启动提示条；已移除 "Enter the Temple" 全屏入口页 |
 | camp-panel | active | RunClient.client.luau | C键切换，440x620状态面板 |
 | shop/sell/objective-modals | active | RunClient.client.luau | 三个Modal面板 |
 | ocean-overlay | active | RunClient.client.luau | Splash闪屏+Slowdown蓝色滤镜 |
