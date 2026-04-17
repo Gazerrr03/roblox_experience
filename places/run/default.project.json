@@ -72,32 +72,6 @@
             ]
           }
         },
-        "Collision": {
-          "$className": "Folder",
-          "Scene": {
-            "$className": "Folder",
-            "CampGround": {
-              "$className": "Part",
-              "$properties": {
-                "Anchored": true,
-                "CanCollide": true,
-                "CanTouch": false,
-                "CanQuery": true,
-                "Transparency": 1,
-                "Position": [
-                  50.842907,
-                  6.44950485,
-                  324.177368
-                ],
-                "Size": [
-                  220,
-                  4,
-                  220
-                ]
-              }
-            }
-          }
-        },
         "Triggers": {
           "$className": "Folder",
           "Ocean": {
@@ -124,6 +98,18 @@
             }
           }
         },
+        "DoorLeft": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true
+          }
+        },
+        "DoorRight": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true
+          }
+        },
         "ShopTerminal": {
           "$className": "Part",
           "$properties": {
@@ -137,20 +123,6 @@
           "$className": "Part",
           "$properties": {
             "Anchored": true
-          },
-          "Prompt": {
-            "$className": "ProximityPrompt"
-          }
-        },
-        "StartGamePrompt": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "Position": [
-              49.7613869,
-              15.5,
-              299.243103
-            ]
           },
           "Prompt": {
             "$className": "ProximityPrompt"

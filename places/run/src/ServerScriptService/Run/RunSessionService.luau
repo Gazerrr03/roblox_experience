@@ -1697,32 +1697,19 @@ function RunSessionService:_beginExpedition()
     -- Get ship position for exclusion zone from world geometry
     local shipPosition = nil
     local shipCollision = self.World and self.World.Collision and self.World.Collision.Ship
-    if shipCollision then
-        if shipCollision:IsA('Model') and shipCollision.PrimaryPart then
-            shipPosition = shipCollision.PrimaryPart.Position
-        elseif shipCollision:IsA('BasePart') then
-            shipPosition = shipCollision.Position
-        end
+    if shipCollision and shipCollision:IsA('PVInstance') then
+        shipPosition = shipCollision:GetPivot().Position
     end
 
     local shipModel = self.World and self.World.ShipModel
-    if not shipPosition and shipModel then
-        if shipModel:IsA('Model') and shipModel.PrimaryPart then
-            shipPosition = shipModel.PrimaryPart.Position
-        else
-            local shipPart = shipModel:FindFirstChildWhichIsA('BasePart', true)
-            if shipPart then
-                shipPosition = shipPart.Position
-            end
-        end
+    if not shipPosition and shipModel and shipModel:IsA('PVInstance') then
+        shipPosition = shipModel:GetPivot().Position
     end
 
-    if not shipPosition and not shipModel then
-        warn('[RunSessionService] Ship collision not found — skipping monster spawn')
-        return
-    end
     if not shipPosition then
-        warn('[RunSessionService] Ship position not found - skipping monster spawn')
+        warn(
+            '[RunSessionService] Ship position not found (no collision shell or model) - skipping monster spawn'
+        )
         return
     end
 
