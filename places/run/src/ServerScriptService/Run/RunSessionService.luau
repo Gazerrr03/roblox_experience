@@ -117,22 +117,31 @@ end
 
 local function bindCharacterTeleport(self, player)
     player.CharacterAdded:Connect(function(character)
-        task.wait()
-        if not character.Parent then
-            return
-        end
+        task.defer(function()
+            local rootPart = character:FindFirstChild('HumanoidRootPart')
+                or character:WaitForChild('HumanoidRootPart', 5)
+            if rootPart == nil then
+                return
+            end
 
-        if not self.World then
-            return
-        end
+            if not character.Parent then
+                return
+            end
 
-        local pendingSpawnValue = self.PendingSpawnByUserId[player.UserId]
-        local targetCFrame = pendingSpawnValue
-                and resolvePendingSpawnCFrame(self, pendingSpawnValue)
-            or self.World.SpawnCFrame
-        self.PendingSpawnByUserId[player.UserId] = nil
-        character:PivotTo(targetCFrame)
-        self:_applyMovementMode(player)
+            if not self.World then
+                return
+            end
+
+            local pendingSpawnValue = self.PendingSpawnByUserId[player.UserId]
+            local targetCFrame = pendingSpawnValue
+                    and resolvePendingSpawnCFrame(self, pendingSpawnValue)
+                or self.World.SpawnCFrame
+            self.PendingSpawnByUserId[player.UserId] = nil
+            character:PivotTo(targetCFrame)
+            rootPart.AssemblyLinearVelocity = Vector3.zero
+            rootPart.AssemblyAngularVelocity = Vector3.zero
+            self:_applyMovementMode(player)
+        end)
     end)
 end
 
