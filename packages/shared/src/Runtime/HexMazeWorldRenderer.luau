@@ -204,25 +204,28 @@ local function createConnectorAuthoringSockets(connectorFolder, connectorPivot)
     return authoringFolder
 end
 
+local function addDecorPart(parent, roomCenter, name, size, offset, color, material, transparency)
+    local part = Instance_new('Part')
+    part.Name = name
+    part.Anchored = true
+    part.Size = size
+    part.CFrame = CFrame_new(roomCenter + offset)
+    part.Color = color
+    part.Material = material or Enum.Material.SmoothPlastic
+    part.Transparency = transparency or 0
+    part.CanCollide = false
+    part.Parent = parent
+end
+
 local function buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem, surfacePalette)
     local decorFolder = Instance_new('Folder')
     decorFolder.Name = 'RoomTemplateDecor'
     decorFolder.Parent = roomFolder
 
-    local function addDecorPart(name, size, offset, color, material, transparency)
-        createPart({
-            Name = name,
-            Size = size,
-            CFrame = CFrame_new(roomCenter + offset),
-            Color = color,
-            Material = material,
-            Transparency = transparency or 0,
-            CanCollide = false,
-        }, decorFolder)
-    end
-
     if room.RoomTemplateId == 'EntrySafe' then
         addDecorPart(
+            decorFolder,
+            roomCenter,
             'StagingPad',
             Vector3_new(roomApothem * 0.9, 0.4, roomApothem * 0.9),
             Vector3_new(0, 0.25, 0),
@@ -230,6 +233,8 @@ local function buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem,
             Enum.Material.Metal
         )
         addDecorPart(
+            decorFolder,
+            roomCenter,
             'OrientationPylon',
             Vector3_new(2, 9, 2),
             Vector3_new(0, 4.5, roomApothem * 0.22),
@@ -241,6 +246,8 @@ local function buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem,
 
     if room.RoomTemplateId == 'TransitHall' then
         addDecorPart(
+            decorFolder,
+            roomCenter,
             'TransitBeam',
             Vector3_new(roomApothem * 1.05, 1.2, 3),
             Vector3_new(0, 10, 0),
@@ -248,6 +255,8 @@ local function buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem,
             Enum.Material.Metal
         )
         addDecorPart(
+            decorFolder,
+            roomCenter,
             'TransitStripe',
             Vector3_new(roomApothem * 0.75, 0.15, 2),
             Vector3_new(0, 0.2, 0),
@@ -260,6 +269,8 @@ local function buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem,
 
     if room.RoomTemplateId == 'SearchCluster' then
         addDecorPart(
+            decorFolder,
+            roomCenter,
             'SearchCrateA',
             Vector3_new(5, 3, 4),
             Vector3_new(-roomApothem * 0.22, 1.5, 0),
@@ -267,6 +278,8 @@ local function buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem,
             Enum.Material.WoodPlanks
         )
         addDecorPart(
+            decorFolder,
+            roomCenter,
             'SearchCrateB',
             Vector3_new(4, 2.2, 3),
             Vector3_new(roomApothem * 0.2, 1.1, roomApothem * 0.1),
@@ -278,6 +291,8 @@ local function buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem,
 
     if room.RoomTemplateId == 'HighValueRisk' then
         addDecorPart(
+            decorFolder,
+            roomCenter,
             'VaultCore',
             Vector3_new(7, 6, 7),
             Vector3_new(0, 3, 0),
@@ -285,6 +300,8 @@ local function buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem,
             Enum.Material.Metal
         )
         addDecorPart(
+            decorFolder,
+            roomCenter,
             'HazardStrip',
             Vector3_new(roomApothem * 0.8, 0.2, 2),
             Vector3_new(0, 0.15, -roomApothem * 0.18),
@@ -297,6 +314,8 @@ local function buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem,
 
     if room.RoomTemplateId == 'LandmarkFacility' then
         addDecorPart(
+            decorFolder,
+            roomCenter,
             'LandmarkTower',
             Vector3_new(5, 12, 5),
             Vector3_new(0, 6, 0),
@@ -304,6 +323,8 @@ local function buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem,
             Enum.Material.Metal
         )
         addDecorPart(
+            decorFolder,
+            roomCenter,
             'LandmarkRing',
             Vector3_new(roomApothem * 0.95, 0.2, roomApothem * 0.95),
             Vector3_new(0, 0.2, 0),
@@ -316,6 +337,8 @@ local function buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem,
 
     if room.RoomTemplateId == 'ExtractionReturn' then
         addDecorPart(
+            decorFolder,
+            roomCenter,
             'ExtractionFrame',
             Vector3_new(roomApothem * 0.95, 0.25, roomApothem * 0.95),
             Vector3_new(0, 0.2, 0),
@@ -324,6 +347,8 @@ local function buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem,
             0.35
         )
         addDecorPart(
+            decorFolder,
+            roomCenter,
             'ExtractionBeacon',
             Vector3_new(2.5, 10, 2.5),
             Vector3_new(0, 5, 0),
@@ -335,6 +360,8 @@ local function buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem,
 
     if room.RoomTemplateId == 'BulkheadGate' then
         addDecorPart(
+            decorFolder,
+            roomCenter,
             'BulkheadFrame',
             Vector3_new(roomApothem * 0.92, 7, 2),
             Vector3_new(0, 3.5, 0),
@@ -342,6 +369,8 @@ local function buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem,
             Enum.Material.Metal
         )
         addDecorPart(
+            decorFolder,
+            roomCenter,
             'BulkheadThreshold',
             Vector3_new(roomApothem * 0.9, 0.2, 3),
             Vector3_new(0, 0.2, 0),
@@ -354,6 +383,8 @@ local function buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem,
 
     if room.RoomTemplateId == 'ShortcutLoop' then
         addDecorPart(
+            decorFolder,
+            roomCenter,
             'ShortcutBrace',
             Vector3_new(roomApothem * 0.8, 1.2, 3),
             Vector3_new(0, 9, 0),
@@ -361,6 +392,8 @@ local function buildRoomTemplateDecor(roomFolder, room, roomCenter, roomApothem,
             Enum.Material.Metal
         )
         addDecorPart(
+            decorFolder,
+            roomCenter,
             'ShortcutMarker',
             Vector3_new(roomApothem * 0.75, 0.15, 1.5),
             Vector3_new(0, 0.2, 0),
@@ -592,11 +625,6 @@ local function buildRoom(parent, room, roomCenter, roomApothem, options)
         }, roomFolder)
     end
 
-    local doorwayDirections = {}
-    for directionIndex in pairs(room.Neighbors) do
-        doorwayDirections[directionIndex] = true
-    end
-
     local sideLength = 2 * roomApothem * TAN_PI_6
     for directionIndex = 1, 6 do
         createHexSideWall(
@@ -605,7 +633,7 @@ local function buildRoom(parent, room, roomCenter, roomApothem, options)
             directionIndex,
             roomApothem,
             sideLength,
-            doorwayDirections[directionIndex] == true,
+            room.Neighbors[directionIndex] ~= nil,
             options.SurfacePalette
         )
     end
@@ -979,11 +1007,12 @@ function HexMazeWorldRenderer.build(params)
             end
         end
 
+        local nearestDistance = math_sqrt(nearestDistanceSq)
         if nearestDistanceSq <= detectionRadiusSq then
-            return nearestRoom, math_sqrt(nearestDistanceSq)
+            return nearestRoom, nearestDistance
         end
 
-        return nil, math_sqrt(nearestDistanceSq)
+        return nil, nearestDistance
     end
 
     local function canTraverseBetweenPositions(fromPosition, toPosition)
