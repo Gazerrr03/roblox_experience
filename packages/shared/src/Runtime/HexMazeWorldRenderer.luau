@@ -65,9 +65,9 @@ for directionIndex = 1, 6 do
     SIDE_VECTORS_NORMAL[directionIndex] = normal
     SIDE_VECTORS_TANGENT[directionIndex] = Vector3_new(-nz, 0, nx)
     SIDE_ORIENTATIONS[directionIndex] = CFrame_lookAt(Vector3_zero, normal)
-    WALL_NAMES[directionIndex] = "Wall_" .. directionIndex
-    WALL_SEGMENT_NAMES[directionIndex] = "Wall_" .. directionIndex .. "_Segment"
-    WALL_LINTEL_NAMES[directionIndex] = "Wall_" .. directionIndex .. "_Lintel"
+    WALL_NAMES[directionIndex] = 'Wall_' .. directionIndex
+    WALL_SEGMENT_NAMES[directionIndex] = 'Wall_' .. directionIndex .. '_Segment'
+    WALL_LINTEL_NAMES[directionIndex] = 'Wall_' .. directionIndex .. '_Lintel'
 end
 
 local WALL_Y_OFFSET = Vector3_new(0, WALL_HEIGHT / 2, 0)
@@ -127,7 +127,6 @@ local function createPart(config, parent)
     part.Parent = parent
     return part
 end
-
 
 local function applyArchetypeShellAsset(roomFolder, roomCenter, room, moduleAssetsRoot)
     local shellModel = MazeModuleAssetContract.getRoomArchetypeShellModel(
@@ -457,7 +456,7 @@ local function createHexSideWall(
     local wallForward = CFrame_new(wallCenter) * SIDE_ORIENTATIONS[directionIndex]
 
     if not hasDoorway then
-        local part = Instance_new("Part")
+        local part = Instance_new('Part')
         part.Name = WALL_NAMES[directionIndex]
         part.Anchored = true
         part.Size = Vector3_new(sideLength, WALL_HEIGHT, WALL_THICKNESS)
@@ -474,7 +473,7 @@ local function createHexSideWall(
     local segmentName = WALL_SEGMENT_NAMES[directionIndex]
 
     for _, sign in ipairs({ -1, 1 }) do
-        local part = Instance_new("Part")
+        local part = Instance_new('Part')
         part.Name = segmentName
         part.Anchored = true
         part.Size = segmentSize
@@ -485,7 +484,7 @@ local function createHexSideWall(
     end
 
     if LINTEL_HEIGHT > 0 then
-        local part = Instance_new("Part")
+        local part = Instance_new('Part')
         part.Name = WALL_LINTEL_NAMES[directionIndex]
         part.Anchored = true
         part.Size = LINTEL_SIZE
@@ -540,12 +539,8 @@ local function createDoorwayInstance(
         + DOORWAY_Y_OFFSET
 
     local openOffset = (DOORWAY_WIDTH / 2) + (leafWidth / 2) + DOOR_CLEARANCE
-    local openLeftCenter = openingCenter
-        - tangent * openOffset
-        + DOORWAY_Y_OFFSET
-    local openRightCenter = openingCenter
-        + tangent * openOffset
-        + DOORWAY_Y_OFFSET
+    local openLeftCenter = openingCenter - tangent * openOffset + DOORWAY_Y_OFFSET
+    local openRightCenter = openingCenter + tangent * openOffset + DOORWAY_Y_OFFSET
 
     local leafOrientation = SIDE_ORIENTATIONS[directionIndex]
     doorway.ClosedLeftCFrame = CFrame_new(closedLeftCenter) * leafOrientation
@@ -555,8 +550,8 @@ local function createDoorwayInstance(
 
     local leafSize = Vector3_new(leafWidth, DOORWAY_HEIGHT, DOOR_LEAF_THICKNESS)
 
-    local leftLeaf = Instance_new("Part")
-    leftLeaf.Name = "Door_" .. doorwayId .. "_Left"
+    local leftLeaf = Instance_new('Part')
+    leftLeaf.Name = 'Door_' .. doorwayId .. '_Left'
     leftLeaf.Anchored = true
     leftLeaf.Size = leafSize
     leftLeaf.CFrame = doorway.ClosedLeftCFrame
@@ -565,8 +560,8 @@ local function createDoorwayInstance(
     leftLeaf.Parent = parent
     doorway.LeftLeaf = leftLeaf
 
-    local rightLeaf = Instance_new("Part")
-    rightLeaf.Name = "Door_" .. doorwayId .. "_Right"
+    local rightLeaf = Instance_new('Part')
+    rightLeaf.Name = 'Door_' .. doorwayId .. '_Right'
     rightLeaf.Anchored = true
     rightLeaf.Size = leafSize
     rightLeaf.CFrame = doorway.ClosedRightCFrame
@@ -575,8 +570,8 @@ local function createDoorwayInstance(
     rightLeaf.Parent = parent
     doorway.RightLeaf = rightLeaf
 
-    local promptPart = Instance_new("Part")
-    promptPart.Name = "DoorPrompt_" .. doorwayId
+    local promptPart = Instance_new('Part')
+    promptPart.Name = 'DoorPrompt_' .. doorwayId
     promptPart.Anchored = true
     promptPart.Size = Vector3_new(2, 2, 2)
     promptPart.CFrame = CFrame_new(openingCenter + PROMPT_Y_OFFSET)
@@ -586,9 +581,9 @@ local function createDoorwayInstance(
     promptPart.CanCollide = false
     promptPart.Parent = parent
 
-    local prompt = Instance_new("ProximityPrompt")
-    prompt.ActionText = "Open"
-    prompt.ObjectText = "Double Door"
+    local prompt = Instance_new('ProximityPrompt')
+    prompt.ActionText = 'Open'
+    prompt.ObjectText = 'Double Door'
     prompt.HoldDuration = 0
     prompt.MaxActivationDistance = 12
     prompt.RequiresLineOfSight = false
