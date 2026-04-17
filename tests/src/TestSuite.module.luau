@@ -1,7 +1,12 @@
 local TestSuite = {}
 
 local function getTestModules()
-    return script.Parent:WaitForChild('Shared'):GetChildren()
+    local sharedFolder = script.Parent:WaitForChild('Shared')
+    local modules = sharedFolder:GetChildren()
+    table.sort(modules, function(a, b)
+        return a.Name < b.Name
+    end)
+    return modules
 end
 
 function TestSuite.run()

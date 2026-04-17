@@ -21,13 +21,37 @@
         "ToolTemplates": {
           "$className": "Folder",
           "ToolFlashlight": {
-            "$path": "../assets/ToolTemplates/ToolFlashlight.rbxmx"
+            "$className": "Model",
+            "Handle": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "Size": [0.2, 0.35, 0.2]
+              }
+            }
           },
           "ToolCrowbar": {
-            "$path": "../assets/ToolTemplates/ToolCrowbar.rbxmx"
+            "$className": "Model",
+            "Handle": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "Size": [0.15, 0.55, 0.12]
+              }
+            }
           },
           "ToolPotion": {
-            "$path": "../assets/ToolTemplates/ToolPotion.rbxmx"
+            "$className": "Model",
+            "Handle": {
+              "$className": "Part",
+              "$properties": {
+                "Anchored": true,
+                "CanCollide": false,
+                "Size": [0.25, 0.45, 0.25]
+              }
+            }
           }
         }
       },

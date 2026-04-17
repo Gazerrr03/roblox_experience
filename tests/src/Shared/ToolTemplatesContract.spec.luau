@@ -4,11 +4,17 @@ return function()
     local ItemPresentation = gameplay.Config.ItemPresentation
     local ToolItems = gameplay.Config.ToolItems
 
-    local assetsFolder = ReplicatedStorage:FindFirstChild(ItemPresentation.REPLICATED_STORAGE_ASSETS_FOLDER)
-    assert(assetsFolder ~= nil, 'ReplicatedStorage should contain Assets folder')
+    local assetsFolder = ReplicatedStorage:WaitForChild(ItemPresentation.REPLICATED_STORAGE_ASSETS_FOLDER, 10)
+    assert(
+        assetsFolder ~= nil,
+        'ReplicatedStorage should contain Assets folder (check tests/default.project.json)'
+    )
 
-    local templatesFolder = assetsFolder:FindFirstChild(ItemPresentation.TOOL_TEMPLATES_FOLDER)
-    assert(templatesFolder ~= nil, 'Assets should contain ToolTemplates folder')
+    local templatesFolder = assetsFolder:WaitForChild(ItemPresentation.TOOL_TEMPLATES_FOLDER, 10)
+    assert(
+        templatesFolder ~= nil,
+        'Assets should contain ToolTemplates folder (check tests/default.project.json)'
+    )
 
     for itemId, entry in pairs(ToolItems) do
         local templateName = entry.ToolTemplateName
