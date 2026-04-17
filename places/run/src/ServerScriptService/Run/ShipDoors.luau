@@ -32,7 +32,7 @@ function ShipDoors.new(config)
     self.SlideOffset = config.slideOffset or Vector3.new(0, 0, 0)
     self.IsLargeDoor = config.isLargeDoor or false
 
-    self._isOpen = false
+    self._isOpen = true
     self._isAnimating = false
     self._originalCFrames = {}
     self._prompts = {}
@@ -143,7 +143,8 @@ end
 
 local function clearPromptArtifacts(part)
     for _, child in ipairs(part:GetChildren()) do
-        if child.Name == 'ShipDoorPrompt'
+        if
+            child.Name == 'ShipDoorPrompt'
             or child.Name == 'ShipDoorPromptInside'
             or child.Name == 'ShipDoorPromptOutside'
             or child.Name == 'ShipDoorPromptInsideAttachment'
@@ -154,10 +155,10 @@ local function clearPromptArtifacts(part)
     end
 end
 
-local function createPrompt(parent, name, objectText)
+local function createPrompt(parent, name, objectText, actionText)
     local prompt = Instance.new('ProximityPrompt')
     prompt.Name = name
-    prompt.ActionText = 'Open Door'
+    prompt.ActionText = actionText or 'Open Door'
     prompt.ObjectText = objectText
     prompt.MaxActivationDistance = PROMPT_MAX_ACTIVATION_DISTANCE
     prompt.HoldDuration = 0
@@ -180,8 +181,11 @@ local function attachBidirectionalPrompts(door, part, objectText)
     outsideAttachment.Position = Vector3.new(0, 0, promptOffset)
     outsideAttachment.Parent = part
 
-    local insidePrompt = createPrompt(insideAttachment, 'ShipDoorPromptInside', objectText)
-    local outsidePrompt = createPrompt(outsideAttachment, 'ShipDoorPromptOutside', objectText)
+    local actionText = door._isOpen and 'Close Door' or 'Open Door'
+    local insidePrompt =
+        createPrompt(insideAttachment, 'ShipDoorPromptInside', objectText, actionText)
+    local outsidePrompt =
+        createPrompt(outsideAttachment, 'ShipDoorPromptOutside', objectText, actionText)
 
     insidePrompt.Triggered:Connect(function()
         door:toggle()

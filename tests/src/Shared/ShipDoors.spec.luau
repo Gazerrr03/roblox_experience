@@ -71,14 +71,23 @@ return function()
 
     local doors = ShipDoors.init(shipModel)
 
-    assert(#doors == 6, 'ShipDoors should register all four large doors and two sliding doors when authored parts exist')
+    assert(
+        #doors == 6,
+        'ShipDoors should register all four large doors and two sliding doors when authored parts exist'
+    )
 
     for folderName, panel in pairs(panels) do
         local insideAttachment = panel:FindFirstChild('ShipDoorPromptInsideAttachment')
         local outsideAttachment = panel:FindFirstChild('ShipDoorPromptOutsideAttachment')
 
-        assert(insideAttachment ~= nil, string.format('%s should get an inside prompt attachment', folderName))
-        assert(outsideAttachment ~= nil, string.format('%s should get an outside prompt attachment', folderName))
+        assert(
+            insideAttachment ~= nil,
+            string.format('%s should get an inside prompt attachment', folderName)
+        )
+        assert(
+            outsideAttachment ~= nil,
+            string.format('%s should get an outside prompt attachment', folderName)
+        )
 
         local insidePrompt = insideAttachment:FindFirstChild('ShipDoorPromptInside')
         local outsidePrompt = outsideAttachment:FindFirstChild('ShipDoorPromptOutside')
@@ -87,7 +96,14 @@ return function()
         assert(outsidePrompt ~= nil, string.format('%s should get an outside prompt', folderName))
         assert(
             insidePrompt.RequiresLineOfSight == false and outsidePrompt.RequiresLineOfSight == false,
-            string.format('%s prompts should ignore line of sight so players can open from either side', folderName)
+            string.format(
+                '%s prompts should ignore line of sight so players can open from either side',
+                folderName
+            )
+        )
+        assert(
+            insidePrompt.ActionText == 'Close Door' and outsidePrompt.ActionText == 'Close Door',
+            string.format('%s prompts should match the authored open-door state', folderName)
         )
     end
 end

@@ -133,7 +133,10 @@ function RunScene.new(root)
     local shipCollisionRoot = nil
     if collisionRoot then
         sceneCollisionRoot = collisionRoot:FindFirstChild(RunStaticWorldContract.SceneCollisionName)
-        if sceneCollisionRoot and not (sceneCollisionRoot:IsA('Folder') or sceneCollisionRoot:IsA('Model')) then
+        if
+            sceneCollisionRoot
+            and not (sceneCollisionRoot:IsA('Folder') or sceneCollisionRoot:IsA('Model'))
+        then
             error(
                 string.format(
                     'RunStaticWorld Collision container "%s" must be a Folder or Model.',
@@ -144,7 +147,10 @@ function RunScene.new(root)
         end
 
         shipCollisionRoot = collisionRoot:FindFirstChild(RunStaticWorldContract.ShipCollisionName)
-        if shipCollisionRoot and not (shipCollisionRoot:IsA('Folder') or shipCollisionRoot:IsA('Model')) then
+        if
+            shipCollisionRoot
+            and not (shipCollisionRoot:IsA('Folder') or shipCollisionRoot:IsA('Model'))
+        then
             error(
                 string.format(
                     'RunStaticWorld Collision container "%s" must be a Folder or Model.',
