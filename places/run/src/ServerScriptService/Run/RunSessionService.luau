@@ -114,6 +114,7 @@ local function resolvePendingSpawnCFrame(self, pendingSpawnValue)
 
     error(string.format('Unknown run pending spawn target %q.', tostring(pendingSpawnValue)), 0)
 end
+
 local function bindCharacterTeleport(self, player)
     player.CharacterAdded:Connect(function(character)
         task.defer(function()
