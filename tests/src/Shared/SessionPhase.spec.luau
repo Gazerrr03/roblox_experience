@@ -15,6 +15,14 @@ return function()
         }) == SessionPhase.RunField,
         'Open temple sessions without an active maze should resolve to RunField'
     )
+    assert(
+        SessionPhase.resolveFromCampSession({
+            RoundStarted = true,
+            DangerActive = true,
+            MazeStatus = 'idle',
+        }) == SessionPhase.RunField,
+        'A live shared round should resolve to RunField even without relying on GateOpen'
+    )
 
     assert(SessionPhase.resolveFromCampSession({
         GateOpen = true,
@@ -31,6 +39,13 @@ return function()
             { UserId = 1, ReturnReason = 'settled' },
         },
     }) == SessionPhase.Debrief, 'Completed or returned sessions should resolve to Debrief')
+    assert(
+        SessionPhase.resolveFromCampSession({
+            SettlementReason = 'book_settlement',
+            MazeStatus = 'idle',
+        }) == SessionPhase.Debrief,
+        'Explicit settlement should resolve to Debrief even before returned summaries arrive'
+    )
 
     assert(
         SessionPhase.resolveFromCampSession({

@@ -12,7 +12,6 @@ local Remotes = Shared.Network.Remotes.ensure()
 local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
 local MazeEntryAvailability = Shared.Session.MazeEntryAvailability
 local SessionSeedPolicy = Shared.Session.SessionSeedPolicy
-local HostPolicy = Shared.Util.HostPolicy
 local ControlStateService = Shared.Runtime.ControlStateService
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local InventoryService = Shared.Runtime.InventoryService
@@ -21,6 +20,7 @@ local PlayerStateService = Shared.Runtime.PlayerStateService
 local MonsterService = Shared.Runtime.MonsterService
 local TODService = Shared.Runtime.TODService
 local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
+local RoundSignalBus = Shared.Runtime.RoundSignalBus
 
 local RunSpawnPoint = require(script.Parent.RunSpawnPoint)
 local RunWorldScanner = require(script.Parent.RunWorldScanner)
@@ -50,13 +50,17 @@ local RUN_MAZE_GATE_RETURN_REASONS = table.freeze({
     extracted = true,
 })
 local INITIAL_TEMPLE_STATUS = 'Select Enter Temple to enter the temple.'
-local WAITING_PHASE = 'Waiting'
-local PLAYING_PHASE = 'Playing'
 local BOOK_GOAL_AMOUNT = 120
 local OCEAN_SPLASH_MESSAGE = 'Sea spray crashes over you.'
 local OCEAN_SLOWDOWN_DELAY_SECONDS = 1
 local OCEAN_SLOWDOWN_WALK_SPEED = 12
 local OCEAN_DAMAGE_INTERVAL_SECONDS = 5
+local ROUND_RESET_DELAY_SECONDS = SessionConfig.SettlementDurationSeconds
+local ROUND_SETTLEMENT_REASON = table.freeze({
+    Book = 'book_settlement',
+    Timeout = 'timeout',
+    AllDead = 'all_dead',
+})
 local DAMAGE_KIND_BY_PIPS = table.freeze({
     [1] = Gameplay.PlayerState.DamageKind.Light,
     [2] = Gameplay.PlayerState.DamageKind.Heavy,
@@ -249,14 +253,18 @@ function RunSessionService.new(options)
         RunDurationSeconds = SessionConfig.DefaultRunDurationSeconds,
         InventoryCapacity = SessionConfig.InventoryCapacity,
     }
-    self.CampSession = CampMazeSessionContract.newCampSession({})
+    self.CampSession = CampMazeSessionContract.newCampSession({
+        SignalScope = string.format(
+            'run:%s',
+            if type(game.JobId) == 'string' and game.JobId ~= ''
+                then game.JobId
+                else tostring(os.time())
+        ),
+    })
     self.Status = INITIAL_TEMPLE_STATUS
     self.IsLaunched = false
     self.ShouldAutoLaunch = false
     self.GateOpen = false
-    self.GamePhase = WAITING_PHASE
-    self.HostUserId = nil
-    self.WaitingPlayerOrderUserIds = {}
     self.World = nil
     self.WorldInteractions = nil
     self.SnapshotThread = nil
@@ -279,7 +287,6 @@ function RunSessionService.new(options)
     self.ControlStateService = ControlStateService.new()
     self.PlayerService = PlayerService.new()
     self.PlayerStateService = PlayerStateService.new()
-    self.TODService = TODService.new()
     self.RunToMazeTransition = runtimeOptions.RunToMazeTransition or RunToMazeTransition.new()
     self.WorldBuilder = runtimeOptions.RunWorldBuilder or RunWorldBuilder
     self.TODService = runtimeOptions.TODService
@@ -289,8 +296,260 @@ function RunSessionService.new(options)
         })
     self.RunTracker = Gameplay.Session.MazeRunTracker.new()
     self.MonsterService = nil -- deferred: initialized in _rebuildWorld after self.World is built
+    self.RoundSignalBus = runtimeOptions.RoundSignalBus or RoundSignalBus.new()
+    self.RoundSignalConnection = nil
+    self.RoundClosureInProgress = false
+    self.RoundResetToken = 0
+    self.MazePresence = {
+        AliveCount = 0,
+        ActiveCount = 0,
+    }
 
     return self
+end
+
+function RunSessionService:_getServerTimeNow()
+    local ok, result = pcall(function()
+        return Workspace:GetServerTimeNow()
+    end)
+    if ok and type(result) == 'number' then
+        return result
+    end
+
+    return os.time()
+end
+
+function RunSessionService:_ensureHost()
+    local players = Players:GetPlayers()
+    local currentHostUserId = self.CampSession.HostUserId
+
+    for _, player in ipairs(players) do
+        if player.UserId == currentHostUserId then
+            return
+        end
+    end
+
+    table.sort(players, function(left, right)
+        return left.UserId < right.UserId
+    end)
+
+    local nextHost = players[1]
+    self.CampSession =
+        CampMazeSessionContract.assignHost(self.CampSession, nextHost and nextHost.UserId or nil)
+end
+
+function RunSessionService:_isRoundStarted()
+    return self.CampSession.RoundStarted == true
+end
+
+function RunSessionService:_isRoundClosing()
+    return self.RoundClosureInProgress == true or self.CampSession.SettlementReason ~= nil
+end
+
+function RunSessionService:_isPlayerDead(player)
+    local summary = self.PlayerService:getSummary(player)
+    return summary ~= nil and summary.Health ~= nil and summary.Health.IsDead == true
+end
+
+function RunSessionService:_isPlayerInCamp(player)
+    return self:_getPlayerArea(player) ~= 'Wilderness'
+end
+
+function RunSessionService:_isPlayerTargetableInField(player)
+    return self:_isRoundStarted()
+        and self.CampSession.DangerActive == true
+        and not CampMazeSessionContract.isPlayerInMaze(self.CampSession, player.UserId)
+        and not self:_isPlayerDead(player)
+        and not self:_isPlayerInCamp(player)
+end
+
+function RunSessionService:_getRoundTimeRemainingSeconds()
+    local roundEndTime = self.CampSession.RoundEndTime
+    if type(roundEndTime) ~= 'number' then
+        return nil
+    end
+
+    return math.max(0, roundEndTime - self:_getServerTimeNow())
+end
+
+function RunSessionService:_evaluateMazeEntry(player)
+    local availability = MazeEntryAvailability.evaluate({
+        PlaceIds = SessionConfig.PlaceIds,
+        PlaceId = game.PlaceId,
+        GameId = game.GameId,
+        IsStudio = RunService:IsStudio(),
+    })
+
+    if not self:_isRoundStarted() then
+        availability.Mode = MazeEntryAvailability.Mode.Blocked
+        availability.ReasonCode = 'RoundNotStarted'
+        availability.Reason =
+            'The round has not started yet. Wait for the host to open the ship door.'
+    elseif self:_isRoundClosing() then
+        availability.Mode = MazeEntryAvailability.Mode.Blocked
+        availability.ReasonCode = 'RoundClosing'
+        availability.Reason = 'This round is already closing.'
+    elseif self:_isPlayerDead(player) then
+        availability.Mode = MazeEntryAvailability.Mode.Blocked
+        availability.ReasonCode = 'PlayerDead'
+        availability.Reason = 'Dead players return next round and cannot enter the maze.'
+    elseif CampMazeSessionContract.isPlayerInMaze(self.CampSession, player.UserId) then
+        availability.Mode = MazeEntryAvailability.Mode.Blocked
+        availability.ReasonCode = 'AlreadyInMaze'
+        availability.Reason = 'This player is already inside the maze.'
+    end
+
+    self.MazeEntryMode = availability.Mode
+    self.MazeEntryReason = availability.Reason
+    self.MazeEntryReasonCode = availability.ReasonCode
+
+    return availability
+end
+
+function RunSessionService:_getRunAliveCount()
+    local count = 0
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if
+            not CampMazeSessionContract.isPlayerInMaze(self.CampSession, player.UserId)
+            and not self:_isPlayerDead(player)
+        then
+            count += 1
+        end
+    end
+
+    return count
+end
+
+function RunSessionService:_handleRoundSignal(payload)
+    if type(payload) ~= 'table' then
+        return
+    end
+
+    if payload.Kind == RoundSignalBus.MessageKind.MazePresence then
+        self.MazePresence = {
+            AliveCount = type(payload.AliveCount) == 'number' and payload.AliveCount or 0,
+            ActiveCount = type(payload.ActiveCount) == 'number' and payload.ActiveCount or 0,
+        }
+        self:_maybeEndRoundForAllDeaths()
+    end
+end
+
+function RunSessionService:_subscribeToRoundSignals()
+    if self.RoundSignalConnection and self.RoundSignalConnection.Disconnect then
+        self.RoundSignalConnection:Disconnect()
+        self.RoundSignalConnection = nil
+    end
+
+    local connection, ok = self.RoundSignalBus:subscribe(self.CampSession, function(payload)
+        self:_handleRoundSignal(payload)
+    end)
+    if ok then
+        self.RoundSignalConnection = connection
+    end
+end
+
+function RunSessionService:_publishRoundClosure(reason, player, countInventories)
+    self.RoundSignalBus:publish(self.CampSession, {
+        Kind = RoundSignalBus.MessageKind.RoundClosure,
+        Reason = reason,
+        TriggeredByUserId = player and player.UserId or nil,
+        TriggeredByName = player and player.DisplayName or nil,
+        CountInventories = countInventories ~= false,
+        IssuedAt = self:_getServerTimeNow(),
+    })
+end
+
+function RunSessionService:_resetRoundPlayerState(player)
+    self.ControlStateService:removePlayer(player)
+    self.ControlStateService:addPlayer(player)
+    self.PlayerStateService:removePlayer(player)
+    self.PlayerStateService:addPlayer(player)
+    self.PlayerService:removePlayer(player)
+    self.PlayerService:addPlayer(player)
+    self.LastOceanSplashAtByUserId[player.UserId] = nil
+    self.OceanStateByUserId[player.UserId] = nil
+    self.OceanTimersByUserId[player.UserId] = nil
+    self.OceanOriginalSpeedsByUserId[player.UserId] = nil
+    self.PendingSpawnByUserId[player.UserId] = RunSpawnPoint.Kind.Spawn
+end
+
+function RunSessionService:_resetForNextRound()
+    self.RoundClosureInProgress = false
+    self.GateOpen = false
+    self.MazePresence = {
+        AliveCount = 0,
+        ActiveCount = 0,
+    }
+    self.CampSession = CampMazeSessionContract.resetForNextRound(self.CampSession)
+    self:_ensureHost()
+
+    if self.MonsterService and self.MonsterService.destroy then
+        self.MonsterService:destroy()
+        self.MonsterService = nil
+    end
+
+    self:_rebuildWorld()
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        self:_resetRoundPlayerState(player)
+        if self.IsLaunched then
+            player:LoadCharacter()
+        end
+    end
+
+    self.Status = 'Camp is safe. The host can open the ship door when the crew is ready.'
+    self:_broadcastSnapshot()
+end
+
+function RunSessionService:_completeRound(reason, player, countInventories)
+    if not self:_isRoundStarted() or self.RoundClosureInProgress then
+        return
+    end
+
+    self.RoundClosureInProgress = true
+    self.GateOpen = false
+    self.CampSession = CampMazeSessionContract.markSettlementTriggered(self.CampSession, {
+        SettlementReason = reason,
+        TriggeredByUserId = player and player.UserId or nil,
+        TriggeredByName = player and player.DisplayName or nil,
+    })
+    self.CampSession.GateOpen = false
+    self.CampSession.RoundStarted = false
+    self.CampSession.RoundEndTime = self:_getServerTimeNow()
+    self.CampSession = CampMazeSessionContract.normalizeCampSession(self.CampSession)
+
+    if reason == ROUND_SETTLEMENT_REASON.Book then
+        self.Status =
+            string.format('%s invoked the Book of Sand. The round is ending.', player.DisplayName)
+    elseif reason == ROUND_SETTLEMENT_REASON.AllDead then
+        self.Status = 'All active players have fallen. The round is ending.'
+    else
+        self.Status = 'The round timer expired. The round is ending.'
+    end
+
+    self:_publishRoundClosure(reason, player, countInventories)
+    self:_broadcastSnapshot()
+
+    self.RoundResetToken += 1
+    local resetToken = self.RoundResetToken
+    task.delay(ROUND_RESET_DELAY_SECONDS, function()
+        if self.RoundResetToken ~= resetToken then
+            return
+        end
+
+        self:_resetForNextRound()
+    end)
+end
+
+function RunSessionService:_maybeEndRoundForAllDeaths()
+    if not self:_isRoundStarted() or self.RoundClosureInProgress then
+        return
+    end
+
+    if self:_getRunAliveCount() == 0 and (self.MazePresence.AliveCount or 0) == 0 then
+        self:_completeRound(ROUND_SETTLEMENT_REASON.AllDead, nil, false)
+    end
 end
 
 function RunSessionService:_addPlayerState(player)
@@ -303,10 +562,15 @@ end
 function RunSessionService:_removePlayerState(player)
     self.InventoryService:removePlayer(player)
     self.ControlStateService:removePlayer(player)
+    self.PlayerStateService:removePlayer(player)
     self.PlayerService:removePlayer(player)
 end
 
 function RunSessionService:_handleOceanEntered(player)
+    if self.CampSession.DangerActive ~= true then
+        return
+    end
+
     local now = os.clock()
     local lastSplashAt = self.LastOceanSplashAtByUserId[player.UserId]
     if
@@ -427,6 +691,13 @@ end
 
 function RunSessionService:_updateOceanPerPlayer(player, _dt)
     local state = self:_getOceanState(player)
+
+    if self.CampSession.DangerActive ~= true then
+        if state ~= 'None' then
+            self:_setOceanState(player, 'None')
+        end
+        return
+    end
 
     if state == 'None' then
         return
@@ -612,6 +883,8 @@ function RunSessionService:_applyIncomingCampSession(teleportData)
     self.CampSession = nextSession
     self.GateOpen = self.CampSession.GateOpen
     self.ShouldAutoLaunch = true
+    self:_ensureHost()
+    self:_subscribeToRoundSignals()
 
     return teleportData, true
 end
@@ -749,37 +1022,11 @@ function RunSessionService:_rebuildWorld()
 
             self:_openShop(player)
         end,
-        OnSell = function(player)
-            if not self:_canManageInventory(player) then
-                return
-            end
-
-            self:_openSell(player)
-        end,
-        OnObjective = function(player)
+        OnBook = function(player)
             self:_openObjectiveBoard(player)
-        end,
-        OnLoadout = function(player)
-            self:_setStatus(
-                string.format(
-                    '%s checked the loadout bench. Equipment setup is coming soon.',
-                    player.DisplayName
-                )
-            )
-        end,
-        OnUgcLab = function(player)
-            self:_setStatus(
-                string.format(
-                    '%s checked the UGC lab console. Creature forging is coming soon.',
-                    player.DisplayName
-                )
-            )
         end,
         OnGate = function(player)
             self:_openGate(player)
-        end,
-        OnStartGame = function(player)
-            self:_onHostStartGame(player)
         end,
         OnMazePortal = function(player)
             if self:_canProcessMazeEntryRequest(player) then
@@ -835,42 +1082,27 @@ function RunSessionService:_getReturnedSummaries()
 end
 
 function RunSessionService:_getObjectiveFor(player)
-    local area = self:_getPlayerArea(player)
-    local sessionPhase = self.CampSession.SessionPhase
+    if self:_isRoundClosing() then
+        return 'This round is closing. Survivors will regroup at camp for the next host start.'
+    end
 
-    if self.GamePhase == WAITING_PHASE then
-        if player.UserId == self.HostUserId then
-            return 'Use the ship console to start the run, then lead the crew out to the gate.'
+    if not self:_isRoundStarted() then
+        if self.CampSession.HostUserId == player.UserId then
+            return 'Open the ship door when the crew is ready. That starts danger, monster spawns, the timer, and maze access.'
         end
 
-        return 'Regroup aboard ship and wait for the host to start the run.'
+        return 'Camp is safe. Wait for the host to open the ship door before heading into danger or entering the maze.'
     end
 
-    if sessionPhase == CampMazeSessionContract.SessionPhase.RunPrep then
-        return 'Inspect the temple terminals and open the gate when the group is ready.'
+    if self:_isPlayerDead(player) then
+        return 'You are dead for this round. Your next spawn will be back at camp when the next round starts.'
     end
 
-    if sessionPhase == CampMazeSessionContract.SessionPhase.Debrief then
-        return 'The maze run is complete. Review the returned crew summaries in the temple.'
+    if self:_isPlayerInCamp(player) then
+        return 'Use the Shop or Book of Sand, then step outside to fight, explore, or enter the maze whenever you are ready.'
     end
 
-    if sessionPhase == CampMazeSessionContract.SessionPhase.MazeActive then
-        if area == 'Wilderness' then
-            return 'A maze session is active. Use the gate outside to join the shared expedition.'
-        end
-
-        return 'Head outside and use the maze gate to join the active shared expedition.'
-    end
-
-    if sessionPhase == CampMazeSessionContract.SessionPhase.SessionClosed then
-        return 'This temple session is closed. Return to the staging flow before launching another expedition.'
-    end
-
-    if area == 'Wilderness' then
-        return 'Inspect the maze gate outside to open the first maze session.'
-    end
-
-    return 'Step outside to the wilderness clearing and inspect the maze gate.'
+    return 'The field is dangerous now. Fight, explore briefly, or enter the maze whenever you decide to push deeper.'
 end
 
 function RunSessionService:_setStatus(status)
@@ -889,6 +1121,9 @@ function RunSessionService:_getBookSnapshot()
         BookGoalAmount = self.BookGoalAmount,
         BookGoalProgress = progress,
         BookGoalReached = self.TeamPages >= self.BookGoalAmount,
+        RoundStarted = self:_isRoundStarted(),
+        RoundTimeRemainingSeconds = self:_getRoundTimeRemainingSeconds(),
+        SettlementReason = self.CampSession.SettlementReason,
     }
 end
 
@@ -916,26 +1151,31 @@ function RunSessionService:_openShop(player)
         Items = buildShopPayload(),
         TeamPages = self.TeamPages,
         Inventory = self.InventoryService:getSummary(player),
+        RoundStarted = self:_isRoundStarted(),
     })
 end
 
 function RunSessionService:_openSell(player)
-    local inventorySummary = self.InventoryService:getSummary(player)
-    self:_sendPrivate(player, {
-        Type = 'OpenSell',
-        Items = buildSellPayload(inventorySummary),
-        TeamPages = self.TeamPages,
-    })
+    self:_openObjectiveBoard(player)
 end
 
 function RunSessionService:_openObjectiveBoard(player)
     local snapshot = self:_getBookSnapshot()
+    local canSettle = self:_isRoundStarted()
+        and not self:_isRoundClosing()
+        and not self:_isPlayerDead(player)
+        and self:_isPlayerInCamp(player)
     self:_sendPrivate(player, {
-        Type = 'OpenObjectiveBoard',
+        Type = 'OpenBook',
         BookGoalAmount = snapshot.BookGoalAmount,
         BookGoalProgress = snapshot.BookGoalProgress,
         BookGoalReached = snapshot.BookGoalReached,
         TeamPages = snapshot.TeamPages,
+        RoundStarted = snapshot.RoundStarted,
+        RoundTimeRemainingSeconds = snapshot.RoundTimeRemainingSeconds,
+        SettlementReason = snapshot.SettlementReason,
+        CanSettle = canSettle,
+        Items = buildSellPayload(self.InventoryService:getSummary(player)),
     })
 end
 
@@ -999,8 +1239,8 @@ function RunSessionService:_handleSell(player, itemInstanceId)
     if not self:_canManageInventory(player) then
         return
     end
-    if not self:_isPlayerNearTerminalPrompt(player, self.World and self.World.SellPrompt) then
-        self:_toast(player, 'Move closer to the salvage terminal.', 'Error')
+    if not self:_isPlayerNearTerminalPrompt(player, self.World and self.World.BookPrompt) then
+        self:_toast(player, 'Move closer to the Book of Sand.', 'Error')
         return
     end
 
@@ -1031,7 +1271,7 @@ function RunSessionService:_handleSell(player, itemInstanceId)
     self.TeamPages += reward
 
     self:_sendPrivate(player, {
-        Type = 'SellResult',
+        Type = 'BookExchangeResult',
         Success = true,
         ItemInstanceId = itemInstanceId,
         Amount = reward,
@@ -1057,6 +1297,17 @@ function RunSessionService:_resolveMazeEntryAvailability()
         IsStudio = RunService:IsStudio(),
     })
 
+    if not self:_isRoundStarted() then
+        availability.Mode = MazeEntryAvailability.Mode.Blocked
+        availability.ReasonCode = 'RoundNotStarted'
+        availability.Reason =
+            'The round has not started yet. Wait for the host to open the ship door.'
+    elseif self:_isRoundClosing() then
+        availability.Mode = MazeEntryAvailability.Mode.Blocked
+        availability.ReasonCode = 'RoundClosing'
+        availability.Reason = 'This round is already closing.'
+    end
+
     self.MazeEntryMode = availability.Mode
     self.MazeEntryReason = availability.Reason
     self.MazeEntryReasonCode = availability.ReasonCode
@@ -1065,9 +1316,8 @@ function RunSessionService:_resolveMazeEntryAvailability()
 end
 
 function RunSessionService:_broadcastSnapshot()
-    local mazeEntryAvailability = self:_resolveMazeEntryAvailability()
-
     for _, player in ipairs(Players:GetPlayers()) do
+        local mazeEntryAvailability = self:_evaluateMazeEntry(player)
         self.Remotes.RunState:FireClient(
             player,
             RunSnapshotBuilder.buildForPlayer(self, player, mazeEntryAvailability)
@@ -1082,10 +1332,25 @@ function RunSessionService:_canManageInventory(player)
         return false
     end
 
+    if self:_isRoundClosing() then
+        self:_setStatus('This round is already closing, so camp inventory changes are locked.')
+        return false
+    end
+
     if CampMazeSessionContract.isPlayerInMaze(self.CampSession, player.UserId) then
         self:_setStatus(
             string.format(
-                '%s is already marked inside the maze and cannot change temple inventory.',
+                '%s is already marked inside the maze and cannot change camp inventory.',
+                player.DisplayName
+            )
+        )
+        return false
+    end
+
+    if self:_isPlayerDead(player) then
+        self:_setStatus(
+            string.format(
+                '%s is dead for this round and cannot use camp stations.',
                 player.DisplayName
             )
         )
@@ -1142,26 +1407,42 @@ function RunSessionService:_openGate(player)
         return
     end
 
-    if self.GamePhase ~= PLAYING_PHASE then
+    self:_ensureHost()
+
+    if self:_isRoundClosing() then
         self:_setStatus(
-            string.format(
-                '%s checked the temple gate. The host must start the run from the ship first.',
-                player.DisplayName
-            )
+            'The current round is already closing. Wait for the camp reset before starting again.'
         )
         return
     end
 
-    if not self.GateOpen then
+    if not self:_isRoundStarted() then
+        if self.CampSession.HostUserId ~= player.UserId then
+            self:_setStatus(
+                string.format(
+                    '%s checked the ship door. Only the host can start the round.',
+                    player.DisplayName
+                )
+            )
+            return
+        end
+
+        local roundStartTime = self:_getServerTimeNow()
+        local roundEndTime = roundStartTime + self.SessionData.RunDurationSeconds
         self.GateOpen = true
-        self.RunTracker:beginExpedition()
+        self.CampSession = CampMazeSessionContract.markRoundStarted(self.CampSession, {
+            HostUserId = player.UserId,
+            RoundStartTime = roundStartTime,
+            RoundEndTime = roundEndTime,
+            DangerActive = true,
+        })
         self:_syncCampSession()
         self.World:openGate()
         self.TODService:start()
         self:_beginExpedition()
         self:_setStatus(
             string.format(
-                '%s opened the temple gate. The wilderness trail is now accessible.',
+                '%s opened the ship door. Danger, monsters, the global timer, and maze entry are now live.',
                 player.DisplayName
             )
         )
@@ -1169,10 +1450,7 @@ function RunSessionService:_openGate(player)
     end
 
     self:_setStatus(
-        string.format(
-            '%s checked the temple gate. The wilderness trail is already open.',
-            player.DisplayName
-        )
+        string.format('%s checked the ship door. This round is already live.', player.DisplayName)
     )
 end
 
@@ -1263,21 +1541,11 @@ function RunSessionService:_requestMazeEntry(player, requireDistanceCheck)
         return
     end
 
-    if not self.GateOpen then
-        self:_setStatus(
-            string.format(
-                '%s checked the maze gate, but the temple gate is still closed.',
-                player.DisplayName
-            )
-        )
-        return
-    end
-
     if requireDistanceCheck and not self:_isPlayerNearMazePrompt(player) then
         return
     end
 
-    local availability = self:_resolveMazeEntryAvailability()
+    local availability = self:_evaluateMazeEntry(player)
     if availability.Mode == MazeEntryAvailability.Mode.Teleport then
         self:_enterMaze(player)
         return
@@ -1355,10 +1623,10 @@ function RunSessionService:_createMonsterService()
     return MonsterService.new(
         monsterProfile,
         function()
-            return self.RunTracker:getState() == 'Expedition'
+            return self.CampSession.DangerActive == true
         end,
         function(player)
-            return self.RunTracker:isPlayerActive(player.UserId)
+            return self:_isPlayerTargetableInField(player)
         end,
         canTraverseFn,
         {
@@ -1381,7 +1649,7 @@ function RunSessionService:_createMonsterService()
 end
 
 function RunSessionService:_applyPlayerDamage(player, damagePips)
-    if not self.RunTracker:isPlayerActive(player.UserId) then
+    if not self:_isPlayerTargetableInField(player) then
         return
     end
     local damageKind = DAMAGE_KIND_BY_PIPS[damagePips]
@@ -1396,6 +1664,19 @@ function RunSessionService:_applyPlayerDamage(player, damagePips)
                 tostring(result)
             )
         )
+        return
+    end
+
+    local summary = self.PlayerService:getSummary(player)
+    if summary and summary.Health and summary.Health.IsDead then
+        self:_setStatus(
+            string.format(
+                '%s died in the run field and will respawn at camp next round.',
+                player.DisplayName
+            )
+        )
+        self:_toast(player, 'You are out for this round.', 'Error')
+        self:_maybeEndRoundForAllDeaths()
     end
 end
 
@@ -1423,10 +1704,28 @@ function RunSessionService:_beginExpedition()
             shipPosition = shipCollision.Position
         end
     end
-    if not shipPosition then
+
+    local shipModel = self.World and self.World.ShipModel
+    if not shipPosition and shipModel then
+        if shipModel:IsA('Model') and shipModel.PrimaryPart then
+            shipPosition = shipModel.PrimaryPart.Position
+        else
+            local shipPart = shipModel:FindFirstChildWhichIsA('BasePart', true)
+            if shipPart then
+                shipPosition = shipPart.Position
+            end
+        end
+    end
+
+    if not shipPosition and not shipModel then
         warn('[RunSessionService] Ship collision not found — skipping monster spawn')
         return
     end
+    if not shipPosition then
+        warn('[RunSessionService] Ship position not found - skipping monster spawn')
+        return
+    end
+
     local eligible = RunMonsterSpawnPolicy.collectEligiblePatrolPoints(allPositions, shipPosition)
     if #eligible == 0 then
         warn(
@@ -1459,14 +1758,10 @@ function RunSessionService:_launchRun(_player)
         return
     end
 
-    self.TODService:reset()
+    self:_ensureHost()
     self.GateOpen = self.CampSession.GateOpen == true
     self:_syncCampSession()
-
-    -- If gate is already open (session resume), start TOD immediately
-    if self.GateOpen then
-        self.TODService:start()
-    end
+    self:_subscribeToRoundSignals()
 
     self:_rebuildWorld()
 
@@ -1478,115 +1773,11 @@ function RunSessionService:_launchRun(_player)
     end
 
     self:_startSnapshotLoop()
-    if self.Status == INITIAL_TEMPLE_STATUS then
-        self:_setStatus(
-            'Temple is ready. Gather inside, then open the gate when you want to head out.'
-        )
+    if self.CampSession.RoundStarted == true then
+        self:_setStatus('The shared round is already live. Regroup or push deeper as needed.')
     else
-        self:_broadcastSnapshot()
+        self:_setStatus('Camp is safe. The host can open the ship door when the crew is ready.')
     end
-end
-
-function RunSessionService:_lockAllShipDoors()
-    if self.World and self.World.lockAllShipDoors then
-        self.World:lockAllShipDoors()
-    end
-end
-
-function RunSessionService:_unlockAllShipDoors()
-    if self.World and self.World.unlockAllShipDoors then
-        self.World:unlockAllShipDoors()
-    end
-end
-
-function RunSessionService:_syncStartGamePrompt()
-    if not self.World or not self.World.StartGamePrompt then
-        return
-    end
-
-    local prompt = self.World.StartGamePrompt
-    if self.GamePhase == WAITING_PHASE then
-        prompt.Enabled = true
-        prompt.ActionText = 'Start Run'
-        prompt.ObjectText = 'Ship Console'
-    else
-        prompt.Enabled = false
-    end
-end
-
-function RunSessionService:_shouldLoadCharacterOnJoin(player)
-    return player.Character == nil and Players.CharacterAutoLoads == false
-end
-
-function RunSessionService:_recordWaitingPlayer(userId)
-    if type(userId) ~= 'number' then
-        return
-    end
-
-    for _, existingUserId in ipairs(self.WaitingPlayerOrderUserIds) do
-        if existingUserId == userId then
-            return
-        end
-    end
-
-    table.insert(self.WaitingPlayerOrderUserIds, userId)
-end
-
-function RunSessionService:_removeWaitingPlayer(userId)
-    for index = #self.WaitingPlayerOrderUserIds, 1, -1 do
-        if self.WaitingPlayerOrderUserIds[index] == userId then
-            table.remove(self.WaitingPlayerOrderUserIds, index)
-        end
-    end
-end
-
-function RunSessionService:_seedWaitingPlayerOrder(players)
-    table.clear(self.WaitingPlayerOrderUserIds)
-
-    for _, player in ipairs(players) do
-        self:_recordWaitingPlayer(player.UserId)
-    end
-end
-
-function RunSessionService:_assignHost(newlyJoinedUserId)
-    self:_recordWaitingPlayer(newlyJoinedUserId)
-    self.HostUserId = HostPolicy.assignHost(self.WaitingPlayerOrderUserIds, self.HostUserId)
-end
-
-function RunSessionService:_setWaitingPhase()
-    self.GamePhase = WAITING_PHASE
-    self:_seedWaitingPlayerOrder(Players:GetPlayers())
-    self:_assignHost(nil)
-    self:_lockAllShipDoors()
-    self:_syncStartGamePrompt()
-end
-
-function RunSessionService:_setPlayingPhase()
-    self.GamePhase = PLAYING_PHASE
-    self:_unlockAllShipDoors()
-    self:_syncStartGamePrompt()
-end
-
-function RunSessionService:_onHostStartGame(player)
-    if self.GamePhase ~= WAITING_PHASE or player.UserId ~= self.HostUserId then
-        if self.GamePhase == WAITING_PHASE then
-            self:_setStatus(
-                string.format(
-                    '%s checked the ship console. Only the host can start the run.',
-                    player.DisplayName
-                )
-            )
-        end
-        return
-    end
-
-    self:_setPlayingPhase()
-    self:_setStatus(
-        string.format(
-            '%s started the run. Ship doors are unlocked; head outside to the gate.',
-            player.DisplayName
-        )
-    )
 end
 
 function RunSessionService:_getPlayerUpdateContext(player)
@@ -1624,6 +1815,15 @@ function RunSessionService:_startSnapshotLoop()
                     self:_updateOceanPerPlayer(player, dt)
                 end
 
+                if
+                    self:_isRoundStarted()
+                    and not self.RoundClosureInProgress
+                    and (self:_getRoundTimeRemainingSeconds() or 0) <= 0
+                then
+                    self:_completeRound(ROUND_SETTLEMENT_REASON.Timeout, nil, true)
+                end
+
+                self:_maybeEndRoundForAllDeaths()
                 self:_broadcastSnapshot()
             else
                 previousTick = os.clock()
@@ -1748,31 +1948,54 @@ function RunSessionService:_getLegacyHeldItemShim(player, legacyToolName)
 end
 
 function RunSessionService:_bindItemRemotes()
-    self.Remotes.GetInventory.OnServerInvoke = function(player: Player)
-        return self:_inventorySummaryFor(player)
+    local getInventoryRemote = self.Remotes.GetInventory
+    local getItemDataRemote = self.Remotes.GetItemData
+    local equipItemRemote = self.Remotes.EquipItem
+    local useItemRemote = self.Remotes.UseItem
+
+    -- Contract v2 keeps run startup on RunAction/RunState/RunPrivateState.
+    -- Older harnesses may still author the legacy item remotes, so only bind
+    -- them when they actually exist.
+    if
+        getInventoryRemote == nil
+        and getItemDataRemote == nil
+        and equipItemRemote == nil
+        and useItemRemote == nil
+    then
+        return
     end
 
-    self.Remotes.GetItemData.OnServerInvoke = function(player: Player, legacyToolName: string)
-        return self:_getLegacyHeldItemShim(player, legacyToolName)
-    end
-
-    self.Remotes.EquipItem.OnServerEvent:Connect(
-        function(player: Player, itemInstanceId: any, equip: any)
-            if type(itemInstanceId) ~= 'number' then
-                return
-            end
-
-            if equip == true then
-                self:_equipItem(player, itemInstanceId)
-            else
-                self:_unequipItem(player)
-            end
-
-            self:_broadcastSnapshot()
+    if getInventoryRemote ~= nil then
+        getInventoryRemote.OnServerInvoke = function(player: Player)
+            return self:_inventorySummaryFor(player)
         end
-    )
+    end
 
-    self.Remotes.UseItem.OnServerEvent:Connect(function(player: Player, legacyToolName: string)
+    if getItemDataRemote ~= nil then
+        getItemDataRemote.OnServerInvoke = function(player: Player, legacyToolName: string)
+            return self:_getLegacyHeldItemShim(player, legacyToolName)
+        end
+    end
+
+    if equipItemRemote == nil or useItemRemote == nil then
+        return
+    end
+
+    equipItemRemote.OnServerEvent:Connect(function(player: Player, itemInstanceId: any, equip: any)
+        if type(itemInstanceId) ~= 'number' then
+            return
+        end
+
+        if equip == true then
+            self:_equipItem(player, itemInstanceId)
+        else
+            self:_unequipItem(player)
+        end
+
+        self:_broadcastSnapshot()
+    end)
+
+    useItemRemote.OnServerEvent:Connect(function(player: Player, legacyToolName: string)
         if type(legacyToolName) ~= 'string' then
             return
         end
@@ -1799,10 +2022,12 @@ end
 function RunSessionService:start()
     warn(string.format('[run-session] build=%s', self.BuildFingerprint))
     self:_loadSessionDataFromJoin()
+    self:_ensureHost()
     self:_ensureAuthoritativeSessionSeed()
     RunInventoryBridge.bind(self)
     self:_bindItemRemotes()
     Players.CharacterAutoLoads = false
+    self:_subscribeToRoundSignals()
 
     for _, player in ipairs(Players:GetPlayers()) do
         bindCharacterTeleport(self, player)
@@ -1814,21 +2039,13 @@ function RunSessionService:start()
         end
     end
 
-    -- Lock ship doors and enter waiting phase
-    self.GamePhase = WAITING_PHASE
-    self:_lockAllShipDoors()
-
     Players.PlayerAdded:Connect(function(player)
         bindCharacterTeleport(self, player)
         self:_addPlayerState(player)
         self:_handlePlayerTeleportData(player)
+        self:_ensureHost()
 
-        if self.GamePhase == WAITING_PHASE then
-            self:_assignHost(player.UserId)
-            if self.IsLaunched and self:_shouldLoadCharacterOnJoin(player) then
-                player:LoadCharacter()
-            end
-        elseif self.IsLaunched and self:_shouldLoadCharacterOnJoin(player) then
+        if self.IsLaunched then
             player:LoadCharacter()
         end
 
@@ -1851,12 +2068,7 @@ function RunSessionService:start()
         })
         self.GateOpen = self.CampSession.GateOpen
         self:_removePlayerState(player)
-
-        if self.GamePhase == WAITING_PHASE then
-            self:_removeWaitingPlayer(player.UserId)
-            self:_assignHost(nil)
-        end
-
+        self:_ensureHost()
         self:_broadcastSnapshot()
     end)
 
@@ -1871,7 +2083,7 @@ function RunSessionService:start()
             end
         elseif payload.Type == 'RequestPurchaseItem' then
             self:_handlePurchase(player, payload.ItemId)
-        elseif payload.Type == 'RequestSellItem' then
+        elseif payload.Type == 'RequestSellItem' or payload.Type == 'RequestBookExchange' then
             self:_handleSell(player, payload.ItemInstanceId)
         elseif payload.Type == 'RequestEquipItem' then
             self:_equipItem(player, payload.ItemInstanceId)
@@ -1881,13 +2093,22 @@ function RunSessionService:start()
             self:_setPlayerSprinting(player, true)
         elseif payload.Type == 'RequestSprintStop' then
             self:_setPlayerSprinting(player, false)
-        elseif payload.Type == 'RequestStartExpedition' then
-            self:_setStatus(
-                string.format(
-                    '%s checked the old deploy action. Use the temple gate to head outside instead.',
-                    player.DisplayName
+        elseif payload.Type == 'RequestStartExpedition' or payload.Type == 'RequestStartRound' then
+            self:_openGate(player)
+        elseif payload.Type == 'RequestTriggerSettlement' then
+            if not self:_isRoundStarted() then
+                self:_toast(player, 'The round has not started yet.', 'Error')
+            elseif not self:_isPlayerInCamp(player) then
+                self:_toast(
+                    player,
+                    'Return to camp before using the Book of Sand to settle.',
+                    'Error'
                 )
-            )
+            elseif self:_isPlayerDead(player) then
+                self:_toast(player, 'Dead players cannot trigger settlement.', 'Error')
+            else
+                self:_completeRound(ROUND_SETTLEMENT_REASON.Book, player, false)
+            end
         end
     end)
 
@@ -1895,14 +2116,6 @@ function RunSessionService:start()
     self:_broadcastSnapshot()
 
     self:_launchRun(nil)
-    if self.GateOpen then
-        self:_setPlayingPhase()
-    else
-        self:_setWaitingPhase()
-        self:_setStatus(
-            'Crew assembled aboard ship. The host can start the run from the ship console.'
-        )
-    end
 end
 
 return RunSessionService

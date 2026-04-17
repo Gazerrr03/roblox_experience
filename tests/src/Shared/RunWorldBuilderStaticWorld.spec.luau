@@ -91,10 +91,7 @@ return function()
     local function createRequiredPromptParts(root, originX, originZ)
         local promptNames = {
             'ShopTerminal',
-            'SalvageTerminal',
-            'ObjectiveBoard',
-            'LoadoutBench',
-            'UgcLabConsole',
+            'BookOfSand',
             'GateSwitch',
             'MazeGateMarker',
         }
@@ -193,20 +190,12 @@ return function()
         'Run static world should expose the shop prompt'
     )
     assert(
-        world.SellPrompt == validPrompts.SalvageTerminal.Prompt,
-        'Run static world should expose the salvage prompt'
+        world.BookPrompt == validPrompts.BookOfSand.Prompt,
+        'Run static world should expose the book prompt'
     )
     assert(
-        world.ObjectivePrompt == validPrompts.ObjectiveBoard.Prompt,
-        'Run static world should expose the objective prompt'
-    )
-    assert(
-        world.LoadoutPrompt == validPrompts.LoadoutBench.Prompt,
-        'Run static world should expose the loadout prompt'
-    )
-    assert(
-        world.UgcLabPrompt == validPrompts.UgcLabConsole.Prompt,
-        'Run static world should expose the UGC lab prompt'
+        world.ObjectivePrompt == validPrompts.BookOfSand.Prompt,
+        'Run static world should alias the legacy objective prompt to the book prompt'
     )
     assert(
         world.GatePrompt == validPrompts.GateSwitch.Prompt,
@@ -233,7 +222,7 @@ return function()
 
     world.OpenGate()
     assert(
-        validPrompts.GateSwitch.Prompt.ActionText == 'Gate Open',
+        validPrompts.GateSwitch.Prompt.ActionText == 'Round Live',
         'Opening the static gate should update the prompt copy'
     )
 

@@ -6,24 +6,31 @@ function RunSnapshotBuilder.buildForPlayer(service, player, mazeEntryAvailabilit
         then playerSummary.PlayerState
         else service.PlayerStateService:getSummary(player)
     local bookSnapshot = service:_getBookSnapshot()
+    local mazeEntry = mazeEntryAvailability or service:_evaluateMazeEntry(player)
 
     return {
         IsLaunched = service.IsLaunched,
         GamePhase = service.GamePhase,
-        HostUserId = service.HostUserId,
         Status = service.Status,
         BuildFingerprint = service.BuildFingerprint,
         Area = service:_getPlayerArea(player),
         GateOpen = service.GateOpen,
+        HostUserId = service.CampSession.HostUserId,
+        IsHost = service.CampSession.HostUserId == player.UserId,
+        RoundStarted = service.CampSession.RoundStarted == true,
+        DangerActive = service.CampSession.DangerActive == true,
+        RoundTimeRemainingSeconds = bookSnapshot.RoundTimeRemainingSeconds,
+        SettlementReason = service.CampSession.SettlementReason,
         Objective = service:_getObjectiveFor(player),
         SessionId = service.CampSession.SessionId,
         SessionPhase = service.CampSession.SessionPhase,
         MazeStatus = service.CampSession.MazeStatus,
         PlayersInMaze = service:_getActiveMazeRoster(),
         ReturnedPlayerSummaries = service:_getReturnedSummaries(),
-        MazeEntryMode = mazeEntryAvailability.Mode,
-        MazeEntryReason = mazeEntryAvailability.Reason,
-        MazeEntryReasonCode = mazeEntryAvailability.ReasonCode,
+        MazeEntryMode = mazeEntry.Mode,
+        MazeEntryReason = mazeEntry.Reason,
+        MazeEntryReasonCode = mazeEntry.ReasonCode,
+        CanEnterMaze = mazeEntry.Mode == 'Teleport',
         TeamPages = bookSnapshot.TeamPages,
         BookGoalAmount = bookSnapshot.BookGoalAmount,
         BookGoalProgress = bookSnapshot.BookGoalProgress,
