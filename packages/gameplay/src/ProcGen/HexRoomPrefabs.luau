@@ -9,6 +9,8 @@ HexRoomPrefabs.Directions = table.freeze({
     F = 6,
 })
 
+HexRoomPrefabs.DirectionBitmasks = table.freeze({ 1, 2, 4, 8, 16, 32 })
+
 local ORDERED_DEFINITIONS = {
     {
         TypeId = 'T1',

@@ -4,10 +4,11 @@ local DEFAULT_PLACE_IDS = {
     Lobby = 99207062749924,
     Maze = 114148445477110,
     Run = 137478567439901,
+    Library = 0, -- TODO: 替换为实际的图书馆 Place ID
 }
 local DEFAULT_DEBUG_LOCAL_MAZE_HANDOFF = false
 
-local PLACE_ID_KEYS = { 'Lobby', 'Maze', 'Run' }
+local PLACE_ID_KEYS = { 'Lobby', 'Maze', 'Run', 'Library' }
 
 local function coercePlaceId(value)
     local numericValue = tonumber(value)
@@ -63,6 +64,11 @@ local SessionConfig = {
     DefaultRunDurationSeconds = 180,
     SettlementDurationSeconds = 8,
     InventoryCapacity = 5,
+    TOD = table.freeze({
+        RoundMinutes = 15,
+        StartHour = 7,
+        EndHour = 22,
+    }),
     ProcGen = {
         RoomCount = 20,
         ExitMin = 2,

@@ -52,6 +52,24 @@ function PlayerStateService:applyDamage(player, damageKind)
     return state:applyDamage(damageKind)
 end
 
+function PlayerStateService:applyEffect(player, effectId, durationSeconds)
+    local state = self:get(player)
+    if not state then
+        return
+    end
+
+    state:applyEffect(effectId, durationSeconds)
+end
+
+function PlayerStateService:hasEffect(player, effectId)
+    local state = self:get(player)
+    if not state then
+        return false
+    end
+
+    return state:hasEffect(effectId)
+end
+
 function PlayerStateService:setSprinting(player, isSprinting)
     local state = self:get(player)
     if not state then

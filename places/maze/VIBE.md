@@ -13,9 +13,9 @@
 
 - Server authority lives in `MazeSessionService` and `MazeWorldBuilder`.
 - Client presentation and expedition input live in `MazeClient.client.luau`.
-- `maze` owns maze-side world setup, expedition progression, loot/extract flow,
-  and the return trigger back into run.
-- `maze` does not own lobby readiness or run-side settlement rules.
+- `maze` owns maze-side authored world setup, expedition progression,
+  loot/extract flow, and the return trigger back into run.
+- `maze` does not own run-side settlement rules or host/start game logic.
 
 ### Key State Flow
 
@@ -54,7 +54,6 @@ Direct dependency zone:
 
 No-touch zone:
 
-- `places/lobby/**`
 - `places/run/**` unless the issue is explicitly about the maze return seam
 - shared contract files when changing teleport shape, return summary semantics,
   remote naming, or replicated snapshot meaning
@@ -68,9 +67,7 @@ Boundary interfaces:
   `CampMazeSessionContract.buildReturnSummary`,
   `CampMazeSessionContract.reconcileIncomingCampSession`
 - Shared config:
-  `SessionConfig.PlaceIds.Run`,
-  `SessionConfig.DebugLocalMazeHandoff`,
-  Studio attribute `SessionDebugLocalMazeHandoff`
+  `SessionConfig.PlaceIds.Run`
 - Deterministic tests:
   `tests/src/Shared/CampMazeSessionContract.spec.luau`,
   `tests/src/Shared/Remotes.spec.luau`,
@@ -94,6 +91,7 @@ Boundary interfaces:
 ## Notes
 
 - Keep maze-specific behavior inside maze modules whenever possible.
+- `MazeStaticWorld` is the formal runtime source for expedition content.
 - If a change makes the maze client or service read more and more like a run
   clone, the seam is probably in the wrong place and should move toward
   `contract` first.

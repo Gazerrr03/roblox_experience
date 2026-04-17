@@ -1,15 +1,10 @@
+local ItemFields = require(script.Parent.Config.ItemFields)
+
 local Inventory = {}
 Inventory.__index = Inventory
 
 local function cloneItemEntry(itemEntry)
-    return {
-        InstanceId = itemEntry.InstanceId,
-        Id = itemEntry.Id,
-        Name = itemEntry.Name,
-        Weight = itemEntry.Weight,
-        Value = itemEntry.Value,
-        Color = itemEntry.Color,
-    }
+    return ItemFields.copyItemEntry(itemEntry)
 end
 
 local function cloneArray(items)
@@ -40,18 +35,37 @@ function Inventory:getCount()
 end
 
 function Inventory:_buildItemEntry(itemDef)
-    local itemEntry = {
-        InstanceId = self.NextItemInstanceId,
+    local instanceId = self.NextItemInstanceId
+    self.NextItemInstanceId += 1
+
+    return ItemFields.copyItemEntry({
+        InstanceId = instanceId,
         Id = itemDef.Id,
         Name = itemDef.Name,
         Weight = itemDef.Weight,
         Value = itemDef.Value,
         Color = itemDef.Color,
-    }
+        Light = itemDef.Light,
+        Description = itemDef.Description,
+        IconAssetId = itemDef.IconAssetId,
+        ToolTemplateName = itemDef.ToolTemplateName,
+        ToolCategory = itemDef.ToolCategory,
+        StateModel = itemDef.StateModel,
+        InitialState = itemDef.InitialState,
+        CurrentState = itemDef.InitialState,
+        ConsumePerUse = itemDef.ConsumePerUse,
+        CooldownSeconds = itemDef.CooldownSeconds,
+        LastUsedAt = itemDef.LastUsedAt,
+        SwingRange = itemDef.SwingRange,
+        SwingArcDegrees = itemDef.SwingArcDegrees,
+        KnockbackStrength = itemDef.KnockbackStrength,
+        MeleeDamage = itemDef.MeleeDamage,
+        HealHealthPips = itemDef.HealHealthPips,
+    })
+end
 
-    self.NextItemInstanceId += 1
-
-    return itemEntry
+local function normalizeItemEntry(rawItemEntry)
+    return ItemFields.normalizeItemEntryForLoad(rawItemEntry)
 end
 
 function Inventory:add(itemDef)
@@ -103,6 +117,40 @@ function Inventory:unequip()
     return true, cloneItemEntry(previousHeldItem)
 end
 
+function Inventory:consumeHeldItemState(nowSeconds)
+    local heldItem = self.HeldItem
+    if heldItem == nil then
+        return false, 'NothingHeld'
+    end
+
+    if type(heldItem.CurrentState) ~= 'number' or type(heldItem.ConsumePerUse) ~= 'number' then
+        return false, 'NotConsumable'
+    end
+
+    -- Cooldown check applies to all tools (including zero-consume)
+    local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
+    local cooldownSeconds = heldItem.CooldownSeconds
+    if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
+        local lastUsedAt = heldItem.LastUsedAt
+        if type(lastUsedAt) == 'number' and now - lastUsedAt < cooldownSeconds then
+            return false, 'Cooldown', cooldownSeconds - (now - lastUsedAt)
+        end
+    end
+
+    -- Consume state only when ConsumePerUse > 0
+    if heldItem.ConsumePerUse > 0 then
+        if heldItem.CurrentState < heldItem.ConsumePerUse then
+            return false, 'Depleted'
+        end
+
+        heldItem.CurrentState -= heldItem.ConsumePerUse
+    end
+
+    heldItem.LastUsedAt = now
+
+    return true, cloneItemEntry(heldItem)
+end
+
 function Inventory:getTotalValue()
     local totalValue = 0
 
@@ -130,10 +178,114 @@ function Inventory:getSummary()
     }
 end
 
+function Inventory:loadSummary(summary)
+    if type(summary) ~= 'table' then
+        return false, 'InvalidSummary'
+    end
+
+    self.Weight = 0
+    table.clear(self.BackpackItems)
+    self.HeldItem = nil
+    self.NextItemInstanceId = 1
+
+    local maxItemInstanceId = 0
+    local function processItem(rawItemEntry)
+        local itemEntry = normalizeItemEntry(rawItemEntry)
+        if itemEntry ~= nil then
+            self.Weight += itemEntry.Weight
+            if itemEntry.InstanceId > maxItemInstanceId then
+                maxItemInstanceId = itemEntry.InstanceId
+            end
+        end
+
+        return itemEntry
+    end
+
+    for _, rawItemEntry in ipairs(summary.BackpackItems or {}) do
+        local itemEntry = processItem(rawItemEntry)
+        if itemEntry ~= nil then
+            table.insert(self.BackpackItems, itemEntry)
+        end
+    end
+
+    local heldItem = processItem(summary.HeldItem)
+    if heldItem ~= nil then
+        self.HeldItem = heldItem
+    end
+
+    self.NextItemInstanceId = maxItemInstanceId + 1
+    return true
+end
+
 function Inventory:clear()
     self.Weight = 0
     table.clear(self.BackpackItems)
     self.HeldItem = nil
+end
+
+function Inventory:countById(itemId)
+    if type(itemId) ~= 'string' or itemId == '' then
+        return 0
+    end
+
+    local count = 0
+    for _, itemEntry in ipairs(self.BackpackItems) do
+        if itemEntry.Id == itemId then
+            count += 1
+        end
+    end
+
+    if self.HeldItem and self.HeldItem.Id == itemId then
+        count += 1
+    end
+
+    return count
+end
+
+function Inventory:consumeById(itemId)
+    if type(itemId) ~= 'string' or itemId == '' then
+        return false, 'MissingItemId'
+    end
+
+    for index, itemEntry in ipairs(self.BackpackItems) do
+        if itemEntry.Id == itemId then
+            local consumed = table.remove(self.BackpackItems, index)
+            self.Weight -= consumed.Weight
+            return true, cloneItemEntry(consumed)
+        end
+    end
+
+    if self.HeldItem and self.HeldItem.Id == itemId then
+        local consumed = self.HeldItem
+        self.HeldItem = nil
+        self.Weight -= consumed.Weight
+        return true, cloneItemEntry(consumed)
+    end
+
+    return false, 'ItemNotFound'
+end
+
+function Inventory:sell(itemId)
+    if type(itemId) ~= 'string' or itemId == '' then
+        return false, 'MissingItemId'
+    end
+
+    for index, itemEntry in ipairs(self.BackpackItems) do
+        if itemEntry.Id == itemId then
+            local sold = table.remove(self.BackpackItems, index)
+            self.Weight -= sold.Weight or 0
+            return true, cloneItemEntry(sold), sold.Value or 0
+        end
+    end
+
+    if self.HeldItem and self.HeldItem.Id == itemId then
+        local sold = self.HeldItem
+        self.HeldItem = nil
+        self.Weight -= sold.Weight or 0
+        return true, cloneItemEntry(sold), sold.Value or 0
+    end
+
+    return false, 'ItemNotFound'
 end
 
 return Inventory

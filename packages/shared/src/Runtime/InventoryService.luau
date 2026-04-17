@@ -54,6 +54,15 @@ function InventoryService:unequip(player)
     return inventory:unequip()
 end
 
+function InventoryService:consumeHeldItemState(player, nowSeconds)
+    local inventory = self:get(player)
+    if not inventory then
+        return false, 'MissingInventory'
+    end
+
+    return inventory:consumeHeldItemState(nowSeconds)
+end
+
 function InventoryService:deposit(player)
     local inventory = self:get(player)
     if not inventory then
@@ -63,6 +72,15 @@ function InventoryService:deposit(player)
     local totalValue = inventory:getTotalValue()
     inventory:clear()
     return totalValue
+end
+
+function InventoryService:loadSummary(player, summary)
+    local inventory = self:get(player)
+    if not inventory then
+        return false, 'MissingInventory'
+    end
+
+    return inventory:loadSummary(summary)
 end
 
 function InventoryService:getSummary(player)
@@ -81,6 +99,33 @@ function InventoryService:getSummary(player)
     end
 
     return inventory:getSummary()
+end
+
+function InventoryService:countByItemId(player, itemId)
+    local inventory = self:get(player)
+    if not inventory then
+        return 0
+    end
+
+    return inventory:countById(itemId)
+end
+
+function InventoryService:consumeByItemId(player, itemId)
+    local inventory = self:get(player)
+    if not inventory then
+        return false, 'MissingInventory'
+    end
+
+    return inventory:consumeById(itemId)
+end
+
+function InventoryService:sell(player, itemId)
+    local inventory = self:get(player)
+    if not inventory then
+        return false, 'MissingInventory'
+    end
+
+    return inventory:sell(itemId)
 end
 
 return InventoryService

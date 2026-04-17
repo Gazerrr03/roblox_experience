@@ -1,58 +1,91 @@
+local MazeRoomTemplates = require(script.Parent.MazeRoomTemplates)
+
 local MazeRoomArchetypes = {}
 
 local DEFINITIONS_BY_ID = {
-    HexStandard = table.freeze({
-        Id = 'HexStandard',
-        DisplayName = 'Hex Standard',
-        GeometryMode = 'HexShell',
-        AuthoringAssetId = 'HexStandard',
-        SupportsExternalShellModel = true,
-        VisualLanguage = 'BrutalistMaze',
-    }),
-    CavePocket = table.freeze({
-        Id = 'CavePocket',
-        DisplayName = 'Cave Pocket',
-        GeometryMode = 'DecoratedHex',
-        AuthoringAssetId = 'CavePocket',
-        SupportsExternalShellModel = true,
-        VisualLanguage = 'NaturalCave',
-    }),
-    CampChamber = table.freeze({
-        Id = 'CampChamber',
-        DisplayName = 'Camp Chamber',
-        GeometryMode = 'HexShell',
-        AuthoringAssetId = 'CampChamber',
+    EntrySafe = table.freeze({
+        Id = 'EntrySafe',
+        DisplayName = 'Entry Safe',
+        GeometryMode = 'FacilityBlockout',
+        AuthoringAssetId = 'EntrySafe',
         SupportsExternalShellModel = true,
         VisualLanguage = 'SafeEntry',
     }),
-    ExtractionChamber = table.freeze({
-        Id = 'ExtractionChamber',
-        DisplayName = 'Extraction Chamber',
-        GeometryMode = 'HexShell',
-        AuthoringAssetId = 'ExtractionChamber',
+    TransitHall = table.freeze({
+        Id = 'TransitHall',
+        DisplayName = 'Transit Hall',
+        GeometryMode = 'FacilityBlockout',
+        AuthoringAssetId = 'TransitHall',
+        SupportsExternalShellModel = true,
+        VisualLanguage = 'IndustrialTransit',
+    }),
+    SearchCluster = table.freeze({
+        Id = 'SearchCluster',
+        DisplayName = 'Search Cluster',
+        GeometryMode = 'FacilityBlockout',
+        AuthoringAssetId = 'SearchCluster',
+        SupportsExternalShellModel = true,
+        VisualLanguage = 'SearchableIndustrial',
+    }),
+    HighValueRisk = table.freeze({
+        Id = 'HighValueRisk',
+        DisplayName = 'High Value Risk',
+        GeometryMode = 'FacilityBlockout',
+        AuthoringAssetId = 'HighValueRisk',
+        SupportsExternalShellModel = true,
+        VisualLanguage = 'HighRiskVault',
+    }),
+    LandmarkFacility = table.freeze({
+        Id = 'LandmarkFacility',
+        DisplayName = 'Landmark Facility',
+        GeometryMode = 'FacilityBlockout',
+        AuthoringAssetId = 'LandmarkFacility',
+        SupportsExternalShellModel = true,
+        VisualLanguage = 'NavigationAnchor',
+    }),
+    ExtractionReturn = table.freeze({
+        Id = 'ExtractionReturn',
+        DisplayName = 'Extraction Return',
+        GeometryMode = 'FacilityBlockout',
+        AuthoringAssetId = 'ExtractionReturn',
         SupportsExternalShellModel = true,
         VisualLanguage = 'Extraction',
     }),
+    BulkheadGate = table.freeze({
+        Id = 'BulkheadGate',
+        DisplayName = 'Bulkhead Gate',
+        GeometryMode = 'FacilityBlockout',
+        AuthoringAssetId = 'BulkheadGate',
+        SupportsExternalShellModel = true,
+        VisualLanguage = 'BulkheadThreshold',
+    }),
+    ShortcutLoop = table.freeze({
+        Id = 'ShortcutLoop',
+        DisplayName = 'Shortcut Loop',
+        GeometryMode = 'FacilityBlockout',
+        AuthoringAssetId = 'ShortcutLoop',
+        SupportsExternalShellModel = true,
+        VisualLanguage = 'LoopUtility',
+    }),
 }
+
+local LEGACY_FALLBACKS = table.freeze({
+    Camp = 'EntrySafe',
+    Extraction = 'ExtractionReturn',
+})
 
 function MazeRoomArchetypes.getDefinition(archetypeId)
     return DEFINITIONS_BY_ID[archetypeId]
 end
 
 function MazeRoomArchetypes.classifyRoom(room)
-    if room.Kind == 'Camp' then
-        return DEFINITIONS_BY_ID.CampChamber
-    end
+    local templateId = room.RoomTemplateId
+        or LEGACY_FALLBACKS[room.Kind]
+        or (room.DoorCount <= 2 and 'SearchCluster' or 'TransitHall')
 
-    if room.Kind == 'Extraction' then
-        return DEFINITIONS_BY_ID.ExtractionChamber
-    end
-
-    if room.DoorCount <= 2 then
-        return DEFINITIONS_BY_ID.CavePocket
-    end
-
-    return DEFINITIONS_BY_ID.HexStandard
+    local template = MazeRoomTemplates.getDefinition(templateId)
+    local archetypeId = template and template.Id or 'SearchCluster'
+    return DEFINITIONS_BY_ID[archetypeId]
 end
 
 return MazeRoomArchetypes
