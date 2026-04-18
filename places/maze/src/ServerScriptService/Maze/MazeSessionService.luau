@@ -1332,52 +1332,10 @@ function MazeSessionService:_handleUseTool(player)
 
     local updatedHeldItem = consumeResult
 
-    local actionWord = 'used'
-    local effectText = 'It worked!'
-
-    if updatedHeldItem.ToolCategory == 'Flashlight' then
-        actionWord = 'flashed'
-        effectText = 'The area is illuminated.'
-    elseif updatedHeldItem.ToolCategory == 'Crowbar' then
-        actionWord = 'swung'
-        effectText = 'A satisfying swoosh cuts the air!'
-
-        local damagePips = 1
-        if type(updatedHeldItem.MeleeDamage) == 'number' and updatedHeldItem.MeleeDamage >= 1 then
-            damagePips = math.floor(updatedHeldItem.MeleeDamage)
-        end
-
-        local meleeOk, meleeResult = self.MonsterService:tryApplyPlayerMeleeHit(player, {
-            DamagePips = damagePips,
-            SwingArcDegrees = updatedHeldItem.SwingArcDegrees,
-            SwingRange = updatedHeldItem.SwingRange,
-        })
-        if meleeOk then
-            if meleeResult and meleeResult.Killed then
-                effectText = 'The crowbar connects — the threat goes down!'
-            elseif meleeResult and type(meleeResult.RemainingHitPoints) == 'number' then
-                effectText = string.format(
-                    'The crowbar connects! Foe stamina: ~%d.',
-                    meleeResult.RemainingHitPoints
-                )
-            end
-        end
-    elseif updatedHeldItem.ToolCategory == 'Potion' then
-        actionWord = 'drank'
-        local healPips = 1
-        if
-            type(updatedHeldItem.HealHealthPips) == 'number'
-            and updatedHeldItem.HealHealthPips >= 1
-        then
-            healPips = math.floor(updatedHeldItem.HealHealthPips)
-        end
-        local healOk, healResult = self.PlayerService:healHealthPips(player, healPips)
-        if healOk then
-            effectText = string.format('The brew steadies you — health pips: %d.', healResult)
-        else
-            effectText = string.format('The brew has no effect (%s).', tostring(healResult))
-        end
-    end
+    local actionWord, effectText = Gameplay.ToolUseEffects.applyHeldToolUse(player, updatedHeldItem, {
+        MonsterService = self.MonsterService,
+        PlayerService = self.PlayerService,
+    })
 
     self:_setStatus(
         string.format(

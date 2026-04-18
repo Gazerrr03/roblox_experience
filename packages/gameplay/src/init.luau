@@ -9,4 +9,5 @@ return {
     ProcGen = require(script.ProcGen),
     Roles = require(script.Roles),
     Session = require(script.Session),
+    ToolUseEffects = require(script.ToolUseEffects),
 }
