@@ -2001,8 +2001,42 @@ function RunSessionService:_bindItemRemotes()
             return
         end
 
-        self.InventoryService:consumeHeldItemState(player, os.clock())
-        self:_broadcastSnapshot()
+        local consumeOk, consumeResult, cooldownRemaining =
+            self.InventoryService:consumeHeldItemState(player, os.clock())
+        if not consumeOk then
+            if consumeResult == 'Cooldown' then
+                self:_toast(
+                    player,
+                    string.format(
+                        'Tool on cooldown (%.1fs left).',
+                        math.max(cooldownRemaining or 0, 0)
+                    ),
+                    'Error'
+                )
+            elseif consumeResult == 'Depleted' then
+                self:_toast(player, 'That tool is depleted.', 'Error')
+            end
+            return
+        end
+
+        local updatedHeldItem = consumeResult
+        local actionWord, effectText =
+            Gameplay.ToolUseEffects.applyHeldToolUse(player, updatedHeldItem, {
+                MonsterService = self.MonsterService,
+                PlayerService = self.PlayerService,
+            })
+
+        self:_setStatus(
+            string.format(
+                '%s %s the %s. %s (%s remaining: %d)',
+                player.DisplayName,
+                actionWord,
+                updatedHeldItem.Name,
+                effectText,
+                updatedHeldItem.StateModel or 'state',
+                updatedHeldItem.CurrentState
+            )
+        )
     end)
 end
 
