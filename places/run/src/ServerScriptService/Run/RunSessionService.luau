@@ -2020,10 +2020,11 @@ function RunSessionService:_bindItemRemotes()
         end
 
         local updatedHeldItem = consumeResult
-        local actionWord, effectText = Gameplay.ToolUseEffects.applyHeldToolUse(player, updatedHeldItem, {
-            MonsterService = self.MonsterService,
-            PlayerService = self.PlayerService,
-        })
+        local actionWord, effectText =
+            Gameplay.ToolUseEffects.applyHeldToolUse(player, updatedHeldItem, {
+                MonsterService = self.MonsterService,
+                PlayerService = self.PlayerService,
+            })
 
         self:_setStatus(
             string.format(
@@ -2036,8 +2037,6 @@ function RunSessionService:_bindItemRemotes()
                 updatedHeldItem.CurrentState
             )
         )
-
-        self:_broadcastSnapshot()
     end)
 end
 

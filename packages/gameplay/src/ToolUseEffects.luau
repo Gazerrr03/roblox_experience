@@ -20,10 +20,13 @@ local function toggleHeadFlashlight(player: Player): (boolean, string)
         return false, 'No head.'
     end
 
-    local flashlightLight = head:FindFirstChild('FlashlightLight')
-    if flashlightLight and flashlightLight:IsA('Light') then
-        flashlightLight.Enabled = not flashlightLight.Enabled
-        return flashlightLight.Enabled, ''
+    local existing = head:FindFirstChild('FlashlightLight')
+    if existing then
+        if existing:IsA('Light') then
+            existing.Enabled = not existing.Enabled
+            return existing.Enabled, ''
+        end
+        existing:Destroy()
     end
 
     local spot = Instance.new('SpotLight')

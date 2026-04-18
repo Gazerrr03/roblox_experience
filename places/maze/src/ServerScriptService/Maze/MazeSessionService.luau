@@ -1332,10 +1332,11 @@ function MazeSessionService:_handleUseTool(player)
 
     local updatedHeldItem = consumeResult
 
-    local actionWord, effectText = Gameplay.ToolUseEffects.applyHeldToolUse(player, updatedHeldItem, {
-        MonsterService = self.MonsterService,
-        PlayerService = self.PlayerService,
-    })
+    local actionWord, effectText =
+        Gameplay.ToolUseEffects.applyHeldToolUse(player, updatedHeldItem, {
+            MonsterService = self.MonsterService,
+            PlayerService = self.PlayerService,
+        })
 
     self:_setStatus(
         string.format(
