@@ -50,6 +50,10 @@ local SIDE_NORMALS_X = {}
 local SIDE_NORMALS_Z = {}
 local SIDE_VECTORS_NORMAL = {}
 local SIDE_VECTORS_TANGENT = {}
+local SIDE_WALL_NAMES = {}
+local SIDE_SEGMENT_NAMES = {}
+local SIDE_LINTEL_NAMES = {}
+local SIDE_ORIENTATIONS = {}
 
 for directionIndex = 1, 6 do
     local angle = math_rad((-(directionIndex - 1) * 60) + SIDE_ANGLE_OFFSET_DEGREES)
@@ -57,8 +61,13 @@ for directionIndex = 1, 6 do
     local nz = math_sin(angle)
     SIDE_NORMALS_X[directionIndex] = nx
     SIDE_NORMALS_Z[directionIndex] = nz
-    SIDE_VECTORS_NORMAL[directionIndex] = Vector3_new(nx, 0, nz)
+    local normal = Vector3_new(nx, 0, nz)
+    SIDE_VECTORS_NORMAL[directionIndex] = normal
     SIDE_VECTORS_TANGENT[directionIndex] = Vector3_new(-nz, 0, nx)
+    SIDE_WALL_NAMES[directionIndex] = 'Wall_' .. directionIndex
+    SIDE_SEGMENT_NAMES[directionIndex] = 'Wall_' .. directionIndex .. '_Segment'
+    SIDE_LINTEL_NAMES[directionIndex] = 'Wall_' .. directionIndex .. '_Lintel'
+    SIDE_ORIENTATIONS[directionIndex] = CFrame_lookAt(Vector3_zero, normal)
 end
 
 local TILE_BUFFER_A = FLOOR_TILE_SIZE / 2
@@ -456,43 +465,63 @@ local function createHexSideWall(
     hasDoorway,
     surfacePalette
 )
-    local normal, tangent = sideVectors(directionIndex)
-    local wallCenter = center + normal * apothem + Vector3_new(0, WALL_HEIGHT / 2, 0)
-    local wallForward = CFrame_lookAt(wallCenter, wallCenter + normal)
+    local nx = SIDE_NORMALS_X[directionIndex]
+    local nz = SIDE_NORMALS_Z[directionIndex]
+    local tangent = SIDE_VECTORS_TANGENT[directionIndex]
+
+    -- Bolt: Inlined position calculation to avoid Vector3 allocations
+    local wcx = center.X + nx * apothem
+    local wcy = center.Y + WALL_HEIGHT / 2
+    local wcz = center.Z + nz * apothem
+    local wallForward = CFrame_new(wcx, wcy, wcz) * SIDE_ORIENTATIONS[directionIndex]
 
     if not hasDoorway then
-        createPart({
-            Name = string.format('Wall_%d', directionIndex),
-            Size = Vector3_new(sideLength, WALL_HEIGHT, WALL_THICKNESS),
-            CFrame = wallForward,
-            Color = surfacePalette.WallColor,
-            Material = surfacePalette.WallMaterial,
-        }, parent)
+        -- Bolt: Refactored to keep parity with createPart properties while avoiding table allocations
+        local part = Instance_new('Part')
+        part.Name = SIDE_WALL_NAMES[directionIndex]
+        part.Anchored = true
+        part.Size = Vector3_new(sideLength, WALL_HEIGHT, WALL_THICKNESS)
+        part.CFrame = wallForward
+        part.Color = surfacePalette.WallColor
+        part.Material = surfacePalette.WallMaterial
+        part.Transparency = 0
+        part.CanCollide = true
+        part.Shape = Enum.PartType.Block
+        part.Parent = parent
         return
     end
 
     local segmentLength = (sideLength - DOORWAY_WIDTH) / 2
     local segmentOffset = (DOORWAY_WIDTH / 2) + (segmentLength / 2)
+    local segmentSize = Vector3_new(segmentLength, WALL_HEIGHT, WALL_THICKNESS)
 
     for _, sign in ipairs({ -1, 1 }) do
-        createPart({
-            Name = string.format('Wall_%d_Segment', directionIndex),
-            Size = Vector3_new(segmentLength, WALL_HEIGHT, WALL_THICKNESS),
-            CFrame = wallForward + (tangent * (segmentOffset * sign)),
-            Color = surfacePalette.WallColor,
-            Material = surfacePalette.WallMaterial,
-        }, parent)
+        local part = Instance_new('Part')
+        part.Name = SIDE_SEGMENT_NAMES[directionIndex]
+        part.Anchored = true
+        part.Size = segmentSize
+        part.CFrame = wallForward + (tangent * (segmentOffset * sign))
+        part.Color = surfacePalette.WallColor
+        part.Material = surfacePalette.WallMaterial
+        part.Transparency = 0
+        part.CanCollide = true
+        part.Shape = Enum.PartType.Block
+        part.Parent = parent
     end
 
     local lintelHeight = WALL_HEIGHT - DOORWAY_HEIGHT
     if lintelHeight > 0 then
-        createPart({
-            Name = string.format('Wall_%d_Lintel', directionIndex),
-            Size = Vector3_new(DOORWAY_WIDTH, lintelHeight, WALL_THICKNESS),
-            CFrame = wallForward + Vector3_new(0, DOORWAY_HEIGHT + (lintelHeight / 2), 0),
-            Color = surfacePalette.WallColor,
-            Material = surfacePalette.WallMaterial,
-        }, parent)
+        local part = Instance_new('Part')
+        part.Name = SIDE_LINTEL_NAMES[directionIndex]
+        part.Anchored = true
+        part.Size = Vector3_new(DOORWAY_WIDTH, lintelHeight, WALL_THICKNESS)
+        part.CFrame = wallForward + Vector3_new(0, DOORWAY_HEIGHT + (lintelHeight / 2), 0)
+        part.Color = surfacePalette.WallColor
+        part.Material = surfacePalette.WallMaterial
+        part.Transparency = 0
+        part.CanCollide = true
+        part.Shape = Enum.PartType.Block
+        part.Parent = parent
     end
 end
 
