@@ -1,10 +1,13 @@
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local RunService = game:GetService('RunService')
 
 local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Gameplay = require(Packages:WaitForChild('Gameplay'))
 local ItemPresentation = Gameplay.Config.ItemPresentation
 
 local CLONE_NAME = 'HeldToolVisualClone'
+
+local activeSwingCleanup: (() -> ())? = nil
 
 local HeldToolVisual = {}
 HeldToolVisual.CLONE_NAME = CLONE_NAME
@@ -15,6 +18,10 @@ local function getHandPart(character: Model): BasePart?
 end
 
 function HeldToolVisual.clear(character: Model?)
+    if activeSwingCleanup then
+        activeSwingCleanup()
+    end
+
     if not character then
         return
     end
@@ -161,6 +168,109 @@ function HeldToolVisual.sync(character: Model?, heldItem: any?)
     elseif clone:IsA('Tool') then
         tryWeldToHand(hand, clone)
     end
+end
+
+local function hasHandHandleWeld(hand: BasePart, handle: BasePart): boolean
+    for _, inst in handle:GetChildren() do
+        if inst:IsA('WeldConstraint') then
+            local w = inst :: WeldConstraint
+            if (w.Part0 == hand and w.Part1 == handle) or (w.Part1 == hand and w.Part0 == handle) then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+-- Cosmetic only: breaks the hand↔handle weld briefly, rotates the handle, then re-welds.
+-- Server hit detection stays on RequestUseTool; do not use this for gameplay authority.
+function HeldToolVisual.playCrowbarSwingFeedback(character: Model?)
+    if not character then
+        return
+    end
+
+    if activeSwingCleanup then
+        activeSwingCleanup()
+    end
+
+    local hand = getHandPart(character)
+    if not hand then
+        return
+    end
+
+    local clone = hand:FindFirstChild(CLONE_NAME)
+    if not clone then
+        return
+    end
+
+    local handle = clone:FindFirstChild('Handle', true)
+    if not (handle and handle:IsA('BasePart')) then
+        return
+    end
+
+    local handWeld: WeldConstraint? = nil
+    for _, inst in handle:GetChildren() do
+        if inst:IsA('WeldConstraint') then
+            local w = inst :: WeldConstraint
+            if (w.Part0 == hand and w.Part1 == handle) or (w.Part1 == hand and w.Part0 == handle) then
+                handWeld = w
+                break
+            end
+        end
+    end
+    if not handWeld then
+        return
+    end
+
+    handWeld:Destroy()
+    local offset = hand.CFrame:ToObjectSpace(handle.CFrame)
+    local duration = 0.22
+    local elapsed = 0.0
+
+    local connection: RBXScriptConnection?
+    local finished = false
+
+    local function restoreWeld()
+        if finished then
+            return
+        end
+        finished = true
+        activeSwingCleanup = nil
+        if connection then
+            connection:Disconnect()
+            connection = nil
+        end
+        if handle.Parent and hand.Parent then
+            handle.CFrame = hand.CFrame * offset
+            if not hasHandHandleWeld(hand, handle) then
+                local restored = Instance.new('WeldConstraint')
+                restored.Part0 = hand
+                restored.Part1 = handle
+                restored.Parent = handle
+            end
+        end
+    end
+
+    activeSwingCleanup = restoreWeld
+
+    connection = RunService.Heartbeat:Connect(function(dt)
+        if not handle.Parent or not hand.Parent then
+            restoreWeld()
+            return
+        end
+
+        elapsed += dt
+        if elapsed >= duration then
+            restoreWeld()
+            return
+        end
+
+        local alpha = elapsed / duration
+        local swing = math.sin(alpha * math.pi)
+        local extra = CFrame.Angles(math.rad(58) * swing, math.rad(14) * swing, 0)
+        handle.CFrame = hand.CFrame * offset * extra
+    end)
 end
 
 return HeldToolVisual

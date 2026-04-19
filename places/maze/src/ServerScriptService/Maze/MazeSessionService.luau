@@ -1258,138 +1258,20 @@ end
 
 -- === 新增：处理道具使用的逻辑（这是本次手术最核心的部位） ===
 function MazeSessionService:_handleUseTool(player)
-    if not self:_canManageInventory(player) then
-        return
-    end
-
-    local playerState = self.PlayerService:getSummary(player).PlayerState
-    if playerState.IsDead == true then
-        self:_setStatus(string.format('%s cannot use tools while dead.', player.DisplayName))
-        return
-    end
-
-    -- 1. 检查手里有没有拿东西
-    local inventorySummary = self.InventoryService:getSummary(player)
-    local heldItem = inventorySummary and inventorySummary.HeldItem
-
-    if not heldItem then
-        self:_setStatus(
-            string.format('%s tried to use a tool, but hands are empty.', player.DisplayName)
-        )
-        return
-    end
-
-    -- 2. 检查这东西有没有“状态/耐久”（ConsumePerUse 允许为 0 表示不消耗型工具）
-    if type(heldItem.CurrentState) ~= 'number' or type(heldItem.ConsumePerUse) ~= 'number' then
-        self:_setStatus(
-            string.format(
-                '%s cannot actively "use" %s (it is not a tool).',
-                player.DisplayName,
-                heldItem.Name
-            )
-        )
-        return
-    end
-
-    -- 3. 检查有没有没电/报废（仅当每次使用会扣耐久时）
-    if heldItem.ConsumePerUse > 0 and heldItem.CurrentState < heldItem.ConsumePerUse then
-        self:_setStatus(
-            string.format(
-                '%s tried to use %s, but it has no %s left.',
-                player.DisplayName,
-                heldItem.Name,
-                heldItem.StateModel or 'power'
-            )
-        )
-        return
-    end
-
-    -- 4. 真正“使用”它：扣除耐久并同步到实际背包状态
-    local consumeSuccess, consumeResult, cooldownRemaining =
-        self.InventoryService:consumeHeldItemState(player, os.clock())
-    if not consumeSuccess then
-        if consumeResult == 'Cooldown' then
-            self:_setStatus(
-                string.format(
-                    '%s cannot use %s yet (cooldown %.1fs remaining).',
-                    player.DisplayName,
-                    heldItem.Name,
-                    math.max(cooldownRemaining or 0, 0)
-                )
-            )
-        else
-            self:_setStatus(
-                string.format(
-                    '%s could not use %s (%s).',
-                    player.DisplayName,
-                    heldItem.Name,
-                    tostring(consumeResult)
-                )
-            )
-        end
-        return
-    end
-
-    local updatedHeldItem = consumeResult
-
-    local actionWord = 'used'
-    local effectText = 'It worked!'
-
-    if updatedHeldItem.ToolCategory == 'Flashlight' then
-        actionWord = 'flashed'
-        effectText = 'The area is illuminated.'
-    elseif updatedHeldItem.ToolCategory == 'Crowbar' then
-        actionWord = 'swung'
-        effectText = 'A satisfying swoosh cuts the air!'
-
-        local damagePips = 1
-        if type(updatedHeldItem.MeleeDamage) == 'number' and updatedHeldItem.MeleeDamage >= 1 then
-            damagePips = math.floor(updatedHeldItem.MeleeDamage)
-        end
-
-        local meleeOk, meleeResult = self.MonsterService:tryApplyPlayerMeleeHit(player, {
-            DamagePips = damagePips,
-            SwingArcDegrees = updatedHeldItem.SwingArcDegrees,
-            SwingRange = updatedHeldItem.SwingRange,
-        })
-        if meleeOk then
-            if meleeResult and meleeResult.Killed then
-                effectText = 'The crowbar connects — the threat goes down!'
-            elseif meleeResult and type(meleeResult.RemainingHitPoints) == 'number' then
-                effectText = string.format(
-                    'The crowbar connects! Foe stamina: ~%d.',
-                    meleeResult.RemainingHitPoints
-                )
-            end
-        end
-    elseif updatedHeldItem.ToolCategory == 'Potion' then
-        actionWord = 'drank'
-        local healPips = 1
-        if
-            type(updatedHeldItem.HealHealthPips) == 'number'
-            and updatedHeldItem.HealHealthPips >= 1
-        then
-            healPips = math.floor(updatedHeldItem.HealHealthPips)
-        end
-        local healOk, healResult = self.PlayerService:healHealthPips(player, healPips)
-        if healOk then
-            effectText = string.format('The brew steadies you — health pips: %d.', healResult)
-        else
-            effectText = string.format('The brew has no effect (%s).', tostring(healResult))
-        end
-    end
-
-    self:_setStatus(
-        string.format(
-            '%s %s the %s. %s (%s remaining: %d)',
-            player.DisplayName,
-            actionWord,
-            updatedHeldItem.Name,
-            effectText,
-            updatedHeldItem.StateModel or 'state',
-            updatedHeldItem.CurrentState
-        )
-    )
+    Gameplay.HeldToolUseRequest.apply(player, {
+        canManageInventory = function(p)
+            return self:_canManageInventory(p)
+        end,
+        inventoryService = self.InventoryService,
+        monsterService = self.MonsterService,
+        playerService = self.PlayerService,
+        setStatus = function(message)
+            self:_setStatus(message)
+        end,
+        shouldConsumeCrowbarOnUse = function(_p)
+            return self.RunTracker:getState() == 'Expedition'
+        end,
+    })
 end
 -- =======================================================
 
