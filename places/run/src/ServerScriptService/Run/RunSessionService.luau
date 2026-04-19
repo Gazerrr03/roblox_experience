@@ -103,6 +103,14 @@ end
 table.freeze(SHOP_ITEMS)
 table.freeze(SHOP_ITEM_BY_ID)
 
+local ToolItems = Gameplay.Config.ToolItems
+-- Studio-only: grant core tools for local testing (total weight must fit InventoryCapacity).
+local STUDIO_STARTER_TOOL_IDS = table.freeze({
+    'tool-flashlight',
+    'tool-crowbar',
+    'tool-potion',
+})
+
 local function resolvePendingSpawnCFrame(self, pendingSpawnValue)
     if typeof(pendingSpawnValue) == 'CFrame' then
         return pendingSpawnValue
@@ -557,6 +565,29 @@ function RunSessionService:_addPlayerState(player)
     self.ControlStateService:addPlayer(player)
     self.PlayerStateService:addPlayer(player)
     self.PlayerService:addPlayer(player)
+end
+
+function RunSessionService:_grantStudioStarterTools(player)
+    if not RunService:IsStudio() or not self.IsLaunched then
+        return
+    end
+
+    for _, itemId in ipairs(STUDIO_STARTER_TOOL_IDS) do
+        local def = ToolItems[itemId]
+        if def then
+            local ok, err = self.InventoryService:pickup(player, def)
+            if not ok then
+                warn(
+                    string.format(
+                        '[RunSessionService] Studio starter tool %q failed for %s: %s',
+                        itemId,
+                        player.Name,
+                        tostring(err)
+                    )
+                )
+            end
+        end
+    end
 end
 
 function RunSessionService:_removePlayerState(player)
@@ -1759,6 +1790,12 @@ function RunSessionService:_launchRun(_player)
         player:LoadCharacter()
     end
 
+    if RunService:IsStudio() then
+        for _, player in ipairs(Players:GetPlayers()) do
+            self:_grantStudioStarterTools(player)
+        end
+    end
+
     self:_startSnapshotLoop()
     if self.CampSession.RoundStarted == true then
         self:_setStatus('The shared round is already live. Regroup or push deeper as needed.')
@@ -2034,6 +2071,9 @@ function RunSessionService:start()
 
         if self.IsLaunched then
             player:LoadCharacter()
+            if RunService:IsStudio() then
+                self:_grantStudioStarterTools(player)
+            end
         end
 
         self:_broadcastSnapshot()

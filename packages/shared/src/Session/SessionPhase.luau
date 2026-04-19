@@ -1,10 +1,12 @@
-local SessionPhase = table.freeze({
+-- Build the module table first, then freeze once. Freezing before adding
+-- `resolveFromCampSession` causes "attempt to modify a readonly table" in Studio.
+local SessionPhase = {
     RunPrep = 'RunPrep',
     RunField = 'RunField',
     MazeActive = 'MazeActive',
     Debrief = 'Debrief',
     SessionClosed = 'SessionClosed',
-})
+}
 
 function SessionPhase.resolveFromCampSession(session)
     local normalizedSession = if type(session) == 'table' then session else {}
@@ -39,4 +41,4 @@ function SessionPhase.resolveFromCampSession(session)
     return SessionPhase.RunPrep
 end
 
-return SessionPhase
+return table.freeze(SessionPhase)

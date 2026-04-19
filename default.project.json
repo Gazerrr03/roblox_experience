@@ -15,6 +15,21 @@
         "UI": {
           "$path": "packages/ui/src"
         }
+      },
+      "Assets": {
+        "$className": "Folder",
+        "ToolTemplates": {
+          "$className": "Folder",
+          "ToolFlashlight": {
+            "$path": "assets/ToolTemplates/ToolFlashlight.rbxmx"
+          },
+          "ToolCrowbar": {
+            "$path": "assets/ToolTemplates/ToolCrowbar.rbxmx"
+          },
+          "ToolPotion": {
+            "$path": "assets/ToolTemplates/ToolPotion.rbxmx"
+          }
+        }
       }
     },
     "ServerScriptService": {
