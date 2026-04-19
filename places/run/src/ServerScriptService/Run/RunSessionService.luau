@@ -1400,6 +1400,24 @@ function RunSessionService:_unequipItem(player)
     self:_setStatus(
         string.format('%s stowed %s back into the backpack.', player.DisplayName, result.Name)
     )
+    Shared.Runtime.HeldFlashlightHeadlight.syncHeldItem(player, nil)
+end
+
+function RunSessionService:_handleUseTool(player)
+    Gameplay.HeldToolUseRequest.apply(player, {
+        canManageInventory = function(p)
+            return self:_canManageInventory(p)
+        end,
+        inventoryService = self.InventoryService,
+        monsterService = self.MonsterService,
+        playerService = self.PlayerService,
+        setStatus = function(message)
+            self:_setStatus(message)
+        end,
+        shouldConsumeCrowbarOnUse = function(_p)
+            return self.CampSession.DangerActive == true
+        end,
+    })
 end
 
 function RunSessionService:_openGate(player)
@@ -2076,6 +2094,8 @@ function RunSessionService:start()
             self:_equipItem(player, payload.ItemInstanceId)
         elseif payload.Type == 'RequestUnequipItem' then
             self:_unequipItem(player)
+        elseif payload.Type == 'RequestUseTool' then
+            self:_handleUseTool(player)
         elseif payload.Type == 'RequestSprintStart' then
             self:_setPlayerSprinting(player, true)
         elseif payload.Type == 'RequestSprintStop' then

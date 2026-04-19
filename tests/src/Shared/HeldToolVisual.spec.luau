@@ -45,4 +45,19 @@ return function()
             )
         end)
     end
+
+    do
+        local charA = makeMinimalCharacter()
+        local charB = makeMinimalCharacter()
+        local crowbar = ToolItems['tool-crowbar']
+        assert(crowbar ~= nil, 'tool-crowbar should exist')
+        HeldToolVisual.sync(charA, crowbar)
+        HeldToolVisual.sync(charB, crowbar)
+        HeldToolVisual.playCrowbarSwingFeedback(charA)
+        HeldToolVisual.playCrowbarSwingFeedback(charB)
+        HeldToolVisual.clear(charA)
+        HeldToolVisual.clear(charB)
+        charA:Destroy()
+        charB:Destroy()
+    end
 end
