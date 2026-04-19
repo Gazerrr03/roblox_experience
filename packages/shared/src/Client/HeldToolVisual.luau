@@ -7,10 +7,19 @@ local ItemPresentation = Gameplay.Config.ItemPresentation
 
 local CLONE_NAME = 'HeldToolVisualClone'
 
-local activeSwingCleanup: (() -> ())? = nil
+-- One in-flight cosmetic swing per character (avoids cross-talk if multiple controllers share the module).
+local swingCleanupByCharacter: { [Model]: () -> () } = {}
 
 local HeldToolVisual = {}
 HeldToolVisual.CLONE_NAME = CLONE_NAME
+
+local function cancelSwingCleanupForCharacter(character: Model)
+    local cleanup = swingCleanupByCharacter[character]
+    if cleanup then
+        cleanup()
+        swingCleanupByCharacter[character] = nil
+    end
+end
 
 local function getHandPart(character: Model): BasePart?
     local hand = character:FindFirstChild('RightHand') or character:FindFirstChild('Right Arm')
@@ -18,8 +27,8 @@ local function getHandPart(character: Model): BasePart?
 end
 
 function HeldToolVisual.clear(character: Model?)
-    if activeSwingCleanup then
-        activeSwingCleanup()
+    if character then
+        cancelSwingCleanupForCharacter(character)
     end
 
     if not character then
@@ -174,7 +183,9 @@ local function hasHandHandleWeld(hand: BasePart, handle: BasePart): boolean
     for _, inst in handle:GetChildren() do
         if inst:IsA('WeldConstraint') then
             local w = inst :: WeldConstraint
-            if (w.Part0 == hand and w.Part1 == handle) or (w.Part1 == hand and w.Part0 == handle) then
+            if
+                (w.Part0 == hand and w.Part1 == handle) or (w.Part1 == hand and w.Part0 == handle)
+            then
                 return true
             end
         end
@@ -190,9 +201,7 @@ function HeldToolVisual.playCrowbarSwingFeedback(character: Model?)
         return
     end
 
-    if activeSwingCleanup then
-        activeSwingCleanup()
-    end
+    cancelSwingCleanupForCharacter(character)
 
     local hand = getHandPart(character)
     if not hand then
@@ -213,7 +222,9 @@ function HeldToolVisual.playCrowbarSwingFeedback(character: Model?)
     for _, inst in handle:GetChildren() do
         if inst:IsA('WeldConstraint') then
             local w = inst :: WeldConstraint
-            if (w.Part0 == hand and w.Part1 == handle) or (w.Part1 == hand and w.Part0 == handle) then
+            if
+                (w.Part0 == hand and w.Part1 == handle) or (w.Part1 == hand and w.Part0 == handle)
+            then
                 handWeld = w
                 break
             end
@@ -236,7 +247,7 @@ function HeldToolVisual.playCrowbarSwingFeedback(character: Model?)
             return
         end
         finished = true
-        activeSwingCleanup = nil
+        swingCleanupByCharacter[character] = nil
         if connection then
             connection:Disconnect()
             connection = nil
@@ -252,7 +263,7 @@ function HeldToolVisual.playCrowbarSwingFeedback(character: Model?)
         end
     end
 
-    activeSwingCleanup = restoreWeld
+    swingCleanupByCharacter[character] = restoreWeld
 
     connection = RunService.Heartbeat:Connect(function(dt)
         if not handle.Parent or not hand.Parent then

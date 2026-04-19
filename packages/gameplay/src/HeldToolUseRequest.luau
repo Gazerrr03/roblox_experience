@@ -1,6 +1,8 @@
 --!strict
 -- Shared server path for RequestUseTool (maze + run): consume held state, apply category effects, status line.
--- Lazy-require Shared inside apply() to avoid Gameplay <-> Shared circular init (Runtime.InventoryService loads Gameplay).
+-- Cache Shared after first flashlight use to avoid repeated ReplicatedStorage walks (still lazy vs module-load to reduce circular-init risk).
+
+local ReplicatedStorage = game:GetService('ReplicatedStorage')
 
 export type HeldToolUseDependencies = {
     canManageInventory: (Player) -> boolean,
@@ -13,6 +15,16 @@ export type HeldToolUseDependencies = {
 }
 
 local HeldToolUseRequest = {}
+
+local sharedPackageCache: any? = nil
+
+local function getSharedPackage(): any
+    if sharedPackageCache == nil then
+        sharedPackageCache =
+            require(ReplicatedStorage:WaitForChild('Packages'):WaitForChild('Shared'))
+    end
+    return sharedPackageCache
+end
 
 local function crowbarMeleeMissText(reason: unknown): string
     local code = if type(reason) == 'string' then reason else nil
@@ -133,10 +145,7 @@ function HeldToolUseRequest.apply(player: Player, deps: HeldToolUseDependencies)
 
     if updatedHeldItem.ToolCategory == 'Flashlight' then
         actionWord = 'flashed'
-        local Shared = require(
-            game:GetService('ReplicatedStorage'):WaitForChild('Packages'):WaitForChild('Shared')
-        )
-        local enabled = Shared.Runtime.HeldFlashlightHeadlight.toggle(player)
+        local enabled = getSharedPackage().Runtime.HeldFlashlightHeadlight.toggle(player)
         if enabled == nil then
             effectText = 'Head lamp could not be toggled (no head).'
         elseif enabled then
