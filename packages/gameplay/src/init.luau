@@ -1,4 +1,5 @@
 return {
+    HeldToolUseRequest = require(script.HeldToolUseRequest),
     Combat = require(script.Combat),
     Config = require(script.Config),
     ControlState = require(script.ControlState),
