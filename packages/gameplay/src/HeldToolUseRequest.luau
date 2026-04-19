@@ -1,6 +1,7 @@
 --!strict
 -- Shared server path for RequestUseTool (maze + run): consume held state, apply category effects, status line.
--- Cache Shared after first flashlight use to avoid repeated ReplicatedStorage walks (still lazy vs module-load to reduce circular-init risk).
+-- PR #289 (gemini-code-assist medium): cache Shared ModuleScript + required table after first flashlight use —
+-- avoids WaitForChild on every toggle; defer resolution to first use to reduce circular-init risk vs eager module-load.
 
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
 
@@ -16,12 +17,15 @@ export type HeldToolUseDependencies = {
 
 local HeldToolUseRequest = {}
 
+local sharedModuleScript: Instance? = nil
 local sharedPackageCache: any? = nil
 
-local function getSharedPackage(): any
+local function getSharedRuntimePackage(): any
     if sharedPackageCache == nil then
-        sharedPackageCache =
-            require(ReplicatedStorage:WaitForChild('Packages'):WaitForChild('Shared'))
+        if sharedModuleScript == nil then
+            sharedModuleScript = ReplicatedStorage:WaitForChild('Packages'):WaitForChild('Shared')
+        end
+        sharedPackageCache = require(sharedModuleScript)
     end
     return sharedPackageCache
 end
@@ -145,7 +149,7 @@ function HeldToolUseRequest.apply(player: Player, deps: HeldToolUseDependencies)
 
     if updatedHeldItem.ToolCategory == 'Flashlight' then
         actionWord = 'flashed'
-        local enabled = getSharedPackage().Runtime.HeldFlashlightHeadlight.toggle(player)
+        local enabled = getSharedRuntimePackage().Runtime.HeldFlashlightHeadlight.toggle(player)
         if enabled == nil then
             effectText = 'Head lamp could not be toggled (no head).'
         elseif enabled then

@@ -7,7 +7,8 @@ local ItemPresentation = Gameplay.Config.ItemPresentation
 
 local CLONE_NAME = 'HeldToolVisualClone'
 
--- One in-flight cosmetic swing per character (avoids cross-talk if multiple controllers share the module).
+-- PR #289 (gemini-code-assist high): one in-flight cosmetic swing cleanup per character — a single module-level
+-- slot would let two characters overwrite each other's restore callbacks.
 local swingCleanupByCharacter: { [Model]: () -> () } = {}
 
 local HeldToolVisual = {}
