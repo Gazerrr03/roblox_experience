@@ -14,6 +14,9 @@ local CORPSE_COLOR = Color3.fromRGB(92, 92, 92)
 local CORPSE_MATERIAL = Enum.Material.Slate
 local CORPSE_SIZE = Vector3.new(4, 1.2, 2)
 local CORPSE_VERTICAL_OFFSET = -2.4
+local DROP_NODE_VERTICAL_OFFSET = 1.5
+local DROP_NODE_SIZE = Vector3.new(3, 1, 3)
+local DROP_NODE_PROMPT_HOLD_DURATION = 0.2
 local WORLD_BUILD_SOURCE = table.freeze({
     DirectBootDefault = 'DirectBootDefault',
     JoinDataMergedBeforeBuild = 'JoinDataMergedBeforeBuild',
@@ -24,6 +27,7 @@ local Packages = ReplicatedStorage:WaitForChild('Packages')
 local Shared = require(Packages:WaitForChild('Shared'))
 local Gameplay = require(Packages:WaitForChild('Gameplay'))
 local SharedPackage = Packages:WaitForChild('Shared')
+local ItemFields = Gameplay.Config.ItemFields
 
 local SessionConfig = Shared.Config.SessionConfig
 local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
@@ -117,6 +121,37 @@ local function mergeSummaries(existingSummaries, nextSummaries)
     end)
 
     return merged
+end
+
+local function cloneItemEntries(items)
+    local cloned = {}
+
+    for index, itemEntry in ipairs(items or {}) do
+        cloned[index] = ItemFields.copyItemEntry(itemEntry)
+    end
+
+    return cloned
+end
+
+local function cloneDropNodeState(dropNode)
+    if type(dropNode) ~= 'table' then
+        return nil
+    end
+
+    return {
+        Id = dropNode.Id,
+        RoomId = dropNode.RoomId,
+        SourceUserId = dropNode.SourceUserId,
+        Position = dropNode.Position,
+        Items = cloneItemEntries(dropNode.Items),
+    }
+end
+
+local function buildEmptyPersistentWorldState()
+    return {
+        CollectedLootRoomIds = {},
+        DropNodes = {},
+    }
 end
 
 local function clearDefaultWorkspaceShell()
@@ -282,6 +317,242 @@ function MazeSessionService:_destroyUgcMonsters()
         end
     end
     table.clear(self.UgcMonsterServices)
+end
+
+function MazeSessionService:_getPersistentWorldState()
+    local state = self.CampSession and self.CampSession.PersistentWorldState
+    if type(state) ~= 'table' then
+        return buildEmptyPersistentWorldState()
+    end
+
+    return {
+        CollectedLootRoomIds = table.clone(state.CollectedLootRoomIds or {}),
+        DropNodes = cloneArray(state.DropNodes or {}),
+    }
+end
+
+function MazeSessionService:_setPersistentWorldState(nextState)
+    self.CampSession = CampMazeSessionContract.setPersistentWorldState(self.CampSession, nextState)
+end
+
+function MazeSessionService:_upsertDynamicDropNode(dropNode)
+    if not (self.World and self.World.Root and type(dropNode) == 'table') then
+        return
+    end
+
+    local existing = self.DynamicDropNodesById[dropNode.Id]
+    if existing then
+        if existing.Connection then
+            existing.Connection:Disconnect()
+        end
+        if existing.Part then
+            existing.Part:Destroy()
+        end
+    end
+
+    local part = Instance.new('Part')
+    part.Name = string.format('DropNode_%s', tostring(dropNode.Id))
+    part.Anchored = true
+    part.CanCollide = false
+    part.CanTouch = false
+    part.CanQuery = false
+    part.Transparency = 1
+    part.Size = DROP_NODE_SIZE
+    part.CFrame = CFrame.new(dropNode.Position + Vector3.new(0, DROP_NODE_VERTICAL_OFFSET, 0))
+    part.Parent = self.World.Root
+
+    local prompt = Instance.new('ProximityPrompt')
+    prompt.ActionText = 'Recover'
+    prompt.ObjectText = string.format('%d dropped item(s)', #(dropNode.Items or {}))
+    prompt.HoldDuration = DROP_NODE_PROMPT_HOLD_DURATION
+    prompt.RequiresLineOfSight = false
+    prompt.Parent = part
+
+    local connection = prompt.Triggered:Connect(function(player)
+        self:_pickupDropNode(player, dropNode.Id)
+    end)
+
+    self.DynamicDropNodesById[dropNode.Id] = {
+        Id = dropNode.Id,
+        Part = part,
+        Prompt = prompt,
+        Connection = connection,
+    }
+end
+
+function MazeSessionService:_removeDynamicDropNode(dropNodeId)
+    local existing = self.DynamicDropNodesById[dropNodeId]
+    if existing == nil then
+        return
+    end
+
+    if existing.Connection then
+        existing.Connection:Disconnect()
+    end
+    if existing.Part then
+        existing.Part:Destroy()
+    end
+
+    self.DynamicDropNodesById[dropNodeId] = nil
+end
+
+function MazeSessionService:_clearDynamicDropNodes()
+    for dropNodeId in pairs(self.DynamicDropNodesById) do
+        self:_removeDynamicDropNode(dropNodeId)
+    end
+end
+
+function MazeSessionService:_markLootCollected(roomId)
+    local state = self:_getPersistentWorldState()
+
+    for _, collectedRoomId in ipairs(state.CollectedLootRoomIds) do
+        if collectedRoomId == roomId then
+            return
+        end
+    end
+
+    table.insert(state.CollectedLootRoomIds, roomId)
+    table.sort(state.CollectedLootRoomIds)
+    self:_setPersistentWorldState(state)
+end
+
+function MazeSessionService:_replaceDropNodeState(nextDropNode)
+    local state = self:_getPersistentWorldState()
+    local updated = false
+
+    for index, dropNode in ipairs(state.DropNodes) do
+        if dropNode.Id == nextDropNode.Id then
+            state.DropNodes[index] = cloneDropNodeState(nextDropNode)
+            updated = true
+            break
+        end
+    end
+
+    if not updated then
+        table.insert(state.DropNodes, cloneDropNodeState(nextDropNode))
+    end
+
+    table.sort(state.DropNodes, function(left, right)
+        return tostring(left.Id) < tostring(right.Id)
+    end)
+    self:_setPersistentWorldState(state)
+    self:_upsertDynamicDropNode(nextDropNode)
+end
+
+function MazeSessionService:_removeDropNodeState(dropNodeId)
+    local state = self:_getPersistentWorldState()
+    local nextDropNodes = {}
+
+    for _, dropNode in ipairs(state.DropNodes) do
+        if dropNode.Id ~= dropNodeId then
+            table.insert(nextDropNodes, cloneDropNodeState(dropNode))
+        end
+    end
+
+    state.DropNodes = nextDropNodes
+    self:_setPersistentWorldState(state)
+    self:_removeDynamicDropNode(dropNodeId)
+end
+
+function MazeSessionService:_addDroppedItems(sourceUserId, position, roomId, items)
+    if #items == 0 then
+        return nil
+    end
+
+    self.DropNodeSequence += 1
+    local dropNode = {
+        Id = string.format(
+            '%s-drop-%02d-%02d',
+            tostring(self.CampSession.CurrentRound or 0),
+            sourceUserId or 0,
+            self.DropNodeSequence
+        ),
+        RoomId = roomId,
+        SourceUserId = sourceUserId,
+        Position = position,
+        Items = cloneItemEntries(items),
+    }
+
+    self:_replaceDropNodeState(dropNode)
+    return dropNode
+end
+
+function MazeSessionService:_applyPersistentWorldStateToWorld()
+    if self.World == nil then
+        return
+    end
+
+    self:_clearDynamicDropNodes()
+
+    local state = self:_getPersistentWorldState()
+    for _, roomId in ipairs(state.CollectedLootRoomIds) do
+        local lootNode = self.World:getLootNode(roomId)
+        if lootNode and lootNode.Collected ~= true then
+            lootNode:markCollected()
+        end
+    end
+
+    for _, dropNode in ipairs(state.DropNodes) do
+        self:_upsertDynamicDropNode(dropNode)
+    end
+end
+
+function MazeSessionService:_pickupDropNode(player, dropNodeId)
+    if self.RunTracker:getState() ~= 'Expedition' then
+        self:_setStatus('Dropped items can only be recovered during an active round.')
+        return
+    end
+
+    if not self:_canManageInventory(player) then
+        return
+    end
+
+    local state = self:_getPersistentWorldState()
+    local dropNode = nil
+    for _, entry in ipairs(state.DropNodes) do
+        if entry.Id == dropNodeId then
+            dropNode = entry
+            break
+        end
+    end
+
+    if dropNode == nil then
+        return
+    end
+
+    local keptItems = {}
+    local recoveredCount = 0
+
+    for _, itemEntry in ipairs(dropNode.Items or {}) do
+        local success = self.InventoryService:pickupEntry(player, itemEntry)
+        if success == true then
+            recoveredCount += 1
+        else
+            table.insert(keptItems, ItemFields.copyItemEntry(itemEntry))
+        end
+    end
+
+    if recoveredCount == 0 then
+        self:_setStatus(
+            string.format('%s has no room to recover the dropped cache.', player.DisplayName)
+        )
+        return
+    end
+
+    if #keptItems == 0 then
+        self:_removeDropNodeState(dropNodeId)
+    else
+        dropNode.Items = keptItems
+        self:_replaceDropNodeState(dropNode)
+    end
+
+    self:_setStatus(
+        string.format(
+            '%s recovered %d dropped item(s) from the maze floor.',
+            player.DisplayName,
+            recoveredCount
+        )
+    )
 end
 
 function MazeSessionService:_buildMonsterRuntimeOptions(randomSeed)
@@ -453,6 +724,8 @@ function MazeSessionService.new(options)
     self.PendingUgcMonsterPayloads = {}
     self.CorpsesByUserId = {}
     self.DeathSummaryByUserId = {}
+    self.DropNodeSequence = 0
+    self.DynamicDropNodesById = {}
     self.BootPhase = 'New'
     self.SurfacePalette = Shared.Runtime.MazeLightingProfile.SurfacePalette
     self.RoundSignalBus = runtimeOptions.RoundSignalBus or RoundSignalBus.new()
@@ -892,14 +1165,20 @@ end
 
 function MazeSessionService:_getObjectiveFor()
     if self.RoundClosureInProgress or self.CampSession.SettlementReason ~= nil then
-        return 'Camp has triggered settlement. Hold position until the forced return to camp completes.'
+        return 'Round wrap-up is underway. Hold position while survivors are returned to the ship.'
     end
 
-    if self.RunTracker.IsCompleted then
-        return 'The maze run is complete. Review the returned summaries back in camp.'
+    if self.CampSession.SessionOutcome == 'success' then
+        return 'The crew already banked enough loot. Get clear and prepare for final debrief.'
     end
 
-    return 'Collect loot, survive the maze, and use a return marker whenever you want to head back to camp.'
+    return string.format(
+        'Recover loot, avoid the threat, and get it back to Run. Banked %d/%d item(s). Round %d/%d.',
+        self.CampSession.BankedItemCount or 0,
+        self.CampSession.TargetItemCount or 0,
+        self.CampSession.CurrentRound or 0,
+        self.CampSession.MaxRounds or 0
+    )
 end
 
 function MazeSessionService:_broadcastSnapshot()
@@ -928,6 +1207,9 @@ function MazeSessionService:_broadcastSnapshot()
         PlayersInMaze = self.CampSession.PlayersInMaze,
         ReturnedPlayerSummaries = returnedSummaries,
         SessionClosed = self.CampSession.SessionClosed,
+        CurrentRound = self.CampSession.CurrentRound,
+        RoundOutcome = self.CampSession.RoundOutcome,
+        SessionOutcome = self.CampSession.SessionOutcome,
     }
     local sessionPhase = SessionPhase.resolveFromCampSession(sessionPhaseInput)
     local worldBuildFields = self:_getWorldBuildMetadataFields()
@@ -941,6 +1223,12 @@ function MazeSessionService:_broadcastSnapshot()
             State = self.RunTracker:getState(),
             SessionPhase = sessionPhase,
             HostUserId = self.CampSession.HostUserId,
+            CurrentRound = self.CampSession.CurrentRound,
+            MaxRounds = self.CampSession.MaxRounds,
+            BankedItemCount = self.CampSession.BankedItemCount,
+            TargetItemCount = self.CampSession.TargetItemCount,
+            RoundOutcome = self.CampSession.RoundOutcome,
+            SessionOutcome = self.CampSession.SessionOutcome,
             RoundStarted = self.CampSession.RoundStarted == true,
             DangerActive = self.CampSession.DangerActive == true,
             RoundTimeRemainingSeconds = roundTimeRemainingSeconds,
@@ -985,9 +1273,11 @@ function MazeSessionService:_rebuildWorld()
         self.WorldInteractions:disconnectAll()
         self.WorldInteractions = nil
     end
+    self:_clearDynamicDropNodes()
 
     self.World = MazeWorldBuilder.build()
     self:_recordWorldBuildMetadata()
+    self:_applyPersistentWorldStateToWorld()
     self:_setBootPhase('BindWorldInteractions')
     self.WorldInteractions = self.World:bindInteractions({
         OnReturnHold = function(player)
@@ -1032,17 +1322,18 @@ end
 function MazeSessionService:_buildSummaryFor(player, returnReason, wasSettled, countInventory)
     local inventorySummary = self.InventoryService:getSummary(player)
     local shouldCountInventory = countInventory ~= false
-    local value = shouldCountInventory and inventorySummary.Value or 0
-    local itemCount = shouldCountInventory and inventorySummary.Count or 0
-    local weight = shouldCountInventory and inventorySummary.Weight or 0
 
     return CampMazeSessionContract.buildReturnSummary({
         UserId = player.UserId,
         Name = player.DisplayName,
         ReturnReason = returnReason,
-        Value = value,
-        ItemCount = itemCount,
-        Weight = weight,
+        Value = 0,
+        Weight = 0,
+        ItemCount = shouldCountInventory and inventorySummary.MissionCount or 0,
+        LootItemCount = shouldCountInventory and inventorySummary.LootCount or 0,
+        ClueCount = shouldCountInventory and inventorySummary.ClueCount or 0,
+        ToolCount = shouldCountInventory and inventorySummary.ToolCount or 0,
+        MissionCount = shouldCountInventory and inventorySummary.MissionCount or 0,
         WasExtracted = returnReason == 'extracted' or returnReason == 'settled',
         WasSettled = wasSettled == true,
         CountedInSettlement = shouldCountInventory,
@@ -1065,6 +1356,10 @@ function MazeSessionService:_buildPlayerInventories(players, countInventory)
                     BackpackCount = 0,
                     HeldCount = 0,
                     Value = 0,
+                    LootCount = 0,
+                    ClueCount = 0,
+                    ToolCount = 0,
+                    MissionCount = 0,
                     BackpackItems = {},
                     HeldItem = nil,
                 },
@@ -1076,6 +1371,15 @@ function MazeSessionService:_buildPlayerInventories(players, countInventory)
     end)
 
     return playerInventories
+end
+
+function MazeSessionService:_bankMissionLootForPlayer(player)
+    local extracted = self.InventoryService:extractMissionCargo(player)
+    self.CampSession = CampMazeSessionContract.recordBankedItems(
+        self.CampSession,
+        extracted.ItemCount
+    )
+    return extracted
 end
 
 function MazeSessionService:_canReturnToCamp()
@@ -1279,11 +1583,11 @@ function MazeSessionService:_handleUseTool(player)
         return
     end
 
-    -- 2. 检查这东西有没有“状态/耐久”（ConsumePerUse 允许为 0 表示不消耗型工具）
+    -- 2. 检查这东西有没有”状态/耐久”（ConsumePerUse 允许为 0 表示不消耗型工具）
     if type(heldItem.CurrentState) ~= 'number' or type(heldItem.ConsumePerUse) ~= 'number' then
         self:_setStatus(
             string.format(
-                '%s cannot actively "use" %s (it is not a tool).',
+                '%s cannot actively “use” %s (it is not a tool).',
                 player.DisplayName,
                 heldItem.Name
             )
@@ -1304,7 +1608,7 @@ function MazeSessionService:_handleUseTool(player)
         return
     end
 
-    -- 4. 真正“使用”它：扣除耐久并同步到实际背包状态
+    -- 4. 真正”使用”它：扣除耐久并同步到实际背包状态
     local consumeSuccess, consumeResult, cooldownRemaining =
         self.InventoryService:consumeHeldItemState(player, os.clock())
     if not consumeSuccess then
