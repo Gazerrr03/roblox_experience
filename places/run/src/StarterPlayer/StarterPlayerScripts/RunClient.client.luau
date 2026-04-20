@@ -15,6 +15,7 @@ local Remotes = Shared.Network.Remotes.waitForScope(Shared.Network.Remotes.Scope
 local TODConfig = Shared.Config.SessionConfig.TOD
 local TODRemote = ReplicatedStorage:WaitForChild('Remotes'):WaitForChild('TODState')
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
+local HeldToolVisual = Shared.Client.HeldToolVisual
 local heldItemController = Shared.Client.HeldItemController.new(localPlayer)
 local Theme = UI.Hud.Theme
 
@@ -405,7 +406,7 @@ objectiveLabel.Text = string.format('%s Objective: --', SAND_BOOK_LABEL)
 
 local guideLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 60), Theme.Text, 16, false)
 guideLabel.Text = string.format(
-    'In-world prompts:\n- %s Shop\n- Salvage Exchange\n- %s Board\n- %s Gate / Shared Maze Gate\nKeyboard: Hold LeftShift to sprint, F to use held tool, tap C to toggle %s Status, %s to free mouse, 1-3 to equip, X to stow',
+    'In-world prompts:\n- %s Shop\n- Salvage Exchange\n- %s Board\n- %s Gate / Shared Maze Gate\nKeyboard: Hold LeftShift to sprint, tap C to toggle %s Status, %s to free mouse, 1-3 to equip, X to stow',
     TEMPLE_LABEL,
     SAND_BOOK_LABEL,
     TEMPLE_LABEL,
@@ -941,6 +942,10 @@ actionInputConnection = UserInputService.InputBegan:Connect(function(input, game
             return
         end
         lastToolUseRequestAt = now
+        local heldForSwing = inventorySummary and inventorySummary.HeldItem
+        if heldForSwing and heldForSwing.ToolCategory == 'Crowbar' then
+            HeldToolVisual.playCrowbarSwingFeedback(localPlayer.Character)
+        end
         Remotes.RunAction:FireServer({
             Type = 'RequestUseTool',
         })
@@ -1220,6 +1225,12 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
     )
 
     local heldItem = inventory.HeldItem
+    if heldItem and type(heldItem.CooldownSeconds) == 'number' then
+        heldToolCooldownSeconds = math.max(heldItem.CooldownSeconds, 0)
+    else
+        heldToolCooldownSeconds = 0.2
+    end
+
     local inventoryDetailLines = {
         heldItem and string.format(
             'Held: %s | %d KG | %d value%s',

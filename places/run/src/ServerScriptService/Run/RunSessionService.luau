@@ -18,7 +18,6 @@ local InventoryService = Shared.Runtime.InventoryService
 local PlayerService = Shared.Runtime.PlayerService
 local PlayerStateService = Shared.Runtime.PlayerStateService
 local MonsterService = Shared.Runtime.MonsterService
-local HeldFlashlightHeadlight = Shared.Runtime.HeldFlashlightHeadlight
 local TODService = Shared.Runtime.TODService
 local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 local RoundSignalBus = Shared.Runtime.RoundSignalBus
@@ -1410,7 +1409,6 @@ function RunSessionService:_equipItem(player, itemInstanceId)
     end
 
     self:_setStatus(string.format('%s equipped %s in the temple.', player.DisplayName, result.Name))
-    HeldFlashlightHeadlight.syncHeldItem(player, result)
 end
 
 function RunSessionService:_unequipItem(player)
@@ -1433,7 +1431,7 @@ function RunSessionService:_unequipItem(player)
     self:_setStatus(
         string.format('%s stowed %s back into the backpack.', player.DisplayName, result.Name)
     )
-    HeldFlashlightHeadlight.syncHeldItem(player, nil)
+    Shared.Runtime.HeldFlashlightHeadlight.syncHeldItem(player, nil)
 end
 
 function RunSessionService:_handleUseTool(player)
@@ -1446,6 +1444,9 @@ function RunSessionService:_handleUseTool(player)
         playerService = self.PlayerService,
         setStatus = function(message)
             self:_setStatus(message)
+        end,
+        shouldConsumeCrowbarOnUse = function(_p)
+            return self.CampSession.DangerActive == true
         end,
     })
 end

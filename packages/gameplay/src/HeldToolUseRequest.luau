@@ -1,6 +1,7 @@
 --!strict
 -- Shared server path for RequestUseTool (maze + run): consume held state, apply category effects, status line.
--- Lazy-require Shared inside apply() to avoid Gameplay <-> Shared circular init (Runtime.InventoryService loads Gameplay).
+-- PR #289 (gemini-code-assist medium): cache Shared ModuleScript + required table after first flashlight use —
+-- avoids WaitForChild on every toggle; defer resolution to first use to reduce circular-init risk vs eager module-load.
 
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
 
@@ -10,10 +11,53 @@ export type HeldToolUseDependencies = {
     monsterService: any?,
     playerService: any,
     setStatus: (string) -> (),
+    -- When false for Crowbar, skip consumeHeldItemState entirely (no durability step, no LastUsedAt cooldown).
+    shouldConsumeCrowbarOnUse: ((Player) -> boolean)?,
 }
 
 local HeldToolUseRequest = {}
-local sharedPackageCache = nil
+
+local sharedModuleScript: Instance? = nil
+local sharedPackageCache: any? = nil
+
+local function getSharedRuntimePackage(): any
+    if sharedPackageCache == nil then
+        if sharedModuleScript == nil then
+            sharedModuleScript = ReplicatedStorage:WaitForChild('Packages'):WaitForChild('Shared')
+        end
+        sharedPackageCache = require(sharedModuleScript)
+    end
+    return sharedPackageCache
+end
+
+local function crowbarMeleeMissText(reason: unknown): string
+    local code = if type(reason) == 'string' then reason else nil
+    if code == 'ExpeditionInactive' then
+        return 'No hunt is active yet — open the ship door / start the round before swinging at monsters.'
+    elseif code == 'NoMonster' then
+        return 'Nothing dangerous is in the field to hit right now.'
+    elseif code == 'MissingMonsterPosition' then
+        return 'The threat has no position yet — try again in a moment.'
+    elseif code == 'OutOfRange' then
+        return 'That swing was too short — move closer and try again.'
+    elseif code == 'OutOfSwingArc' then
+        return 'You need to face the threat to connect.'
+    elseif code == 'PathBlocked' then
+        return 'Something solid blocks your swing.'
+    elseif code == 'BlockedLineOfSight' then
+        return 'You need a clear view of the threat.'
+    elseif code == 'InvalidFacing' then
+        return 'You need a clear facing direction to swing.'
+    elseif code == 'NoCharacter' or code == 'MissingHumanoidRoot' then
+        return 'You cannot swing without a ready character.'
+    elseif code == 'MonsterCombatStateMissing' then
+        return 'The threat is not ready to take damage yet.'
+    elseif code == 'InvalidPlayer' then
+        return 'That swing could not be applied.'
+    end
+
+    return string.format('The crowbar whiffs (%s).', tostring(reason))
+end
 
 function HeldToolUseRequest.apply(player: Player, deps: HeldToolUseDependencies)
     if not deps.canManageInventory(player) then
@@ -60,6 +104,19 @@ function HeldToolUseRequest.apply(player: Player, deps: HeldToolUseDependencies)
         return
     end
 
+    if heldItem.ToolCategory == 'Crowbar' and deps.shouldConsumeCrowbarOnUse ~= nil then
+        if not deps.shouldConsumeCrowbarOnUse(player) then
+            deps.setStatus(
+                string.format(
+                    '%s hefted the %s, but the hunt is not live yet — no swing was committed (no use or cooldown).',
+                    player.DisplayName,
+                    heldItem.Name
+                )
+            )
+            return
+        end
+    end
+
     local consumeSuccess, consumeResult, cooldownRemaining =
         deps.inventoryService:consumeHeldItemState(player, os.clock())
     if not consumeSuccess then
@@ -92,12 +149,7 @@ function HeldToolUseRequest.apply(player: Player, deps: HeldToolUseDependencies)
 
     if updatedHeldItem.ToolCategory == 'Flashlight' then
         actionWord = 'flashed'
-        if sharedPackageCache == nil then
-            sharedPackageCache =
-                require(ReplicatedStorage:WaitForChild('Packages'):WaitForChild('Shared'))
-        end
-        local Shared = sharedPackageCache
-        local enabled = Shared.Runtime.HeldFlashlightHeadlight.toggle(player)
+        local enabled = getSharedRuntimePackage().Runtime.HeldFlashlightHeadlight.toggle(player)
         if enabled == nil then
             effectText = 'Head lamp could not be toggled (no head).'
         elseif enabled then
@@ -115,7 +167,9 @@ function HeldToolUseRequest.apply(player: Player, deps: HeldToolUseDependencies)
         end
 
         local monsterService = deps.monsterService
-        if monsterService then
+        if not monsterService then
+            effectText = 'Monsters are not loaded yet — try again in a moment.'
+        else
             local meleeOk, meleeResult = monsterService:tryApplyPlayerMeleeHit(player, {
                 DamagePips = damagePips,
                 SwingArcDegrees = updatedHeldItem.SwingArcDegrees,
@@ -130,6 +184,8 @@ function HeldToolUseRequest.apply(player: Player, deps: HeldToolUseDependencies)
                         meleeResult.RemainingHitPoints
                     )
                 end
+            else
+                effectText = crowbarMeleeMissText(meleeResult)
             end
         end
     elseif updatedHeldItem.ToolCategory == 'Potion' then
