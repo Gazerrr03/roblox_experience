@@ -50,6 +50,10 @@ local SIDE_NORMALS_X = {}
 local SIDE_NORMALS_Z = {}
 local SIDE_VECTORS_NORMAL = {}
 local SIDE_VECTORS_TANGENT = {}
+local SIDE_ORIENTATIONS = {}
+local WALL_NAMES = {}
+local WALL_SEGMENT_NAMES = {}
+local WALL_LINTEL_NAMES = {}
 
 for directionIndex = 1, 6 do
     local angle = math_rad((-(directionIndex - 1) * 60) + SIDE_ANGLE_OFFSET_DEGREES)
@@ -59,7 +63,16 @@ for directionIndex = 1, 6 do
     SIDE_NORMALS_Z[directionIndex] = nz
     SIDE_VECTORS_NORMAL[directionIndex] = Vector3_new(nx, 0, nz)
     SIDE_VECTORS_TANGENT[directionIndex] = Vector3_new(-nz, 0, nx)
+    SIDE_ORIENTATIONS[directionIndex] = CFrame_lookAt(Vector3_zero, SIDE_VECTORS_NORMAL[directionIndex])
+    WALL_NAMES[directionIndex] = 'Wall_' .. directionIndex
+    WALL_SEGMENT_NAMES[directionIndex] = 'Wall_' .. directionIndex .. '_Segment'
+    WALL_LINTEL_NAMES[directionIndex] = 'Wall_' .. directionIndex .. '_Lintel'
 end
+
+local TILE_SIZE_VECTOR = Vector3_new(FLOOR_TILE_SIZE, SLAB_THICKNESS, FLOOR_TILE_SIZE)
+local WALL_LINTEL_HEIGHT = WALL_HEIGHT - DOORWAY_HEIGHT
+local WALL_LINTEL_SIZE = Vector3_new(DOORWAY_WIDTH, WALL_LINTEL_HEIGHT, WALL_THICKNESS)
+local WALL_LINTEL_Y_OFFSET = Vector3_new(0, DOORWAY_HEIGHT + (WALL_LINTEL_HEIGHT / 2), 0)
 
 local TILE_BUFFER_A = FLOOR_TILE_SIZE / 2
 local TILE_BUFFER_B = (FLOOR_TILE_SIZE / 2) * (math_cos(math_rad(60)) + math_sin(math_rad(60)))
@@ -205,11 +218,13 @@ local function createConnectorAuthoringSockets(connectorFolder, connectorPivot)
 end
 
 local function addDecorPart(parent, roomCenter, name, size, offset, color, material, transparency)
+    local cx, cy, cz = roomCenter.X, roomCenter.Y, roomCenter.Z
+    local ox, oy, oz = offset.X, offset.Y, offset.Z
     local part = Instance_new('Part')
     part.Name = name
     part.Anchored = true
     part.Size = size
-    part.CFrame = CFrame_new(roomCenter + offset)
+    part.CFrame = CFrame_new(cx + ox, cy + oy, cz + oz)
     part.Color = color
     part.Material = material or Enum.Material.SmoothPlastic
     part.Transparency = transparency or 0
@@ -414,7 +429,6 @@ local function createHexTiledSlab(parent, name, center, apothem, yOffset, color,
     slabFolder.Parent = parent
 
     local cx, cy, cz = center.X, center.Y, center.Z
-    local tileSizeVector = Vector3_new(FLOOR_TILE_SIZE, SLAB_THICKNESS, FLOOR_TILE_SIZE)
 
     -- Bolt: Optimized loop bounds to eliminate redundant inner-loop condition checks.
     -- The hex boundary is defined by:
@@ -436,7 +450,7 @@ local function createHexTiledSlab(parent, name, center, apothem, yOffset, color,
             local part = Instance_new('Part')
             part.Name = 'Tile'
             part.Anchored = true
-            part.Size = tileSizeVector
+            part.Size = TILE_SIZE_VECTOR
             part.CFrame = CFrame_new(cx + x, cy + yOffset, cz + z)
             part.Color = color
             part.Material = material
@@ -456,43 +470,51 @@ local function createHexSideWall(
     hasDoorway,
     surfacePalette
 )
-    local normal, tangent = sideVectors(directionIndex)
-    local wallCenter = center + normal * apothem + Vector3_new(0, WALL_HEIGHT / 2, 0)
-    local wallForward = CFrame_lookAt(wallCenter, wallCenter + normal)
+    local normal = SIDE_VECTORS_NORMAL[directionIndex]
+    local tangent = SIDE_VECTORS_TANGENT[directionIndex]
+
+    local cx, cy, cz = center.X, center.Y, center.Z
+    local wx, wy, wz = cx + normal.X * apothem, cy + WALL_HEIGHT / 2, cz + normal.Z * apothem
+    local wallForward = CFrame_new(wx, wy, wz) * SIDE_ORIENTATIONS[directionIndex]
 
     if not hasDoorway then
-        createPart({
-            Name = string.format('Wall_%d', directionIndex),
-            Size = Vector3_new(sideLength, WALL_HEIGHT, WALL_THICKNESS),
-            CFrame = wallForward,
-            Color = surfacePalette.WallColor,
-            Material = surfacePalette.WallMaterial,
-        }, parent)
+        local part = Instance_new('Part')
+        part.Name = WALL_NAMES[directionIndex]
+        part.Anchored = true
+        part.Size = Vector3_new(sideLength, WALL_HEIGHT, WALL_THICKNESS)
+        part.CFrame = wallForward
+        part.Color = surfacePalette.WallColor
+        part.Material = surfacePalette.WallMaterial
+        part.Parent = parent
         return
     end
 
     local segmentLength = (sideLength - DOORWAY_WIDTH) / 2
     local segmentOffset = (DOORWAY_WIDTH / 2) + (segmentLength / 2)
+    local segmentSize = Vector3_new(segmentLength, WALL_HEIGHT, WALL_THICKNESS)
 
     for _, sign in ipairs({ -1, 1 }) do
-        createPart({
-            Name = string.format('Wall_%d_Segment', directionIndex),
-            Size = Vector3_new(segmentLength, WALL_HEIGHT, WALL_THICKNESS),
-            CFrame = wallForward + (tangent * (segmentOffset * sign)),
-            Color = surfacePalette.WallColor,
-            Material = surfacePalette.WallMaterial,
-        }, parent)
+        local offset = segmentOffset * sign
+        local tx, tz = tangent.X * offset, tangent.Z * offset
+        local part = Instance_new('Part')
+        part.Name = WALL_SEGMENT_NAMES[directionIndex]
+        part.Anchored = true
+        part.Size = segmentSize
+        part.CFrame = wallForward + Vector3_new(tx, 0, tz)
+        part.Color = surfacePalette.WallColor
+        part.Material = surfacePalette.WallMaterial
+        part.Parent = parent
     end
 
-    local lintelHeight = WALL_HEIGHT - DOORWAY_HEIGHT
-    if lintelHeight > 0 then
-        createPart({
-            Name = string.format('Wall_%d_Lintel', directionIndex),
-            Size = Vector3_new(DOORWAY_WIDTH, lintelHeight, WALL_THICKNESS),
-            CFrame = wallForward + Vector3_new(0, DOORWAY_HEIGHT + (lintelHeight / 2), 0),
-            Color = surfacePalette.WallColor,
-            Material = surfacePalette.WallMaterial,
-        }, parent)
+    if WALL_LINTEL_HEIGHT > 0 then
+        local part = Instance_new('Part')
+        part.Name = WALL_LINTEL_NAMES[directionIndex]
+        part.Anchored = true
+        part.Size = WALL_LINTEL_SIZE
+        part.CFrame = wallForward + WALL_LINTEL_Y_OFFSET
+        part.Color = surfacePalette.WallColor
+        part.Material = surfacePalette.WallMaterial
+        part.Parent = parent
     end
 end
 
