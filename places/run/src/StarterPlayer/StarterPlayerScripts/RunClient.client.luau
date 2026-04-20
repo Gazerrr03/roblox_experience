@@ -33,6 +33,8 @@ local actionInputConnection
 local sprintInputEndedConnection
 local isMenuMouseUnlockBound = false
 local visibleBackpackItems = {}
+local lastToolUseRequestAt = -math.huge
+local heldToolCooldownSeconds = 0.2
 local MENU_MOUSE_UNLOCK_STEP = 'RunMenuMouseUnlock'
 local MOUSE_TOGGLE_KEY = Enum.KeyCode.LeftAlt
 local teamPages = 0
@@ -403,7 +405,7 @@ objectiveLabel.Text = string.format('%s Objective: --', SAND_BOOK_LABEL)
 
 local guideLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 60), Theme.Text, 16, false)
 guideLabel.Text = string.format(
-    'In-world prompts:\n- %s Shop\n- Salvage Exchange\n- %s Board\n- %s Gate / Shared Maze Gate\nKeyboard: Hold LeftShift to sprint, tap C to toggle %s Status, %s to free mouse, 1-3 to equip, X to stow',
+    'In-world prompts:\n- %s Shop\n- Salvage Exchange\n- %s Board\n- %s Gate / Shared Maze Gate\nKeyboard: Hold LeftShift to sprint, F to use held tool, tap C to toggle %s Status, %s to free mouse, 1-3 to equip, X to stow',
     TEMPLE_LABEL,
     SAND_BOOK_LABEL,
     TEMPLE_LABEL,
@@ -927,6 +929,21 @@ actionInputConnection = UserInputService.InputBegan:Connect(function(input, game
                 Type = 'RequestSprintStart',
             })
         end
+        return
+    end
+
+    if input.KeyCode == Enum.KeyCode.F then
+        if not isRunLaunched then
+            return
+        end
+        local now = os.clock()
+        if now - lastToolUseRequestAt < heldToolCooldownSeconds then
+            return
+        end
+        lastToolUseRequestAt = now
+        Remotes.RunAction:FireServer({
+            Type = 'RequestUseTool',
+        })
         return
     end
 
