@@ -78,6 +78,8 @@ local LINTEL_HEIGHT = WALL_HEIGHT - DOORWAY_HEIGHT
 local LINTEL_SIZE = Vector3_new(DOORWAY_WIDTH, LINTEL_HEIGHT, WALL_THICKNESS)
 local LINTEL_RELATIVE_OFFSET = Vector3_new(0, DOORWAY_HEIGHT + (LINTEL_HEIGHT / 2), 0)
 
+local DOOR_PROMPT_COLOR = Color3.fromRGB(118, 136, 150)
+
 local TILE_SIZE = Vector3_new(FLOOR_TILE_SIZE, SLAB_THICKNESS, FLOOR_TILE_SIZE)
 
 local TILE_BUFFER_A = FLOOR_TILE_SIZE / 2
@@ -575,7 +577,7 @@ local function createDoorwayInstance(
     promptPart.Anchored = true
     promptPart.Size = Vector3_new(2, 2, 2)
     promptPart.CFrame = CFrame_new(openingCenter + PROMPT_Y_OFFSET)
-    promptPart.Color = Color3.fromRGB(118, 136, 150)
+    promptPart.Color = DOOR_PROMPT_COLOR
     promptPart.Material = Enum.Material.Metal
     promptPart.Transparency = 1
     promptPart.CanCollide = false
