@@ -15,7 +15,6 @@ local Remotes = Shared.Network.Remotes.waitForScope(Shared.Network.Remotes.Scope
 local TODConfig = Shared.Config.SessionConfig.TOD
 local TODRemote = ReplicatedStorage:WaitForChild('Remotes'):WaitForChild('TODState')
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
-local HeldToolVisual = Shared.Client.HeldToolVisual
 local heldItemController = Shared.Client.HeldItemController.new(localPlayer)
 local Theme = UI.Hud.Theme
 
@@ -34,8 +33,6 @@ local actionInputConnection
 local sprintInputEndedConnection
 local isMenuMouseUnlockBound = false
 local visibleBackpackItems = {}
-local lastToolUseRequestAt = -math.huge
-local heldToolCooldownSeconds = 0.2
 local MENU_MOUSE_UNLOCK_STEP = 'RunMenuMouseUnlock'
 local MOUSE_TOGGLE_KEY = Enum.KeyCode.LeftAlt
 local teamPages = 0
@@ -933,25 +930,6 @@ actionInputConnection = UserInputService.InputBegan:Connect(function(input, game
         return
     end
 
-    if input.KeyCode == Enum.KeyCode.F then
-        if not isRunLaunched then
-            return
-        end
-        local now = os.clock()
-        if now - lastToolUseRequestAt < heldToolCooldownSeconds then
-            return
-        end
-        lastToolUseRequestAt = now
-        local heldForSwing = inventorySummary and inventorySummary.HeldItem
-        if heldForSwing and heldForSwing.ToolCategory == 'Crowbar' then
-            HeldToolVisual.playCrowbarSwingFeedback(localPlayer.Character)
-        end
-        Remotes.RunAction:FireServer({
-            Type = 'RequestUseTool',
-        })
-        return
-    end
-
     if input.KeyCode == MOUSE_TOGGLE_KEY then
         isMouseFree = not isMouseFree
         syncMouseMode()
@@ -1225,12 +1203,6 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
     )
 
     local heldItem = inventory.HeldItem
-    if heldItem and type(heldItem.CooldownSeconds) == 'number' then
-        heldToolCooldownSeconds = math.max(heldItem.CooldownSeconds, 0)
-    else
-        heldToolCooldownSeconds = 0.2
-    end
-
     local inventoryDetailLines = {
         heldItem and string.format(
             'Held: %s | %d KG | %d value%s',
