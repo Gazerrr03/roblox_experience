@@ -2,6 +2,8 @@
 -- Shared server path for RequestUseTool (maze + run): consume held state, apply category effects, status line.
 -- Lazy-require Shared inside apply() to avoid Gameplay <-> Shared circular init (Runtime.InventoryService loads Gameplay).
 
+local ReplicatedStorage = game:GetService('ReplicatedStorage')
+
 export type HeldToolUseDependencies = {
     canManageInventory: (Player) -> boolean,
     inventoryService: any,
@@ -11,6 +13,7 @@ export type HeldToolUseDependencies = {
 }
 
 local HeldToolUseRequest = {}
+local sharedPackageCache = nil
 
 function HeldToolUseRequest.apply(player: Player, deps: HeldToolUseDependencies)
     if not deps.canManageInventory(player) then
@@ -89,9 +92,11 @@ function HeldToolUseRequest.apply(player: Player, deps: HeldToolUseDependencies)
 
     if updatedHeldItem.ToolCategory == 'Flashlight' then
         actionWord = 'flashed'
-        local Shared = require(
-            game:GetService('ReplicatedStorage'):WaitForChild('Packages'):WaitForChild('Shared')
-        )
+        if sharedPackageCache == nil then
+            sharedPackageCache =
+                require(ReplicatedStorage:WaitForChild('Packages'):WaitForChild('Shared'))
+        end
+        local Shared = sharedPackageCache
         local enabled = Shared.Runtime.HeldFlashlightHeadlight.toggle(player)
         if enabled == nil then
             effectText = 'Head lamp could not be toggled (no head).'
