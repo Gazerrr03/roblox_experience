@@ -121,10 +121,11 @@ return function()
         deps.monsterService = {
             tryApplyPlayerMeleeHit = function(_, _, payload)
                 meleePayload = payload
-                return true, {
-                    Killed = false,
-                    RemainingHitPoints = 2,
-                }
+                return true,
+                    {
+                        Killed = false,
+                        RemainingHitPoints = 2,
+                    }
             end,
         }
 
