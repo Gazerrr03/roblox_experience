@@ -126,29 +126,6 @@ local function createPart(config, parent)
     return part
 end
 
-local function createPromptPart(config, parent)
-    local part = createPart({
-        Name = config.Name,
-        Size = config.Size or Vector3_new(4, 4, 4),
-        CFrame = config.CFrame,
-        Color = config.Color,
-        Material = config.Material or Enum.Material.Metal,
-        Transparency = config.Transparency or 0,
-        CanCollide = config.CanCollide,
-        Shape = config.Shape,
-    }, parent)
-
-    local prompt = Instance_new('ProximityPrompt')
-    prompt.ActionText = config.ActionText
-    prompt.ObjectText = config.ObjectText
-    prompt.HoldDuration = 0
-    prompt.MaxActivationDistance = config.MaxActivationDistance or 10
-    prompt.RequiresLineOfSight = false
-    prompt.Parent = part
-
-    return part, prompt
-end
-
 local function applyArchetypeShellAsset(roomFolder, roomCenter, room, moduleAssetsRoot)
     local shellModel = MazeModuleAssetContract.getRoomArchetypeShellModel(
         moduleAssetsRoot,
