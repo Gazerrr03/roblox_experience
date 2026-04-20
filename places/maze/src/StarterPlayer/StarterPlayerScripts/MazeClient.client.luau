@@ -13,6 +13,7 @@ local UI = require(Packages:WaitForChild('UI'))
 local ItemPresentation = Gameplay.Config.ItemPresentation
 
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
+local HeldToolVisual = Shared.Client.HeldToolVisual
 local heldItemController = Shared.Client.HeldItemController.new(localPlayer)
 local Theme = UI.Hud.Theme
 local REMOTE_WAIT_TIMEOUT_SECONDS = 10
@@ -30,6 +31,7 @@ local visibleBackpackItems = {}
 local didReceiveInitialSnapshot = false
 local lastToolUseRequestAt = -math.huge
 local heldToolCooldownSeconds = 0.2
+local mazeInventoryForSwing: { [string]: any }? = nil
 
 local function presentationIconSuffix(itemEntry: { [string]: any }?)
     if type(itemEntry) ~= 'table' then
@@ -293,6 +295,10 @@ actionInputConnection = UserInputService.InputBegan:Connect(function(input, game
         end
 
         lastToolUseRequestAt = now
+        local heldForSwing = mazeInventoryForSwing and mazeInventoryForSwing.HeldItem
+        if heldForSwing and heldForSwing.ToolCategory == 'Crowbar' then
+            HeldToolVisual.playCrowbarSwingFeedback(localPlayer.Character)
+        end
         Remotes.MazeAction:FireServer({
             Type = 'RequestUseTool',
         })
@@ -404,6 +410,7 @@ local function connectMazeRemotes(remotes)
         objectiveLabel.Text = string.format('Objective: %s', snapshot.Objective or '--')
 
         local inventory = snapshot.Inventory or {}
+        mazeInventoryForSwing = inventory
         visibleBackpackItems = inventory.BackpackItems or {}
         heldItemController:applyInventory(inventory)
         inventoryLabel.Text = string.format(

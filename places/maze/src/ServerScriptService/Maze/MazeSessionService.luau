@@ -37,7 +37,6 @@ local ControlStateService = Shared.Runtime.ControlStateService
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local PlayerStateService = Shared.Runtime.PlayerStateService
 local PlayerService = Shared.Runtime.PlayerService
-local HeldFlashlightHeadlight = Shared.Runtime.HeldFlashlightHeadlight
 local RoundSignalBus = Shared.Runtime.RoundSignalBus
 local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 
@@ -1233,7 +1232,6 @@ function MazeSessionService:_equipItem(player, itemInstanceId)
     end
 
     self:_setStatus(string.format('%s equipped %s.', player.DisplayName, result.Name))
-    HeldFlashlightHeadlight.syncHeldItem(player, result)
 end
 
 function MazeSessionService:_unequipItem(player)
@@ -1256,7 +1254,6 @@ function MazeSessionService:_unequipItem(player)
     self:_setStatus(
         string.format('%s stowed %s back into the backpack.', player.DisplayName, result.Name)
     )
-    HeldFlashlightHeadlight.syncHeldItem(player, nil)
 end
 
 -- === 新增：处理道具使用的逻辑（这是本次手术最核心的部位） ===
@@ -1270,6 +1267,9 @@ function MazeSessionService:_handleUseTool(player)
         playerService = self.PlayerService,
         setStatus = function(message)
             self:_setStatus(message)
+        end,
+        shouldConsumeCrowbarOnUse = function(_p)
+            return self.RunTracker:getState() == 'Expedition'
         end,
     })
 end
