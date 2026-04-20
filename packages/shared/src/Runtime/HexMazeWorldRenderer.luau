@@ -474,7 +474,7 @@ local function createHexSideWall(
     local segmentSize = Vector3_new(segmentLength, WALL_HEIGHT, WALL_THICKNESS)
     local segmentName = WALL_SEGMENT_NAMES[directionIndex]
 
-    for _, sign in ipairs({ -1, 1 }) do
+    for sign = -1, 1, 2 do
         local part = Instance_new('Part')
         part.Name = segmentName
         part.Anchored = true
@@ -695,7 +695,7 @@ local function buildPassageMock(
     local normal = corridorForward.LookVector
     local tangent = Vector3_new(-normal.Z, 0, normal.X)
 
-    for _, sign in ipairs({ -1, 1 }) do
+    for sign = -1, 1, 2 do
         createPart({
             Name = string.format('%sWall', namePrefix),
             Size = Vector3_new(wallThickness, passageHeight, passageLength),
