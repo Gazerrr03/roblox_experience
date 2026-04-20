@@ -44,40 +44,8 @@ function ItemFunctionality.toggleFlashlight(player: Player): boolean
         return false
     end
 
-    local character = player.Character
-    if not character then
-        return false
-    end
-
-    local head = character:FindFirstChild('Head')
-    if not head then
-        return false
-    end
-
-    -- 查找或创建手电筒光源
-    local flashlightLight = head:FindFirstChild('FlashlightLight')
-    local isNewLight = false
-
-    if flashlightLight then
-        flashlightLight.Enabled = not flashlightLight.Enabled
-    else
-        flashlightLight = Instance.new('SpotLight')
-        flashlightLight.Name = 'FlashlightLight'
-        flashlightLight.Color = Color3.fromRGB(255, 255, 240)
-        flashlightLight.Brightness = 2
-        flashlightLight.Range = 50
-        flashlightLight.Angle = 45
-        flashlightLight.Face = Enum.NormalId.Front
-        flashlightLight.Parent = head
-        isNewLight = true
-    end
-
-    if isNewLight then
-        -- 刚创建时默认开启
-        flashlightLight.Enabled = true
-    end
-
-    return flashlightLight.Enabled
+    local enabled = Shared.Runtime.HeldFlashlightHeadlight.toggle(player)
+    return if enabled == nil then false else enabled
 end
 
 -- ====================
