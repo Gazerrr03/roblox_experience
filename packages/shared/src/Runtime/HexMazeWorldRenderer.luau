@@ -63,7 +63,8 @@ for directionIndex = 1, 6 do
     SIDE_NORMALS_Z[directionIndex] = nz
     SIDE_VECTORS_NORMAL[directionIndex] = Vector3_new(nx, 0, nz)
     SIDE_VECTORS_TANGENT[directionIndex] = Vector3_new(-nz, 0, nx)
-    SIDE_ORIENTATIONS[directionIndex] = CFrame_lookAt(Vector3_zero, SIDE_VECTORS_NORMAL[directionIndex])
+    SIDE_ORIENTATIONS[directionIndex] =
+        CFrame_lookAt(Vector3_zero, SIDE_VECTORS_NORMAL[directionIndex])
     WALL_NAMES[directionIndex] = 'Wall_' .. directionIndex
     WALL_SEGMENT_NAMES[directionIndex] = 'Wall_' .. directionIndex .. '_Segment'
     WALL_LINTEL_NAMES[directionIndex] = 'Wall_' .. directionIndex .. '_Lintel'
