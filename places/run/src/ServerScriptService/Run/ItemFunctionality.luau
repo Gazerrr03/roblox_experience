@@ -44,8 +44,40 @@ function ItemFunctionality.toggleFlashlight(player: Player): boolean
         return false
     end
 
-    local enabled = Shared.Runtime.HeldFlashlightHeadlight.toggle(player)
-    return if enabled == nil then false else enabled
+    local character = player.Character
+    if not character then
+        return false
+    end
+
+    local head = character:FindFirstChild('Head')
+    if not head then
+        return false
+    end
+
+    -- 查找或创建手电筒光源
+    local flashlightLight = head:FindFirstChild('FlashlightLight')
+    local isNewLight = false
+
+    if flashlightLight then
+        flashlightLight.Enabled = not flashlightLight.Enabled
+    else
+        flashlightLight = Instance.new('SpotLight')
+        flashlightLight.Name = 'FlashlightLight'
+        flashlightLight.Color = Color3.fromRGB(255, 255, 240)
+        flashlightLight.Brightness = 2
+        flashlightLight.Range = 50
+        flashlightLight.Angle = 45
+        flashlightLight.Face = Enum.NormalId.Front
+        flashlightLight.Parent = head
+        isNewLight = true
+    end
+
+    if isNewLight then
+        -- 刚创建时默认开启
+        flashlightLight.Enabled = true
+    end
+
+    return flashlightLight.Enabled
 end
 
 -- ====================
@@ -225,7 +257,90 @@ function ItemFunctionality.tetherMonster(player: Player, targetModel: Model): bo
     return true
 end
 
--- Crowbar combat is server-only via Gameplay.HeldToolUseRequest (RequestUseTool). Pry/door legacy was removed.
+-- ====================
+-- 道具 3: 撬棍
+-- ====================
+
+-- 撬开箱子/门
+function ItemFunctionality.pryOpen(player: Player, targetPart: BasePart): boolean
+    if not heldMatchesToolCategory(player, 'Crowbar') then
+        return false
+    end
+
+    -- 验证距离(防止远程交互攻击)
+    local character = player.Character
+    if not character or not character.HumanoidRootPart then
+        return false
+    end
+
+    local characterPosition = character.HumanoidRootPart.Position
+    local targetPosition = targetPart.Position
+    local distance = (targetPosition - characterPosition).Magnitude
+    local MAX_INTERACTION_DISTANCE = 10 -- 撬开的距离需要比较近
+
+    if distance > MAX_INTERACTION_DISTANCE then
+        warn(player.Name .. ' 尝试从过远的距离撬开: ' .. tostring(distance))
+        return false
+    end
+
+    -- 检查目标是否已被撬开
+    if targetPart:GetAttribute('PriedOpen') then
+        return false
+    end
+
+    -- 撬棍动画
+    -- 创建撬棍视觉提示
+    local crowbarVisual = Instance.new('Part')
+    crowbarVisual.Name = 'CrowbarAnimation'
+    crowbarVisual.Size = Vector3.new(0.2, 4, 0.2)
+    crowbarVisual.Color = Color3.fromRGB(120, 120, 120)
+    crowbarVisual.Material = Enum.Material.Metal
+    crowbarVisual.CanCollide = false
+    crowbarVisual.Anchored = true
+
+    local pryTargetPosition = targetPart.Position + Vector3.new(0, 1, 0)
+    crowbarVisual.CFrame = CFrame.new(pryTargetPosition) * CFrame.Angles(math.rad(45), 0, 0)
+    crowbarVisual.Parent = workspace
+
+    -- 撬动动画
+    local pryTween = TweenService:Create(
+        crowbarVisual,
+        TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.InOut),
+        { CFrame = crowbarVisual.CFrame * CFrame.Angles(math.rad(-30), 0, 0) }
+    )
+    pryTween:Play()
+
+    -- 撬开效果
+    task.delay(0.5, function()
+        -- 标记为已撬开
+        targetPart:SetAttribute('PriedOpen', true)
+
+        -- 移除目标(如果是锁)
+        local lock = targetPart:FindFirstChild('Lock')
+        if lock then
+            lock:Destroy()
+        end
+
+        -- 或者移动目标(如果是门/盖)
+        if targetPart.Name == 'ChestLid' then
+            local openTween = TweenService:Create(
+                targetPart,
+                TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                {
+                    CFrame = targetPart.CFrame
+                        * CFrame.Angles(math.rad(-45), 0, 0)
+                        * CFrame.new(0, 0.5, 0.5),
+                }
+            )
+            openTween:Play()
+        end
+
+        -- 移除视觉提示
+        crowbarVisual:Destroy()
+    end)
+
+    return true
+end
 
 -- ====================
 -- 交互检测系统
@@ -291,6 +406,8 @@ Remotes.UseItemFunction.OnServerEvent:Connect(
             elseif actionType == 'tether' and target then
                 success = ItemFunctionality.tetherMonster(player, target)
             end
+        elseif itemName == 'Crowbar' and actionType == 'pry' and target then
+            success = ItemFunctionality.pryOpen(player, target)
         end
 
         if success then

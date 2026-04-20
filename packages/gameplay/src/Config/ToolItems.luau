@@ -56,9 +56,9 @@ local ToolItems = {
         InitialState = 10,
         ConsumePerUse = 0,
         CooldownSeconds = 0.5,
-        -- 战斗参数（迷宫与 Run 共用；Run 巡逻点常离玩家较远，略放大范围与弧）
-        SwingRange = 8,
-        SwingArcDegrees = 75,
+        -- 战斗参数
+        SwingRange = 6,
+        SwingArcDegrees = 70,
         KnockbackStrength = 15,
         MeleeDamage = 1,
     },

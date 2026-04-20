@@ -1,5 +1,4 @@
 return {
-    HeldFlashlightHeadlight = require(script.HeldFlashlightHeadlight),
     ControlStateService = require(script.ControlStateService),
     FormalLocomotion = require(script.FormalLocomotion),
     HexMazeWorldRenderer = require(script.HexMazeWorldRenderer),
