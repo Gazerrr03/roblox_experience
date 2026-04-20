@@ -458,7 +458,7 @@ local function createHexSideWall(
     local wcx = center.X + nx * apothem
     local wcy = center.Y + WALL_HEIGHT / 2
     local wcz = center.Z + nz * apothem
-    local wallForward = CFrame_new(wcx, wcy, wcz) * SIDE_ORIENTATIONS[directionIndex]
+    local wallForward = SIDE_ORIENTATIONS[directionIndex] + Vector3_new(wcx, wcy, wcz)
 
     if not hasDoorway then
         -- Bolt: Refactored to keep parity with createPart properties while avoiding table allocations
@@ -480,7 +480,7 @@ local function createHexSideWall(
     local segmentOffset = (DOORWAY_WIDTH / 2) + (segmentLength / 2)
     local segmentSize = Vector3_new(segmentLength, WALL_HEIGHT, WALL_THICKNESS)
 
-    for _, sign in ipairs({ -1, 1 }) do
+    for sign = -1, 1, 2 do
         local part = Instance_new('Part')
         part.Name = SIDE_SEGMENT_NAMES[directionIndex]
         part.Anchored = true
@@ -701,7 +701,7 @@ local function buildPassageMock(
     local normal = corridorForward.LookVector
     local tangent = Vector3_new(-normal.Z, 0, normal.X)
 
-    for _, sign in ipairs({ -1, 1 }) do
+    for sign = -1, 1, 2 do
         createPart({
             Name = string.format('%sWall', namePrefix),
             Size = Vector3_new(wallThickness, passageHeight, passageLength),
