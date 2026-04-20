@@ -4,6 +4,8 @@
 
 local ToolUseEffects = {}
 
+local FLASHLIGHT_COLOR = Color3.fromRGB(255, 255, 240)
+
 export type ToolUseDeps = {
     MonsterService: any?,
     PlayerService: any?,
@@ -31,7 +33,7 @@ local function toggleHeadFlashlight(player: Player): (boolean, string)
 
     local spot = Instance.new('SpotLight')
     spot.Name = 'FlashlightLight'
-    spot.Color = Color3.fromRGB(255, 255, 240)
+    spot.Color = FLASHLIGHT_COLOR
     spot.Brightness = 2
     spot.Range = 50
     spot.Angle = 45
