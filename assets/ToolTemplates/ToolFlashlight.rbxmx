@@ -539,15 +539,14 @@
 		<Item class="Script" referent="RBX3D9D64692D1042F1921C413C10299A6C">
 			<Properties>
 				<ProtectedString name="Source"><![CDATA[local base = script.Parent.Handle
-local p = script.Parent:GetChildren()
-for i = 1, #p do
-    if p[i].ClassName == "Part" or p[i].ClassName == "WedgePart" then
-		local w = Instance.new("Weld", p[i])
-		w.Part0 = p[i]
-		w.Part1 = base
-		w.C0 = CFrame.new()
-		w.C1 = base.CFrame:inverse() * p[i].CFrame
-		p[i].Anchored = false
+for _, child in ipairs(script.Parent:GetChildren()) do
+    if child:IsA("BasePart") and child ~= base then
+        local weld = Instance.new("Weld")
+        weld.Part0 = child
+        weld.Part1 = base
+        weld.C1 = base.CFrame:inverse() * child.CFrame
+        weld.Parent = child
+        child.Anchored = false
     end
 end]]></ProtectedString>
 				<bool name="Disabled">false</bool>
