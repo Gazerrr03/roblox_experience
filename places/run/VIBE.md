@@ -48,6 +48,38 @@
   `places/run/src/StarterPlayer/StarterPlayerScripts/RunClient.client.luau`
 - Place project file: `places/run/default.project.json`
 
+### File Split Rules
+
+- `RunSessionService.luau`
+  Own round/session orchestration, remote handling, player lifecycle hooks, and
+  the calls out to other modules. Do not grow authored-scene binding details or
+  cross-place payload shaping inline here if a local adapter can own them.
+- `RunWorldBuilder.luau`, `RunScene.luau`, `RunInteractionRegistry.luau`
+  Own authored world assembly plus the mapping from tagged world instances into
+  usable runtime objects. Keep scene scanning/binding here instead of pushing it
+  up into `RunSessionService`.
+- `RunClueMarker.luau`, `RunDoor.luau`, `RunPortal.luau`, `RunTerminal.luau`,
+  `RunOceanTrigger.luau`, `RunSpawnPoint.luau`
+  Own one authored object family each. If a change is about one marker, prompt,
+  or trigger type, prefer extending the specific wrapper module rather than
+  stuffing more branching into the scene or session service.
+- `RunSnapshotBuilder.luau`
+  Own client-facing payload shaping only. If the question is "what should the
+  client see," the answer belongs here; if the question is "what is true in the
+  world," the answer belongs in a service or scene module.
+- `RunToMazeTransition.luau`
+  Own the run-to-maze handoff only. Keep teleport payload shaping and transition
+  error handling here instead of spreading it across unrelated run modules.
+- `RunStaticWorldContract.luau`, `RunStaticWorldValidator.luau`,
+  `RunWorldScanner.luau`
+  Own the authored-world contract and validation seam. Changes to world tags,
+  required markers, or scanner expectations should land here instead of being
+  hidden in higher-level orchestration.
+- `RunInventoryBridge.luau`, `ItemFunctionality.luau`,
+  `RunMonsterSpawnPolicy.luau`, `RunAreaResolver.luau`
+  Own focused helper domains. If a helper starts taking on multiple unrelated
+  responsibilities, split it again before adding more callers.
+
 ### Allowed Change Graph
 
 Owner zone:
@@ -95,9 +127,9 @@ Boundary interfaces:
 
 - `stylua --check .`
 - `selene .`
-- `rojo build places/run/default.project.json -o .\\tmp\\run.rbxlx`
+- `rojo build places/run/default.project.json -o ./tmp/run.rbxlx`
 - If shared handoff behavior changed:
-  `rojo build tests/default.project.json -o .\\tmp\\roblox_experience-tests.rbxlx`
+  `rojo build tests/default.project.json -o ./tmp/roblox_experience-tests.rbxlx`
 
 ## Notes
 

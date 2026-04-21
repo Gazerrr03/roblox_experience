@@ -27,3 +27,5 @@
 - Split remaining legacy camp/store UI assumptions away from the ship mission UI.
 - Add richer authored wilderness clue content now that the clue-item pipeline is
   in place.
+- Keep pushing world-binding logic into focused run modules instead of letting
+  `RunSessionService` absorb every new authored object rule.
