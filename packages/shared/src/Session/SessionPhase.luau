@@ -2,8 +2,10 @@ local SessionPhase = table.freeze({
     RunPrep = 'RunPrep',
     RunField = 'RunField',
     MazeActive = 'MazeActive',
-    Debrief = 'Debrief',
+    RunIntermission = 'RunIntermission',
+    FinalDebrief = 'FinalDebrief',
     SessionClosed = 'SessionClosed',
+    Debrief = 'FinalDebrief',
 })
 
 function SessionPhase.resolveFromCampSession(session)
@@ -13,8 +15,12 @@ function SessionPhase.resolveFromCampSession(session)
     local roundStarted = normalizedSession.RoundStarted == true
     local dangerActive = normalizedSession.DangerActive == true
     local settlementReason = normalizedSession.SettlementReason
+    local roundOutcome = normalizedSession.RoundOutcome
+    local sessionOutcome = normalizedSession.SessionOutcome
     local returnedSummaries = normalizedSession.ReturnedPlayerSummaries or {}
     local playersInMaze = normalizedSession.PlayersInMaze or {}
+    local currentRound = normalizedSession.CurrentRound or 1
+    local maxRounds = normalizedSession.MaxRounds or currentRound
 
     if normalizedSession.SessionClosed == true then
         return SessionPhase.SessionClosed
@@ -24,12 +30,32 @@ function SessionPhase.resolveFromCampSession(session)
         return SessionPhase.MazeActive
     end
 
+    if type(sessionOutcome) == 'string' and sessionOutcome ~= '' then
+        return SessionPhase.FinalDebrief
+    end
+
     if type(settlementReason) == 'string' and settlementReason ~= '' then
-        return SessionPhase.Debrief
+        if currentRound >= maxRounds then
+            return SessionPhase.FinalDebrief
+        end
+
+        return SessionPhase.RunIntermission
+    end
+
+    if type(roundOutcome) == 'string' and roundOutcome ~= '' then
+        if currentRound >= maxRounds then
+            return SessionPhase.FinalDebrief
+        end
+
+        return SessionPhase.RunIntermission
     end
 
     if mazeStatus == 'completed' or #returnedSummaries > 0 then
-        return SessionPhase.Debrief
+        if currentRound >= maxRounds then
+            return SessionPhase.FinalDebrief
+        end
+
+        return SessionPhase.RunIntermission
     end
 
     if gateOpen or roundStarted or dangerActive then

@@ -36,6 +36,15 @@ function InventoryService:pickup(player, itemDef)
     return inventory:add(itemDef)
 end
 
+function InventoryService:pickupEntry(player, rawItemEntry)
+    local inventory = self:get(player)
+    if not inventory then
+        return false, 'MissingInventory'
+    end
+
+    return inventory:addEntry(rawItemEntry)
+end
+
 function InventoryService:equip(player, itemInstanceId)
     local inventory = self:get(player)
     if not inventory then
@@ -69,9 +78,26 @@ function InventoryService:deposit(player)
         return 0
     end
 
-    local totalValue = inventory:getTotalValue()
-    inventory:clear()
-    return totalValue
+    local _, missionCount = inventory:extractMissionCargo()
+    return missionCount
+end
+
+function InventoryService:extractMissionCargo(player)
+    local inventory = self:get(player)
+    if not inventory then
+        return {}, 0
+    end
+
+    return inventory:extractMissionCargo()
+end
+
+function InventoryService:dropAllItems(player)
+    local inventory = self:get(player)
+    if not inventory then
+        return {}
+    end
+
+    return inventory:dropAllItems()
 end
 
 function InventoryService:loadSummary(player, summary)
@@ -95,6 +121,10 @@ function InventoryService:getSummary(player)
             Value = 0,
             BackpackItems = {},
             HeldItem = nil,
+            LootCount = 0,
+            ClueCount = 0,
+            ToolCount = 0,
+            MissionCount = 0,
         }
     end
 

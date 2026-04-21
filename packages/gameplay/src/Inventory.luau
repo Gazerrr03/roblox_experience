@@ -17,13 +17,39 @@ local function cloneArray(items)
     return result
 end
 
-function Inventory.new(capacity)
-    local backpackItems = {}
+local function getItemCategory(itemEntry)
+    if type(itemEntry.ItemCategory) == 'string' and itemEntry.ItemCategory ~= '' then
+        return itemEntry.ItemCategory
+    end
 
+    if type(itemEntry.ToolCategory) == 'string' and itemEntry.ToolCategory ~= '' then
+        return 'Tool'
+    end
+
+    return 'Loot'
+end
+
+local function getMissionCount(itemEntry)
+    if type(itemEntry.MissionCount) == 'number' then
+        return itemEntry.MissionCount
+    end
+
+    if getItemCategory(itemEntry) == 'Loot' then
+        return 1
+    end
+
+    return 0
+end
+
+local function normalizeItemEntry(rawItemEntry)
+    return ItemFields.normalizeItemEntryForLoad(rawItemEntry)
+end
+
+function Inventory.new(capacity)
     return setmetatable({
         Capacity = capacity,
         Weight = 0,
-        BackpackItems = backpackItems,
+        BackpackItems = {},
         HeldItem = nil,
         NextItemInstanceId = 1,
     }, Inventory)
@@ -32,6 +58,11 @@ end
 function Inventory:getCount()
     local heldCount = self.HeldItem and 1 or 0
     return #self.BackpackItems + heldCount
+end
+
+function Inventory:_hasCapacityFor(additionalCount)
+    local nextCount = self:getCount() + (additionalCount or 1)
+    return nextCount <= self.Capacity
 end
 
 function Inventory:_buildItemEntry(itemDef)
@@ -52,7 +83,7 @@ function Inventory:_buildItemEntry(itemDef)
         ToolCategory = itemDef.ToolCategory,
         StateModel = itemDef.StateModel,
         InitialState = itemDef.InitialState,
-        CurrentState = itemDef.InitialState,
+        CurrentState = itemDef.CurrentState or itemDef.InitialState,
         ConsumePerUse = itemDef.ConsumePerUse,
         CooldownSeconds = itemDef.CooldownSeconds,
         LastUsedAt = itemDef.LastUsedAt,
@@ -61,21 +92,41 @@ function Inventory:_buildItemEntry(itemDef)
         KnockbackStrength = itemDef.KnockbackStrength,
         MeleeDamage = itemDef.MeleeDamage,
         HealHealthPips = itemDef.HealHealthPips,
+        ItemCategory = itemDef.ItemCategory,
+        MissionCount = itemDef.MissionCount,
+        ReadableTitle = itemDef.ReadableTitle,
+        ReadableText = itemDef.ReadableText,
+        ClueId = itemDef.ClueId,
+        ThreatHintId = itemDef.ThreatHintId,
+        SourceMarkerId = itemDef.SourceMarkerId,
     })
 end
 
-local function normalizeItemEntry(rawItemEntry)
-    return ItemFields.normalizeItemEntryForLoad(rawItemEntry)
-end
-
 function Inventory:add(itemDef)
-    if self.Weight + itemDef.Weight > self.Capacity then
-        return false, 'OverCapacity'
+    if not self:_hasCapacityFor(1) then
+        return false, 'InventoryFull'
     end
 
     local itemEntry = self:_buildItemEntry(itemDef)
     table.insert(self.BackpackItems, itemEntry)
-    self.Weight += itemDef.Weight
+    return true, cloneItemEntry(itemEntry)
+end
+
+function Inventory:addEntry(rawItemEntry)
+    if not self:_hasCapacityFor(1) then
+        return false, 'InventoryFull'
+    end
+
+    local itemEntry = normalizeItemEntry(rawItemEntry)
+    if itemEntry == nil then
+        return false, 'InvalidItemEntry'
+    end
+
+    if itemEntry.InstanceId >= self.NextItemInstanceId then
+        self.NextItemInstanceId = itemEntry.InstanceId + 1
+    end
+
+    table.insert(self.BackpackItems, itemEntry)
     return true, cloneItemEntry(itemEntry)
 end
 
@@ -127,7 +178,6 @@ function Inventory:consumeHeldItemState(nowSeconds)
         return false, 'NotConsumable'
     end
 
-    -- Cooldown check applies to all tools (including zero-consume)
     local now = type(nowSeconds) == 'number' and nowSeconds or os.clock()
     local cooldownSeconds = heldItem.CooldownSeconds
     if type(cooldownSeconds) == 'number' and cooldownSeconds > 0 then
@@ -137,7 +187,6 @@ function Inventory:consumeHeldItemState(nowSeconds)
         end
     end
 
-    -- Consume state only when ConsumePerUse > 0
     if heldItem.ConsumePerUse > 0 then
         if heldItem.CurrentState < heldItem.ConsumePerUse then
             return false, 'Depleted'
@@ -152,29 +201,59 @@ function Inventory:consumeHeldItemState(nowSeconds)
 end
 
 function Inventory:getTotalValue()
-    local totalValue = 0
+    return 0
+end
+
+function Inventory:_summarizeCategories()
+    local counts = {
+        LootCount = 0,
+        ClueCount = 0,
+        ToolCount = 0,
+        MissionCount = 0,
+    }
+
+    local function addItem(itemEntry)
+        if itemEntry == nil then
+            return
+        end
+
+        local itemCategory = getItemCategory(itemEntry)
+        if itemCategory == 'Clue' then
+            counts.ClueCount += 1
+        elseif itemCategory == 'Tool' then
+            counts.ToolCount += 1
+        else
+            counts.LootCount += 1
+        end
+
+        counts.MissionCount += getMissionCount(itemEntry)
+    end
 
     for _, itemEntry in ipairs(self.BackpackItems) do
-        totalValue += itemEntry.Value
+        addItem(itemEntry)
     end
 
-    if self.HeldItem ~= nil then
-        totalValue += self.HeldItem.Value
-    end
+    addItem(self.HeldItem)
 
-    return totalValue
+    return counts
 end
 
 function Inventory:getSummary()
+    local categoryCounts = self:_summarizeCategories()
+
     return {
         Capacity = self.Capacity,
-        Weight = self.Weight,
+        Weight = 0,
         Count = self:getCount(),
         BackpackCount = #self.BackpackItems,
         HeldCount = self.HeldItem and 1 or 0,
-        Value = self:getTotalValue(),
+        Value = 0,
         BackpackItems = cloneArray(self.BackpackItems),
         HeldItem = self.HeldItem and cloneItemEntry(self.HeldItem) or nil,
+        LootCount = categoryCounts.LootCount,
+        ClueCount = categoryCounts.ClueCount,
+        ToolCount = categoryCounts.ToolCount,
+        MissionCount = categoryCounts.MissionCount,
     }
 end
 
@@ -191,11 +270,8 @@ function Inventory:loadSummary(summary)
     local maxItemInstanceId = 0
     local function processItem(rawItemEntry)
         local itemEntry = normalizeItemEntry(rawItemEntry)
-        if itemEntry ~= nil then
-            self.Weight += itemEntry.Weight
-            if itemEntry.InstanceId > maxItemInstanceId then
-                maxItemInstanceId = itemEntry.InstanceId
-            end
+        if itemEntry ~= nil and itemEntry.InstanceId > maxItemInstanceId then
+            maxItemInstanceId = itemEntry.InstanceId
         end
 
         return itemEntry
@@ -250,7 +326,6 @@ function Inventory:consumeById(itemId)
     for index, itemEntry in ipairs(self.BackpackItems) do
         if itemEntry.Id == itemId then
             local consumed = table.remove(self.BackpackItems, index)
-            self.Weight -= consumed.Weight
             return true, cloneItemEntry(consumed)
         end
     end
@@ -258,11 +333,50 @@ function Inventory:consumeById(itemId)
     if self.HeldItem and self.HeldItem.Id == itemId then
         local consumed = self.HeldItem
         self.HeldItem = nil
-        self.Weight -= consumed.Weight
         return true, cloneItemEntry(consumed)
     end
 
     return false, 'ItemNotFound'
+end
+
+function Inventory:extractMissionCargo()
+    local extracted = {}
+    local remaining = {}
+    local missionCount = 0
+
+    for _, itemEntry in ipairs(self.BackpackItems) do
+        if getMissionCount(itemEntry) > 0 then
+            table.insert(extracted, cloneItemEntry(itemEntry))
+            missionCount += getMissionCount(itemEntry)
+        else
+            table.insert(remaining, itemEntry)
+        end
+    end
+
+    self.BackpackItems = remaining
+
+    if self.HeldItem and getMissionCount(self.HeldItem) > 0 then
+        table.insert(extracted, cloneItemEntry(self.HeldItem))
+        missionCount += getMissionCount(self.HeldItem)
+        self.HeldItem = nil
+    end
+
+    return extracted, missionCount
+end
+
+function Inventory:dropAllItems()
+    local dropped = {}
+
+    for _, itemEntry in ipairs(self.BackpackItems) do
+        table.insert(dropped, cloneItemEntry(itemEntry))
+    end
+
+    if self.HeldItem ~= nil then
+        table.insert(dropped, cloneItemEntry(self.HeldItem))
+    end
+
+    self:clear()
+    return dropped
 end
 
 function Inventory:sell(itemId)
@@ -273,7 +387,6 @@ function Inventory:sell(itemId)
     for index, itemEntry in ipairs(self.BackpackItems) do
         if itemEntry.Id == itemId then
             local sold = table.remove(self.BackpackItems, index)
-            self.Weight -= sold.Weight or 0
             return true, cloneItemEntry(sold), sold.Value or 0
         end
     end
@@ -281,7 +394,6 @@ function Inventory:sell(itemId)
     if self.HeldItem and self.HeldItem.Id == itemId then
         local sold = self.HeldItem
         self.HeldItem = nil
-        self.Weight -= sold.Weight or 0
         return true, cloneItemEntry(sold), sold.Value or 0
     end
 
