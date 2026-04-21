@@ -1,4 +1,5 @@
 local RunAreaResolver = require(script.Parent.RunAreaResolver)
+local RunClueMarker = require(script.Parent.RunClueMarker)
 local RunDoor = require(script.Parent.RunDoor)
 local RunInteractionRegistry = require(script.Parent.RunInteractionRegistry)
 local RunOceanTrigger = require(script.Parent.RunOceanTrigger)
@@ -210,6 +211,16 @@ function RunScene.new(root)
         table.insert(oceanTriggers, RunOceanTrigger.new(part))
     end
 
+    local clueMarkers = {}
+    for _, descendant in ipairs(root:GetDescendants()) do
+        if descendant:IsA('BasePart') and string.sub(descendant.Name, 1, 11) == 'ClueMarker_' then
+            table.insert(clueMarkers, RunClueMarker.new(descendant))
+        end
+    end
+    table.sort(clueMarkers, function(left, right)
+        return left.ClueId < right.ClueId
+    end)
+
     local self = setmetatable({
         Root = root,
         SpawnPoints = spawnPoints,
@@ -222,6 +233,7 @@ function RunScene.new(root)
         },
         ShipModel = shipModel,
         OceanTriggers = oceanTriggers,
+        ClueMarkers = clueMarkers,
         OutdoorThresholdZ = outdoorThresholdZ,
         AreaResolver = nil,
         SpawnCFramesByKind = spawnCFramesByKind,

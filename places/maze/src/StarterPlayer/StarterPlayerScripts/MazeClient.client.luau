@@ -414,13 +414,13 @@ local function connectMazeRemotes(remotes)
         visibleBackpackItems = inventory.BackpackItems or {}
         heldItemController:applyInventory(inventory)
         inventoryLabel.Text = string.format(
-            'Inventory: %d total | %d backpack | %d held | %d/%d KG | %d value',
+            'Inventory: %d total | %d loot | %d clue | %d tool | %d/%d slots',
             inventory.Count or 0,
-            inventory.BackpackCount or 0,
-            inventory.HeldCount or 0,
-            inventory.Weight or 0,
-            inventory.Capacity or 0,
-            inventory.Value or 0
+            inventory.LootCount or 0,
+            inventory.ClueCount or 0,
+            inventory.ToolCount or 0,
+            inventory.Count or 0,
+            inventory.Capacity or 0
         )
 
         local heldItem = inventory.HeldItem
@@ -432,10 +432,9 @@ local function connectMazeRemotes(remotes)
 
         local detailLines = {
             heldItem and string.format(
-                'Held: %s | %d KG | %d value%s%s',
+                'Held: %s | %s%s%s',
                 heldItem.Name,
-                heldItem.Weight,
-                heldItem.Value,
+                heldItem.ItemCategory or 'Loot',
                 heldItem.Light and ' | Glow active' or '',
                 presentationIconSuffix(heldItem)
             ) or 'Held: Empty hands',
@@ -450,11 +449,10 @@ local function connectMazeRemotes(remotes)
                 table.insert(
                     detailLines,
                     string.format(
-                        '- [%d] %s | %d KG | %d value%s',
+                        '- [%d] %s | %s%s',
                         itemIndex,
                         itemEntry.Name,
-                        itemEntry.Weight,
-                        itemEntry.Value,
+                        itemEntry.ItemCategory or 'Loot',
                         presentationIconSuffix(itemEntry)
                     )
                 )
@@ -498,9 +496,9 @@ local function connectMazeRemotes(remotes)
                 table.insert(
                     returnedLines,
                     string.format(
-                        '- %s: %d value (%s)',
+                        '- %s: %d loot item(s) (%s)',
                         entry.Name,
-                        entry.Value or 0,
+                        entry.LootItemCount or entry.MissionCount or 0,
                         entry.ReturnReason or 'unknown'
                     )
                 )

@@ -8,15 +8,17 @@ function RunInteractionRegistry.new()
 end
 
 function RunInteractionRegistry:_track(connection)
-    table.insert(self.Connections, connection)
+    if connection ~= nil then
+        table.insert(self.Connections, connection)
+    end
 end
 
 function RunInteractionRegistry:bindScene(scene, handlers)
     self:_track(scene.Terminals.Shop:bind(function(player)
         handlers.OnShop(player)
     end))
-    self:_track(scene.Terminals.Book:bind(function(player)
-        handlers.OnBook(player)
+    self:_track(scene.Terminals.Objective:bind(function(player)
+        handlers.OnObjective(player)
     end))
     self:_track(scene.Terminals.Gate:bind(function(player)
         handlers.OnGate(player)
@@ -30,9 +32,9 @@ function RunInteractionRegistry:bindScene(scene, handlers)
         handlers.OnMazePortal(player)
     end))
 
-    if scene.Terminals.StartGame then
-        self:_track(scene.Terminals.StartGame:bind(function(player)
-            handlers.OnStartGame(player)
+    for _, clueMarker in ipairs(scene.ClueMarkers or {}) do
+        self:_track(clueMarker:bind(function(player, marker)
+            handlers.OnClueMarker(player, marker)
         end))
     end
 
