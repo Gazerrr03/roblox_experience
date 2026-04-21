@@ -37,7 +37,10 @@ end
 local function requirePrompt(part, contextLabel)
     local prompt = part:FindFirstChildOfClass('ProximityPrompt')
     if prompt == nil then
-        error(string.format('%s part "%s" is missing a ProximityPrompt.', contextLabel, part.Name), 0)
+        error(
+            string.format('%s part "%s" is missing a ProximityPrompt.', contextLabel, part.Name),
+            0
+        )
     end
 
     return prompt
@@ -172,6 +175,8 @@ local function cloneOverlayAsset(overlayAsset, root)
         end
     end
 
+    -- MazeWorldScanner only binds gameplay nodes that are direct room children,
+    -- so the overlay authoring contract keeps these prompt parts at that level.
     requirePrompt(
         requireBasePart(lootRoom, 'LootPrompt', 'Maze static world overlay'),
         'Maze static world overlay'

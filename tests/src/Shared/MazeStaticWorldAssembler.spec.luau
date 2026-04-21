@@ -10,7 +10,10 @@ return function()
     local MazeWorldBuilder = require(mazeModules:WaitForChild('MazeWorldBuilder'))
 
     local root = MazeStaticWorldAssembler.assemble()
-    assert(root.Name == MazeStaticWorldContract.RootName, 'Assembler should create MazeStaticWorld root')
+    assert(
+        root.Name == MazeStaticWorldContract.RootName,
+        'Assembler should create MazeStaticWorld root'
+    )
 
     local sceneryRoot = root:FindFirstChild(MazeStaticWorldContract.SceneryFolderName)
     assert(
@@ -40,14 +43,20 @@ return function()
 
     local scanResult = shared.Runtime.MazeWorldScanner.Scan(root)
     local roomIds = shared.Runtime.MazeWorldScanner.GetRoomIds(scanResult)
-    assert(#roomIds == 3, 'Assembler should expose the overlay rooms without treating scenery as rooms')
+    assert(
+        #roomIds == 3,
+        'Assembler should expose the overlay rooms without treating scenery as rooms'
+    )
     assert(
         table.find(roomIds, 'maze.3dm') == nil,
         'Geometry chunk containers under Scenery must be ignored by the runtime scanner'
     )
 
     local world = shared.Runtime.MazeWorldScanner.BuildStaticWorld(root)
-    assert(world.LootNodes.Room_Loot ~= nil, 'Assembled world should still expose overlay-authored loot nodes')
+    assert(
+        world.LootNodes.Room_Loot ~= nil,
+        'Assembled world should still expose overlay-authored loot nodes'
+    )
     assert(
         world.Doorways['Room_Loot:Doorway_East'] ~= nil,
         'Assembled world should still expose overlay-authored doorway nodes'
@@ -58,7 +67,10 @@ return function()
     )
 
     local scene = MazeWorldBuilder.build()
-    assert(scene.Root.Name == MazeStaticWorldContract.RootName, 'World builder should assemble before scanning')
+    assert(
+        scene.Root.Name == MazeStaticWorldContract.RootName,
+        'World builder should assemble before scanning'
+    )
     assert(
         scene:getLootNode('Room_Loot') ~= nil,
         'World builder should produce a MazeScene from the assembled static world'
@@ -67,7 +79,10 @@ return function()
     local overlayAsset = ReplicatedStorage.Assets.Maze.Overlays:FindFirstChild(
         MazeStaticWorldContract.OverlayAssetName
     )
-    assert(overlayAsset ~= nil, 'Tests should mount the maze overlay asset in ReplicatedStorage.Assets.Maze')
+    assert(
+        overlayAsset ~= nil,
+        'Tests should mount the maze overlay asset in ReplicatedStorage.Assets.Maze'
+    )
 
     local savedSpawnMarker = overlayAsset:FindFirstChild('SpawnMarker')
     local spawnMarkerClone = savedSpawnMarker and savedSpawnMarker:Clone()
