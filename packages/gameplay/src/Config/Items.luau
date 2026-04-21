@@ -1,9 +1,7 @@
 local Config = script.Parent
 
--- 引入探索道具武器库
 local ToolItems = require(Config:WaitForChild('ToolItems'))
 
--- 这是原本的基础物资列表
 local BaseItems = {
     {
         Id = 'ugc-gen-token',
@@ -11,6 +9,8 @@ local BaseItems = {
         Weight = 1,
         Value = 4,
         Color = Color3.fromRGB(121, 195, 255),
+        ItemCategory = 'Loot',
+        MissionCount = 1,
     },
     {
         Id = 'scrap-bolt',
@@ -18,6 +18,8 @@ local BaseItems = {
         Weight = 1,
         Value = 8,
         Color = Color3.fromRGB(148, 163, 184),
+        ItemCategory = 'Loot',
+        MissionCount = 1,
     },
     {
         Id = 'signal-core',
@@ -25,6 +27,8 @@ local BaseItems = {
         Weight = 2,
         Value = 18,
         Color = Color3.fromRGB(80, 227, 194),
+        ItemCategory = 'Loot',
+        MissionCount = 1,
     },
     {
         Id = 'reactor-shell',
@@ -32,6 +36,8 @@ local BaseItems = {
         Weight = 4,
         Value = 42,
         Color = Color3.fromRGB(248, 196, 113),
+        ItemCategory = 'Loot',
+        MissionCount = 1,
     },
     {
         Id = 'glow-orb',
@@ -44,10 +50,11 @@ local BaseItems = {
             Range = 18,
             Color = Color3.fromRGB(170, 240, 255),
         },
+        ItemCategory = 'Loot',
+        MissionCount = 1,
     },
 }
 
--- === 自动合并逻辑：把 ToolItems 里的手电筒和撬棍也加进来 ===
 local FinalItems = table.clone(BaseItems)
 
 for _, toolData in pairs(ToolItems) do

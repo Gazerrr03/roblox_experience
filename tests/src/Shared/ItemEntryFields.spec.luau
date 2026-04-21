@@ -32,6 +32,13 @@ return function()
         KnockbackStrength = 8,
         MeleeDamage = 2,
         HealHealthPips = 3,
+        ItemCategory = 'Clue',
+        MissionCount = 0,
+        ReadableTitle = 'Threat Note',
+        ReadableText = 'The first noise is bait.',
+        ClueId = 'threat-note',
+        ThreatHintId = 'echo-monster',
+        SourceMarkerId = 'ClueMarker_ThreatNote',
     }
 
     local copy = ItemFields.copyItemEntry(fixture)
@@ -62,11 +69,15 @@ return function()
 
     local summary = {
         Capacity = 8,
-        Weight = fixture.Weight,
+        Weight = 0,
         Count = 1,
         BackpackCount = 0,
         HeldCount = 1,
-        Value = fixture.Value,
+        Value = 0,
+        LootCount = 0,
+        ClueCount = 1,
+        ToolCount = 0,
+        MissionCount = 0,
         BackpackItems = {},
         HeldItem = fixture,
     }
@@ -100,5 +111,10 @@ return function()
     assert(
         ItemFields.copyItemEntry(fixture).HealHealthPips == viaContract.HeldItem.HealHealthPips,
         'Contract clone should match ItemFields for HealHealthPips'
+    )
+    assert(
+        viaContract.HeldItem.ReadableTitle == 'Threat Note'
+            and viaContract.HeldItem.ThreatHintId == 'echo-monster',
+        'Contract clone should preserve clue-readable metadata'
     )
 end

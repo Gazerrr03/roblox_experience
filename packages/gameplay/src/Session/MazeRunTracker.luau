@@ -13,6 +13,11 @@ local function cloneSummary(summary)
         Weight = summary.Weight or 0,
         WasExtracted = summary.WasExtracted == true,
         WasSettled = summary.WasSettled == true,
+        CountedInSettlement = summary.CountedInSettlement ~= false,
+        LootItemCount = summary.LootItemCount or summary.MissionCount or summary.ItemCount or 0,
+        ClueCount = summary.ClueCount or 0,
+        ToolCount = summary.ToolCount or 0,
+        MissionCount = summary.MissionCount or summary.LootItemCount or summary.ItemCount or 0,
     }
 end
 

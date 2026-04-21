@@ -20,9 +20,9 @@ local heldItemController = Shared.Client.HeldItemController.new(localPlayer)
 local Theme = UI.Hud.Theme
 
 local TEMPLE_LABEL = 'Temple'
-local PAGE_LABEL = 'Pages'
-local SAND_BOOK_LABEL = 'Book of Sand'
-local SAND_BOOK_PROGRESS_LABEL = 'Book of Sand Progress'
+local PAGE_LABEL = 'Banked Loot'
+local SAND_BOOK_LABEL = 'Mission'
+local SAND_BOOK_PROGRESS_LABEL = 'Mission Progress'
 
 local disconnectFirstPersonLock
 local ensureFirstPersonLock
@@ -654,10 +654,10 @@ task.spawn(connectTODRemote)
 
 local shopPanel = createModalPanel('ShopPanel', UDim2.fromOffset(460, 520))
 local shopTitle = makeTextLabel(shopPanel, UDim2.new(1, 0, 0, 32), Theme.Text, 26, true)
-shopTitle.Text = 'Temple Shop'
+shopTitle.Text = 'Ship Locker'
 
 local shopPageLabel = makeTextLabel(shopPanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
-shopPageLabel.Text = 'Team Pages: 0'
+shopPageLabel.Text = 'Banked Loot: 0'
 
 local shopInventoryLabel =
     makeTextLabel(shopPanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
@@ -676,10 +676,10 @@ local shopCloseButton = makeButton(shopPanel, 'Close', 44, Theme.Warning)
 
 local sellPanel = createModalPanel('SellPanel', UDim2.fromOffset(460, 480))
 local sellTitle = makeTextLabel(sellPanel, UDim2.new(1, 0, 0, 32), Theme.Text, 26, true)
-sellTitle.Text = 'Salvage Exchange'
+sellTitle.Text = 'Recovery Log'
 
 local sellPageLabel = makeTextLabel(sellPanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
-sellPageLabel.Text = 'Team Pages: 0'
+sellPageLabel.Text = 'Banked Loot: 0'
 
 local sellItemsFrame = Instance.new('Frame')
 sellItemsFrame.Size = UDim2.new(1, 0, 1, -160)
@@ -694,11 +694,11 @@ local sellCloseButton = makeButton(sellPanel, 'Close', 44, Theme.Warning)
 
 local objectivePanel = createModalPanel('ObjectivePanel', UDim2.fromOffset(440, 360))
 local objectiveTitle = makeTextLabel(objectivePanel, UDim2.new(1, 0, 0, 32), Theme.Text, 26, true)
-objectiveTitle.Text = 'Book of Sand Board'
+objectiveTitle.Text = 'Mission Board'
 
 local objectiveGoalLabel =
     makeTextLabel(objectivePanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
-objectiveGoalLabel.Text = 'Goal: 0 Pages'
+objectiveGoalLabel.Text = 'Target: 0 item(s)'
 
 local objectiveProgressLabel =
     makeTextLabel(objectivePanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
@@ -744,24 +744,24 @@ end
 
 local function updateObjectiveUi()
     local clampedProgress = math.clamp(goalProgress, 0, 1)
-    objectiveGoalLabel.Text = string.format('Goal: %d %s', goalAmount, PAGE_LABEL)
+    objectiveGoalLabel.Text = string.format('Target: %d item(s)', goalAmount)
     objectiveProgressLabel.Text =
         string.format('%s: %d%%', SAND_BOOK_PROGRESS_LABEL, math.floor(clampedProgress * 100 + 0.5))
     progressBarFill.Size = UDim2.fromScale(clampedProgress, 1)
 end
 
 local function updatePageLabels()
-    shopPageLabel.Text = string.format('Team %s: %d', PAGE_LABEL, teamPages)
-    sellPageLabel.Text = string.format('Team %s: %d', PAGE_LABEL, teamPages)
+    shopPageLabel.Text = string.format('%s: %d', PAGE_LABEL, teamPages)
+    sellPageLabel.Text = string.format('%s: %d', PAGE_LABEL, teamPages)
     updateObjectiveUi()
 
     if inventorySummary then
         shopInventoryLabel.Text = string.format(
-            'Inventory: %d total | %d/%d KG | %d value',
+            'Inventory: %d total | %d loot | %d clue | %d tool',
             inventorySummary.Count or 0,
-            inventorySummary.Weight or 0,
-            inventorySummary.Capacity or 0,
-            inventorySummary.Value or 0
+            inventorySummary.LootCount or 0,
+            inventorySummary.ClueCount or 0,
+            inventorySummary.ToolCount or 0
         )
     else
         shopInventoryLabel.Text = 'Inventory: --'
@@ -791,7 +791,7 @@ local function showToast(message, tone)
 end
 
 local function showGoalBanner()
-    goalBanner.Text = string.format('Goal reached! Team %s: %d', PAGE_LABEL, teamPages)
+    goalBanner.Text = string.format('Quota reached! %s: %d', PAGE_LABEL, teamPages)
     goalBanner.Visible = true
 
     task.delay(3, function()
@@ -1215,13 +1215,13 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
     heldItemController:applyInventory(inventory)
     updatePageLabels()
     inventoryLabel.Text = string.format(
-        'Inventory: %d total | %d backpack | %d held | %d/%d KG | %d value',
+        'Inventory: %d total | %d loot | %d clue | %d tool | %d/%d slots',
         inventory.Count or 0,
-        inventory.BackpackCount or 0,
-        inventory.HeldCount or 0,
-        inventory.Weight or 0,
-        inventory.Capacity or 0,
-        inventory.Value or 0
+        inventory.LootCount or 0,
+        inventory.ClueCount or 0,
+        inventory.ToolCount or 0,
+        inventory.Count or 0,
+        inventory.Capacity or 0
     )
 
     local heldItem = inventory.HeldItem
@@ -1233,10 +1233,9 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
 
     local inventoryDetailLines = {
         heldItem and string.format(
-            'Held: %s | %d KG | %d value%s',
+            'Held: %s | %s%s',
             heldItem.Name,
-            heldItem.Weight,
-            heldItem.Value,
+            heldItem.ItemCategory or 'Loot',
             heldItem.Light and ' | Glow active' or ''
         ) or 'Held: Empty hands',
         'Backpack:',
@@ -1249,11 +1248,10 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
             table.insert(
                 inventoryDetailLines,
                 string.format(
-                    '- [%d] %s | %d KG | %d value',
+                    '- [%d] %s | %s',
                     itemIndex,
                     itemEntry.Name,
-                    itemEntry.Weight,
-                    itemEntry.Value
+                    itemEntry.ItemCategory or 'Loot'
                 )
             )
         end
@@ -1314,9 +1312,9 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
             table.insert(
                 mazeLines,
                 string.format(
-                    '- %s: %d value (%s)',
+                    '- %s: %d loot item(s) (%s)',
                     entry.Name,
-                    entry.Value or 0,
+                    entry.LootItemCount or entry.MissionCount or 0,
                     entry.ReturnReason or 'unknown'
                 )
             )

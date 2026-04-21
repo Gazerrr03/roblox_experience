@@ -3,49 +3,47 @@ return function()
     local shared = require(ReplicatedStorage:WaitForChild('Packages'):WaitForChild('Shared'))
     local SessionPhase = shared.Session.SessionPhase
 
-    assert(SessionPhase.resolveFromCampSession({
-        GateOpen = false,
-        MazeStatus = 'idle',
-    }) == SessionPhase.RunPrep, 'Closed temple sessions should resolve to RunPrep')
-
     assert(
-        SessionPhase.resolveFromCampSession({
-            GateOpen = true,
-            MazeStatus = 'idle',
-        }) == SessionPhase.RunField,
-        'Open temple sessions without an active maze should resolve to RunField'
-    )
-    assert(
-        SessionPhase.resolveFromCampSession({
-            RoundStarted = true,
-            DangerActive = true,
-            MazeStatus = 'idle',
-        }) == SessionPhase.RunField,
-        'A live shared round should resolve to RunField even without relying on GateOpen'
+        SessionPhase.resolveFromCampSession({}) == SessionPhase.RunPrep,
+        'Default session should resolve to RunPrep'
     )
 
     assert(SessionPhase.resolveFromCampSession({
         GateOpen = true,
+        CurrentRound = 1,
+        MaxRounds = 5,
+    }) == SessionPhase.RunField, 'Open ship state should resolve to RunField')
+
+    assert(SessionPhase.resolveFromCampSession({
         MazeStatus = 'active',
         PlayersInMaze = {
             { UserId = 1, Name = 'Scout' },
         },
-    }) == SessionPhase.MazeActive, 'Active maze sessions should resolve to MazeActive')
+        CurrentRound = 1,
+        MaxRounds = 5,
+    }) == SessionPhase.MazeActive, 'Active maze state should resolve to MazeActive')
 
-    assert(SessionPhase.resolveFromCampSession({
-        GateOpen = true,
-        MazeStatus = 'completed',
-        ReturnedPlayerSummaries = {
-            { UserId = 1, ReturnReason = 'settled' },
-        },
-    }) == SessionPhase.Debrief, 'Completed or returned sessions should resolve to Debrief')
     assert(
         SessionPhase.resolveFromCampSession({
-            SettlementReason = 'book_settlement',
-            MazeStatus = 'idle',
-        }) == SessionPhase.Debrief,
-        'Explicit settlement should resolve to Debrief even before returned summaries arrive'
+            SettlementReason = 'timeout',
+            RoundOutcome = 'timeout',
+            CurrentRound = 2,
+            MaxRounds = 5,
+        }) == SessionPhase.RunIntermission,
+        'Mid-mission settlement should resolve to RunIntermission'
     )
+
+    assert(SessionPhase.resolveFromCampSession({
+        SessionOutcome = 'failure',
+        CurrentRound = 5,
+        MaxRounds = 5,
+    }) == SessionPhase.FinalDebrief, 'Resolved mission outcomes should resolve to FinalDebrief')
+
+    assert(SessionPhase.resolveFromCampSession({
+        SettlementReason = 'timeout',
+        CurrentRound = 5,
+        MaxRounds = 5,
+    }) == SessionPhase.FinalDebrief, 'Final-round settlement should resolve to FinalDebrief')
 
     assert(
         SessionPhase.resolveFromCampSession({

@@ -5,7 +5,7 @@ function RunSnapshotBuilder.buildForPlayer(service, player, mazeEntryAvailabilit
     local playerStateSummary = if playerSummary and playerSummary.PlayerState ~= nil
         then playerSummary.PlayerState
         else service.PlayerStateService:getSummary(player)
-    local bookSnapshot = service:_getBookSnapshot()
+    local missionSnapshot = service:_getMissionSnapshot()
     local mazeEntry = mazeEntryAvailability or service:_evaluateMazeEntry(player)
 
     return {
@@ -19,7 +19,7 @@ function RunSnapshotBuilder.buildForPlayer(service, player, mazeEntryAvailabilit
         IsHost = service.CampSession.HostUserId == player.UserId,
         RoundStarted = service.CampSession.RoundStarted == true,
         DangerActive = service.CampSession.DangerActive == true,
-        RoundTimeRemainingSeconds = bookSnapshot.RoundTimeRemainingSeconds,
+        RoundTimeRemainingSeconds = missionSnapshot.RoundTimeRemainingSeconds,
         SettlementReason = service.CampSession.SettlementReason,
         Objective = service:_getObjectiveFor(player),
         SessionId = service.CampSession.SessionId,
@@ -31,10 +31,20 @@ function RunSnapshotBuilder.buildForPlayer(service, player, mazeEntryAvailabilit
         MazeEntryReason = mazeEntry.Reason,
         MazeEntryReasonCode = mazeEntry.ReasonCode,
         CanEnterMaze = mazeEntry.Mode == 'Teleport',
-        TeamPages = bookSnapshot.TeamPages,
-        BookGoalAmount = bookSnapshot.BookGoalAmount,
-        BookGoalProgress = bookSnapshot.BookGoalProgress,
-        BookGoalReached = bookSnapshot.BookGoalReached,
+        CurrentRound = missionSnapshot.CurrentRound,
+        MaxRounds = missionSnapshot.MaxRounds,
+        BankedItemCount = missionSnapshot.BankedItemCount,
+        TargetItemCount = missionSnapshot.TargetItemCount,
+        RoundOutcome = missionSnapshot.RoundOutcome,
+        SessionOutcome = missionSnapshot.SessionOutcome,
+        TeamPages = missionSnapshot.BankedItemCount,
+        BookGoalAmount = missionSnapshot.TargetItemCount,
+        BookGoalProgress = missionSnapshot.TargetItemCount > 0 and math.clamp(
+            missionSnapshot.BankedItemCount / missionSnapshot.TargetItemCount,
+            0,
+            1
+        ) or 0,
+        BookGoalReached = missionSnapshot.BankedItemCount >= missionSnapshot.TargetItemCount,
         Inventory = service.InventoryService:getSummary(player),
         Movement = service:_getMovementSummaryFor(player),
         ControlState = service.ControlStateService:getSummary(player),

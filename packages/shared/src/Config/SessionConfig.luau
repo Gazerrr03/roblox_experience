@@ -4,7 +4,7 @@ local DEFAULT_PLACE_IDS = {
     Lobby = 99207062749924,
     Maze = 114148445477110,
     Run = 137478567439901,
-    Library = 0, -- TODO: 替换为实际的图书馆 Place ID
+    Library = 0,
 }
 local DEFAULT_DEBUG_LOCAL_MAZE_HANDOFF = false
 
@@ -60,10 +60,14 @@ local SessionConfig = {
     MinPlayers = 1,
     MaxPlayers = 4,
     DefaultSeed = 12345,
-    DefaultQuota = 120,
-    DefaultRunDurationSeconds = 180,
+    DefaultQuota = 12,
+    DefaultRunDurationSeconds = 15 * 60,
     SettlementDurationSeconds = 8,
     InventoryCapacity = 5,
+    Mission = table.freeze({
+        RoundCount = 5,
+        TargetItemCount = 12,
+    }),
     TOD = table.freeze({
         RoundMinutes = 15,
         StartHour = 7,

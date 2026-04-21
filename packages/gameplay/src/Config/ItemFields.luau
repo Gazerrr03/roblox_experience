@@ -16,10 +16,36 @@ local function cloneLightConfig(lightConfig: any): any
     }
 end
 
+local function normalizeItemCategory(itemEntry: any): string
+    if type(itemEntry.ItemCategory) == 'string' and itemEntry.ItemCategory ~= '' then
+        return itemEntry.ItemCategory
+    end
+
+    if type(itemEntry.ToolCategory) == 'string' and itemEntry.ToolCategory ~= '' then
+        return 'Tool'
+    end
+
+    return 'Loot'
+end
+
+local function normalizeMissionCount(itemEntry: any, itemCategory: string): number
+    if type(itemEntry.MissionCount) == 'number' then
+        return itemEntry.MissionCount
+    end
+
+    if itemCategory == 'Loot' then
+        return 1
+    end
+
+    return 0
+end
+
 function ItemFields.copyItemEntry(itemEntry: any): any
     if type(itemEntry) ~= 'table' then
         return nil
     end
+
+    local itemCategory = normalizeItemCategory(itemEntry)
 
     return {
         InstanceId = itemEntry.InstanceId,
@@ -44,6 +70,13 @@ function ItemFields.copyItemEntry(itemEntry: any): any
         KnockbackStrength = itemEntry.KnockbackStrength,
         MeleeDamage = itemEntry.MeleeDamage,
         HealHealthPips = itemEntry.HealHealthPips,
+        ItemCategory = itemCategory,
+        MissionCount = normalizeMissionCount(itemEntry, itemCategory),
+        ReadableTitle = itemEntry.ReadableTitle,
+        ReadableText = itemEntry.ReadableText,
+        ClueId = itemEntry.ClueId,
+        ThreatHintId = itemEntry.ThreatHintId,
+        SourceMarkerId = itemEntry.SourceMarkerId,
     }
 end
 
@@ -51,6 +84,8 @@ function ItemFields.normalizeItemEntryForLoad(rawItemEntry: any): any
     if type(rawItemEntry) ~= 'table' or type(rawItemEntry.InstanceId) ~= 'number' then
         return nil
     end
+
+    local itemCategory = normalizeItemCategory(rawItemEntry)
 
     return {
         InstanceId = rawItemEntry.InstanceId,
@@ -75,6 +110,13 @@ function ItemFields.normalizeItemEntryForLoad(rawItemEntry: any): any
         KnockbackStrength = rawItemEntry.KnockbackStrength,
         MeleeDamage = rawItemEntry.MeleeDamage,
         HealHealthPips = rawItemEntry.HealHealthPips,
+        ItemCategory = itemCategory,
+        MissionCount = normalizeMissionCount(rawItemEntry, itemCategory),
+        ReadableTitle = rawItemEntry.ReadableTitle,
+        ReadableText = rawItemEntry.ReadableText,
+        ClueId = rawItemEntry.ClueId,
+        ThreatHintId = rawItemEntry.ThreatHintId,
+        SourceMarkerId = rawItemEntry.SourceMarkerId,
     }
 end
 
@@ -101,6 +143,13 @@ ItemFields.ENTRY_FIELD_NAMES = table.freeze({
     'KnockbackStrength',
     'MeleeDamage',
     'HealHealthPips',
+    'ItemCategory',
+    'MissionCount',
+    'ReadableTitle',
+    'ReadableText',
+    'ClueId',
+    'ThreatHintId',
+    'SourceMarkerId',
 })
 
 return ItemFields

@@ -21,6 +21,8 @@ function MazeLootNode:markCollected()
     if promptPart then
         promptPart:Destroy()
     end
+
+    self.Prompt = nil
 end
 
 return MazeLootNode
