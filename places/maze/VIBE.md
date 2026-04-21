@@ -45,6 +45,32 @@
   `places/maze/src/StarterPlayer/StarterPlayerScripts/MazeClient.client.luau`
 - Place project file: `places/maze/default.project.json`
 
+### File Split Rules
+
+- `MazeSessionService.luau`
+  Own expedition orchestration, player lifecycle, round closure, and the calls
+  out to inventory/monster/transition modules. Do not grow authored room/door
+  binding details inline here when a scene module can own them.
+- `MazeWorldBuilder.luau`, `MazeScene.luau`, `MazeSceneRegistry.luau`
+  Own authored world assembly and scene-object registration. If a change is
+  about how the fixed maze is scanned or bound, start here before touching the
+  session service.
+- `MazeRoom.luau`, `MazeDoor.luau`, `MazeLootNode.luau`,
+  `MazeExtractionNode.luau`, `MazeSpawnPoint.luau`, `MazeRunPortal.luau`
+  Own one authored world primitive each. Keep room/door/loot/extract behavior
+  separated at this layer instead of routing every special case through the
+  session service.
+- `MazeInteractionRegistry.luau`
+  Own the mapping between bound scene objects and interaction callbacks. If an
+  interaction changes but the session flow does not, prefer updating the
+  registry and the relevant scene wrapper.
+- `MazeToRunTransition.luau`
+  Own the maze-to-run handoff only. Keep return payload shaping and transition
+  failure behavior isolated here.
+- `MazeLightingService.luau` and `MazeBootstrapStatus.luau`
+  Own presentation/bootstrap concerns only. Avoid mixing expedition rules into
+  these modules.
+
 ### Allowed Change Graph
 
 Owner zone:
@@ -65,6 +91,8 @@ No-touch zone:
 - `places/run/**` unless the issue is explicitly about the return seam
 - shared contract files when changing teleport shape, persistent-world state, or
   return summary semantics
+- shared contract files when changing remote naming or replicated snapshot
+  meaning across both places
 
 Boundary interfaces:
 
@@ -90,12 +118,17 @@ Boundary interfaces:
 
 - `stylua --check .`
 - `selene .`
-- `rojo build places/maze/default.project.json -o .\tmp\maze.rbxlx`
+- `rojo build places/maze/default.project.json -o ./tmp/maze.rbxlx`
 - If shared handoff behavior changed:
-  `rojo build tests/default.project.json -o .\tmp\roblox_experience-tests.rbxlx`
+  `rojo build tests/default.project.json -o ./tmp/roblox_experience-tests.rbxlx`
 
 ## Notes
 
 - The live maze path is authored-world scan/bind, not procgen.
 - Loot already banked at the ship must not respawn in later rounds.
 - Death drops and unrecovered clue items are part of the persistent mission state.
+- Keep maze-specific behavior inside maze modules whenever possible.
+- `MazeStaticWorld` is the formal runtime source for expedition content.
+- If a change makes the maze client or service read more and more like a run
+  clone, the seam is probably in the wrong place and should move toward
+  `contract` first.

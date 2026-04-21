@@ -8,11 +8,14 @@
   round count, and mission outcome language.
 - Preserve authored clue markers and tower sightline as the main first-round
   teaching layer.
+- Keep `RunSessionService` as an orchestrator over authored scene objects and
+  transition adapters instead of a god object.
 
 ## Open Questions
 
 - When the shared `RunAction` / `RunSnapshot` / `PrivateState` surface should be
-  renamed to reflect cross-place mission semantics instead of legacy run naming.
+  renamed or split to reflect cross-place mission semantics instead of legacy
+  run naming.
 
 ## Temporary Exceptions
 
@@ -24,3 +27,5 @@
 - Split remaining legacy camp/store UI assumptions away from the ship mission UI.
 - Add richer authored wilderness clue content now that the clue-item pipeline is
   in place.
+- Keep pushing world-binding logic into focused run modules instead of letting
+  `RunSessionService` absorb every new authored object rule.

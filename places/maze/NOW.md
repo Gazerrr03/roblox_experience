@@ -9,8 +9,8 @@
 
 ## Open Questions
 
-- When to split the still-shared run-flavored remote surface into a clearer
-  maze-specific transport contract.
+- When to stop reusing the still run-flavored shared remote surface and define a
+  clearer maze-specific transport contract.
 
 ## Temporary Exceptions
 
@@ -22,3 +22,5 @@
 - Add more authored threat-tell nodes that explicitly echo wilderness clue text.
 - Replace remaining direct-boot wording that still sounds like a one-off
   expedition instead of a multi-round mission.
+- Keep authored room/door/loot behavior in dedicated maze scene modules instead
+  of letting `MazeSessionService` become the default home for every maze rule.
