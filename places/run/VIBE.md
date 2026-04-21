@@ -12,6 +12,7 @@
   players interpret maze threats and information gaps.
 - After each maze round, survivors return to the ship, bank loot automatically,
   regroup, and prepare for the next round.
+- This place is the orchestration center of the current vertical slice.
 
 ### Mental Model
 
@@ -20,6 +21,8 @@
 - `run` owns ship-side mission orchestration, wilderness clue discovery,
   round resets, and the run-to-maze transition handoff.
 - `run` does not own maze-side loot persistence or maze threat behavior.
+- `run` does not own the shared handoff schema itself; contract-level shape
+  changes still belong in shared files first.
 
 ### Key State Flow
 
@@ -39,6 +42,8 @@
 - Authored world layer:
   `RunWorldBuilder.luau`, `RunScene.luau`, `RunInteractionRegistry.luau`,
   `RunClueMarker.luau`, `RunToMazeTransition.luau`
+- Supporting services still heavily used by run:
+  `InventoryService.luau`, `MonsterService.luau`, `RoleService.luau`
 - Main client:
   `places/run/src/StarterPlayer/StarterPlayerScripts/RunClient.client.luau`
 - Place project file: `places/run/default.project.json`
@@ -61,6 +66,7 @@ Direct dependency zone:
 
 No-touch zone:
 
+- `places/lobby/**` — lobby has been removed; if re-adding a lobby layer is needed, start with `packages/shared/VIBE.md`
 - `places/maze/**` unless the issue is explicitly about the run-to-maze seam
 - shared contract files when changing handoff schema, round-loop semantics, or
   replicated snapshot meaning
@@ -89,12 +95,16 @@ Boundary interfaces:
 
 - `stylua --check .`
 - `selene .`
-- `rojo build places/run/default.project.json -o .\tmp\run.rbxlx`
+- `rojo build places/run/default.project.json -o .\\tmp\\run.rbxlx`
 - If shared handoff behavior changed:
-  `rojo build tests/default.project.json -o .\tmp\roblox_experience-tests.rbxlx`
+  `rojo build tests/default.project.json -o .\\tmp\\roblox_experience-tests.rbxlx`
 
 ## Notes
 
 - `run` now presents a multi-round mission board, not a `Book of Sand` goal loop.
 - Clues are physical personal inventory items by default; they are not auto-shared.
 - The tower/maze pull should stay visually obvious even when clue content grows.
+- `run` is the easiest place to accidentally turn into a god object. Prefer
+  extracting local modules or contract-first seams over piling unrelated duties
+  into `RunSessionService`.
+- `RunStaticWorld` is the formal runtime source for camp and wilderness content.

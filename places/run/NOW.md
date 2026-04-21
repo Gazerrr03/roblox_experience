@@ -8,11 +8,14 @@
   round count, and mission outcome language.
 - Preserve authored clue markers and tower sightline as the main first-round
   teaching layer.
+- Keep `RunSessionService` as an orchestrator over authored scene objects and
+  transition adapters instead of a god object.
 
 ## Open Questions
 
 - When the shared `RunAction` / `RunSnapshot` / `PrivateState` surface should be
-  renamed to reflect cross-place mission semantics instead of legacy run naming.
+  renamed or split to reflect cross-place mission semantics instead of legacy
+  run naming.
 
 ## Temporary Exceptions
 

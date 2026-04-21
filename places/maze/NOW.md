@@ -9,8 +9,8 @@
 
 ## Open Questions
 
-- When to split the still-shared run-flavored remote surface into a clearer
-  maze-specific transport contract.
+- When to stop reusing the still run-flavored shared remote surface and define a
+  clearer maze-specific transport contract.
 
 ## Temporary Exceptions
 

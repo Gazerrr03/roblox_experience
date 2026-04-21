@@ -65,6 +65,8 @@ No-touch zone:
 - `places/run/**` unless the issue is explicitly about the return seam
 - shared contract files when changing teleport shape, persistent-world state, or
   return summary semantics
+- shared contract files when changing remote naming or replicated snapshot
+  meaning across both places
 
 Boundary interfaces:
 
@@ -90,12 +92,17 @@ Boundary interfaces:
 
 - `stylua --check .`
 - `selene .`
-- `rojo build places/maze/default.project.json -o .\tmp\maze.rbxlx`
+- `rojo build places/maze/default.project.json -o .\\tmp\\maze.rbxlx`
 - If shared handoff behavior changed:
-  `rojo build tests/default.project.json -o .\tmp\roblox_experience-tests.rbxlx`
+  `rojo build tests/default.project.json -o .\\tmp\\roblox_experience-tests.rbxlx`
 
 ## Notes
 
 - The live maze path is authored-world scan/bind, not procgen.
 - Loot already banked at the ship must not respawn in later rounds.
 - Death drops and unrecovered clue items are part of the persistent mission state.
+- Keep maze-specific behavior inside maze modules whenever possible.
+- `MazeStaticWorld` is the formal runtime source for expedition content.
+- If a change makes the maze client or service read more and more like a run
+  clone, the seam is probably in the wrong place and should move toward
+  `contract` first.
