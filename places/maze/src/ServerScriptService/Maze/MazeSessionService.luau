@@ -231,6 +231,22 @@ function MazeSessionService:_replaceDropNodeState(nextDropNodes)
     self:_setPersistentWorldState(state)
 end
 
+function MazeSessionService:_reserveDynamicDropNodeId()
+    local nextId = self.NextDynamicDropNodeId or 1
+    local state = self:_getPersistentWorldState()
+
+    for _, dropNodeState in ipairs(state.DropNodes or {}) do
+        local existingId =
+            tonumber(string.match(tostring(dropNodeState.DropNodeId or ''), '^DynamicDrop_(%d+)$'))
+        if existingId ~= nil and existingId >= nextId then
+            nextId = existingId + 1
+        end
+    end
+
+    self.NextDynamicDropNodeId = nextId + 1
+    return string.format('DynamicDrop_%d', nextId)
+end
+
 function MazeSessionService:_markLootCollected(roomId)
     local state = self:_getPersistentWorldState()
     local collectedLootRoomIds = state.CollectedLootRoomIds or {}
@@ -344,10 +360,8 @@ function MazeSessionService:_createPersistentDropNode(entries, position, label)
         return
     end
 
-    local dropNodeId = string.format('DynamicDrop_%d', self.NextDynamicDropNodeId)
-    self.NextDynamicDropNodeId += 1
-
     local state = self:_getPersistentWorldState()
+    local dropNodeId = self:_reserveDynamicDropNodeId()
     local dropNodes = state.DropNodes or {}
     table.insert(dropNodes, {
         DropNodeId = dropNodeId,

@@ -11,9 +11,11 @@ local SessionConfig = Shared.Config.SessionConfig
 local Remotes = Shared.Network.Remotes.ensure()
 local CampMazeSessionContract = Shared.Session.CampMazeSessionContract
 local MazeEntryAvailability = Shared.Session.MazeEntryAvailability
+local SessionSeedPolicy = Shared.Session.SessionSeedPolicy
 local ControlStateService = Shared.Runtime.ControlStateService
 local FormalLocomotion = Shared.Runtime.FormalLocomotion
 local InventoryService = Shared.Runtime.InventoryService
+local MonsterService = Shared.Runtime.MonsterService
 local PlayerService = Shared.Runtime.PlayerService
 local PlayerStateService = Shared.Runtime.PlayerStateService
 local TODService = Shared.Runtime.TODService
@@ -21,6 +23,8 @@ local TeleportInventoryHydrator = Shared.Runtime.TeleportInventoryHydrator
 local RoundSignalBus = Shared.Runtime.RoundSignalBus
 
 local RunSpawnPoint = require(script.Parent.RunSpawnPoint)
+local RunWorldScanner = require(script.Parent.RunWorldScanner)
+local RunMonsterSpawnPolicy = require(script.Parent.RunMonsterSpawnPolicy)
 local RunSnapshotBuilder = require(script.Parent.RunSnapshotBuilder)
 local RunStaticWorldContract = require(script.Parent.RunStaticWorldContract)
 local RunToMazeTransition = require(script.Parent.RunToMazeTransition)
@@ -31,6 +35,11 @@ local RunSessionService = {}
 RunSessionService.__index = RunSessionService
 
 local DEFAULT_WORKSPACE_SHELL_NAMES = { 'Baseplate', 'SpawnLocation' }
+local CAMP_SESSION_LOCK_WAIT_SECONDS = 0.05
+local MAZE_ENTRY_REQUEST_COOLDOWN_SECONDS = 0.35
+local MAZE_ENTRY_DISTANCE_BUFFER = 2
+local TERMINAL_INTERACTION_DISTANCE_BUFFER = 2
+local SNAPSHOT_INTERVAL_SECONDS = 0.25
 local LEGACY_TOOL_CATEGORY = table.freeze({
     Flashlight = 'Flashlight',
     Rope = 'Rope',
@@ -51,6 +60,10 @@ local ROUND_SETTLEMENT_REASON = table.freeze({
     Book = 'ship_settlement',
     Timeout = 'timeout',
     AllDead = 'all_dead',
+})
+local DAMAGE_KIND_BY_PIPS = table.freeze({
+    [1] = Gameplay.PlayerState.DamageKind.Light,
+    [2] = Gameplay.PlayerState.DamageKind.Heavy,
 })
 local SHOP_ITEMS = {
     {
@@ -149,6 +162,22 @@ local function cloneArray(input)
     end
 
     return result
+end
+
+local function runWithCampSessionLock(self, callback)
+    while self.CampSessionLock do
+        task.wait(CAMP_SESSION_LOCK_WAIT_SECONDS)
+    end
+
+    self.CampSessionLock = true
+    local results = table.pack(pcall(callback))
+    self.CampSessionLock = false
+
+    if not results[1] then
+        error(results[2], 0)
+    end
+
+    return table.unpack(results, 2, results.n)
 end
 
 function RunSessionService.new(options)
@@ -1466,7 +1495,10 @@ function RunSessionService:_openGate(player)
             RoundEndTime = roundEndTime,
             DangerActive = true,
         })
+        self:_syncCampSession()
         self.World:openGate()
+        self.TODService:start()
+        self:_beginExpedition()
         self.Status = string.format(
             '%s opened the ship door. Round %d of %d is live: search the wilderness, then head for the tower.',
             player.DisplayName,
@@ -1552,6 +1584,473 @@ function RunSessionService:_bindItemRemotes()
         self.InventoryService:consumeHeldItemState(player, os.clock())
         self:_broadcastSnapshot()
     end)
+end
+
+function RunSessionService:_isPlayerNearTerminalPrompt(player, terminalOrPrompt, distanceBuffer)
+    if not terminalOrPrompt then
+        return false
+    end
+
+    if type(terminalOrPrompt.isPlayerNear) == 'function' then
+        return terminalOrPrompt:isPlayerNear(
+            player,
+            distanceBuffer or TERMINAL_INTERACTION_DISTANCE_BUFFER
+        )
+    end
+
+    local prompt = terminalOrPrompt
+    local promptPart = prompt.Parent
+    if not promptPart or not promptPart:IsA('BasePart') then
+        return false
+    end
+
+    local character = player.Character
+    local rootPart = character and character:FindFirstChild('HumanoidRootPart')
+    if not rootPart or not rootPart:IsA('BasePart') then
+        return false
+    end
+
+    local maxDistance = prompt.MaxActivationDistance
+        + (distanceBuffer or TERMINAL_INTERACTION_DISTANCE_BUFFER)
+    return (rootPart.Position - promptPart.Position).Magnitude <= maxDistance
+end
+
+function RunSessionService:_isPlayerNearMazePrompt(player)
+    return self:_isPlayerNearTerminalPrompt(
+        player,
+        self.World and self.World.MazePortal,
+        MAZE_ENTRY_DISTANCE_BUFFER
+    )
+end
+
+function RunSessionService:_enterMaze(player)
+    runWithCampSessionLock(self, function()
+        if SessionConfig.PlaceIds.Maze == 0 then
+            self:_setStatus(
+                'Set SessionConfig.PlaceIds.Maze or SessionPlaceIdMaze before using the maze gate.'
+            )
+            return
+        end
+
+        if self.CampSession.MazeStatus == CampMazeSessionContract.MazeStatus.Completed then
+            self:_setStatus('The maze session is already complete for this mission.')
+            return
+        end
+
+        local result = self.RunToMazeTransition:enter({
+            Player = player,
+            CampSession = self.CampSession,
+            GateOpen = self.GateOpen,
+            SessionConfig = self.SessionData,
+            PlayerInventory = self.InventoryService:getSummary(player),
+            EnteringPlayer = {
+                UserId = player.UserId,
+                Name = player.DisplayName,
+            },
+            EntryReason = 'maze_gate',
+        })
+        if not result.Ok then
+            self.CampSession = result.CurrentSession or self.CampSession
+            self.MazeEntryMode = MazeEntryAvailability.Mode.Blocked
+            self.MazeEntryReasonCode = result.ReasonCode or result.FailureCode
+            self.MazeEntryReason = result.Reason
+            self:_setStatus(
+                string.format('%s could not enter the maze: %s', player.DisplayName, result.Reason)
+            )
+            return
+        end
+
+        self.MazeEntryMode = MazeEntryAvailability.Mode.Teleport
+        self.MazeEntryReasonCode = result.ReasonCode
+        self.MazeEntryReason = result.Reason
+        self.CampSession = result.NextSession
+        self:_setStatus(string.format('%s is entering the shared maze run.', player.DisplayName))
+    end)
+end
+
+function RunSessionService:_requestMazeEntry(player, requireDistanceCheck)
+    if not self.IsLaunched or not self.World then
+        return
+    end
+
+    if requireDistanceCheck and not self:_isPlayerNearMazePrompt(player) then
+        return
+    end
+
+    local availability = self:_evaluateMazeEntry(player)
+    if availability.Mode == MazeEntryAvailability.Mode.Teleport then
+        self:_enterMaze(player)
+        return
+    end
+
+    self:_setStatus(
+        string.format(
+            '%s could not enter the maze: %s (code=%s, gameId=%d, placeId=%d, mazePlaceId=%d)',
+            player.DisplayName,
+            availability.Reason,
+            availability.ReasonCode or 'Unknown',
+            game.GameId,
+            game.PlaceId,
+            SessionConfig.PlaceIds.Maze
+        )
+    )
+end
+
+function RunSessionService:_compileMonsterForRun(authorProfile)
+    local MonsterRuntimeProfile = Gameplay.Monsters.MonsterRuntimeProfile
+
+    local tuning = authorProfile.Tuning
+    local presentation = authorProfile.Executable.Presentation
+    local behaviors = {}
+
+    for _, intent in ipairs(authorProfile.Executable.BehaviorIntents or {}) do
+        if intent.Enabled ~= false then
+            behaviors[intent.Id] = true
+        end
+    end
+
+    local runtimeProfile = {
+        Id = authorProfile.Id,
+        Name = authorProfile.Name,
+        Presentation = table.freeze({
+            ModelAssetId = presentation.ModelAssetId,
+            RigType = presentation.RigType,
+            AnimationMode = presentation.AnimationMode,
+            ChaseLoopSoundAssetId = presentation.ChaseLoopSoundAssetId,
+        }),
+        AttackCooldownSeconds = tuning.AttackCooldownSeconds or 1,
+        AttackDamagePips = tuning.AttackDamagePips or 1,
+        AttackRange = tuning.AttackRange or 4,
+        Speed = tuning.Speed,
+        SightRange = tuning.SightRange,
+        PatrolSpeedMultiplier = tuning.PatrolSpeedMultiplier,
+        SpawnOffset = tuning.SpawnOffset or Vector3.new(0, 4, 0),
+        CombatHitPoints = tuning.CombatHitPoints or 1,
+        Behaviors = table.freeze(behaviors),
+        Effects = table.freeze({}),
+    }
+    runtimeProfile.Components =
+        Gameplay.Monsters.MonsterComponentConfig.fromRuntimeProfile(runtimeProfile)
+    runtimeProfile = table.freeze(runtimeProfile)
+
+    local valid, reason = MonsterRuntimeProfile.validate(runtimeProfile)
+    if not valid then
+        error(string.format('Run monster profile invalid: %s', tostring(reason)), 0)
+    end
+
+    return runtimeProfile
+end
+
+function RunSessionService:_createMonsterService()
+    local monsterProfile = self:_compileMonsterForRun(Gameplay.Config.Monsters[1])
+    local canTraverseFn = RunWorldScanner.buildCanTraverseFn(self.World)
+    local randomSource = Random.new(self.SessionData.Seed > 0 and self.SessionData.Seed or 42)
+
+    return MonsterService.new(
+        monsterProfile,
+        function()
+            return self.CampSession.DangerActive == true
+        end,
+        function(player)
+            return self:_isPlayerTargetableInField(player)
+        end,
+        canTraverseFn,
+        {
+            RandomSeed = self.SessionData.Seed,
+            RandomSource = randomSource,
+            OnAttackHit = function(player, damagePips, hitContext)
+                self:_applyPlayerDamage(player, damagePips)
+                if hitContext and hitContext.Effects then
+                    for _, effect in ipairs(hitContext.Effects) do
+                        self.PlayerStateService:applyEffect(
+                            player,
+                            effect.Id,
+                            effect.DurationSeconds
+                        )
+                    end
+                end
+            end,
+        }
+    )
+end
+
+function RunSessionService:_applyPlayerDamage(player, damagePips)
+    if not self:_isPlayerTargetableInField(player) then
+        return
+    end
+
+    local damageKind = DAMAGE_KIND_BY_PIPS[damagePips]
+    if damageKind == nil then
+        return
+    end
+
+    local success, result = self.PlayerService:applyDamage(player, damageKind)
+    if not success then
+        warn(
+            ('[RunSessionService] applyDamage failed for %s: %s'):format(
+                player.DisplayName,
+                tostring(result)
+            )
+        )
+        return
+    end
+
+    local summary = self.PlayerService:getSummary(player)
+    if summary and summary.Health and summary.Health.IsDead then
+        self:_setStatus(
+            string.format(
+                '%s died in the run field and will respawn at the ship next round.',
+                player.DisplayName
+            )
+        )
+        self:_toast(player, 'You are out for this round.', 'Error')
+        self:_maybeEndRoundForAllDeaths()
+    end
+end
+
+function RunSessionService:_beginExpedition()
+    if not self.MonsterService then
+        return
+    end
+
+    local allPositions = RunWorldScanner.scanSpawnPoints()
+    if #allPositions == 0 then
+        warn('[RunSessionService] No SpawnPoint_* found in RunStaticWorld - skipping monster spawn')
+        return
+    end
+
+    local shipPosition = nil
+    local shipCollision = self.World and self.World.Collision and self.World.Collision.Ship
+    if shipCollision and shipCollision:IsA('PVInstance') then
+        shipPosition = shipCollision:GetPivot().Position
+    end
+
+    local shipModel = self.World and self.World.ShipModel
+    if not shipPosition and shipModel and shipModel:IsA('PVInstance') then
+        shipPosition = shipModel:GetPivot().Position
+    end
+
+    if not shipPosition then
+        warn(
+            '[RunSessionService] Ship position not found (no collision shell or model) - skipping monster spawn'
+        )
+        return
+    end
+
+    local eligible = RunMonsterSpawnPolicy.collectEligiblePatrolPoints(allPositions, shipPosition)
+    if #eligible == 0 then
+        warn(
+            '[RunSessionService] No eligible patrol points after exclusion - skipping monster spawn'
+        )
+        return
+    end
+
+    local initialIndex = RunMonsterSpawnPolicy.selectInitialPatrolIndex(eligible)
+    self.MonsterService:spawn(eligible, initialIndex)
+end
+
+function RunSessionService:_canProcessMazeEntryRequest(player)
+    local now = os.clock()
+    local previous = self.LastMazeEntryRequestAtByUserId[player.UserId]
+    if previous and now - previous < MAZE_ENTRY_REQUEST_COOLDOWN_SECONDS then
+        return false
+    end
+
+    self.LastMazeEntryRequestAtByUserId[player.UserId] = now
+    return true
+end
+
+function RunSessionService:_launchRun(_player)
+    if self.IsLaunched then
+        return
+    end
+
+    self:_ensureHost()
+    self.GateOpen = self.CampSession.GateOpen == true
+    self:_syncCampSession()
+    self:_subscribeToRoundSignals()
+    self:_rebuildWorld()
+
+    self.IsLaunched = true
+    Players.CharacterAutoLoads = true
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        player:LoadCharacter()
+    end
+
+    self:_startSnapshotLoop()
+    if self.CampSession.RoundStarted == true then
+        self:_setStatus('The shared round is already live. Regroup or push deeper as needed.')
+    else
+        self:_setStatus('The ship is safe. The host can open the door when the crew is ready.')
+    end
+end
+
+function RunSessionService:_getPlayerUpdateContext(player)
+    local character = player.Character
+    local humanoid = character and character:FindFirstChildOfClass('Humanoid')
+    local rootPart = humanoid and humanoid.RootPart
+    local currentPosition = rootPart and rootPart.Position or Vector3.zero
+
+    return {
+        CurrentPosition = currentPosition,
+        InputState = {},
+    }
+end
+
+function RunSessionService:_startSnapshotLoop()
+    if self.SnapshotThread then
+        return
+    end
+
+    self.SnapshotThread = task.spawn(function()
+        local previousTick = os.clock()
+
+        while true do
+            task.wait(SNAPSHOT_INTERVAL_SECONDS)
+
+            if self.IsLaunched then
+                local currentTick = os.clock()
+                local dt = currentTick - previousTick
+                previousTick = currentTick
+
+                for _, player in ipairs(Players:GetPlayers()) do
+                    local context = self:_getPlayerUpdateContext(player)
+                    self.PlayerService:update(player, dt, context)
+                    self:_syncPlayerMovement(player)
+                    self:_updateOceanPerPlayer(player, dt)
+                end
+
+                if
+                    self:_isRoundStarted()
+                    and not self.RoundClosureInProgress
+                    and (self:_getRoundTimeRemainingSeconds() or 0) <= 0
+                then
+                    self:_completeRound(ROUND_SETTLEMENT_REASON.Timeout, nil, true)
+                end
+
+                self:_maybeEndRoundForAllDeaths()
+                self:_broadcastSnapshot()
+            else
+                previousTick = os.clock()
+            end
+        end
+    end)
+end
+
+function RunSessionService:_setPlayerSprinting(player, isSprinting)
+    if not self.IsLaunched then
+        return
+    end
+
+    local playerState = self.PlayerService:getSummary(player)
+    local success, result
+    if isSprinting then
+        success, result = self.ControlStateService:requestSprintStart(player, playerState)
+    else
+        success, result = self.ControlStateService:requestSprintStop(player)
+    end
+
+    if not success then
+        if result == 'StaminaDepleted' then
+            self:_setStatus(string.format('%s is too exhausted to sprint.', player.DisplayName))
+        elseif result == 'Dead' then
+            self:_setStatus(string.format('%s cannot sprint while dead.', player.DisplayName))
+        end
+        self:_syncPlayerMovement(player)
+        return
+    end
+
+    self:_syncPlayerMovement(player)
+end
+
+function RunSessionService:_handlePlayerTeleportData(player)
+    local teleportData = self:_readTeleportData(player)
+    if not teleportData then
+        return
+    end
+
+    local _, accepted = self:_applyIncomingCampSession(teleportData)
+    if not accepted then
+        return
+    end
+
+    self:_applySessionConfig(teleportData.SessionConfig)
+    self:_hydratePlayerInventory(player, teleportData)
+
+    local summary = CampMazeSessionContract.findReturnSummary(teleportData, player.UserId)
+    if summary then
+        self.PendingSpawnByUserId[player.UserId] = self:_getReturnSpawnTargetForSummary(summary)
+        self.Status = self:_getReturnStatusText(player.DisplayName, summary, teleportData)
+        return
+    end
+
+    self.CampSession = CampMazeSessionContract.prunePlayer(self.CampSession, player.UserId, {
+        PreserveMazeEntry = CampMazeSessionContract.isPlayerInMaze(self.CampSession, player.UserId),
+    })
+    self.GateOpen = self.CampSession.GateOpen
+    self.Status = string.format('%s joined the ship session.', player.DisplayName)
+end
+
+function RunSessionService:_ensureAuthoritativeSessionSeed()
+    local seed, issuedNewSeed = SessionSeedPolicy.ensureAuthoritativeSeed({
+        CurrentSeed = self.SessionData.Seed,
+        DefaultSeed = SessionConfig.DefaultSeed,
+        HasAuthoritativeSeed = self.HasAuthoritativeSessionSeed,
+        RandomSource = self.SessionSeedRandom or Random.new(),
+    })
+
+    self.SessionData.Seed = seed
+    if issuedNewSeed then
+        self.HasAuthoritativeSessionSeed = true
+    end
+end
+
+function RunSessionService:_emptyInventorySummary()
+    return {
+        Capacity = self.SessionData.InventoryCapacity,
+        Weight = 0,
+        Count = 0,
+        BackpackCount = 0,
+        HeldCount = 0,
+        Value = 0,
+        BackpackItems = {},
+        HeldItem = nil,
+    }
+end
+
+function RunSessionService:_inventorySummaryFor(player)
+    if not self.IsLaunched then
+        return self:_emptyInventorySummary()
+    end
+
+    return self.InventoryService:getSummary(player)
+end
+
+function RunSessionService:_getLegacyHeldItemShim(player, legacyToolName)
+    if type(legacyToolName) ~= 'string' then
+        return nil
+    end
+
+    local expectedCategory = LEGACY_TOOL_CATEGORY[legacyToolName]
+    if not expectedCategory then
+        return nil
+    end
+
+    local held = self:_inventorySummaryFor(player).HeldItem
+    if not held or held.ToolCategory ~= expectedCategory then
+        return nil
+    end
+
+    return {
+        Name = held.Name,
+        Type = 'Tool',
+        Description = held.Description or '',
+        IsEquipped = true,
+        IsActive = false,
+        IconAssetId = held.IconAssetId or '',
+        Color = held.Color,
+    }
 end
 
 function RunSessionService:start()
