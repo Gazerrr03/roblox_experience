@@ -29,110 +29,26 @@
           "ToolPotion": {
             "$path": "../../assets/ToolTemplates/ToolPotion.rbxmx"
           }
+        },
+        "Maze": {
+          "$className": "Folder",
+          "Chunks": {
+            "$className": "Folder",
+            "MazeChunk_maze_v1": {
+              "$path": "assets/Chunks/MazeChunk_maze_v1.rbxmx"
+            }
+          },
+          "Overlays": {
+            "$className": "Folder",
+            "MazeStaticWorldOverlay_Default": {
+              "$path": "assets/Overlays/MazeStaticWorldOverlay_Default.rbxmx"
+            }
+          }
         }
       }
     },
     "Workspace": {
-      "$className": "Workspace",
-      "MazeStaticWorld": {
-        "$className": "Folder",
-        "SpawnMarker": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true
-          }
-        },
-        "ReturnHoldPad": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true
-          },
-          "Prompt": {
-            "$className": "ProximityPrompt"
-          }
-        },
-        "Room_Camp": {
-          "$className": "Model",
-          "$attributes": {
-            "RoomType": "OpenHub",
-            "IsCamp": true,
-            "DifficultyTier": 0
-          },
-          "Shell": {
-            "$className": "Part",
-            "$properties": {
-              "Anchored": true
-            }
-          }
-        },
-        "Room_Loot": {
-          "$className": "Model",
-          "$attributes": {
-            "RoomType": "DeadEnd",
-            "HasMonsterSpawner": true,
-            "DifficultyTier": 2,
-            "MonsterBudget": 2
-          },
-          "Shell": {
-            "$className": "Part",
-            "$properties": {
-              "Anchored": true
-            }
-          },
-          "SpawnPoint_1": {
-            "$className": "Part",
-            "$properties": {
-              "Anchored": true
-            }
-          },
-          "LootSocket_1": {
-            "$className": "Part",
-            "$properties": {
-              "Anchored": true
-            }
-          },
-          "LootPrompt": {
-            "$className": "Part",
-            "$properties": {
-              "Anchored": true
-            },
-            "Prompt": {
-              "$className": "ProximityPrompt"
-            }
-          },
-          "Doorway_East": {
-            "$className": "Part",
-            "$properties": {
-              "Anchored": true
-            },
-            "Prompt": {
-              "$className": "ProximityPrompt"
-            }
-          }
-        },
-        "Room_Extraction": {
-          "$className": "Model",
-          "$attributes": {
-            "RoomType": "Straight",
-            "IsExtraction": true
-          },
-          "Shell": {
-            "$className": "Part",
-            "$properties": {
-              "Anchored": true
-            }
-          },
-          "ExtractionMarker": {
-            "$className": "Part",
-            "$properties": {
-              "Anchored": true
-            },
-            "Prompt": {
-              "$className": "ProximityPrompt"
-            }
-          }
-        }
-      }
+      "$className": "Workspace"
     },
     "ServerScriptService": {
       "$className": "ServerScriptService",
