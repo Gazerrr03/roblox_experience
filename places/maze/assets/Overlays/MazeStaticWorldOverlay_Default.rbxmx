@@ -1,0 +1,336 @@
+<?xml version="1.0" encoding="utf-8"?>
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
+  <Meta name="ExplicitAutoJoints">true</Meta>
+  <External>null</External>
+  <External>nil</External>
+  <Item class="Folder" referent="RBXMazeOverlayRoot">
+    <Properties>
+      <string name="Name">MazeStaticWorldOverlay_Default</string>
+    </Properties>
+    <Item class="Part" referent="RBXMazeOverlaySpawnMarker">
+      <Properties>
+        <string name="Name">SpawnMarker</string>
+        <bool name="Anchored">true</bool>
+        <bool name="CanCollide">false</bool>
+        <bool name="CanTouch">false</bool>
+        <bool name="CanQuery">true</bool>
+        <float name="Transparency">1</float>
+        <Vector3 name="Size">
+          <X>4</X>
+          <Y>1</Y>
+          <Z>4</Z>
+        </Vector3>
+        <CoordinateFrame name="CFrame">
+          <X>-52</X>
+          <Y>4</Y>
+          <Z>-48</Z>
+          <R00>1</R00>
+          <R01>0</R01>
+          <R02>0</R02>
+          <R10>0</R10>
+          <R11>1</R11>
+          <R12>0</R12>
+          <R20>0</R20>
+          <R21>0</R21>
+          <R22>1</R22>
+        </CoordinateFrame>
+      </Properties>
+    </Item>
+    <Item class="Part" referent="RBXMazeOverlayReturnHoldPad">
+      <Properties>
+        <string name="Name">ReturnHoldPad</string>
+        <bool name="Anchored">true</bool>
+        <bool name="CanCollide">false</bool>
+        <bool name="CanTouch">false</bool>
+        <bool name="CanQuery">true</bool>
+        <float name="Transparency">1</float>
+        <Vector3 name="Size">
+          <X>8</X>
+          <Y>1</Y>
+          <Z>8</Z>
+        </Vector3>
+        <CoordinateFrame name="CFrame">
+          <X>-56</X>
+          <Y>0.5</Y>
+          <Z>-56</Z>
+          <R00>1</R00>
+          <R01>0</R01>
+          <R02>0</R02>
+          <R10>0</R10>
+          <R11>1</R11>
+          <R12>0</R12>
+          <R20>0</R20>
+          <R21>0</R21>
+          <R22>1</R22>
+        </CoordinateFrame>
+      </Properties>
+      <Item class="ProximityPrompt" referent="RBXMazeOverlayReturnPrompt">
+        <Properties>
+          <string name="Name">Prompt</string>
+        </Properties>
+      </Item>
+    </Item>
+    <Item class="Model" referent="RBXMazeOverlayRoomCamp">
+      <Properties>
+        <string name="Name">Room_Camp</string>
+      </Properties>
+      <Item class="Part" referent="RBXMazeOverlayRoomCampShell">
+        <Properties>
+          <string name="Name">Shell</string>
+          <bool name="Anchored">true</bool>
+          <bool name="CanCollide">false</bool>
+          <bool name="CanTouch">false</bool>
+          <bool name="CanQuery">true</bool>
+          <float name="Transparency">1</float>
+          <Vector3 name="Size">
+            <X>28</X>
+            <Y>12</Y>
+            <Z>28</Z>
+          </Vector3>
+          <CoordinateFrame name="CFrame">
+            <X>-44</X>
+            <Y>6</Y>
+            <Z>-36</Z>
+            <R00>1</R00>
+            <R01>0</R01>
+            <R02>0</R02>
+            <R10>0</R10>
+            <R11>1</R11>
+            <R12>0</R12>
+            <R20>0</R20>
+            <R21>0</R21>
+            <R22>1</R22>
+          </CoordinateFrame>
+        </Properties>
+      </Item>
+    </Item>
+    <Item class="Model" referent="RBXMazeOverlayRoomLoot">
+      <Properties>
+        <string name="Name">Room_Loot</string>
+      </Properties>
+      <Item class="Part" referent="RBXMazeOverlayRoomLootShell">
+        <Properties>
+          <string name="Name">Shell</string>
+          <bool name="Anchored">true</bool>
+          <bool name="CanCollide">false</bool>
+          <bool name="CanTouch">false</bool>
+          <bool name="CanQuery">true</bool>
+          <float name="Transparency">1</float>
+          <Vector3 name="Size">
+            <X>34</X>
+            <Y>12</Y>
+            <Z>34</Z>
+          </Vector3>
+          <CoordinateFrame name="CFrame">
+            <X>6</X>
+            <Y>6</Y>
+            <Z>-2</Z>
+            <R00>1</R00>
+            <R01>0</R01>
+            <R02>0</R02>
+            <R10>0</R10>
+            <R11>1</R11>
+            <R12>0</R12>
+            <R20>0</R20>
+            <R21>0</R21>
+            <R22>1</R22>
+          </CoordinateFrame>
+        </Properties>
+      </Item>
+      <Item class="Part" referent="RBXMazeOverlayRoomLootSpawnPoint">
+        <Properties>
+          <string name="Name">SpawnPoint_1</string>
+          <bool name="Anchored">true</bool>
+          <bool name="CanCollide">false</bool>
+          <bool name="CanTouch">false</bool>
+          <bool name="CanQuery">true</bool>
+          <float name="Transparency">1</float>
+          <Vector3 name="Size">
+            <X>2</X>
+            <Y>1</Y>
+            <Z>2</Z>
+          </Vector3>
+          <CoordinateFrame name="CFrame">
+            <X>0</X>
+            <Y>2</Y>
+            <Z>-2</Z>
+            <R00>1</R00>
+            <R01>0</R01>
+            <R02>0</R02>
+            <R10>0</R10>
+            <R11>1</R11>
+            <R12>0</R12>
+            <R20>0</R20>
+            <R21>0</R21>
+            <R22>1</R22>
+          </CoordinateFrame>
+        </Properties>
+      </Item>
+      <Item class="Part" referent="RBXMazeOverlayRoomLootSocket">
+        <Properties>
+          <string name="Name">LootSocket_1</string>
+          <bool name="Anchored">true</bool>
+          <bool name="CanCollide">false</bool>
+          <bool name="CanTouch">false</bool>
+          <bool name="CanQuery">true</bool>
+          <float name="Transparency">1</float>
+          <Vector3 name="Size">
+            <X>2</X>
+            <Y>1</Y>
+            <Z>2</Z>
+          </Vector3>
+          <CoordinateFrame name="CFrame">
+            <X>12</X>
+            <Y>2</Y>
+            <Z>-4</Z>
+            <R00>1</R00>
+            <R01>0</R01>
+            <R02>0</R02>
+            <R10>0</R10>
+            <R11>1</R11>
+            <R12>0</R12>
+            <R20>0</R20>
+            <R21>0</R21>
+            <R22>1</R22>
+          </CoordinateFrame>
+        </Properties>
+      </Item>
+      <Item class="Part" referent="RBXMazeOverlayRoomLootPromptPart">
+        <Properties>
+          <string name="Name">LootPrompt</string>
+          <bool name="Anchored">true</bool>
+          <bool name="CanCollide">false</bool>
+          <bool name="CanTouch">false</bool>
+          <bool name="CanQuery">true</bool>
+          <float name="Transparency">1</float>
+          <Vector3 name="Size">
+            <X>2</X>
+            <Y>1</Y>
+            <Z>2</Z>
+          </Vector3>
+          <CoordinateFrame name="CFrame">
+            <X>12</X>
+            <Y>2</Y>
+            <Z>-4</Z>
+            <R00>1</R00>
+            <R01>0</R01>
+            <R02>0</R02>
+            <R10>0</R10>
+            <R11>1</R11>
+            <R12>0</R12>
+            <R20>0</R20>
+            <R21>0</R21>
+            <R22>1</R22>
+          </CoordinateFrame>
+        </Properties>
+        <Item class="ProximityPrompt" referent="RBXMazeOverlayRoomLootPrompt">
+          <Properties>
+            <string name="Name">Prompt</string>
+          </Properties>
+        </Item>
+      </Item>
+      <Item class="Part" referent="RBXMazeOverlayRoomDoorway">
+        <Properties>
+          <string name="Name">Doorway_East</string>
+          <bool name="Anchored">true</bool>
+          <bool name="CanCollide">true</bool>
+          <bool name="CanTouch">false</bool>
+          <bool name="CanQuery">true</bool>
+          <float name="Transparency">1</float>
+          <Vector3 name="Size">
+            <X>6</X>
+            <Y>8</Y>
+            <Z>2</Z>
+          </Vector3>
+          <CoordinateFrame name="CFrame">
+            <X>22</X>
+            <Y>4</Y>
+            <Z>-2</Z>
+            <R00>1</R00>
+            <R01>0</R01>
+            <R02>0</R02>
+            <R10>0</R10>
+            <R11>1</R11>
+            <R12>0</R12>
+            <R20>0</R20>
+            <R21>0</R21>
+            <R22>1</R22>
+          </CoordinateFrame>
+        </Properties>
+        <Item class="ProximityPrompt" referent="RBXMazeOverlayRoomDoorwayPrompt">
+          <Properties>
+            <string name="Name">Prompt</string>
+          </Properties>
+        </Item>
+      </Item>
+    </Item>
+    <Item class="Model" referent="RBXMazeOverlayRoomExtraction">
+      <Properties>
+        <string name="Name">Room_Extraction</string>
+      </Properties>
+      <Item class="Part" referent="RBXMazeOverlayRoomExtractionShell">
+        <Properties>
+          <string name="Name">Shell</string>
+          <bool name="Anchored">true</bool>
+          <bool name="CanCollide">false</bool>
+          <bool name="CanTouch">false</bool>
+          <bool name="CanQuery">true</bool>
+          <float name="Transparency">1</float>
+          <Vector3 name="Size">
+            <X>28</X>
+            <Y>12</Y>
+            <Z>28</Z>
+          </Vector3>
+          <CoordinateFrame name="CFrame">
+            <X>54</X>
+            <Y>6</Y>
+            <Z>42</Z>
+            <R00>1</R00>
+            <R01>0</R01>
+            <R02>0</R02>
+            <R10>0</R10>
+            <R11>1</R11>
+            <R12>0</R12>
+            <R20>0</R20>
+            <R21>0</R21>
+            <R22>1</R22>
+          </CoordinateFrame>
+        </Properties>
+      </Item>
+      <Item class="Part" referent="RBXMazeOverlayExtractionMarker">
+        <Properties>
+          <string name="Name">ExtractionMarker</string>
+          <bool name="Anchored">true</bool>
+          <bool name="CanCollide">false</bool>
+          <bool name="CanTouch">false</bool>
+          <bool name="CanQuery">true</bool>
+          <float name="Transparency">1</float>
+          <Vector3 name="Size">
+            <X>6</X>
+            <Y>1</Y>
+            <Z>6</Z>
+          </Vector3>
+          <CoordinateFrame name="CFrame">
+            <X>54</X>
+            <Y>2</Y>
+            <Z>42</Z>
+            <R00>1</R00>
+            <R01>0</R01>
+            <R02>0</R02>
+            <R10>0</R10>
+            <R11>1</R11>
+            <R12>0</R12>
+            <R20>0</R20>
+            <R21>0</R21>
+            <R22>1</R22>
+          </CoordinateFrame>
+        </Properties>
+        <Item class="ProximityPrompt" referent="RBXMazeOverlayExtractionPrompt">
+          <Properties>
+            <string name="Name">Prompt</string>
+          </Properties>
+        </Item>
+      </Item>
+    </Item>
+  </Item>
+</roblox>

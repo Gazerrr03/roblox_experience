@@ -29,6 +29,21 @@
           "ToolPotion": {
             "$path": "../assets/ToolTemplates/ToolPotion.rbxmx"
           }
+        },
+        "Maze": {
+          "$className": "Folder",
+          "Chunks": {
+            "$className": "Folder",
+            "MazeChunk_maze_v1": {
+              "$path": "../places/maze/assets/Chunks/MazeChunk_maze_v1.rbxmx"
+            }
+          },
+          "Overlays": {
+            "$className": "Folder",
+            "MazeStaticWorldOverlay_Default": {
+              "$path": "../places/maze/assets/Overlays/MazeStaticWorldOverlay_Default.rbxmx"
+            }
+          }
         }
       },
       "PlaceModules": {
