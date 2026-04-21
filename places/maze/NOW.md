@@ -2,23 +2,23 @@
 
 ## Current Focus
 
-- Keep maze as a dedicated expedition runtime instead of letting run absorb more
-  maze logic.
-- Keep maze-to-run return behavior explicit and reviewable as the place evolves.
+- Keep maze as the fixed authored expedition layer for the new 5-round mission.
+- Preserve mission persistence: collected loot stays gone, dropped packs can be
+  recovered later, and clue items travel back and forth with players.
+- Present loot success in item counts, not value/weight language.
 
 ## Open Questions
 
-- When to stop reusing the run-flavored remote surface and define a clearer maze
-  transport contract
+- When to split the still-shared run-flavored remote surface into a clearer
+  maze-specific transport contract.
 
 ## Temporary Exceptions
 
-- Maze still uses `RunAction`, `RunSnapshot`, and `PrivateState`. Treat that as
-  transitional coupling, not as the target end state for a fully decoupled
-  place.
+- Maze still emits a few compatibility inventory/session fields so older clients
+  and harnesses keep working during the mission-loop migration.
 
 ## Near-Term Cleanup
 
-- If maze grows more unique UI or state, separate the expedition-facing
-  transport shape before the current run snapshot turns into a catch-all
-  payload.
+- Add more authored threat-tell nodes that explicitly echo wilderness clue text.
+- Replace remaining direct-boot wording that still sounds like a one-off
+  expedition instead of a multi-round mission.
