@@ -13,7 +13,7 @@ Authored room contract:
 
 - Each room is a `Model` tagged `RoomType/<TypeId>`.
 - Supported room metadata lives on Attributes such as `IsCamp`, `IsExtraction`, `DifficultyTier`, `MonsterBudget`, `LootBudget`, `DetectionRadius`, `RoomTemplateId`, and `RoomCategory`.
-- Supported authored child parts include `SpawnPoint_*`, `LootSocket_*`, `LootPrompt`, `Doorway_*`, and `ExtractionMarker`.
+- Supported authored room nodes include `MonsterSpawns/SpawnPoint_*`, `LootSocket_*`, `LootPrompt`, `Doorway_*`, and `ExtractionMarker`.
 - A formal authored maze must contain at least one room, one loot interaction, one doorway, and one extraction marker.
 
 Runtime behavior:

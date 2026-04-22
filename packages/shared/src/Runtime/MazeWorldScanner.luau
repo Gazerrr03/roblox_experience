@@ -8,8 +8,8 @@
     - Supported room metadata lives on Attributes such as `IsCamp`, `IsExtraction`,
       `DifficultyTier`, `MonsterBudget`, `LootBudget`, `DetectionRadius`,
       `RoomTemplateId`, and `RoomCategory`.
-    - Supported authored child parts include `SpawnPoint_*`, `LootSocket_*`,
-      `LootPrompt`, `Doorway_*`, and `ExtractionMarker`.
+    - Supported authored room nodes include `MonsterSpawns/SpawnPoint_*`,
+      `LootSocket_*`, `LootPrompt`, `Doorway_*`, and `ExtractionMarker`.
 ]]
 
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -35,6 +35,7 @@ local SCAN_CONFIG = {
     HasMonsterSpawnerTag = 'HasMonsterSpawner',
     HasLootSocketTag = 'HasLootSocket',
     DoorwayTagPrefix = 'Doorway/',
+    MonsterSpawnsFolderName = 'MonsterSpawns',
     SceneryFolderName = 'Scenery',
     SceneryAttribute = 'IsScenery',
 }
@@ -156,8 +157,26 @@ local function collectNamedPoints(roomInstance, pattern, defaultDirection)
     return entries
 end
 
+local function findNamedChildFolder(parent, folderName)
+    local child = parent:FindFirstChild(folderName)
+    if child and child:IsA('Folder') then
+        return child
+    end
+
+    return nil
+end
+
 local function collectSpawnPoints(roomInstance)
-    return collectNamedPoints(roomInstance, 'SpawnPoint', 'Unknown')
+    local monsterSpawns = findNamedChildFolder(roomInstance, SCAN_CONFIG.MonsterSpawnsFolderName)
+    if monsterSpawns == nil then
+        return {}
+    end
+
+    return collectNamedPoints(monsterSpawns, 'SpawnPoint', 'Unknown')
+end
+
+local function requiresMonsterPatrolAnchors(room, affordance)
+    return room.MonsterBudget > 0 or affordance.HasMonsterSpawner
 end
 
 local function collectLootSockets(roomInstance)
@@ -480,7 +499,17 @@ function MazeWorldScanner.BuildStaticWorld(scanRoot)
             end
         end
 
-        if room.MonsterBudget > 0 or affordance.HasMonsterSpawner then
+        if requiresMonsterPatrolAnchors(room, affordance) and #affordance.PatrolAnchors == 0 then
+            error(
+                string.format(
+                    'Maze room "%s" requires authored MonsterSpawns/SpawnPoint_* patrol anchors.',
+                    roomId
+                ),
+                0
+            )
+        end
+
+        if requiresMonsterPatrolAnchors(room, affordance) then
             for _, patrolAnchor in ipairs(affordance.PatrolAnchors) do
                 table.insert(patrolPoints, patrolAnchor.Position)
             end

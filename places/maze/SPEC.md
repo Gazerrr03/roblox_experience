@@ -50,7 +50,7 @@
 
 ### 怪物刷新点
 - **不在 DCC 里做**
-- Roblox 端手动摆放 `SpawnPoint_*` BasePart（与 run 相同）
+- Roblox 端手动创建 `MonsterSpawns` Folder，再在其中摆放 `SpawnPoint_*` BasePart
 
 ### 战利品节点
 - **沿用 `LootSocket_*` BasePart**，Roblox 端手动摆放
@@ -92,7 +92,7 @@ local TODProfile = {
 ## 4. 怪物系统（保留不变）
 
 - 完整保留 `MonsterService` + `EnemyRuntime` + `EnemyStateMachine`
-- 刷新点：Roblox 端手动摆放 `SpawnPoint_*`
+- 刷新点：Roblox 端手动摆放 `MonsterSpawns/SpawnPoint_*`
 - 行为（Patrol/Chase/Attack/Sense）：不变
 
 ---

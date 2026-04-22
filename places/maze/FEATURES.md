@@ -73,7 +73,7 @@
 |------|------|------|-------------|
 | monster-runtime | active | MonsterService.luau | 共享runtime，maze已接入 |
 | monster-spawn-policy | active | MazeFormalWorldComposer.luau内 | 程序生成时计算初始巡逻索引 |
-| monster-spawn-points | active | MazeWorldScanner.luau | 扫描SpawnPoint_* BasePart作为巡逻点 |
+| monster-spawn-points | active | MazeWorldScanner.luau | 扫描 `MonsterSpawns/SpawnPoint_*` BasePart 作为巡逻点 |
 | monster-behavior-catalog | active | MonsterBehaviorCatalog.luau | 行为开关：SenseNearestTarget/Chase/Patrol |
 
 ## 7. UI / HUD
@@ -105,7 +105,8 @@ MazeStaticWorld/
 ├── LootSocket_*                            # 战利品生成位置
 ├── LootPrompt                              # 战利品拾取提示（ProximityPrompt）
 ├── ExtractionMarker                         # 撤离确认点（ProximityPrompt）
-├── SpawnPoint_*                            # 怪物巡逻点
+├── MonsterSpawns
+│   └── SpawnPoint_*                        # 怪物巡逻点
 └── Scenery                                 # 装饰物Folder（扫描时跳过）
 ```
 
