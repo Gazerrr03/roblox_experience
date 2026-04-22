@@ -175,6 +175,10 @@ local function collectSpawnPoints(roomInstance)
     return collectNamedPoints(monsterSpawns, 'SpawnPoint', 'Unknown')
 end
 
+local function requiresMonsterPatrolAnchors(room, affordance)
+    return room.MonsterBudget > 0 or affordance.HasMonsterSpawner
+end
+
 local function collectLootSockets(roomInstance)
     return collectNamedPoints(roomInstance, 'LootSocket', 'Unknown')
 end
@@ -495,7 +499,17 @@ function MazeWorldScanner.BuildStaticWorld(scanRoot)
             end
         end
 
-        if room.MonsterBudget > 0 or affordance.HasMonsterSpawner then
+        if requiresMonsterPatrolAnchors(room, affordance) and #affordance.PatrolAnchors == 0 then
+            error(
+                string.format(
+                    'Maze room "%s" requires authored MonsterSpawns/SpawnPoint_* patrol anchors.',
+                    roomId
+                ),
+                0
+            )
+        end
+
+        if requiresMonsterPatrolAnchors(room, affordance) then
             for _, patrolAnchor in ipairs(affordance.PatrolAnchors) do
                 table.insert(patrolPoints, patrolAnchor.Position)
             end

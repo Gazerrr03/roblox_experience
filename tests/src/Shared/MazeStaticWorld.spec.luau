@@ -160,4 +160,82 @@ return function()
     assert(doorwayPart.CanCollide == false, 'Toggling authored doors should release collision')
 
     root:Destroy()
+
+    local invalidRoot = Instance.new('Folder')
+    invalidRoot.Name = 'MazeStaticWorld'
+    invalidRoot.Parent = Workspace
+
+    local invalidSpawnMarker = Instance.new('Part')
+    invalidSpawnMarker.Name = 'SpawnMarker'
+    invalidSpawnMarker.Anchored = true
+    invalidSpawnMarker.Parent = invalidRoot
+
+    local invalidReturnHoldPad = Instance.new('Part')
+    invalidReturnHoldPad.Name = 'ReturnHoldPad'
+    invalidReturnHoldPad.Anchored = true
+    invalidReturnHoldPad.Parent = invalidRoot
+
+    Instance.new('ProximityPrompt').Parent = invalidReturnHoldPad
+
+    local invalidMonsterRoom =
+        createRoom('Room_InvalidMonster', 'DeadEnd', Vector3.new(24, 6, 24), {
+            MonsterBudget = 2,
+            DifficultyTier = 2,
+        })
+    invalidMonsterRoom.Parent = invalidRoot
+    invalidMonsterRoom:AddTag('HasMonsterSpawner')
+
+    local directSpawnPoint = Instance.new('Part')
+    directSpawnPoint.Name = 'SpawnPoint_1'
+    directSpawnPoint.Anchored = true
+    directSpawnPoint.Position = Vector3.new(24, 2, 24)
+    directSpawnPoint.Parent = invalidMonsterRoom
+
+    local invalidLootSocket = Instance.new('Part')
+    invalidLootSocket.Name = 'LootSocket_1'
+    invalidLootSocket.Anchored = true
+    invalidLootSocket.Position = Vector3.new(26, 2, 24)
+    invalidLootSocket.Parent = invalidMonsterRoom
+
+    local invalidLootPromptPart = Instance.new('Part')
+    invalidLootPromptPart.Name = 'LootPrompt'
+    invalidLootPromptPart.Anchored = true
+    invalidLootPromptPart.Position = Vector3.new(26, 2, 24)
+    invalidLootPromptPart.Parent = invalidMonsterRoom
+
+    Instance.new('ProximityPrompt').Parent = invalidLootPromptPart
+
+    local invalidExtractionRoom =
+        createRoom('Room_InvalidExtraction', 'Straight', Vector3.new(48, 6, 24), {
+            IsExtraction = true,
+            DifficultyTier = 1,
+        })
+    invalidExtractionRoom.Parent = invalidRoot
+
+    local invalidExtractionMarker = Instance.new('Part')
+    invalidExtractionMarker.Name = 'ExtractionMarker'
+    invalidExtractionMarker.Anchored = true
+    invalidExtractionMarker.Position = Vector3.new(48, 2, 24)
+    invalidExtractionMarker.Parent = invalidExtractionRoom
+
+    Instance.new('ProximityPrompt').Parent = invalidExtractionMarker
+
+    local invalidOk, invalidErr = pcall(function()
+        scanner.BuildStaticWorld(invalidRoot)
+    end)
+
+    assert(
+        invalidOk == false,
+        'Static maze world build should fail loudly when monster rooms miss MonsterSpawns'
+    )
+    assert(
+        string.find(tostring(invalidErr), 'MonsterSpawns/SpawnPoint_*', 1, true) ~= nil,
+        'Missing monster patrol anchors should mention the MonsterSpawns contract'
+    )
+    assert(
+        string.find(tostring(invalidErr), 'Room_InvalidMonster', 1, true) ~= nil,
+        'Missing monster patrol anchors should identify the authored room'
+    )
+
+    invalidRoot:Destroy()
 end
