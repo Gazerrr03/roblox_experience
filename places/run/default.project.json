@@ -19,7 +19,8 @@
       "Assets": {
         "$className": "Folder",
         "ToolTemplates": {
-          "$className": "Folder"
+          "$className": "Folder",
+          "$path": "../../ToolTemplates"
         }
       }
     },

@@ -26,6 +26,7 @@ function InventoryComponent:init(blackboard)
 
     self.SlotCount = config.SlotCount or 8
     self.Slots = table.create(self.SlotCount, nil)
+    self.EquipSlots = table.create(4, nil) -- 4个装备槽
     self.EquippedSlot = nil
     self.InteractionRange = config.InteractionRange or 5
     self.NextInstanceId = 1
@@ -74,6 +75,32 @@ function InventoryComponent:equipSlot(blackboard, slotIndex)
     self.EquippedSlot = slotIndex
     blackboard.Transient.EquippedSlot = slotIndex
     return true, slot
+end
+
+-- 购买时自动填充装备槽
+-- 返回: (成功, 槽类型, 槽索引或物品)
+-- 槽类型: 'equip' = 装备槽, 'backpack' = 背包, 'full' = 全部满了
+function InventoryComponent:autoEquipToFirstEmpty(blackboard, itemInstanceId, itemDef)
+    -- 查找第一个空装备槽
+    for i = 1, #self.EquipSlots do
+        if self.EquipSlots[i] == nil then
+            local item = {
+                InstanceId = itemInstanceId,
+                Id = itemDef.Id,
+                Name = itemDef.Name,
+                CurrentState = itemDef.InitialState,
+                ConsumePerUse = itemDef.ConsumePerUse,
+                CooldownSeconds = itemDef.CooldownSeconds,
+                LastUsedAt = 0,
+            }
+            self.EquipSlots[i] = item
+            blackboard.Transient.EquipSlotUpdated = i
+            return true, 'equip', i, item
+        end
+    end
+
+    -- 装备槽满了，放到背包
+    return self:addItem(blackboard, itemDef)
 end
 
 function InventoryComponent:unequip(blackboard)
@@ -139,6 +166,7 @@ end
 
 function InventoryComponent:update(blackboard, _dt)
     blackboard.Transient.Slots = self.Slots
+    blackboard.Transient.EquipSlots = self.EquipSlots
     blackboard.Transient.EquippedSlot = self.EquippedSlot
     blackboard.Transient.InteractionRange = self.InteractionRange
 end

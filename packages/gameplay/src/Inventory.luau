@@ -46,6 +46,8 @@ local ITEM_COPY_FIELDS = table.freeze({
     'ItemKind',
     'ConsumableEffect',
     'MaxCarryPerId',
+    -- UI
+    'IconLabel',
 })
 
 local function copyItemFields(source, target)
@@ -74,11 +76,14 @@ end
 
 function Inventory.new(capacity)
     local backpackItems = {}
+    local equipSlots = table.create(4, nil)
+    warn('[Inventory.new] created, EquipSlots length:', #equipSlots)
 
     return setmetatable({
         Capacity = capacity,
         Weight = 0,
         BackpackItems = backpackItems,
+        EquipSlots = equipSlots,
         HeldItem = nil,
         NextItemInstanceId = 1,
     }, Inventory)
@@ -121,7 +126,8 @@ function Inventory:add(itemDef)
     local itemEntry = self:_buildItemEntry(itemDef)
     table.insert(self.BackpackItems, itemEntry)
     self.Weight += itemDef.Weight
-    return true, cloneItemEntry(itemEntry)
+    -- 返回4个值以匹配 autoEquipToFirstEmpty 的返回格式
+    return true, 'backpack', itemEntry.InstanceId, cloneItemEntry(itemEntry)
 end
 
 function Inventory:equip(itemInstanceId)
@@ -160,6 +166,133 @@ function Inventory:unequip()
     self.HeldItem = nil
 
     return true, cloneItemEntry(previousHeldItem)
+end
+
+-- 购买时自动填充装备槽
+-- 返回: (成功, 槽类型, 槽索引或物品实例ID, 物品详情)
+-- 槽类型: 'equip' = 装备槽, 'backpack' = 背包
+function Inventory:autoEquipToFirstEmpty(itemDef)
+    -- 注意：#self.EquipSlots 对全nil数组返回0，所以用固定数字4
+    warn('[Inventory.autoEquipToFirstEmpty] starting')
+    
+    -- 查找第一个空装备槽（固定4个槽）
+    for i = 1, 4 do
+        warn('[Inventory.autoEquipToFirstEmpty] checking slot', i, '=', self.EquipSlots[i])
+        if self.EquipSlots[i] == nil then
+            warn('[Inventory.autoEquipToFirstEmpty] slot', i, 'is nil, placing item')
+            local item = copyItemFields(itemDef, {
+                InstanceId = self.NextItemInstanceId,
+            })
+            item.CurrentState = itemDef.InitialState
+            self.EquipSlots[i] = item
+            self.Weight += item.Weight  -- 更新总重量
+            self.NextItemInstanceId += 1
+            return true, 'equip', i, cloneItemEntry(item)
+        end
+    end
+
+    warn('[Inventory.autoEquipToFirstEmpty] all slots full, going to backpack')
+    -- 装备槽满了，放到背包
+    return self:add(itemDef)
+end
+
+-- 从装备槽卸下物品到背包
+function Inventory:unequipFromSlot(slotIndex)
+    if slotIndex < 1 or slotIndex > 4 then
+        return false, 'InvalidSlot'
+    end
+
+    local item = self.EquipSlots[slotIndex]
+    if not item then
+        return false, 'SlotEmpty'
+    end
+
+    -- 放入背包
+    if self.Weight + item.Weight > self.Capacity then
+        return false, 'OverCapacity'
+    end
+
+    self.EquipSlots[slotIndex] = nil
+    table.insert(self.BackpackItems, item)
+    self.Weight += item.Weight
+
+    return true, cloneItemEntry(item)
+end
+
+-- 使用装备槽中的道具
+-- 返回: (成功, 结果信息)
+function Inventory:useEquipSlot(slotIndex)
+    if slotIndex < 1 or slotIndex > 4 then
+        return false, 'InvalidSlot'
+    end
+
+    local item = self.EquipSlots[slotIndex]
+    if not item then
+        return false, 'SlotEmpty'
+    end
+
+    -- 检查冷却时间
+    local now = os.time()
+    local cooldown = item.CooldownSeconds or 0
+    local lastUsed = item.LastUsedAt or 0
+    if now - lastUsed < cooldown then
+        local remaining = cooldown - (now - lastUsed)
+        return false, 'Cooldown', remaining
+    end
+
+    -- 切换型道具（如手电筒 on/off）
+    local initialState = item.InitialState
+    if initialState == 'on' or initialState == 'off' then
+        item.CurrentState = item.CurrentState == 'on' and 'off' or 'on'
+        item.LastUsedAt = now
+        return true, 'Toggled', cloneItemEntry(item)
+    end
+
+    -- 消耗物品状态（如药水剂量）
+    local consume = item.ConsumePerUse or 0
+    if consume > 0 and item.CurrentState then
+        item.CurrentState = item.CurrentState - consume
+        if item.CurrentState <= 0 then
+            -- 物品用完了，从装备槽移除
+            self.EquipSlots[slotIndex] = nil
+            return true, 'Consumed', cloneItemEntry(item)
+        end
+    end
+
+    -- 更新最后使用时间
+    item.LastUsedAt = now
+
+    return true, 'Used', cloneItemEntry(item)
+end
+
+-- 移动背包物品到另一个格子（支持空格子UI索引）
+function Inventory:moveBackpackItem(fromIndex, toIndex)
+    local itemCount = #self.BackpackItems
+    
+    if fromIndex < 1 or fromIndex > itemCount then
+        return false, 'InvalidFromSlot'
+    end
+    if toIndex < 1 then
+        return false, 'InvalidToSlot'
+    end
+    
+    if fromIndex == toIndex then
+        return true
+    end
+
+    if toIndex > itemCount then
+        -- 移动到空位置（超过物品数量）
+        -- 移除原位置的物品，然后插入到数组末尾
+        local item = table.remove(self.BackpackItems, fromIndex)
+        table.insert(self.BackpackItems, item)
+    else
+        -- 交换两个位置的物品
+        local temp = self.BackpackItems[fromIndex]
+        self.BackpackItems[fromIndex] = self.BackpackItems[toIndex]
+        self.BackpackItems[toIndex] = temp
+    end
+
+    return true
 end
 
 function Inventory:consumeHeldItemState(nowSeconds)
@@ -213,6 +346,13 @@ function Inventory:getTotalValue()
 end
 
 function Inventory:getSummary()
+    -- 克隆装备槽数据（固定4个槽，因为ipairs在nil处停止）
+    local equipSlotsData = {}
+    for i = 1, 4 do
+        local item = self.EquipSlots[i]
+        equipSlotsData[i] = item and cloneItemEntry(item) or nil
+    end
+
     return {
         Capacity = self.Capacity,
         Weight = self.Weight,
@@ -221,6 +361,7 @@ function Inventory:getSummary()
         HeldCount = self.HeldItem and 1 or 0,
         Value = self:getTotalValue(),
         BackpackItems = cloneArray(self.BackpackItems),
+        EquipSlots = equipSlotsData,
         HeldItem = self.HeldItem and cloneItemEntry(self.HeldItem) or nil,
     }
 end
@@ -232,6 +373,7 @@ function Inventory:loadSummary(summary)
 
     self.Weight = 0
     table.clear(self.BackpackItems)
+    self.EquipSlots = table.create(4, nil)
     self.HeldItem = nil
     self.NextItemInstanceId = 1
 
@@ -255,6 +397,12 @@ function Inventory:loadSummary(summary)
         end
     end
 
+    -- 加载装备槽（固定4个槽，因为ipairs在nil处停止）
+    for i = 1, 4 do
+        local rawItemEntry = summary.EquipSlots and summary.EquipSlots[i]
+        self.EquipSlots[i] = processItem(rawItemEntry)
+    end
+
     local heldItem = processItem(summary.HeldItem)
     if heldItem ~= nil then
         self.HeldItem = heldItem
@@ -267,6 +415,7 @@ end
 function Inventory:clear()
     self.Weight = 0
     table.clear(self.BackpackItems)
+    self.EquipSlots = table.create(4, nil)
     self.HeldItem = nil
 end
 

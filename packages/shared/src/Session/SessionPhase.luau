@@ -1,10 +1,10 @@
-local SessionPhase = table.freeze({
+local SessionPhase = {
     RunPrep = 'RunPrep',
     RunField = 'RunField',
     MazeActive = 'MazeActive',
     Debrief = 'Debrief',
     SessionClosed = 'SessionClosed',
-})
+}
 
 function SessionPhase.resolveFromCampSession(session)
     local normalizedSession = if type(session) == 'table' then session else {}

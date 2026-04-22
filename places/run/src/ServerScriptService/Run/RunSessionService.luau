@@ -45,31 +45,46 @@ local OCEAN_SLOWDOWN_WALK_SPEED = 12
 local OCEAN_DAMAGE_INTERVAL_SECONDS = 5
 local SHOP_ITEMS = {
     {
-        Id = 'temple_lantern',
-        Name = 'Temple Lantern',
-        Price = 18,
+        Id = 'crowbar',
+        Name = '撬棍',
+        Price = 25,
+        Weight = 3,
+        Value = 15,
+        Stock = 99,
+        Description = '坚固的金属撬棍，可以撬开上锁的箱子和障碍物。',
+        Icon = 'Crowbar',
+        IconLabel = '🔧',
+        NameEn = 'Crowbar',
+    },
+    {
+        Id = 'flashlight',
+        Name = '手电筒',
+        NameEn = 'Flashlight',
+        Price = 30,
         Weight = 2,
-        Value = 12,
+        Value = 18,
+        Stock = 99,
+        Description = '明亮的照明工具，照亮黑暗区域，吓退阴影生物。',
+        Icon = 'Flashlight',
+        IconLabel = '🔦',
+        InitialState = 'off',
         Light = {
-            Brightness = 2,
-            Range = 12,
-            Color = Color3.fromRGB(255, 214, 153),
+            Brightness = 3,
+            Range = 16,
+            Color = Color3.fromRGB(255, 240, 200),
         },
     },
     {
-        Id = 'sand_relic',
-        Name = 'Sand Relic',
-        Price = 24,
-        Weight = 3,
-        Value = 18,
-        Color = Color3.fromRGB(224, 202, 152),
-    },
-    {
-        Id = 'scribe_compass',
-        Name = 'Scribe Compass',
-        Price = 14,
+        Id = 'health_potion',
+        Name = '治疗药水',
+        NameEn = 'Healing Potion',
+        Price = 40,
         Weight = 1,
-        Value = 9,
+        Value = 25,
+        Stock = 99,
+        Description = '恢复生命值的魔法药水，使用后立即恢复50点生命。',
+        Icon = 'Potion',
+        IconLabel = '🧪',
     },
 }
 local SHOP_ITEM_BY_ID = {}
@@ -80,6 +95,12 @@ end
 
 table.freeze(SHOP_ITEMS)
 table.freeze(SHOP_ITEM_BY_ID)
+
+-- 运行时库存（可写）
+local shopStock = {}
+for _, item in ipairs(SHOP_ITEMS) do
+    shopStock[item.Id] = item.Stock
+end
 
 local function resolvePendingSpawnCFrame(self, pendingSpawnValue)
     if typeof(pendingSpawnValue) == 'CFrame' then
@@ -100,16 +121,25 @@ local function bindCharacterTeleport(self, player)
             return
         end
 
-        if not self.World then
-            return
-        end
-
         local pendingSpawnValue = self.PendingSpawnByUserId[player.UserId]
-        local targetCFrame = pendingSpawnValue
-                and resolvePendingSpawnCFrame(self, pendingSpawnValue)
-            or self.World.SpawnCFrame
+        local targetCFrame
+        if pendingSpawnValue then
+            targetCFrame = resolvePendingSpawnCFrame(self, pendingSpawnValue)
+        elseif self.World then
+            targetCFrame = self.World.SpawnCFrame
+        else
+            -- World构建失败时使用备用坐标
+            targetCFrame = CFrame.new(50.843, 16, 300.177)
+        end
         self.PendingSpawnByUserId[player.UserId] = nil
+        print('[SpawnCharacter] targetCFrame:', targetCFrame)
+        if character and character.PrimaryPart then
+            print('[SpawnCharacter] before Pivot:', character.PrimaryPart.Position)
+        end
         character:PivotTo(targetCFrame)
+        if character and character.PrimaryPart then
+            print('[SpawnCharacter] after Pivot:', character.PrimaryPart.Position)
+        end
         self:_applyMovementMode(player)
     end)
 end
@@ -140,7 +170,16 @@ local function buildShopPayload()
         table.insert(payload, {
             Id = item.Id,
             Name = item.Name,
+            NameEn = item.NameEn,
             Price = item.Price,
+            Weight = item.Weight,
+            Stock = shopStock[item.Id] or 0,
+            Description = item.Description,
+            Icon = item.Icon,
+            IconLabel = item.IconLabel,
+            Type = item.Type,
+            Consumable = item.Consumable,
+            HealAmount = item.HealAmount,
         })
     end
 
@@ -243,7 +282,7 @@ function RunSessionService.new(options)
     self.MazeEntryReason =
         'Set SessionConfig.PlaceIds.Maze or SessionPlaceIdMaze before using the maze gate.'
     self.MazeEntryReasonCode = MazeEntryAvailability.ReasonCode.MazePlaceIdMissing
-    self.TeamPages = 0
+    self.TeamPages = 100  -- 测试用：初始100书页
     self.BookGoalAmount = BOOK_GOAL_AMOUNT
     self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
     self.ControlStateService = ControlStateService.new()
@@ -695,57 +734,10 @@ function RunSessionService:_rebuildWorld()
     end
 
     self.World = self.WorldBuilder.build()
+    print('[run-session] _rebuildWorld: self.World =', self.World)
     if self.GateOpen then
         self.World:openGate()
     end
-
-    self.WorldInteractions = self.World:bindInteractions({
-        OnShop = function(player)
-            if not self:_canManageInventory(player) then
-                return
-            end
-
-            self:_openShop(player)
-        end,
-        OnSell = function(player)
-            if not self:_canManageInventory(player) then
-                return
-            end
-
-            self:_openSell(player)
-        end,
-        OnObjective = function(player)
-            self:_openObjectiveBoard(player)
-        end,
-        OnLoadout = function(player)
-            self:_setStatus(
-                string.format(
-                    '%s checked the loadout bench. Equipment setup is coming soon.',
-                    player.DisplayName
-                )
-            )
-        end,
-        OnUgcLab = function(player)
-            self:_setStatus(
-                string.format(
-                    '%s checked the UGC lab console. Creature forging is coming soon.',
-                    player.DisplayName
-                )
-            )
-        end,
-        OnGate = function(player)
-            self:_openGate(player)
-        end,
-        OnMazePortal = function(player)
-            if self:_canProcessMazeEntryRequest(player) then
-                self:_requestMazeEntry(player, false)
-            end
-        end,
-        OnOceanEntered = function(player, state)
-            self:_setOceanState(player, state or 'Touching')
-            self:_handleOceanEntered(player)
-        end,
-    })
 
     self:_teleportCharactersToSpawn()
 end
@@ -858,6 +850,8 @@ function RunSessionService:_toast(player, message, tone)
 end
 
 function RunSessionService:_openShop(player)
+    warn('[run-session] _openShop called for', player.DisplayName)
+    warn('[run-session] IsLaunched=', self.IsLaunched, 'World=', self.World ~= nil)
     self:_sendPrivate(player, {
         Type = 'OpenShop',
         Items = buildShopPayload(),
@@ -876,6 +870,7 @@ function RunSessionService:_openSell(player)
 end
 
 function RunSessionService:_openObjectiveBoard(player)
+    warn('[run-session] _openObjectiveBoard called for', player.DisplayName)
     local snapshot = self:_getBookSnapshot()
     self:_sendPrivate(player, {
         Type = 'OpenObjectiveBoard',
@@ -887,48 +882,120 @@ function RunSessionService:_openObjectiveBoard(player)
 end
 
 function RunSessionService:_handlePurchase(player, itemId)
+    warn('[shop] _handlePurchase called for', player.DisplayName, 'itemId=', itemId)
+    
     if not self:_canManageInventory(player) then
+        warn('[shop] _canManageInventory returned false')
         return
     end
-    if not self:_isPlayerNearTerminalPrompt(player, self.World and self.World.ShopPrompt) then
+    
+    local shopPrompt = self.World and self.World.ShopPrompt
+    warn('[shop] ShopPrompt=', shopPrompt ~= nil)
+    
+    if not self:_isPlayerNearTerminalPrompt(player, shopPrompt) then
+        warn('[shop] _isPlayerNearTerminalPrompt returned false')
         self:_toast(player, 'Move closer to the shop terminal.', 'Error')
         return
     end
+    warn('[shop] Player is near terminal, proceeding with purchase')
 
     local itemDef = SHOP_ITEM_BY_ID[itemId]
     if not itemDef then
         self:_toast(player, 'Unknown item.', 'Error')
         return
     end
+    warn('[shop] Item def found:', itemDef.Name, 'Price=', itemDef.Price)
+
+    -- 库存检查
+    local currentStock = shopStock[itemDef.Id] or 0
+    if currentStock <= 0 then
+        warn('[shop] Out of stock: itemId=', itemDef.Id)
+        self:_sendPrivate(player, {
+            Type = 'ShopResult',
+            Success = false,
+            Reason = 'OutOfStock',
+            ItemId = itemDef.Id,
+            ItemStock = currentStock,
+        })
+        return
+    end
+    warn('[shop] Stock OK: currentStock=', currentStock)
 
     if self.TeamPages < itemDef.Price then
+        warn('[shop] Insufficient funds: TeamPages=', self.TeamPages, 'Price=', itemDef.Price)
         self:_sendPrivate(player, {
             Type = 'ShopResult',
             Success = false,
             Reason = 'InsufficientFunds',
+            ItemId = itemDef.Id,
+            ItemStock = currentStock,
         })
         return
     end
+    warn('[shop] Funds OK: TeamPages=', self.TeamPages)
 
-    local ok, reason = self.InventoryService:pickup(player, itemDef)
-    if not ok then
+    -- 容量检查：当前重量 + 物品重量不能超过背包容量
+    local inventorySummary = self.InventoryService:getSummary(player)
+    local currentWeight = inventorySummary.Weight or 0
+    local itemWeight = itemDef.Weight or 0
+    local capacity = inventorySummary.Capacity or 20
+    if currentWeight + itemWeight > capacity then
+        warn('[shop] Over capacity: currentWeight=', currentWeight, 'itemWeight=', itemWeight, 'capacity=', capacity)
         self:_sendPrivate(player, {
             Type = 'ShopResult',
             Success = false,
-            Reason = reason or 'InventoryFull',
+            Reason = 'OverCapacity',
+            ItemId = itemDef.Id,
+            ItemStock = currentStock,
         })
         return
     end
 
+    -- 调试：检查装备槽状态
+    local inv = self.InventoryService:get(player)
+    warn('[shop] EquipSlots before purchase:', inv.EquipSlots[1], inv.EquipSlots[2], inv.EquipSlots[3], inv.EquipSlots[4])
+
+    -- 购买后自动装备到第一个空装备槽，满则放背包
+    local equipOk, slotType, slotOrInstanceId, item = self.InventoryService:autoEquipToFirstEmpty(player, itemDef)
+    if not equipOk then
+        warn('[shop] autoEquip failed:', slotOrInstanceId)
+        self:_sendPrivate(player, {
+            Type = 'ShopResult',
+            Success = false,
+            Reason = slotOrInstanceId or 'InventoryFull',
+            ItemId = itemDef.Id,
+            ItemStock = currentStock,
+        })
+        return
+    end
+
+    if slotType == 'equip' then
+        warn('[shop] item placed in equip slot:', slotOrInstanceId)
+    else
+        warn('[shop] item placed in backpack, instanceId:', slotOrInstanceId)
+    end
+
+    -- 扣减库存
+    shopStock[itemDef.Id] = (shopStock[itemDef.Id] or 1) - 1
+    warn('[shop] Stock after purchase:', itemDef.Id, '=', shopStock[itemDef.Id])
+
     local wasBelowGoal = self.TeamPages < self.BookGoalAmount
     self.TeamPages -= itemDef.Price
+    warn('[shop] TeamPages after purchase:', self.TeamPages)
+
+    local inventorySummary = self.InventoryService:getSummary(player)
+    warn('[shop] Inventory summary to send: Count=', inventorySummary.Count,
+        'Weight=', inventorySummary.Weight,
+        'Capacity=', inventorySummary.Capacity,
+        'Value=', inventorySummary.Value)
 
     self:_sendPrivate(player, {
         Type = 'ShopResult',
         Success = true,
         ItemId = itemDef.Id,
+        ItemStock = shopStock[itemDef.Id],
         TeamPages = self.TeamPages,
-        Inventory = self.InventoryService:getSummary(player),
+        Inventory = inventorySummary,
     })
 
     self:_broadcastSnapshot()
@@ -1060,6 +1127,12 @@ function RunSessionService:_equipItem(player, itemInstanceId)
     end
 
     self:_setStatus(string.format('%s equipped %s in the temple.', player.DisplayName, result.Name))
+    
+    -- 发送物品栏更新到客户端
+    self:_sendPrivate(player, {
+        Type = 'InventoryUpdate',
+        Inventory = self.InventoryService:getSummary(player),
+    })
 end
 
 function RunSessionService:_unequipItem(player)
@@ -1082,9 +1155,103 @@ function RunSessionService:_unequipItem(player)
     self:_setStatus(
         string.format('%s stowed %s back into the backpack.', player.DisplayName, result.Name)
     )
+    
+    -- 发送物品栏更新到客户端
+    self:_sendPrivate(player, {
+        Type = 'InventoryUpdate',
+        Inventory = self.InventoryService:getSummary(player),
+    })
+end
+
+function RunSessionService:_unequipFromSlot(player, slotIndex)
+    if not self:_canManageInventory(player) then
+        return
+    end
+
+    if type(slotIndex) ~= 'number' then
+        return
+    end
+
+    local success, result = self.InventoryService:unequipFromSlot(player, slotIndex)
+    if not success then
+        self:_toast(player, 'Failed to unequip item: ' .. tostring(result), 'Error')
+        return
+    end
+
+    self:_toast(player, 'Item moved to backpack.', 'Success')
+
+    -- 发送物品栏更新到客户端
+    self:_sendPrivate(player, {
+        Type = 'InventoryUpdate',
+        Inventory = self.InventoryService:getSummary(player),
+    })
+end
+
+function RunSessionService:_useEquipSlot(player, slotIndex)
+    if not self:_canManageInventory(player) then
+        return
+    end
+
+    if type(slotIndex) ~= 'number' then
+        return
+    end
+
+    local success, result, extra = self.InventoryService:useEquipSlot(player, slotIndex)
+    if not success then
+        if result == 'Cooldown' then
+            self:_toast(player, 'Please wait ' .. tostring(extra) .. 's before using again.', 'Error')
+        else
+            self:_toast(player, 'Cannot use item: ' .. tostring(result), 'Error')
+        end
+        return
+    end
+
+    -- 根据使用结果显示不同提示
+    local itemName = extra and extra.Name or 'Item'
+    if result == 'Consumed' then
+        self:_toast(player, itemName .. ' has been used up!', 'Success')
+    elseif result == 'Toggled' then
+        local newState = extra and extra.CurrentState or 'off'
+        if newState == 'on' then
+            self:_toast(player, itemName .. ' turned on.', 'Success')
+        else
+            self:_toast(player, itemName .. ' turned off.', 'Success')
+        end
+    else
+        self:_toast(player, 'Used ' .. itemName .. '.', 'Success')
+    end
+
+    -- 发送物品栏更新到客户端
+    self:_sendPrivate(player, {
+        Type = 'InventoryUpdate',
+        Inventory = self.InventoryService:getSummary(player),
+    })
+end
+
+function RunSessionService:_moveBackpackItem(player, fromSlot, toSlot)
+    if not self:_canManageInventory(player) then
+        return
+    end
+
+    if type(fromSlot) ~= 'number' or type(toSlot) ~= 'number' then
+        return
+    end
+
+    local success, result = self.InventoryService:moveBackpackItem(player, fromSlot, toSlot)
+    if not success then
+        warn('[moveBackpackItem] failed:', result)
+        return
+    end
+
+    -- 发送物品栏更新到客户端
+    self:_sendPrivate(player, {
+        Type = 'InventoryUpdate',
+        Inventory = self.InventoryService:getSummary(player),
+    })
 end
 
 function RunSessionService:_openGate(player)
+    warn('[run-session] _openGate called for', player.DisplayName)
     if not self.World then
         return
     end
@@ -1168,22 +1335,57 @@ function RunSessionService:_isPlayerNearTerminalPrompt(player, terminalOrPrompt,
         return false
     end
 
-    if type(terminalOrPrompt.isPlayerNear) == 'function' then
-        return terminalOrPrompt:isPlayerNear(
-            player,
-            distanceBuffer or TERMINAL_INTERACTION_DISTANCE_BUFFER
-        )
+    -- 检查是否是RunTerminal对象（有isPlayerNear方法），用pcall安全调用
+    local hasIsPlayerNear, result = pcall(function()
+        return terminalOrPrompt.isPlayerNear ~= nil
+    end)
+    
+    if hasIsPlayerNear and result then
+        local hasMethod, methodResult = pcall(function()
+            return type(terminalOrPrompt.isPlayerNear) == 'function'
+        end)
+        if hasMethod and methodResult then
+            local ok, isNear = pcall(function()
+                return terminalOrPrompt:isPlayerNear(
+                    player,
+                    distanceBuffer or TERMINAL_INTERACTION_DISTANCE_BUFFER
+                )
+            end)
+            if ok then
+                return isNear
+            end
+        end
     end
 
+    -- 否则当作ProximityPrompt处理
     local prompt = terminalOrPrompt
+    if not pcall(function() return prompt:IsA('ProximityPrompt') end) then
+        -- 如果不是ProximityPrompt，尝试获取其Prompt子对象
+        local success, childPrompt = pcall(function()
+            return prompt.Prompt
+        end)
+        if not success or not childPrompt then
+            return false
+        end
+        prompt = childPrompt
+    end
+
+    -- 验证prompt是ProximityPrompt
+    local isProxPrompt = pcall(function()
+        return prompt:IsA('ProximityPrompt')
+    end)
+    if not isProxPrompt then
+        return false
+    end
+
     local promptPart = prompt.Parent
-    if not promptPart or not promptPart:IsA('BasePart') then
+    if not promptPart or not pcall(function() return promptPart:IsA('BasePart') end) then
         return false
     end
 
     local character = player.Character
     local rootPart = character and character:FindFirstChild('HumanoidRootPart')
-    if not rootPart or not rootPart:IsA('BasePart') then
+    if not rootPart or not pcall(function() return rootPart:IsA('BasePart') end) then
         return false
     end
 
@@ -1246,10 +1448,72 @@ function RunSessionService:_launchRun(_player)
         return
     end
 
+    warn('[run-session] _launchRun starting...')
     self.GateOpen = self.CampSession.GateOpen == true
     self:_syncCampSession()
 
-    self:_rebuildWorld()
+    local ok, err = pcall(function()
+        self:_rebuildWorld()
+    end)
+    if not ok then
+        warn('[run-session] ERROR in _rebuildWorld:', err)
+        -- 继续启动游戏，只是世界可能不完整
+    end
+    warn('[run-session] _rebuildWorld completed successfully')
+
+    -- 即使世界构建失败，也要绑定交互（bindInteractions 在 _rebuildWorld 内部，
+    -- 如果 _rebuildWorld 抛错就跳过，这里兜底保证交互始终被注册）
+    if self.World then
+        warn('[run-session] About to bind interactions...')
+        self.WorldInteractions = self.World:bindInteractions({
+            OnShop = function(player)
+                if not self:_canManageInventory(player) then
+                    return
+                end
+                self:_openShop(player)
+            end,
+            OnSell = function(player)
+                if not self:_canManageInventory(player) then
+                    return
+                end
+                self:_openSell(player)
+            end,
+            OnObjective = function(player)
+                self:_openObjectiveBoard(player)
+            end,
+            OnLoadout = function(player)
+                self:_setStatus(
+                    string.format(
+                        '%s checked the loadout bench. Equipment setup is coming soon.',
+                        player.DisplayName
+                    )
+                )
+            end,
+            OnUgcLab = function(player)
+                self:_setStatus(
+                    string.format(
+                        '%s checked the UGC lab console. Creature forging is coming soon.',
+                        player.DisplayName
+                    )
+                )
+            end,
+            OnGate = function(player)
+                self:_openGate(player)
+            end,
+            OnMazePortal = function(player)
+                if self:_canProcessMazeEntryRequest(player) then
+                    self:_requestMazeEntry(player, false)
+                end
+            end,
+            OnOceanEntered = function(player, state)
+                self:_setOceanState(player, state or 'Touching')
+                self:_handleOceanEntered(player)
+            end,
+        })
+        warn('[run-session] Interactions bound successfully!')
+    else
+        warn('[run-session] Skipping bindInteractions: self.World is nil')
+    end
 
     self.IsLaunched = true
     Players.CharacterAutoLoads = true
@@ -1263,9 +1527,9 @@ function RunSessionService:_launchRun(_player)
         self:_setStatus(
             'Temple is ready. Gather inside, then open the gate when you want to head out.'
         )
-    else
-        self:_broadcastSnapshot()
     end
+    -- 确保客户端收到 IsLaunched = true
+    self:_broadcastSnapshot()
 end
 
 function RunSessionService:_getPlayerUpdateContext(player)
@@ -1434,6 +1698,9 @@ function RunSessionService:start()
             if self:_canProcessMazeEntryRequest(player) then
                 self:_requestMazeEntry(player, true)
             end
+        elseif payload.Type == 'RequestOpenShop' then
+            -- 直接打开商店，绕过 _canManageInventory 检查
+            self:_openShop(player)
         elseif payload.Type == 'RequestPurchaseItem' then
             self:_handlePurchase(player, payload.ItemId)
         elseif payload.Type == 'RequestSellItem' then
@@ -1442,6 +1709,12 @@ function RunSessionService:start()
             self:_equipItem(player, payload.ItemInstanceId)
         elseif payload.Type == 'RequestUnequipItem' then
             self:_unequipItem(player)
+        elseif payload.Type == 'UnequipFromSlot' then
+            self:_unequipFromSlot(player, payload.SlotIndex)
+        elseif payload.Type == 'UseEquipSlot' then
+            self:_useEquipSlot(player, payload.SlotIndex)
+        elseif payload.Type == 'MoveBackpackItem' then
+            self:_moveBackpackItem(player, payload.FromSlot, payload.ToSlot)
         elseif payload.Type == 'RequestSprintStart' then
             self:_setPlayerSprinting(player, true)
         elseif payload.Type == 'RequestSprintStop' then

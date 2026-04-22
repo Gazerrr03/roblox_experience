@@ -45,6 +45,47 @@ function InventoryService:equip(player, itemInstanceId)
     return inventory:equip(itemInstanceId)
 end
 
+-- 购买时自动填充装备槽
+-- 返回: (成功, 槽类型, 槽索引或物品实例ID, 物品详情)
+function InventoryService:autoEquipToFirstEmpty(player, itemDef)
+    local inventory = self:get(player)
+    if not inventory then
+        return false, 'MissingInventory'
+    end
+
+    return inventory:autoEquipToFirstEmpty(itemDef)
+end
+
+-- 从装备槽卸下物品到背包
+function InventoryService:unequipFromSlot(player, slotIndex)
+    local inventory = self:get(player)
+    if not inventory then
+        return false, 'MissingInventory'
+    end
+
+    return inventory:unequipFromSlot(slotIndex)
+end
+
+-- 使用装备槽中的道具
+function InventoryService:useEquipSlot(player, slotIndex)
+    local inventory = self:get(player)
+    if not inventory then
+        return false, 'MissingInventory'
+    end
+
+    return inventory:useEquipSlot(slotIndex)
+end
+
+-- 移动背包物品到另一个格子
+function InventoryService:moveBackpackItem(player, fromIndex, toIndex)
+    local inventory = self:get(player)
+    if not inventory then
+        return false, 'MissingInventory'
+    end
+
+    return inventory:moveBackpackItem(fromIndex, toIndex)
+end
+
 function InventoryService:unequip(player)
     local inventory = self:get(player)
     if not inventory then
