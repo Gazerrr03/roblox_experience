@@ -28,13 +28,25 @@ return function()
             room:AddTag(tag)
         end
 
+        local monsterSpawnsFolder = nil
+
         -- 添加子级（SpawnPoint、LootSocket 等）
         for _, childData in ipairs(children or {}) do
             local child = Instance.new('Part')
             child.Name = childData.name
             child.Position = childData.position or Vector3.new(0, 0, 0)
             child:SetAttribute('Direction', childData.direction or 'Unknown')
-            child.Parent = room
+
+            if string.find(child.Name, 'SpawnPoint') then
+                if monsterSpawnsFolder == nil then
+                    monsterSpawnsFolder = Instance.new('Folder')
+                    monsterSpawnsFolder.Name = 'MonsterSpawns'
+                    monsterSpawnsFolder.Parent = room
+                end
+                child.Parent = monsterSpawnsFolder
+            else
+                child.Parent = room
+            end
         end
 
         return room
@@ -430,6 +442,37 @@ return function()
         mockRoot:Destroy()
 
         print('[PASS] MazeWorldScanner correctly collects PatrolAnchors and SpawnSockets')
+    end
+
+    -- ============================================
+    -- Test: 没有 MonsterSpawns 文件夹时不产生 PatrolAnchors
+    -- ============================================
+    do
+        local mockRoot = Instance.new('Folder')
+        mockRoot.Name = 'MockWorkspace'
+
+        local room = Instance.new('Model')
+        room.Name = 'Room_NoMonsterFolder'
+        room:AddTag('RoomType/DeadEnd')
+        room.Parent = mockRoot
+
+        local directSpawnPoint = Instance.new('Part')
+        directSpawnPoint.Name = 'SpawnPoint_1'
+        directSpawnPoint.Position = Vector3.new(0, 5, 0)
+        directSpawnPoint.Parent = room
+
+        local worldFormat = MazeWorldScanner.ToWorldFormat(MazeWorldScanner.Scan(mockRoot))
+        local affordance = worldFormat.RoomAffordances.Room_NoMonsterFolder
+
+        assert(affordance ~= nil, 'Room affordance should still exist')
+        assert(
+            #affordance.PatrolAnchors == 0,
+            'Direct child SpawnPoint_* should no longer count without MonsterSpawns'
+        )
+
+        mockRoot:Destroy()
+
+        print('[PASS] MazeWorldScanner ignores direct-child SpawnPoint_* without MonsterSpawns')
     end
 
     print('[PASS] All MazeWorldScanner spec tests passed')

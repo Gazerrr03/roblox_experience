@@ -58,11 +58,15 @@ return function()
     })
     lootRoom:AddTag('HasMonsterSpawner')
 
+    local monsterSpawns = Instance.new('Folder')
+    monsterSpawns.Name = 'MonsterSpawns'
+    monsterSpawns.Parent = lootRoom
+
     local patrolPoint = Instance.new('Part')
     patrolPoint.Name = 'SpawnPoint_1'
     patrolPoint.Anchored = true
     patrolPoint.Position = Vector3.new(24, 2, 24)
-    patrolPoint.Parent = lootRoom
+    patrolPoint.Parent = monsterSpawns
 
     local lootSocket = Instance.new('Part')
     lootSocket.Name = 'LootSocket_1'
