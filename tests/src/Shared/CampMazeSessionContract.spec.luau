@@ -1,9 +1,7 @@
 return function()
     local ReplicatedStorage = game:GetService('ReplicatedStorage')
-    local gameplay = require(ReplicatedStorage:WaitForChild('Packages'):WaitForChild('Gameplay'))
     local shared = require(ReplicatedStorage:WaitForChild('Packages'):WaitForChild('Shared'))
     local contract = shared.Session.CampMazeSessionContract
-    local monsterAssetIds = gameplay.Monsters.MonsterAssetIds
 
     local campSession = contract.newCampSession({
         SessionId = 'camp-session-1',
@@ -167,37 +165,6 @@ return function()
         },
         EntryReason = 'maze_gate',
         PlayerInventory = roundTripInventory,
-        PendingUgcMonsterPayload = {
-            OwnerUserId = 42,
-            MonsterId = 'ugc-42-100',
-            MonsterName = 'Scrap Whisper',
-            Seed = 100,
-            RecipeHash = 'recipe-1234',
-            RuntimeProfile = {
-                Id = 'ugc-42-100',
-                Name = 'Scrap Whisper',
-                Presentation = {
-                    ModelAssetId = monsterAssetIds.DefaultModelAssetId,
-                    RigType = 'R6',
-                    AnimationMode = 'defaultR6',
-                    ChaseLoopSoundAssetId = monsterAssetIds.DefaultChaseLoopSoundAssetId,
-                },
-                Speed = 14,
-                SightRange = 36,
-                PatrolSpeedMultiplier = 0.45,
-                SpawnOffset = Vector3.new(0, 4, 0),
-                Behaviors = {
-                    SenseNearestTarget = true,
-                    Chase = true,
-                },
-                Effects = {},
-            },
-            Diagnostics = {
-                SkippedBehaviorIds = { 'LoseTarget' },
-                SkippedEffectIds = {},
-                ClampedFields = {},
-            },
-        },
     })
 
     local enteringInventory = contract.findPlayerInventory(campToMaze, 42)
@@ -216,27 +183,15 @@ return function()
         'Teleport inventory should preserve readable clue text'
     )
 
-    local pendingUgcPayload = contract.findPendingUgcMonsterPayload(campToMaze)
-    assert(
-        pendingUgcPayload ~= nil and pendingUgcPayload.OwnerUserId == 42,
-        'Run -> maze payload should preserve pending UGC monster payloads'
-    )
-    assert(
-        pendingUgcPayload.RuntimeProfile.Presentation.ModelAssetId
-            == monsterAssetIds.DefaultModelAssetId,
-        'Pending UGC payload should preserve monster presentation data'
-    )
-
     local earlyReturn = contract.buildReturnSummary({
         UserId = 42,
         Name = 'Scout',
-        ReturnReason = 'extracted',
+        ReturnReason = 'returned',
         LootItemCount = 2,
         ClueCount = 1,
         ToolCount = 0,
         MissionCount = 2,
         ItemCount = 3,
-        WasExtracted = true,
     })
     local resumed = contract.applyReturn(entered, earlyReturn, false)
     assert(#resumed.PlayersInMaze == 0, 'Returned players should leave the maze roster')

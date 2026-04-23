@@ -46,8 +46,7 @@ local LEGACY_TOOL_CATEGORY = table.freeze({
     Crowbar = 'Crowbar',
 })
 local RUN_MAZE_GATE_RETURN_REASONS = table.freeze({
-    early_return = true,
-    extracted = true,
+    returned = true,
 })
 local INITIAL_TEMPLE_STATUS =
     'Leave the ship, spot the tower, and decide when to push into the maze.'

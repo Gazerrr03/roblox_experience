@@ -96,7 +96,6 @@ return function()
         },
         EntryReason = 'maze_gate',
         PlayerInventory = summary,
-        PendingUgcMonsterPayload = nil,
     })
 
     local viaContract = contract.findPlayerInventory(teleportPayload, 501)

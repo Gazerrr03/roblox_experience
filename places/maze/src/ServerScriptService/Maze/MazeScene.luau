@@ -1,5 +1,4 @@
 local MazeDoor = require(script.Parent.MazeDoor)
-local MazeExtractionNode = require(script.Parent.MazeExtractionNode)
 local MazeInteractionRegistry = require(script.Parent.MazeInteractionRegistry)
 local MazeLootNode = require(script.Parent.MazeLootNode)
 local MazeRoom = require(script.Parent.MazeRoom)
@@ -45,12 +44,6 @@ function MazeScene.new(rawWorld)
         )
     end
 
-    local extractionNodes = {}
-    for extractionNodeId, extractionNode in pairs(rawWorld.ExtractionNodes or {}) do
-        extractionNodes[extractionNodeId] = MazeExtractionNode.new(extractionNode)
-    end
-    assertNonEmptyMap(extractionNodes, 'extraction nodes')
-
     local lootNodes = {}
     for roomId, lootNode in pairs(rawWorld.LootNodes or {}) do
         lootNodes[roomId] = MazeLootNode.new(roomId, lootNode)
@@ -71,7 +64,6 @@ function MazeScene.new(rawWorld)
     local registry = MazeSceneRegistry.new({
         RoomsById = roomsById,
         LootNodes = lootNodes,
-        ExtractionNodes = extractionNodes,
         Doorways = doorways,
     })
 
@@ -91,7 +83,6 @@ function MazeScene.new(rawWorld)
             rawWorld.ReturnHoldCFrame
         ),
         ReturnHoldPad = returnHoldPad,
-        ExtractionNodes = extractionNodes,
         LootNodes = lootNodes,
         Doorways = doorways,
         CanTraverseBetweenPositions = rawWorld.CanTraverseBetweenPositions,

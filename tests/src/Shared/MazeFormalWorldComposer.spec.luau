@@ -36,7 +36,6 @@ return function()
     )
     assert(next(world.RoomAffordances or {}) ~= nil, 'Formal world should expose room affordances')
     assert(next(world.LootNodes or {}) ~= nil, 'Formal world should create loot nodes')
-    assert(next(world.ExtractionNodes or {}) ~= nil, 'Formal world should create extraction nodes')
     assert(
         world.Root:FindFirstChild('DeployConsole', true) == nil,
         'Formal world should not recreate the legacy deploy console'
@@ -50,26 +49,10 @@ return function()
         'Formal world should not recreate the legacy extraction pad'
     )
 
-    local extractionCount = 0
-    for _, extractionNode in pairs(world.ExtractionNodes) do
-        extractionCount += 1
-        assert(extractionNode.Prompt ~= nil, 'Extraction nodes should expose a prompt')
-        assert(
-            extractionNode.Prompt.ObjectText == 'Run Entrance',
-            'Formal extraction prompt should point players back to the run entrance'
-        )
-        assert(
-            extractionNode.Prompt.ActionText == 'Return',
-            'Formal extraction prompt should align with the shared return semantics'
-        )
-    end
-
     assert(
-        world.ReturnHoldPad.Prompt.ObjectText == 'Run Entrance',
-        'The blue return pad should point players back to the run entrance'
+        world.ReturnHoldPad.Prompt.ObjectText == 'Run',
+        'The return pad should point players back to run'
     )
-
-    assert(extractionCount >= 1, 'Formal world should include at least one extraction node')
     assert(
         world.InitialMonsterSpawnRoomId ~= world.CampRoomId,
         'Initial monster spawn should never use the camp room'

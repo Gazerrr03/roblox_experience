@@ -177,7 +177,6 @@ return function()
         },
         EntryReason = 'maze_gate',
         PlayerInventory = inventoryService:getSummary(restorablePlayer),
-        PendingUgcMonsterPayload = nil,
     })
     local clonedSummary = contract.findPlayerInventory(roundTripTeleport, restorablePlayer.UserId)
     assert(

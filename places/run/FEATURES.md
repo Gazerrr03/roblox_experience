@@ -44,7 +44,7 @@
 
 | 名称 | 状态 | 文件 | description |
 |------|------|------|-------------|
-| terminals | active | RunTerminal.luau | Shop/Salvage/Objective/Loadout/UgcLabConsole五类Terminal |
+| terminals | active | RunTerminal.luau | Shop/Salvage/Objective/Loadout四类Terminal |
 | interaction-registry | active | RunInteractionRegistry.luau | ProximityPrompt→handler统一绑定 |
 | proximity-prompts | active | RunStaticWorldValidator.luau | Studio编辑的Prompt对象（ShopTerminal/SalvageTerminal等） |
 
@@ -103,7 +103,7 @@ RunStaticWorld/
 │   ├── ocean/                                   # 海面视觉层
 │   └── Sci-Fi Space Ship/                       # 飞船视觉模型；门交互由代码侧生成
 ├── ShopTerminal, SalvageTerminal                 # Terminals
-├── ObjectiveBoard, LoadoutBench, UgcLabConsole  # Terminals
+├── ObjectiveBoard, LoadoutBench                 # Terminals
 ├── GateSwitch                                    # 仅推进 gate open 状态，不再驱动 top-level 门片动画
 ├── MazeGateMarker                                # 传送门
 ├── Triggers/Ocean/                              # 溺水trigger

@@ -17,7 +17,6 @@ local REQUIRED_PROMPT_PARTS = table.freeze({
     SalvageTerminal = 'Sell',
     ObjectiveBoard = 'Objective',
     LoadoutBench = 'Loadout',
-    UgcLabConsole = 'UgcLab',
     GateSwitch = 'Gate',
 })
 
@@ -246,7 +245,6 @@ function RunScene.new(root)
         ObjectivePrompt = terminals.Objective.Prompt,
         BookPrompt = terminals.Objective.Prompt,
         LoadoutPrompt = terminals.Loadout.Prompt,
-        UgcLabPrompt = terminals.UgcLab.Prompt,
         GatePrompt = terminals.Gate.Prompt,
         MazePrompt = mazePortal.Prompt,
     }, RunScene)

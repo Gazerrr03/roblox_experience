@@ -134,16 +134,6 @@ return function()
         )
         campRoom.Parent = mockRoot
 
-        -- 添加 Extraction 房间
-        local extractRoom = createMockRoom(
-            'Room_Extraction_01',
-            'Straight',
-            { DifficultyTier = 1, MonsterBudget = 0, IsExtraction = true },
-            { 'RoomType/Straight' },
-            {}
-        )
-        extractRoom.Parent = mockRoot
-
         -- 添加无 Tag 的非房间物体（应该被跳过）
         local nonRoom = Instance.new('Part')
         nonRoom.Name = 'SomeDecoration'
@@ -154,7 +144,7 @@ return function()
 
         -- 验证
         local roomIds = MazeWorldScanner.GetRoomIds(scanResult)
-        assert(#roomIds == 3, string.format('Expected 3 rooms, got %d', #roomIds))
+        assert(#roomIds == 2, string.format('Expected 2 rooms, got %d', #roomIds))
 
         -- 验证 CampRoomId 识别
         assert(
@@ -180,10 +170,6 @@ return function()
             deadEndRoom.Type == 'DeadEnd',
             string.format('Expected Type DeadEnd, got %s', tostring(deadEndRoom.Type))
         )
-
-        -- 验证 IsExtraction 识别
-        local extract = MazeWorldScanner.GetRoomById(scanResult, 'Room_Extraction_01')
-        assert(extract.IsExtraction == true, 'Extraction room should have IsExtraction=true')
 
         -- 验证非房间物体被跳过
         local decoration = mockRoot:FindFirstChild('SomeDecoration')

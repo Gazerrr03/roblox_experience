@@ -18,13 +18,12 @@ return function()
     local earlyReturnRecorded, earlyReturnReason = tracker:recordReturn({
         UserId = 10,
         Name = 'Alpha',
-        ReturnReason = 'extracted',
+        ReturnReason = 'returned',
         LootItemCount = 1,
         ClueCount = 1,
         ToolCount = 0,
         MissionCount = 1,
         ItemCount = 2,
-        WasExtracted = true,
     })
     assert(earlyReturnRecorded == true, earlyReturnReason or 'Early return should be recorded')
     assert(
@@ -56,7 +55,6 @@ return function()
             ToolCount = 1,
             MissionCount = 2,
             ItemCount = 3,
-            WasExtracted = true,
             WasSettled = true,
         },
     })
@@ -74,6 +72,10 @@ return function()
     assert(#summaries == 2, 'Both player summaries should be retained')
     assert(summaries[1].ClueCount == 1, 'Tracker should preserve clue counts on returned summaries')
     assert(summaries[2].ToolCount == 1, 'Tracker should preserve tool counts on returned summaries')
+    assert(
+        summaries[1].WasExtracted == nil and summaries[2].WasExtracted == nil,
+        'Returned summaries should no longer leak the removed WasExtracted field'
+    )
     assert(
         summaries[2].MissionCount == 2,
         'Tracker should preserve mission counts on returned summaries'

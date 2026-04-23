@@ -126,56 +126,6 @@ local function clonePlayerInventories(playerInventories)
     return cloned
 end
 
-local function cloneUgcRuntimeProfile(runtimeProfile)
-    if type(runtimeProfile) ~= 'table' then
-        return nil
-    end
-
-    return {
-        Id = runtimeProfile.Id,
-        Name = runtimeProfile.Name,
-        Presentation = type(runtimeProfile.Presentation) == 'table' and table.clone(
-            runtimeProfile.Presentation
-        ) or nil,
-        Speed = runtimeProfile.Speed,
-        SightRange = runtimeProfile.SightRange,
-        PatrolSpeedMultiplier = runtimeProfile.PatrolSpeedMultiplier,
-        SpawnOffset = runtimeProfile.SpawnOffset,
-        Behaviors = type(runtimeProfile.Behaviors) == 'table' and table.clone(
-            runtimeProfile.Behaviors
-        ) or {},
-        Effects = cloneArray(runtimeProfile.Effects),
-    }
-end
-
-local function cloneUgcDiagnostics(diagnostics)
-    if type(diagnostics) ~= 'table' then
-        return nil
-    end
-
-    return {
-        SkippedBehaviorIds = cloneArray(diagnostics.SkippedBehaviorIds),
-        SkippedEffectIds = cloneArray(diagnostics.SkippedEffectIds),
-        ClampedFields = cloneArray(diagnostics.ClampedFields),
-    }
-end
-
-local function clonePendingUgcMonsterPayload(payload)
-    if type(payload) ~= 'table' then
-        return nil
-    end
-
-    return {
-        OwnerUserId = payload.OwnerUserId,
-        MonsterId = payload.MonsterId,
-        MonsterName = payload.MonsterName,
-        Seed = payload.Seed,
-        RecipeHash = payload.RecipeHash,
-        RuntimeProfile = cloneUgcRuntimeProfile(payload.RuntimeProfile),
-        Diagnostics = cloneUgcDiagnostics(payload.Diagnostics),
-    }
-end
-
 local function clonePosition(position)
     if typeof(position) == 'Vector3' then
         return {
@@ -239,7 +189,6 @@ local function cloneReturnedSummary(summary)
         Value = summary.Value or 0,
         ItemCount = summary.ItemCount or 0,
         Weight = summary.Weight or 0,
-        WasExtracted = summary.WasExtracted == true,
         WasSettled = summary.WasSettled == true,
         CountedInSettlement = summary.CountedInSettlement ~= false,
         LootItemCount = summary.LootItemCount or summary.MissionCount or summary.ItemCount or 0,
@@ -390,7 +339,6 @@ function CampMazeSessionContract.buildReturnSummary(params)
         Value = params.Value or 0,
         ItemCount = params.ItemCount or 0,
         Weight = params.Weight or 0,
-        WasExtracted = params.WasExtracted == true,
         WasSettled = params.WasSettled == true,
         CountedInSettlement = params.CountedInSettlement ~= false,
         LootItemCount = params.LootItemCount or params.MissionCount or params.ItemCount or 0,
@@ -654,9 +602,6 @@ function CampMazeSessionContract.buildRunToMazeTeleportData(params)
             MazeAccessCode = params.CampSession.MazeAccessCode,
             EntryReason = params.EntryReason or 'camp_gate',
             EnteringPlayer = table.clone(params.EnteringPlayer),
-            PendingUgcMonsterPayload = clonePendingUgcMonsterPayload(
-                params.PendingUgcMonsterPayload
-            ),
         },
         PlayerInventories = clonePlayerInventories(playerInventories),
     }
@@ -710,15 +655,6 @@ function CampMazeSessionContract.findPlayerInventory(teleportData, userId)
     end
 
     return nil
-end
-
-function CampMazeSessionContract.findPendingUgcMonsterPayload(teleportData)
-    local mazeSession = teleportData and teleportData.MazeSession
-    if type(mazeSession) ~= 'table' then
-        return nil
-    end
-
-    return clonePendingUgcMonsterPayload(mazeSession.PendingUgcMonsterPayload)
 end
 
 CampMazeSessionContract.MazeStatus = MAZE_STATUS

@@ -81,7 +81,6 @@ function RunToMazeTransition:enter(params)
         EnteringPlayer = params.EnteringPlayer,
         EntryReason = params.EntryReason or 'maze_gate',
         PlayerInventory = params.PlayerInventory,
-        PendingUgcMonsterPayload = params.PendingUgcMonsterPayload,
     })
 
     local teleportOptions = buildReservedServerTeleportOptions(mazeAccessCode, teleportData)

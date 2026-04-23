@@ -86,19 +86,6 @@ return function()
     local doorwayPrompt = Instance.new('ProximityPrompt')
     doorwayPrompt.Parent = doorwayPart
 
-    local extractionRoom = createRoom('Room_Extraction', 'Straight', Vector3.new(48, 6, 24), {
-        IsExtraction = true,
-    })
-
-    local extractionMarker = Instance.new('Part')
-    extractionMarker.Name = 'ExtractionMarker'
-    extractionMarker.Anchored = true
-    extractionMarker.Position = Vector3.new(48, 2, 24)
-    extractionMarker.Parent = extractionRoom
-
-    local extractionPrompt = Instance.new('ProximityPrompt')
-    extractionPrompt.Parent = extractionMarker
-
     local rawWorld = shared.Runtime.MazeWorldScanner.BuildStaticWorld(root)
     local scene = MazeScene.new(rawWorld)
 
@@ -117,11 +104,6 @@ return function()
     assert(
         scene:getLootNode('Room_Loot').Prompt == lootPrompt,
         'MazeScene should index authored loot nodes'
-    )
-    local extractionNode = select(2, next(scene.ExtractionNodes))
-    assert(
-        extractionNode ~= nil and extractionNode.Prompt == extractionPrompt,
-        'MazeScene should index authored extraction nodes'
     )
     assert(
         scene:toggleDoor('Room_Loot:Doorway_East') == true,
@@ -164,11 +146,11 @@ return function()
     end)
     assert(
         ok == false,
-        'MazeScene should fail loudly when authored extraction or loot data is missing'
+        'MazeScene should fail loudly when authored loot or doorway data is missing'
     )
     assert(
-        string.find(tostring(err), 'extraction', 1, true) ~= nil
-            or string.find(tostring(err), 'loot', 1, true) ~= nil,
+        string.find(tostring(err), 'loot', 1, true) ~= nil
+            or string.find(tostring(err), 'door', 1, true) ~= nil,
         'MazeScene failures should mention the missing authored interaction category'
     )
 

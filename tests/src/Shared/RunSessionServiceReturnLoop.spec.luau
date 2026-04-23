@@ -18,16 +18,9 @@ return function()
 
     assert(
         service:_getReturnSpawnTargetForSummary({
-            ReturnReason = 'early_return',
+            ReturnReason = 'returned',
         }) == RunSpawnPoint.Kind.MazeReturn,
-        'Blue return-pad exits should land back at the run maze entrance'
-    )
-
-    assert(
-        service:_getReturnSpawnTargetForSummary({
-            ReturnReason = 'extracted',
-        }) == RunSpawnPoint.Kind.MazeReturn,
-        'Gold extraction exits should also land back at the run maze entrance'
+        'Return-pad exits should land back at the run maze entrance'
     )
 
     assert(
@@ -53,7 +46,7 @@ return function()
             CampMazeSessionContract.buildReturnSummary({
                 UserId = 101,
                 Name = 'BluePlayer',
-                ReturnReason = 'early_return',
+                ReturnReason = 'returned',
             }),
             CampMazeSessionContract.buildReturnSummary({
                 UserId = 202,

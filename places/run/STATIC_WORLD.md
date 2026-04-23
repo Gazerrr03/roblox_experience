@@ -8,7 +8,6 @@ Required authored parts with `ProximityPrompt`s:
 - `SalvageTerminal`
 - `ObjectiveBoard`
 - `LoadoutBench`
-- `UgcLabConsole`
 - `GateSwitch`
 - `MazeGateMarker`
 

@@ -157,9 +157,8 @@ local function cloneOverlayAsset(overlayAsset, root)
     end
 
     local lootRoom = root:FindFirstChild('Room_Loot')
-    local extractionRoom = root:FindFirstChild('Room_Extraction')
-    if lootRoom == nil or extractionRoom == nil then
-        error('Maze static world overlay must define Room_Loot and Room_Extraction.', 0)
+    if lootRoom == nil then
+        error('Maze static world overlay must define Room_Loot.', 0)
     end
 
     for _, nodeName in ipairs(MazeStaticWorldOverlayManifest.RequiredInteractionNodes) do
@@ -183,10 +182,6 @@ local function cloneOverlayAsset(overlayAsset, root)
     )
     requirePrompt(
         requireBasePart(lootRoom, 'Doorway_East', 'Maze static world overlay'),
-        'Maze static world overlay'
-    )
-    requirePrompt(
-        requireBasePart(extractionRoom, 'ExtractionMarker', 'Maze static world overlay'),
         'Maze static world overlay'
     )
 end

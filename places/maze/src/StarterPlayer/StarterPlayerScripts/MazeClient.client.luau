@@ -251,7 +251,7 @@ objectiveLabel.Text = 'Objective: --'
 local promptLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 86), Theme.Text, 16, false)
 -- === 修改：加上了按 F 键使用道具的提示 ===
 promptLabel.Text =
-    'In-world prompts:\n- Loot pickups\n- Blue/Gold return markers -> Run Entrance\n- Double Door controls\nKeyboard: Hold LeftShift to sprint\nKeyboard: Press F to use held tool'
+    'In-world prompts:\n- Loot pickups\n- Blue return marker -> Run\n- Double Door controls\nKeyboard: Hold LeftShift to sprint\nKeyboard: Press F to use held tool'
 
 if RunService:IsStudio() then
     promptLabel.Text ..= '\nStudio debug: H light damage | J heavy damage'
