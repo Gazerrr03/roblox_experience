@@ -6,7 +6,6 @@ local Workspace = game:GetService('Workspace')
 local DEFAULT_WORKSPACE_SHELL_NAMES = { 'Baseplate', 'SpawnLocation' }
 local CAMP_SESSION_LOCK_WAIT_SECONDS = 0.05
 local SNAPSHOT_INTERVAL_SECONDS = 0.25
-local UGC_MONSTER_GLOBAL_CAP = 5
 local TELEPORT_DATA_WAIT_SECONDS = 3
 local TELEPORT_DATA_WAIT_STEP_SECONDS = 0.05
 local MAZE_DIAG_PREFIX = '[MazeDiag]'
@@ -52,8 +51,6 @@ local DAMAGE_KIND_BY_PIPS = table.freeze({
     [1] = Gameplay.PlayerState.DamageKind.Light,
     [2] = Gameplay.PlayerState.DamageKind.Heavy,
 })
-
-local MazeMonsterSpawnPolicy = Gameplay.Monsters.MazeMonsterSpawnPolicy
 
 local MazeSessionService = {}
 MazeSessionService.__index = MazeSessionService
@@ -176,22 +173,6 @@ local function buildMazeMonsterRuntimeProfile(monsterAuthorProfile)
     end
 
     return runtimeProfileOrReason
-end
-
-local function cloneUgcPendingPayload(payload)
-    if type(payload) ~= 'table' then
-        return nil
-    end
-
-    return {
-        OwnerUserId = payload.OwnerUserId,
-        MonsterId = payload.MonsterId,
-        MonsterName = payload.MonsterName,
-        Seed = payload.Seed,
-        RecipeHash = payload.RecipeHash,
-        RuntimeProfile = table.clone(payload.RuntimeProfile or {}),
-        Diagnostics = table.clone(payload.Diagnostics or {}),
-    }
 end
 
 function MazeSessionService:_emitDiagnostic(event, fields)
@@ -496,24 +477,6 @@ function MazeSessionService:_markAcceptedTeleportData(teleportData)
     return true
 end
 
-function MazeSessionService:_queuePendingUgcMonsterPayload(payload)
-    local clonedPayload = cloneUgcPendingPayload(payload)
-    if clonedPayload == nil then
-        return
-    end
-
-    table.insert(self.PendingUgcMonsterPayloads, clonedPayload)
-end
-
-function MazeSessionService:_destroyUgcMonsters()
-    for _, entry in ipairs(self.UgcMonsterServices) do
-        if entry.Service and entry.Service.destroy then
-            entry.Service:destroy()
-        end
-    end
-    table.clear(self.UgcMonsterServices)
-end
-
 function MazeSessionService:_buildMonsterRuntimeOptions(randomSeed)
     return {
         RandomSeed = randomSeed,
@@ -531,84 +494,6 @@ function MazeSessionService:_buildMonsterRuntimeOptions(randomSeed)
             end
         end,
     }
-end
-
-function MazeSessionService:_spawnQueuedUgcMonsters()
-    if #self.PendingUgcMonsterPayloads == 0 then
-        return
-    end
-
-    local patrolPoints = self.World and self.World.PatrolPoints or {}
-    if #patrolPoints == 0 then
-        table.clear(self.PendingUgcMonsterPayloads)
-        self:_setStatus('UGC 怪物刷怪失败：迷宫缺少巡逻点。')
-        return
-    end
-
-    local queuedPayloads = table.clone(self.PendingUgcMonsterPayloads)
-    table.clear(self.PendingUgcMonsterPayloads)
-
-    for _, payload in ipairs(queuedPayloads) do
-        if #self.UgcMonsterServices >= UGC_MONSTER_GLOBAL_CAP then
-            self:_setStatus('UGC 怪物刷怪已达本局上限（5只）。')
-            break
-        end
-
-        local runtimeProfile = payload.RuntimeProfile
-        local runtimeValid, runtimeReason =
-            Gameplay.Monsters.MonsterRuntimeProfile.validate(runtimeProfile)
-        if not runtimeValid then
-            self:_setStatus(
-                string.format(
-                    'UGC 怪物运行配置无效（owner=%s, reason=%s）。',
-                    tostring(payload.OwnerUserId),
-                    tostring(runtimeReason)
-                )
-            )
-            continue
-        end
-
-        local randomSeed = if type(payload.Seed) == 'number'
-            then math.floor(payload.Seed)
-            else self.SessionData.Seed
-        if randomSeed <= 0 then
-            randomSeed = self.SessionData.Seed
-        end
-        local random = Random.new(randomSeed)
-
-        local initialPatrolIndex, spawnRoomId =
-            MazeMonsterSpawnPolicy.selectRandomEligiblePatrolIndex(
-                self.World.RoomIds,
-                self.World.RoomAffordances,
-                self.World.RoomById,
-                self.World.CampRoomId,
-                random
-            )
-        if initialPatrolIndex == nil then
-            self:_setStatus('UGC 怪物刷怪失败：没有可用的安全房间。')
-            continue
-        end
-
-        local ugcMonsterService = self.MonsterServiceFactory(runtimeProfile, function()
-            return self.RunTracker:getState() == 'Expedition'
-        end, function(player)
-            return self.RunTracker:isPlayerActive(player.UserId)
-        end, function(fromPosition, toPosition)
-            if not self.World or not self.World.CanTraverseBetweenPositions then
-                return true
-            end
-
-            return self.World.CanTraverseBetweenPositions(fromPosition, toPosition)
-        end, self:_buildMonsterRuntimeOptions(randomSeed))
-        ugcMonsterService:spawn(patrolPoints, initialPatrolIndex)
-
-        table.insert(self.UgcMonsterServices, {
-            OwnerUserId = payload.OwnerUserId,
-            SpawnRoomId = spawnRoomId,
-            Service = ugcMonsterService,
-            RuntimeProfileId = runtimeProfile.Id,
-        })
-    end
 end
 
 function MazeSessionService.new(options)
@@ -633,7 +518,7 @@ function MazeSessionService.new(options)
         MazeAccessCode = 'local-debug-maze',
         MazeStatus = CampMazeSessionContract.MazeStatus.Active,
     })
-    self.Status = 'Direct boot: maze session is live. Explore, loot, and find an extraction point.'
+    self.Status = 'Direct boot: maze session is live. Explore, loot, and find a return point.'
     self.World = nil
     self.WorldInteractions = nil
     self.IsDirectBoot = true
@@ -686,8 +571,6 @@ function MazeSessionService.new(options)
         end,
         self:_buildMonsterRuntimeOptions(self.SessionData.Seed)
     )
-    self.UgcMonsterServices = {}
-    self.PendingUgcMonsterPayloads = {}
     self.CorpsesByUserId = {}
     self.DeathSummaryByUserId = {}
     self.DynamicDropNodesById = {}
@@ -817,7 +700,6 @@ function MazeSessionService:_mergeTeleportData(teleportData, resetInventoryServi
         HadCampSession = false,
         HadTeleportData = type(teleportData) == 'table',
         Merged = false,
-        HadPendingUgcMonster = false,
         PreviousIsDirectBoot = self.IsDirectBoot,
         PreviousMazeAccessCode = self.CampSession and self.CampSession.MazeAccessCode or nil,
         PreviousSeed = self.SessionData.Seed,
@@ -881,16 +763,10 @@ function MazeSessionService:_mergeTeleportData(teleportData, resetInventoryServi
     self.IsDirectBoot = false
     self.CampSession.MaxRounds = self.SessionData.Mission.RoundCount
     self.CampSession.TargetItemCount = self.SessionData.Mission.TargetItemCount
-    self.Status = 'Maze session is live. Explore, loot, and find an extraction point.'
+    self.Status = 'Maze session is live. Explore, loot, and find a return point.'
     self:_subscribeToRoundSignals()
     result.AcceptedBeforeBuild = self:_markAcceptedTeleportData(teleportData)
     result.Merged = true
-    local pendingUgcMonsterPayload =
-        CampMazeSessionContract.findPendingUgcMonsterPayload(teleportData)
-    if pendingUgcMonsterPayload ~= nil then
-        result.HadPendingUgcMonster = true
-        self:_queuePendingUgcMonsterPayload(pendingUgcMonsterPayload)
-    end
 
     if resetInventoryService == true then
         self.InventoryService = InventoryService.new(self.SessionData.InventoryCapacity)
@@ -1001,7 +877,6 @@ function MazeSessionService:_handlePlayerTeleportData(player)
         Accepted = mergeResult.Accepted,
         AcceptedBeforeBuild = mergeResult.AcceptedBeforeBuild,
         HadCampSession = mergeResult.HadCampSession,
-        HadPendingUgcMonster = mergeResult.HadPendingUgcMonster,
         HadTeleportData = mergeResult.HadTeleportData,
         Merged = mergeResult.Merged,
         Player = player.DisplayName,
@@ -1014,10 +889,6 @@ function MazeSessionService:_handlePlayerTeleportData(player)
         ResultSessionId = mergeResult.ResultSessionId,
         WorldBuildSource = self.WorldBuildMetadata and self.WorldBuildMetadata.Source or nil,
     })
-
-    if self.IsLaunched then
-        self:_spawnQueuedUgcMonsters()
-    end
 end
 
 function MazeSessionService:_hydratePlayerInventory(player, teleportData)
@@ -1257,10 +1128,7 @@ function MazeSessionService:_rebuildWorld()
     self:_setBootPhase('BindWorldInteractions')
     self.WorldInteractions = self.World:bindInteractions({
         OnReturnHold = function(player)
-            self:_returnPlayerToRunEntrance(player, 'early_return')
-        end,
-        OnExtraction = function(player, extractionNodeId)
-            self:_returnPlayerToRunEntrance(player, 'extracted', extractionNodeId)
+            self:_returnPlayerToRunEntrance(player, 'returned')
         end,
         OnLoot = function(player, roomId)
             self:_pickupLoot(player, roomId)
@@ -1325,7 +1193,6 @@ function MazeSessionService:_buildSummaryFor(
         Value = 0,
         ItemCount = shouldCountInventory and (lootItemCount + clueCount + toolCount) or 0,
         Weight = 0,
-        WasExtracted = returnReason == 'extracted' or returnReason == 'settled',
         WasSettled = wasSettled == true,
         CountedInSettlement = shouldCountInventory,
         LootItemCount = lootItemCount,
@@ -1443,8 +1310,6 @@ function MazeSessionService:_forceCloseToCamp(reason, countInventories)
     end
 
     self.MonsterService:destroy()
-    self:_destroyUgcMonsters()
-    table.clear(self.PendingUgcMonsterPayloads)
     self:_publishMazePresence()
 
     if self:_teleportToCamp(playersToReturn, summaries, true, countInventories) then
@@ -1468,8 +1333,7 @@ function MazeSessionService:_beginFormalExpedition()
     local patrolPoints, initialPatrolIndex = self.World:getPatrolPoints()
     self:_setBootPhase('SpawnMonster')
     self.MonsterService:spawn(patrolPoints, initialPatrolIndex)
-    self:_spawnQueuedUgcMonsters()
-    self:_setStatus('Maze session is live. Explore, loot, and find an extraction point.')
+    self:_setStatus('Maze session is live. Explore, loot, and find a return point.')
 end
 
 function MazeSessionService:_canManageInventory(player)
@@ -1612,8 +1476,6 @@ function MazeSessionService:_completeExpeditionIfNoActivePlayers()
     end
 
     self.MonsterService:destroy()
-    self:_destroyUgcMonsters()
-    table.clear(self.PendingUgcMonsterPayloads)
     return true
 end
 
@@ -1732,7 +1594,7 @@ function MazeSessionService:_pickupLoot(player, roomId)
     )
 end
 
-function MazeSessionService:_returnPlayerToRunEntrance(player, returnReason, _interactionId)
+function MazeSessionService:_returnPlayerToRunEntrance(player, returnReason)
     if self.RunTracker:getState() ~= 'Expedition' then
         self:_setStatus('Return markers are only available during the expedition phase.')
         return
@@ -1740,7 +1602,7 @@ function MazeSessionService:_returnPlayerToRunEntrance(player, returnReason, _in
 
     if not self.RunTracker:isPlayerActive(player.UserId) then
         self:_setStatus(
-            string.format('%s already returned to the run maze gate.', player.DisplayName)
+            string.format('%s already returned to the run return point.', player.DisplayName)
         )
         return
     end
@@ -1762,7 +1624,7 @@ function MazeSessionService:_returnPlayerToRunEntrance(player, returnReason, _in
     if not recorded then
         if reason == 'MissingActivePlayer' then
             self:_setStatus(
-                string.format('%s already returned to the run maze gate.', player.DisplayName)
+                string.format('%s already returned to the run return point.', player.DisplayName)
             )
         end
         return
@@ -1781,7 +1643,7 @@ function MazeSessionService:_returnPlayerToRunEntrance(player, returnReason, _in
     if self:_teleportToCamp({ player }, { summary }, mazeCompleted, true) then
         self:_setStatus(
             string.format(
-                '%s returned to the run maze gate with %d banked loot item(s) (%s).',
+                '%s returned to run with %d banked loot item(s) (%s).',
                 player.DisplayName,
                 bankedCount,
                 summary.ReturnReason
@@ -1797,7 +1659,7 @@ function MazeSessionService:_returnPlayerToRunEntrance(player, returnReason, _in
 
     self:_setStatus(
         string.format(
-            '%s reached a return marker with %d banked loot item(s), but the handoff back to run failed.',
+            '%s reached the return point with %d banked loot item(s), but the handoff back to run failed.',
             player.DisplayName,
             bankedCount
         )

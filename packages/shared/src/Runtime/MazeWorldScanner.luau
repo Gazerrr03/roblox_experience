@@ -5,11 +5,11 @@
     Authoring guide:
     - `Workspace/MazeStaticWorld` is the authored root for the maze place.
     - Each room is a Model tagged `RoomType/<TypeId>`.
-    - Supported room metadata lives on Attributes such as `IsCamp`, `IsExtraction`,
-      `DifficultyTier`, `MonsterBudget`, `LootBudget`, `DetectionRadius`,
+    - Supported room metadata lives on Attributes such as `IsCamp`, `DifficultyTier`,
+      `MonsterBudget`, `LootBudget`, `DetectionRadius`,
       `RoomTemplateId`, and `RoomCategory`.
     - Supported authored room nodes include `MonsterSpawns/SpawnPoint_*`,
-      `LootSocket_*`, `LootPrompt`, `Doorway_*`, and `ExtractionMarker`.
+      `LootSocket_*`, `LootPrompt`, and `Doorway_*`.
 ]]
 
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
@@ -25,7 +25,7 @@ local DEFAULT_SCAN_ROOT = Workspace
 local STATIC_WORLD_ROOT_NAME = 'MazeStaticWorld'
 local DEFAULT_ROOM_KIND = 'Loot'
 local DEFAULT_RETURN_ACTION_TEXT = 'Return'
-local DEFAULT_RETURN_OBJECT_TEXT = 'Run Entrance'
+local DEFAULT_RETURN_OBJECT_TEXT = 'Run'
 
 local NEIGHBOR_DISTANCE_THRESHOLD = 50
 local DEFAULT_DETECTION_RADIUS = 18
@@ -46,7 +46,6 @@ local DEFAULT_ATTRIBUTES = {
     MonsterBudget = 0,
     LootBudget = 0,
     IsCamp = false,
-    IsExtraction = false,
     IsScenery = false,
 }
 
@@ -192,10 +191,6 @@ local function pickRoomKind(instance)
         return 'Camp'
     end
 
-    if readAttribute(instance, 'IsExtraction', DEFAULT_ATTRIBUTES.IsExtraction) == true then
-        return 'Extraction'
-    end
-
     return readAttribute(instance, 'RoomKind', DEFAULT_ROOM_KIND)
 end
 
@@ -238,7 +233,6 @@ local function buildRoomData(instance)
         MonsterBudget = readAttribute(instance, 'MonsterBudget', DEFAULT_ATTRIBUTES.MonsterBudget),
         LootBudget = readAttribute(instance, 'LootBudget', DEFAULT_ATTRIBUTES.LootBudget),
         IsCamp = readAttribute(instance, 'IsCamp', DEFAULT_ATTRIBUTES.IsCamp),
-        IsExtraction = readAttribute(instance, 'IsExtraction', DEFAULT_ATTRIBUTES.IsExtraction),
         RoomTemplateId = readAttribute(instance, 'RoomTemplateId', roomType),
         RoomCategory = readAttribute(instance, 'RoomCategory', roomType),
         SearchProfile = {
@@ -464,7 +458,6 @@ function MazeWorldScanner.BuildStaticWorld(scanRoot)
 
     local roomCenters = {}
     local lootNodes = {}
-    local extractionNodes = {}
     local patrolPoints = {}
     local doorwayState = {}
     local roomInstancesById = {}
@@ -517,22 +510,14 @@ function MazeWorldScanner.BuildStaticWorld(scanRoot)
 
         local extractionPart = roomInstance
             and roomInstance:FindFirstChild('ExtractionMarker', true)
-        local extractionPrompt = findPromptOnPart(extractionPart)
-        if extractionPart and extractionPrompt then
-            extractionPrompt.ActionText = extractionPrompt.ActionText ~= ''
-                    and extractionPrompt.ActionText
-                or DEFAULT_RETURN_ACTION_TEXT
-            extractionPrompt.ObjectText = extractionPrompt.ObjectText ~= ''
-                    and extractionPrompt.ObjectText
-                or DEFAULT_RETURN_OBJECT_TEXT
-
-            local extractionNodeId = extractionPart:GetAttribute('ExtractionNodeId')
-                or string.format('%s_Extraction', roomId)
-            extractionNodes[extractionNodeId] = {
-                Id = extractionNodeId,
-                Prompt = extractionPrompt,
-                Position = extractionPart.Position,
-            }
+        if extractionPart ~= nil then
+            error(
+                string.format(
+                    'Maze room "%s" still contains deprecated authored part "ExtractionMarker". Use only ReturnHoldPad for maze exits.',
+                    roomId
+                ),
+                0
+            )
         end
 
         if room.Kind == 'Loot' then
@@ -625,7 +610,6 @@ function MazeWorldScanner.BuildStaticWorld(scanRoot)
         Prompt = returnHoldPrompt,
         Position = returnHoldPadPart.Position,
     }
-    world.ExtractionNodes = extractionNodes
     world.LootNodes = lootNodes
     world.Doorways = doorwayState
     world.PatrolPoints = patrolPoints

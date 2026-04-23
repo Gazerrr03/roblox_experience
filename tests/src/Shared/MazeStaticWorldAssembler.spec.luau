@@ -44,7 +44,7 @@ return function()
     local scanResult = shared.Runtime.MazeWorldScanner.Scan(root)
     local roomIds = shared.Runtime.MazeWorldScanner.GetRoomIds(scanResult)
     assert(
-        #roomIds == 3,
+        #roomIds == 2,
         'Assembler should expose the overlay rooms without treating scenery as rooms'
     )
     assert(
@@ -61,11 +61,6 @@ return function()
         world.Doorways['Room_Loot:Doorway_East'] ~= nil,
         'Assembled world should still expose overlay-authored doorway nodes'
     )
-    assert(
-        next(world.ExtractionNodes) ~= nil,
-        'Assembled world should still expose overlay-authored extraction nodes'
-    )
-
     local scene = MazeWorldBuilder.build()
     assert(
         scene.Root.Name == MazeStaticWorldContract.RootName,

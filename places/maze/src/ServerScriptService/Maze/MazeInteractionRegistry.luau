@@ -18,12 +18,6 @@ function MazeInteractionRegistry:bindScene(scene, handlers)
         handlers.OnReturnHold(player)
     end))
 
-    for extractionNodeId, extractionNode in pairs(scene.ExtractionNodes) do
-        self:_track(extractionNode:bind(function(player)
-            handlers.OnExtraction(player, extractionNodeId)
-        end))
-    end
-
     for roomId, lootNode in pairs(scene.LootNodes) do
         self:_track(lootNode:bind(function(player)
             handlers.OnLoot(player, roomId)

@@ -92,20 +92,6 @@ return function()
     local doorwayPrompt = Instance.new('ProximityPrompt')
     doorwayPrompt.Parent = doorwayPart
 
-    local extractionRoom = createRoom('Room_Extraction', 'Straight', Vector3.new(48, 6, 24), {
-        IsExtraction = true,
-        DifficultyTier = 1,
-    })
-
-    local extractionMarker = Instance.new('Part')
-    extractionMarker.Name = 'ExtractionMarker'
-    extractionMarker.Anchored = true
-    extractionMarker.Position = Vector3.new(48, 2, 24)
-    extractionMarker.Parent = extractionRoom
-
-    local extractionPrompt = Instance.new('ProximityPrompt')
-    extractionPrompt.Parent = extractionMarker
-
     local world = scanner.BuildStaticWorld(root)
 
     assert(world.Root == root, 'Static maze world should preserve the authored root')
@@ -122,10 +108,6 @@ return function()
         'Camp room should preserve its authored camp kind'
     )
     assert(
-        world.RoomById.Room_Extraction.Kind == 'Extraction',
-        'Extraction room should preserve its authored extraction kind'
-    )
-    assert(
         world.FindRoomByPosition(Vector3.new(24, 2, 24)).Id == 'Room_Loot',
         'Room lookup should resolve the nearest authored room'
     )
@@ -133,10 +115,6 @@ return function()
     assert(
         world.LootNodes.Room_Loot.Prompt == lootPrompt,
         'Loot runtime nodes should preserve the authored loot prompt'
-    )
-    assert(
-        next(world.ExtractionNodes) ~= nil,
-        'Static maze world should expose authored extraction nodes'
     )
     assert(
         #(world.PatrolPoints or {}) == 1,
@@ -205,21 +183,6 @@ return function()
 
     Instance.new('ProximityPrompt').Parent = invalidLootPromptPart
 
-    local invalidExtractionRoom =
-        createRoom('Room_InvalidExtraction', 'Straight', Vector3.new(48, 6, 24), {
-            IsExtraction = true,
-            DifficultyTier = 1,
-        })
-    invalidExtractionRoom.Parent = invalidRoot
-
-    local invalidExtractionMarker = Instance.new('Part')
-    invalidExtractionMarker.Name = 'ExtractionMarker'
-    invalidExtractionMarker.Anchored = true
-    invalidExtractionMarker.Position = Vector3.new(48, 2, 24)
-    invalidExtractionMarker.Parent = invalidExtractionRoom
-
-    Instance.new('ProximityPrompt').Parent = invalidExtractionMarker
-
     local invalidOk, invalidErr = pcall(function()
         scanner.BuildStaticWorld(invalidRoot)
     end)
@@ -238,4 +201,47 @@ return function()
     )
 
     invalidRoot:Destroy()
+
+    local deprecatedRoot = Instance.new('Folder')
+    deprecatedRoot.Name = 'MazeStaticWorld'
+    deprecatedRoot.Parent = Workspace
+
+    local deprecatedSpawnMarker = Instance.new('Part')
+    deprecatedSpawnMarker.Name = 'SpawnMarker'
+    deprecatedSpawnMarker.Anchored = true
+    deprecatedSpawnMarker.Parent = deprecatedRoot
+
+    local deprecatedReturnHoldPad = Instance.new('Part')
+    deprecatedReturnHoldPad.Name = 'ReturnHoldPad'
+    deprecatedReturnHoldPad.Anchored = true
+    deprecatedReturnHoldPad.Parent = deprecatedRoot
+
+    Instance.new('ProximityPrompt').Parent = deprecatedReturnHoldPad
+
+    local deprecatedRoom =
+        createRoom('Room_Deprecated', 'Straight', Vector3.new(48, 6, 24), { DifficultyTier = 1 })
+    deprecatedRoom.Parent = deprecatedRoot
+
+    local deprecatedExtractionMarker = Instance.new('Part')
+    deprecatedExtractionMarker.Name = 'ExtractionMarker'
+    deprecatedExtractionMarker.Anchored = true
+    deprecatedExtractionMarker.Position = Vector3.new(48, 2, 24)
+    deprecatedExtractionMarker.Parent = deprecatedRoom
+
+    Instance.new('ProximityPrompt').Parent = deprecatedExtractionMarker
+
+    local deprecatedOk, deprecatedErr = pcall(function()
+        scanner.BuildStaticWorld(deprecatedRoot)
+    end)
+
+    assert(
+        deprecatedOk == false,
+        'Static maze world build should fail loudly when deprecated extraction markers remain'
+    )
+    assert(
+        string.find(tostring(deprecatedErr), 'ExtractionMarker', 1, true) ~= nil,
+        'Deprecated extraction marker failures should mention the authored node'
+    )
+
+    deprecatedRoot:Destroy()
 end

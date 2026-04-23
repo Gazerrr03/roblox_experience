@@ -5,7 +5,6 @@ MazeModuleAssetContract.RequiredModuleNames = table.freeze({
     'DoorFrame',
     'DoorLeaf',
     'FloorPanel',
-    'ExtractionMarker',
 })
 
 MazeModuleAssetContract.OptionalAuthoringFolderName = 'RoomArchetypes'
