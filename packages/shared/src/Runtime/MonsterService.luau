@@ -11,6 +11,7 @@ local MonsterBehaviorCatalog = Gameplay.Monsters.MonsterBehaviorCatalog
 local MonsterComponentConfig = Gameplay.Monsters.MonsterComponentConfig
 local MonsterLogic = Gameplay.Monsters.MonsterLogic
 local Enemy = Gameplay.Monsters.Enemy
+local MonsterPresentationCatalog = Gameplay.Monsters.MonsterPresentationCatalog
 local MonsterRuntimeProfile = Gameplay.Monsters.MonsterRuntimeProfile
 local PlayerMonsterMelee = Gameplay.Combat.PlayerMonsterMelee
 local EnemyRuntime = require(script.Parent.MonsterRuntime.EnemyRuntime)
@@ -363,11 +364,46 @@ function MonsterService:_loadAnimationTracks(humanoid)
         animator.Parent = humanoid
     end
 
+    local presentation = self.Definition.Presentation
     local animationTracks = {
-        Idle = self.LoadAnimationTrack(animator, DEFAULT_R6_ANIMATIONS.Idle, 'MonsterIdle'),
-        Walk = self.LoadAnimationTrack(animator, DEFAULT_R6_ANIMATIONS.Walk, 'MonsterWalk'),
-        Run = self.LoadAnimationTrack(animator, DEFAULT_R6_ANIMATIONS.Run, 'MonsterRun'),
+        Idle = nil,
+        Walk = nil,
+        Run = nil,
     }
+    local attackTrack
+
+    if presentation.AnimationMode == MonsterPresentationCatalog.AnimationMode.CustomHumanoid then
+        local animationAssetIds = presentation.AnimationAssetIds or {}
+        animationTracks.Idle = self.LoadAnimationTrack(
+            animator,
+            animationAssetIds[MonsterPresentationCatalog.AnimationSlot.Idle],
+            'MonsterIdle'
+        )
+        animationTracks.Walk = self.LoadAnimationTrack(
+            animator,
+            animationAssetIds[MonsterPresentationCatalog.AnimationSlot.Walk],
+            'MonsterWalk'
+        )
+        animationTracks.Run = self.LoadAnimationTrack(
+            animator,
+            animationAssetIds[MonsterPresentationCatalog.AnimationSlot.Run],
+            'MonsterRun'
+        )
+        attackTrack = self.LoadAnimationTrack(
+            animator,
+            animationAssetIds[MonsterPresentationCatalog.AnimationSlot.Attack],
+            'MonsterAttack'
+        )
+    else
+        animationTracks.Idle =
+            self.LoadAnimationTrack(animator, DEFAULT_R6_ANIMATIONS.Idle, 'MonsterIdle')
+        animationTracks.Walk =
+            self.LoadAnimationTrack(animator, DEFAULT_R6_ANIMATIONS.Walk, 'MonsterWalk')
+        animationTracks.Run =
+            self.LoadAnimationTrack(animator, DEFAULT_R6_ANIMATIONS.Run, 'MonsterRun')
+        attackTrack =
+            self.LoadAnimationTrack(animator, DEFAULT_R6_ANIMATIONS.Attack, 'MonsterAttack')
+    end
 
     if animationTracks.Idle then
         animationTracks.Idle.Looped = true
@@ -384,8 +420,6 @@ function MonsterService:_loadAnimationTracks(humanoid)
         animationTracks.Run.Priority = Enum.AnimationPriority.Movement
     end
 
-    local attackTrack =
-        self.LoadAnimationTrack(animator, DEFAULT_R6_ANIMATIONS.Attack, 'MonsterAttack')
     if attackTrack then
         attackTrack.Looped = false
         attackTrack.Priority = Enum.AnimationPriority.Action
@@ -438,7 +472,10 @@ function MonsterService:_spawnModel(spawnPosition)
     preparedModel.Parent = Workspace
     preparedModel:PivotTo(CFrame.new(spawnPosition))
 
-    if presentation.AnimationMode == 'defaultR6' then
+    if
+        presentation.AnimationMode == MonsterPresentationCatalog.AnimationMode.DefaultR6
+        or presentation.AnimationMode == MonsterPresentationCatalog.AnimationMode.CustomHumanoid
+    then
         local animationOk, animationErr = pcall(function()
             self:_loadAnimationTracks(humanoid)
         end)

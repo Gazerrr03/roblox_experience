@@ -32,12 +32,18 @@ local function cloneRuntimeEffect(effectIntent)
 end
 
 local function cloneRuntimePresentation(presentation)
-    return table.freeze({
+    local runtimePresentation = {
         ModelAssetId = presentation.ModelAssetId,
         RigType = presentation.RigType,
         AnimationMode = presentation.AnimationMode,
         ChaseLoopSoundAssetId = presentation.ChaseLoopSoundAssetId,
-    })
+    }
+
+    if type(presentation.AnimationAssetIds) == 'table' then
+        runtimePresentation.AnimationAssetIds = table.freeze(table.clone(presentation.AnimationAssetIds))
+    end
+
+    return table.freeze(runtimePresentation)
 end
 
 function MonsterCompiler.compileMonsterForMaze(authorProfile)

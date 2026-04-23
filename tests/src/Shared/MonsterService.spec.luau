@@ -208,4 +208,104 @@ return function()
     assert(#fallbackWarnings == 1, 'Fallback loads should emit a warning for diagnostics')
 
     fallbackService:destroy()
+
+    local customRuntimeProfile = {
+        Id = 'custom-humanoid-service-spec',
+        Name = 'Custom Humanoid Service Spec',
+        Presentation = {
+            ModelAssetId = 555666777,
+            RigType = gameplay.Monsters.MonsterPresentationCatalog.RigType.CustomHumanoid,
+            AnimationMode = gameplay.Monsters.MonsterPresentationCatalog.AnimationMode.CustomHumanoid,
+            AnimationAssetIds = {
+                Idle = 701,
+                Walk = 702,
+                Run = 702,
+                Attack = 703,
+            },
+        },
+        AttackRange = 4,
+        AttackCooldownSeconds = 1,
+        AttackDamagePips = 1,
+        Speed = 12,
+        SightRange = 36,
+        PatrolSpeedMultiplier = 0.45,
+        SpawnOffset = Vector3.new(0, 4, 0),
+        CombatHitPoints = 2,
+        Behaviors = {
+            SenseNearestTarget = true,
+            Chase = true,
+            Attack = true,
+        },
+        Effects = {},
+        Components = {
+            Perception = {
+                SightRange = 36,
+            },
+            Movement = {
+                Speed = 12,
+                PatrolSpeedMultiplier = 0.45,
+                SpawnOffset = Vector3.new(0, 4, 0),
+            },
+            Attack = {
+                Range = 4,
+                CooldownSeconds = 1,
+                DamagePips = 1,
+            },
+        },
+    }
+
+    local customTrackAssetIds = {}
+    local customService = monsterServiceModule.new(
+        customRuntimeProfile,
+        function()
+            return true
+        end,
+        nil,
+        nil,
+        {
+            AssetLoader = function(assetId)
+                assert(assetId == 555666777, 'Custom humanoid service should request its model asset')
+
+                local monsterModel = Instance.new('Model')
+                monsterModel.Name = 'MixamoMonster'
+
+                local rootPart = Instance.new('Part')
+                rootPart.Name = 'HumanoidRootPart'
+                rootPart.Size = Vector3.new(2, 2, 1)
+                rootPart.Parent = monsterModel
+
+                local humanoid = Instance.new('Humanoid')
+                humanoid.Parent = monsterModel
+
+                return monsterModel
+            end,
+            LoadAnimationTrack = function(_, animationAssetId, animationName)
+                customTrackAssetIds[animationName] = animationAssetId
+                return createTrack(animationName)
+            end,
+        }
+    )
+
+    customService:spawn({
+        Vector3.new(0, 0, 0),
+    }, 1)
+
+    assert(
+        customTrackAssetIds.MonsterIdle == 701,
+        'Custom humanoid service should load the configured idle animation asset'
+    )
+    assert(
+        customTrackAssetIds.MonsterWalk == 702,
+        'Custom humanoid service should load the configured walk animation asset'
+    )
+    assert(
+        customTrackAssetIds.MonsterRun == 702,
+        'Custom humanoid service should load the configured run animation asset'
+    )
+    assert(
+        customTrackAssetIds.MonsterAttack == 703,
+        'Custom humanoid service should load the configured attack animation asset'
+    )
+
+    customService:destroy()
 end

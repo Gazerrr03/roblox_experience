@@ -14,6 +14,24 @@ local function isValidDamagePips(value)
     return value == 1 or value == 2
 end
 
+local function validateAnimationAssetIds(animationAssetIds, missingReasonPrefix, invalidReasonPrefix)
+    if type(animationAssetIds) ~= 'table' then
+        return false, missingReasonPrefix
+    end
+
+    for _, slotName in ipairs(MonsterPresentationCatalog.RequiredCustomAnimationSlots) do
+        if animationAssetIds[slotName] == nil then
+            return false, string.format('%s%s', missingReasonPrefix, slotName)
+        end
+
+        if type(animationAssetIds[slotName]) ~= 'number' or animationAssetIds[slotName] <= 0 then
+            return false, string.format('%s%s', invalidReasonPrefix, slotName)
+        end
+    end
+
+    return true
+end
+
 local function readComponentTable(profile, name)
     local components = profile.Components
     if components == nil then
@@ -62,6 +80,28 @@ function MonsterRuntimeProfile.validate(profile)
 
     if not MonsterPresentationCatalog.KnownAnimationMode[presentation.AnimationMode] then
         return false, 'InvalidRuntimeAnimationMode'
+    end
+
+    local usesCustomHumanoid = presentation.AnimationMode
+            == MonsterPresentationCatalog.AnimationMode.CustomHumanoid
+        or presentation.RigType == MonsterPresentationCatalog.RigType.CustomHumanoid
+    if usesCustomHumanoid then
+        if presentation.RigType ~= MonsterPresentationCatalog.RigType.CustomHumanoid then
+            return false, 'RuntimeCustomHumanoidRequiresCustomRigType'
+        end
+
+        if presentation.AnimationMode ~= MonsterPresentationCatalog.AnimationMode.CustomHumanoid then
+            return false, 'RuntimeCustomHumanoidRequiresCustomAnimationMode'
+        end
+
+        local animationAssetIdsOk, animationAssetIdsReason = validateAnimationAssetIds(
+            presentation.AnimationAssetIds,
+            'MissingRuntimeAnimationAssetId',
+            'InvalidRuntimeAnimationAssetId'
+        )
+        if not animationAssetIdsOk then
+            return false, animationAssetIdsReason
+        end
     end
 
     if
