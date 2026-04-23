@@ -1,5 +1,5 @@
 {
-  "name": "roblox-experience-tests",
+  "name": "roblox-experience-maze-content-harness-serve",
   "tree": {
     "$className": "DataModel",
     "ReplicatedStorage": {
@@ -7,13 +7,13 @@
       "Packages": {
         "$className": "Folder",
         "Shared": {
-          "$path": "../packages/shared/src"
+          "$path": "../../packages/shared/src"
         },
         "Gameplay": {
-          "$path": "../packages/gameplay/src"
+          "$path": "../../packages/gameplay/src"
         },
         "UI": {
-          "$path": "../packages/ui/src"
+          "$path": "../../packages/ui/src"
         }
       },
       "Assets": {
@@ -21,13 +21,13 @@
         "ToolTemplates": {
           "$className": "Folder",
           "ToolFlashlight": {
-            "$path": "../assets/ToolTemplates/ToolFlashlight.rbxmx"
+            "$path": "../../assets/ToolTemplates/ToolFlashlight.rbxmx"
           },
           "ToolCrowbar": {
-            "$path": "../assets/ToolTemplates/ToolCrowbar.rbxmx"
+            "$path": "../../assets/ToolTemplates/ToolCrowbar.rbxmx"
           },
           "ToolPotion": {
-            "$path": "../assets/ToolTemplates/ToolPotion.rbxmx"
+            "$path": "../../assets/ToolTemplates/ToolPotion.rbxmx"
           }
         },
         "Maze": {
@@ -35,33 +35,34 @@
           "Chunks": {
             "$className": "Folder",
             "MazeChunk_maze_v1": {
-              "$path": "../places/maze/assets/Chunks/MazeChunk_maze_v1.rbxmx"
+              "$path": "assets/Chunks/MazeChunk_maze_v1.rbxmx"
             }
           },
           "Overlays": {
             "$className": "Folder",
             "MazeStaticWorldOverlay_Default": {
-              "$path": "../places/maze/assets/Overlays/MazeStaticWorldOverlay_Default.rbxmx"
+              "$path": "assets/Overlays/MazeStaticWorldOverlay_Default.rbxmx"
             }
           }
         }
       },
       "PlaceModules": {
         "$className": "Folder",
-        "Run": {
-          "$path": "../places/run/src/ServerScriptService/Run"
-        },
         "Maze": {
-          "$path": "../places/maze/src/ServerScriptService/Maze"
-        },
-        "MazeContentHarness": {
-          "$path": "../places/maze/content-harness/src/ServerScriptService"
+          "$path": "src/ServerScriptService/Maze"
         }
       }
     },
     "ServerScriptService": {
       "$className": "ServerScriptService",
-      "$path": "src"
+      "$path": "content-harness/src/ServerScriptService"
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "$path": "content-harness/src/StarterPlayer/StarterPlayerScripts"
+      }
     }
   }
 }

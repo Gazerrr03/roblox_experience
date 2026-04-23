@@ -1,0 +1,77 @@
+{
+  "name": "roblox-experience-maze-content-harness",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Packages": {
+        "$className": "Folder",
+        "Shared": {
+          "$path": "../../packages/shared/src"
+        },
+        "Gameplay": {
+          "$path": "../../packages/gameplay/src"
+        },
+        "UI": {
+          "$path": "../../packages/ui/src"
+        }
+      },
+      "Assets": {
+        "$className": "Folder",
+        "ToolTemplates": {
+          "$className": "Folder",
+          "ToolFlashlight": {
+            "$path": "../../assets/ToolTemplates/ToolFlashlight.rbxmx"
+          },
+          "ToolCrowbar": {
+            "$path": "../../assets/ToolTemplates/ToolCrowbar.rbxmx"
+          },
+          "ToolPotion": {
+            "$path": "../../assets/ToolTemplates/ToolPotion.rbxmx"
+          }
+        },
+        "Maze": {
+          "$className": "Folder",
+          "Chunks": {
+            "$className": "Folder",
+            "MazeChunk_maze_v1": {
+              "$path": "assets/Chunks/MazeChunk_maze_v1.rbxmx"
+            }
+          },
+          "Overlays": {
+            "$className": "Folder",
+            "MazeStaticWorldOverlay_Default": {
+              "$path": "assets/Overlays/MazeStaticWorldOverlay_Default.rbxmx"
+            }
+          }
+        }
+      },
+      "PlaceModules": {
+        "$className": "Folder",
+        "Maze": {
+          "$path": "src/ServerScriptService/Maze"
+        }
+      }
+    },
+    "Workspace": {
+      "$className": "Workspace"
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "$path": "content-harness/src/ServerScriptService"
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "$properties": {
+        "CameraMode": "LockFirstPerson",
+        "CameraMinZoomDistance": 0.5,
+        "CameraMaxZoomDistance": 0.5,
+        "EnableMouseLockOption": false
+      },
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "$path": "content-harness/src/StarterPlayer/StarterPlayerScripts"
+      }
+    }
+  }
+}

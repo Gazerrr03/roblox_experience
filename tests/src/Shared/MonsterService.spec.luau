@@ -120,6 +120,14 @@ return function()
     }, 1)
 
     assert(
+        service.EnemyRuntime ~= nil and type(service.EnemyRuntime.reset) == 'function',
+        'MonsterService should keep the shared enemy runtime contract after spawn'
+    )
+    assert(
+        type(service.EnemyRuntime.applyDamage) == 'function',
+        'MonsterService should use a runtime that supports shared combat damage'
+    )
+    assert(
         service.MonsterRoot ~= nil and service.MonsterRoot:IsA('Model'),
         'Monster should spawn as a model'
     )
@@ -180,6 +188,7 @@ return function()
     assert(service.MonsterRoot == nil, 'Destroy should clear the spawned model reference')
 
     local fallbackWarnings = {}
+    local fallbackHits = {}
     local fallbackService = monsterServiceModule.new(
         runtimeProfile,
         function()
@@ -188,8 +197,21 @@ return function()
         nil,
         nil,
         {
+            AutoUpdateOnHeartbeat = false,
             AssetLoader = function()
                 return nil, 'InjectedAssetLoadFailure'
+            end,
+            GetPlayers = function()
+                return {
+                    createPlayer(404, Vector3.new(1, 0, 0)),
+                }
+            end,
+            OnAttackHit = function(player, damagePips, hitContext)
+                table.insert(fallbackHits, {
+                    DamagePips = damagePips,
+                    HitContext = hitContext,
+                    UserId = player.UserId,
+                })
             end,
             Warn = function(message)
                 table.insert(fallbackWarnings, message)
@@ -206,6 +228,13 @@ return function()
         'Failed asset loads should fall back to the placeholder sphere'
     )
     assert(#fallbackWarnings == 1, 'Fallback loads should emit a warning for diagnostics')
+
+    fallbackService:update(1)
+    assert(
+        #fallbackHits >= 1,
+        'Placeholder monsters should still resolve attack hits even without animation markers'
+    )
+    assert(fallbackHits[1].UserId == 404, 'Resolved fallback hits should target the sensed player')
 
     fallbackService:destroy()
 end
