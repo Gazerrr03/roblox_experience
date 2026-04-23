@@ -73,6 +73,10 @@ return function()
     assert(summaries[1].ClueCount == 1, 'Tracker should preserve clue counts on returned summaries')
     assert(summaries[2].ToolCount == 1, 'Tracker should preserve tool counts on returned summaries')
     assert(
+        summaries[1].WasExtracted == nil and summaries[2].WasExtracted == nil,
+        'Returned summaries should no longer leak the removed WasExtracted field'
+    )
+    assert(
         summaries[2].MissionCount == 2,
         'Tracker should preserve mission counts on returned summaries'
     )
