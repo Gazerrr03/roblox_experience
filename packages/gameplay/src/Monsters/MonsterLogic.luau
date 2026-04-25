@@ -1,14 +1,25 @@
+local math_min = math.min
+local math_sqrt = math.sqrt
+local Vector3_new = Vector3.new
+
 local MonsterLogic = {}
 
 function MonsterLogic.pickNearestTarget(currentPosition, playerPositions, sightRange)
+    -- Bolt: Use squared distance and numeric components to avoid Vector3 and math.sqrt overhead
     local closestPlayer = nil
-    local closestDistance = sightRange
+    local closestDistanceSq = sightRange * sightRange
+
+    local cx, cy, cz = currentPosition.X, currentPosition.Y, currentPosition.Z
 
     for player, position in pairs(playerPositions) do
-        local distance = (position - currentPosition).Magnitude
-        if distance <= closestDistance then
+        local dx = position.X - cx
+        local dy = position.Y - cy
+        local dz = position.Z - cz
+        local distSq = dx * dx + dy * dy + dz * dz
+
+        if distSq <= closestDistanceSq then
             closestPlayer = player
-            closestDistance = distance
+            closestDistanceSq = distSq
         end
     end
 
@@ -16,15 +27,25 @@ function MonsterLogic.pickNearestTarget(currentPosition, playerPositions, sightR
 end
 
 function MonsterLogic.stepToward(currentPosition, targetPosition, speed, dt)
-    local offset = targetPosition - currentPosition
-    local distance = offset.Magnitude
+    -- Bolt: Use numeric components and direct math to avoid intermediate Vector3 allocations
+    local cx, cy, cz = currentPosition.X, currentPosition.Y, currentPosition.Z
+    local tx, ty, tz = targetPosition.X, targetPosition.Y, targetPosition.Z
 
-    if distance == 0 then
+    local dx = tx - cx
+    local dy = ty - cy
+    local dz = tz - cz
+
+    local distanceSq = dx * dx + dy * dy + dz * dz
+
+    if distanceSq <= 1e-8 then
         return currentPosition
     end
 
-    local stepDistance = math.min(speed * dt, distance)
-    return currentPosition + offset.Unit * stepDistance
+    local distance = math_sqrt(distanceSq)
+    local stepDistance = math_min(speed * dt, distance)
+    local alpha = stepDistance / distance
+
+    return Vector3_new(cx + dx * alpha, cy + dy * alpha, cz + dz * alpha)
 end
 
 return MonsterLogic

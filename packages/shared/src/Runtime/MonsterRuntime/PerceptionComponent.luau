@@ -1,3 +1,5 @@
+local table_clear = table.clear
+
 local PerceptionComponent = {}
 PerceptionComponent.__index = PerceptionComponent
 
@@ -12,11 +14,14 @@ function PerceptionComponent.new(options)
         SightRange = runtimeOptions.SightRange,
         EnableSenseNearestTarget = runtimeOptions.EnableSenseNearestTarget,
         GetNow = runtimeOptions.GetNow,
+        _playerPositions = {},
     }, PerceptionComponent)
 end
 
 function PerceptionComponent:update(blackboard)
-    local playerPositions = {}
+    -- Bolt: Reuse table to reduce GC pressure from per-tick allocations
+    local playerPositions = self._playerPositions
+    table_clear(playerPositions)
 
     for _, player in ipairs(self.GetPlayers()) do
         if self.CanTargetPlayer(player) then
