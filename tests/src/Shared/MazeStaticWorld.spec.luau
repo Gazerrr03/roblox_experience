@@ -5,6 +5,40 @@ return function()
     local packages = ReplicatedStorage:WaitForChild('Packages')
     local shared = require(packages:WaitForChild('Shared'))
     local scanner = shared.Runtime.MazeWorldScanner
+    local mazeModules = ReplicatedStorage:WaitForChild('PlaceModules'):WaitForChild('Maze')
+    local overlayManifest = require(mazeModules:WaitForChild('MazeStaticWorldOverlayManifest'))
+
+    local expectedChainSteps = {
+        'EntryBuffer',
+        'Warning',
+        'PagesTemptation',
+        'SoundPredatorPayoff',
+        'ReturnDecision',
+    }
+    assert(
+        #overlayManifest.FirstPlayableChain == #expectedChainSteps,
+        'First playable chain should expose exactly five authored payoff steps'
+    )
+    for index, expectedStepId in ipairs(expectedChainSteps) do
+        assert(
+            overlayManifest.FirstPlayableChain[index].StepId == expectedStepId,
+            'First playable chain should preserve the deadline-slice step order'
+        )
+    end
+    assert(
+        overlayManifest.FirstPlayableChain[4].TargetId == 'Room_Loot'
+            and overlayManifest.FirstPlayableChain[4].PayoffHintId == 'sound-predator',
+        'Sound predator payoff should point at the authored loot room and hint id'
+    )
+    assert(
+        overlayManifest.Rooms.Room_Loot.PayoffHintId
+            == overlayManifest.FirstPlayableChain[4].PayoffHintId,
+        'First playable chain payoff should match Room_Loot authored payoff metadata'
+    )
+    assert(
+        overlayManifest.FirstPlayableChain[5].TargetId == 'ReturnHoldPad',
+        'Return decision should point at the authored return hold node'
+    )
 
     local root = Instance.new('Folder')
     root.Name = 'MazeStaticWorld'
@@ -48,6 +82,7 @@ return function()
     createRoom('Room_Camp', 'OpenHub', Vector3.new(0, 6, 24), {
         IsCamp = true,
         DifficultyTier = 0,
+        EncounterRole = 'EntryBuffer',
     })
 
     local lootRoom = createRoom('Room_Loot', 'DeadEnd', Vector3.new(24, 6, 24), {
@@ -55,6 +90,8 @@ return function()
         DifficultyTier = 2,
         RoomTemplateId = 'SearchCluster',
         RoomCategory = 'SearchCluster',
+        EncounterRole = 'WarningPayoffResourceTemptation',
+        PayoffHintId = 'sound-predator',
     })
     lootRoom:AddTag('HasMonsterSpawner')
 
@@ -92,7 +129,24 @@ return function()
     local doorwayPrompt = Instance.new('ProximityPrompt')
     doorwayPrompt.Parent = doorwayPart
 
+    local scenery = Instance.new('Folder')
+    scenery.Name = 'Scenery'
+    scenery.Parent = root
+
+    local fakeSceneryRoom = Instance.new('Model')
+    fakeSceneryRoom.Name = 'Room_SceneryFake'
+    fakeSceneryRoom:SetAttribute('RoomType', 'DeadEnd')
+    fakeSceneryRoom.Parent = scenery
+
+    local fakeSceneryShell = Instance.new('Part')
+    fakeSceneryShell.Name = 'Shell'
+    fakeSceneryShell.Anchored = true
+    fakeSceneryShell.Position = Vector3.new(60, 6, 24)
+    fakeSceneryShell.Parent = fakeSceneryRoom
+
     local world = scanner.BuildStaticWorld(root)
+    local scanResult = scanner.Scan(root)
+    local roomIds = scanner.GetRoomIds(scanResult)
 
     assert(world.Root == root, 'Static maze world should preserve the authored root')
     assert(
@@ -112,6 +166,14 @@ return function()
         'Room lookup should resolve the nearest authored room'
     )
     assert(world.LootNodes.Room_Loot ~= nil, 'Loot rooms should create loot runtime nodes')
+    assert(
+        table.find(roomIds, 'Room_SceneryFake') == nil,
+        'Scanner should ignore scenery-authored geometry folders even when they contain room-like metadata'
+    )
+    assert(
+        world.RoomById.Room_SceneryFake == nil,
+        'BuildStaticWorld should not promote scenery-only content into gameplay rooms'
+    )
     assert(
         world.LootNodes.Room_Loot.Prompt == lootPrompt,
         'Loot runtime nodes should preserve the authored loot prompt'
