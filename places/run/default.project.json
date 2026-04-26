@@ -264,7 +264,7 @@
               "CanCollide": false,
               "CanTouch": false,
               "CanQuery": true,
-              "Transparency": 0.35,
+              "Transparency": 1,
               "Position": [
                 93.4,
                 20.05,
