@@ -49,7 +49,7 @@ local RUN_MAZE_GATE_RETURN_REASONS = table.freeze({
     returned = true,
 })
 local INITIAL_TEMPLE_STATUS =
-    'Leave the ship, spot the tower, and decide when to push into the maze.'
+    'Leave the ship, spot the maze route, and decide when to push into the maze.'
 local OCEAN_SPLASH_MESSAGE = 'Sea spray crashes over you.'
 local OCEAN_SLOWDOWN_DELAY_SECONDS = 1
 local OCEAN_SLOWDOWN_WALK_SPEED = 12
@@ -445,8 +445,8 @@ function RunSessionService:_resetForNextRound()
         self.RoundClosureInProgress = false
         self.GateOpen = false
         self.Status = if self.CampSession.SessionOutcome == 'success'
-            then 'Mission complete. The crew is back at the ship for the final debrief.'
-            else 'Mission failed. The crew is back at the ship for the final debrief.'
+            then 'Assignment complete. The crew brought enough Pages back to the ship for the final debrief.'
+            else 'Assignment failed. The crew is back at the ship for the final debrief.'
         self:_broadcastSnapshot()
         return
     end
@@ -475,7 +475,7 @@ function RunSessionService:_resetForNextRound()
     end
 
     self.Status = string.format(
-        'Round %d of %d ready. Regroup at the ship, review clues, then head for the tower again.',
+        'Round %d of %d ready. Regroup at the ship, review clues, then head for the maze again.',
         self.CampSession.CurrentRound,
         self.CampSession.MaxRounds
     )
@@ -918,7 +918,7 @@ function RunSessionService:_getReturnStatusText(playerDisplayName, summary, tele
 
     if RUN_MAZE_GATE_RETURN_REASONS[summary.ReturnReason] then
         return string.format(
-            '%s made it back from the maze with %d loot item(s) and banked them at the ship.',
+            '%s made it back from the maze with %d Page(s) and brought them back alive.',
             playerDisplayName,
             lootCount
         )
@@ -926,7 +926,7 @@ function RunSessionService:_getReturnStatusText(playerDisplayName, summary, tele
 
     if teleportData.MazeReturn and teleportData.MazeReturn.MazeCompleted == true then
         return string.format(
-            '%s returned from the maze. The crew now has %d of %d required loot item(s).',
+            '%s returned from the maze. The crew now has %d of %d required Page(s).',
             playerDisplayName,
             self.CampSession.BankedItemCount,
             self.CampSession.TargetItemCount
@@ -934,7 +934,7 @@ function RunSessionService:_getReturnStatusText(playerDisplayName, summary, tele
     end
 
     return string.format(
-        '%s returned from the maze with %d loot item(s). Banked total: %d/%d.',
+        '%s returned from the maze with %d Page(s). Pages banked: %d/%d.',
         playerDisplayName,
         lootCount,
         self.CampSession.BankedItemCount,
@@ -969,13 +969,13 @@ function RunSessionService:_applyReturnedPlayersFromTeleportData(players, accept
         )
     elseif #returnedPlayers > 1 then
         self.Status = string.format(
-            'The crew returned from the maze. Banked loot: %d/%d.',
+            'The crew returned from the maze. Banked Pages: %d/%d.',
             self.CampSession.BankedItemCount,
             self.CampSession.TargetItemCount
         )
     else
         self.Status =
-            'The ship is ready. Explore the wilderness, read the signs, and choose when to push for the tower.'
+            'The ship is ready. Explore the wilderness, read the signs, and choose when to push for the maze.'
     end
 end
 
@@ -1151,11 +1151,11 @@ end
 
 function RunSessionService:_getObjectiveFor(player)
     if self.CampSession.SessionOutcome == 'success' then
-        return 'Mission complete. Stay at the ship, compare what everyone learned, and review the final haul.'
+        return 'Assignment complete. Stay at the ship and review the recovered Pages.'
     end
 
     if self.CampSession.SessionOutcome == 'failure' then
-        return 'Mission failed after five rounds. Review what went wrong and what clues were recovered.'
+        return 'Assignment failed after five rounds. Review what went wrong and what clues were recovered.'
     end
 
     if self:_isRoundClosing() then
@@ -1165,13 +1165,13 @@ function RunSessionService:_getObjectiveFor(player)
     if not self:_isRoundStarted() then
         if self.CampSession.HostUserId == player.UserId then
             return string.format(
-                'Open the ship door to begin round %d of %d. Players can still search the wilderness for clues before heading to the tower.',
+                'Open the ship door to begin round %d of %d. Search the wilderness for clues, then enter the maze for Pages.',
                 self.CampSession.CurrentRound,
                 self.CampSession.MaxRounds
             )
         end
 
-        return 'Stay at the ship, check any recovered clues, then head into the wilderness or toward the tower when the host starts the round.'
+        return 'Stay at the ship, check any recovered clues, then head into the wilderness or toward the maze when the host starts the round.'
     end
 
     if self:_isPlayerDead(player) then
@@ -1179,10 +1179,10 @@ function RunSessionService:_getObjectiveFor(player)
     end
 
     if self:_isPlayerInCamp(player) then
-        return 'The round is live. Step into the wilderness for clues or head straight for the tower to enter the maze.'
+        return 'The round is live. Step into the wilderness for clues or head straight to the maze for Pages.'
     end
 
-    return 'Search the wilderness for warning signs, then enter the maze and bring loot back alive.'
+    return 'Search the wilderness for warning signs, then enter the maze and bring Pages back alive.'
 end
 
 function RunSessionService:_setStatus(status)
@@ -1499,7 +1499,7 @@ function RunSessionService:_openGate(player)
         self.TODService:start()
         self:_beginExpedition()
         self.Status = string.format(
-            '%s opened the ship door. Round %d of %d is live: search the wilderness, then head for the tower.',
+            '%s opened the ship door. Round %d of %d is live: search the wilderness, then head for the maze.',
             player.DisplayName,
             self.CampSession.CurrentRound,
             self.CampSession.MaxRounds
@@ -1663,7 +1663,9 @@ function RunSessionService:_enterMaze(player)
         self.MazeEntryReasonCode = result.ReasonCode
         self.MazeEntryReason = result.Reason
         self.CampSession = result.NextSession
-        self:_setStatus(string.format('%s is entering the shared maze run.', player.DisplayName))
+        self:_setStatus(
+            string.format('%s is entering the maze to recover Pages.', player.DisplayName)
+        )
     end)
 end
 
