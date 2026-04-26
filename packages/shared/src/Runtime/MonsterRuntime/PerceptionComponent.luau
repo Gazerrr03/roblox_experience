@@ -21,7 +21,7 @@ function PerceptionComponent.new(options)
     }, PerceptionComponent)
 end
 
-function PerceptionComponent:_pickSoundTarget(playerPositions, now)
+function PerceptionComponent:_pickSoundTarget(playerPositions, now, context)
     if type(self.ConsumeSoundStimuli) ~= 'function' then
         return nil, nil
     end
@@ -46,7 +46,9 @@ function PerceptionComponent:_pickSoundTarget(playerPositions, now)
             and loudness > 0
             and (now - heardAt) <= maxAge
         then
-            local currentPosition = self.GetCurrentPosition()
+            local currentPosition = if context and context.CurrentPosition ~= nil
+                then context.CurrentPosition
+                else self.GetCurrentPosition()
             local distance = if currentPosition ~= nil
                 then (position - currentPosition).Magnitude
                 else 0
@@ -65,7 +67,7 @@ function PerceptionComponent:_pickSoundTarget(playerPositions, now)
     return bestPlayer, bestPosition
 end
 
-function PerceptionComponent:update(blackboard)
+function PerceptionComponent:update(blackboard, context)
     local playerPositions = {}
 
     for _, player in ipairs(self.GetPlayers()) do
@@ -81,10 +83,12 @@ function PerceptionComponent:update(blackboard)
     blackboard.TargetPositions = playerPositions
 
     local now = self.GetNow()
-    local targetPlayer, targetPosition = self:_pickSoundTarget(playerPositions, now)
+    local targetPlayer, targetPosition = self:_pickSoundTarget(playerPositions, now, context)
     if targetPlayer == nil and self.EnableSightFallback and self.EnableSenseNearestTarget then
-        targetPlayer =
-            self.PickNearestTarget(self.GetCurrentPosition(), playerPositions, self.SightRange)
+        local currentPosition = if context and context.CurrentPosition ~= nil
+            then context.CurrentPosition
+            else self.GetCurrentPosition()
+        targetPlayer = self.PickNearestTarget(currentPosition, playerPositions, self.SightRange)
         targetPosition = playerPositions[targetPlayer]
     end
     if targetPlayer ~= nil and targetPosition ~= nil then

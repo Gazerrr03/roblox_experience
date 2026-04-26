@@ -50,7 +50,15 @@ function EnemyRuntime:applyDamage(damage, source)
     self.Health:applyDamage(damage, source)
 end
 
-function EnemyRuntime:update(dt)
+function EnemyRuntime:update(dt, context)
+    local updateContext = context or {}
+    if updateContext.CurrentPosition ~= nil then
+        self.Context.CurrentPosition = updateContext.CurrentPosition
+    end
+    if updateContext.NextRandomInteger ~= nil then
+        self.Context.NextRandomInteger = updateContext.NextRandomInteger
+    end
+
     if not self.Health:isAlive() then
         return {
             NextPosition = nil,
@@ -64,12 +72,12 @@ function EnemyRuntime:update(dt)
         }
     end
 
-    local targetChanged = self.Perception:update(self.Blackboard)
+    local targetChanged = self.Perception:update(self.Blackboard, updateContext)
     local stateChanged, state = self.StateMachine:update(self.Blackboard, self.Clock())
 
     local movementDecision = self.Movement:update(self.Context, self.Blackboard, state, dt)
 
-    local currentPosition = self.Movement.GetCurrentPosition()
+    local currentPosition = updateContext.CurrentPosition or self.Movement.GetCurrentPosition()
     local attackQueued = self.Attack:tryQueueAttack(currentPosition, self.Blackboard)
 
     return {
