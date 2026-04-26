@@ -19,6 +19,10 @@ build_harness() {
   fi
 
   rojo build "$project_path" -o "$output_path"
+
+  if [[ "$output_path" == "places/maze/harness/maze.rbxlx" ]]; then
+    python3 scripts/hydrate-maze-harness.py "$output_path"
+  fi
 }
 
 build_harness places/run/default.project.json places/run/harness/run.rbxlx
