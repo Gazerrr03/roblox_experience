@@ -19,10 +19,10 @@ local HeldToolVisual = Shared.Client.HeldToolVisual
 local heldItemController = Shared.Client.HeldItemController.new(localPlayer)
 local Theme = UI.Hud.Theme
 
-local TEMPLE_LABEL = 'Temple'
-local PAGE_LABEL = 'Banked Loot'
-local SAND_BOOK_LABEL = 'Mission'
-local SAND_BOOK_PROGRESS_LABEL = 'Mission Progress'
+local TEMPLE_LABEL = 'Ship'
+local PAGE_LABEL = 'Pages'
+local SAND_BOOK_LABEL = 'Assignment'
+local SAND_BOOK_PROGRESS_LABEL = 'Pages Recovered'
 
 local disconnectFirstPersonLock
 local ensureFirstPersonLock
@@ -406,7 +406,7 @@ objectiveLabel.Text = string.format('%s Objective: --', SAND_BOOK_LABEL)
 
 local guideLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 60), Theme.Text, 16, false)
 guideLabel.Text = string.format(
-    'In-world prompts:\n- %s Shop\n- Salvage Exchange\n- %s Board\n- %s Gate / Shared Maze Gate\nKeyboard: Hold LeftShift to sprint, tap C to toggle %s Status, %s to free mouse, 1-3 to equip, X to stow',
+    'In-world prompts:\n- %s Tools\n- Page Return\n- %s Board\n- %s Gate / Shared Maze Gate\nKeyboard: Hold LeftShift to sprint, tap C to toggle %s Status, %s to free mouse, 1-3 to equip, X to stow',
     TEMPLE_LABEL,
     SAND_BOOK_LABEL,
     TEMPLE_LABEL,
@@ -657,7 +657,7 @@ local shopTitle = makeTextLabel(shopPanel, UDim2.new(1, 0, 0, 32), Theme.Text, 2
 shopTitle.Text = 'Ship Locker'
 
 local shopPageLabel = makeTextLabel(shopPanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
-shopPageLabel.Text = 'Banked Loot: 0'
+shopPageLabel.Text = 'Pages: 0'
 
 local shopInventoryLabel =
     makeTextLabel(shopPanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
@@ -679,7 +679,7 @@ local sellTitle = makeTextLabel(sellPanel, UDim2.new(1, 0, 0, 32), Theme.Text, 2
 sellTitle.Text = 'Recovery Log'
 
 local sellPageLabel = makeTextLabel(sellPanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
-sellPageLabel.Text = 'Banked Loot: 0'
+sellPageLabel.Text = 'Pages: 0'
 
 local sellItemsFrame = Instance.new('Frame')
 sellItemsFrame.Size = UDim2.new(1, 0, 1, -160)
@@ -694,11 +694,11 @@ local sellCloseButton = makeButton(sellPanel, 'Close', 44, Theme.Warning)
 
 local objectivePanel = createModalPanel('ObjectivePanel', UDim2.fromOffset(440, 360))
 local objectiveTitle = makeTextLabel(objectivePanel, UDim2.new(1, 0, 0, 32), Theme.Text, 26, true)
-objectiveTitle.Text = 'Mission Board'
+objectiveTitle.Text = 'Assignment Board'
 
 local objectiveGoalLabel =
     makeTextLabel(objectivePanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
-objectiveGoalLabel.Text = 'Target: 0 item(s)'
+objectiveGoalLabel.Text = 'Assignment: recover 0 Pages'
 
 local objectiveProgressLabel =
     makeTextLabel(objectivePanel, UDim2.new(1, 0, 0, 24), Theme.SubtleText, 16, false)
@@ -744,7 +744,7 @@ end
 
 local function updateObjectiveUi()
     local clampedProgress = math.clamp(goalProgress, 0, 1)
-    objectiveGoalLabel.Text = string.format('Target: %d item(s)', goalAmount)
+    objectiveGoalLabel.Text = string.format('Assignment: recover %d Pages', goalAmount)
     objectiveProgressLabel.Text =
         string.format('%s: %d%%', SAND_BOOK_PROGRESS_LABEL, math.floor(clampedProgress * 100 + 0.5))
     progressBarFill.Size = UDim2.fromScale(clampedProgress, 1)
@@ -757,7 +757,7 @@ local function updatePageLabels()
 
     if inventorySummary then
         shopInventoryLabel.Text = string.format(
-            'Inventory: %d total | %d loot | %d clue | %d tool',
+            'Inventory: %d total | %d Page | %d clue | %d tool',
             inventorySummary.Count or 0,
             inventorySummary.LootCount or 0,
             inventorySummary.ClueCount or 0,
@@ -791,7 +791,7 @@ local function showToast(message, tone)
 end
 
 local function showGoalBanner()
-    goalBanner.Text = string.format('Quota reached! %s: %d', PAGE_LABEL, teamPages)
+    goalBanner.Text = string.format('Assignment met! %s: %d', PAGE_LABEL, teamPages)
     goalBanner.Visible = true
 
     task.delay(3, function()
@@ -1215,7 +1215,7 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
     heldItemController:applyInventory(inventory)
     updatePageLabels()
     inventoryLabel.Text = string.format(
-        'Inventory: %d total | %d loot | %d clue | %d tool | %d/%d slots',
+        'Inventory: %d total | %d Page | %d clue | %d tool | %d/%d slots',
         inventory.Count or 0,
         inventory.LootCount or 0,
         inventory.ClueCount or 0,
@@ -1235,7 +1235,7 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
         heldItem and string.format(
             'Held: %s | %s%s',
             heldItem.Name,
-            heldItem.ItemCategory or 'Loot',
+            heldItem.ItemCategory or 'Page',
             heldItem.Light and ' | Glow active' or ''
         ) or 'Held: Empty hands',
         'Backpack:',
@@ -1251,7 +1251,7 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
                     '- [%d] %s | %s',
                     itemIndex,
                     itemEntry.Name,
-                    itemEntry.ItemCategory or 'Loot'
+                    itemEntry.ItemCategory or 'Page'
                 )
             )
         end
@@ -1312,7 +1312,7 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
             table.insert(
                 mazeLines,
                 string.format(
-                    '- %s: %d loot item(s) (%s)',
+                    '- %s: %d Page(s) (%s)',
                     entry.Name,
                     entry.LootItemCount or entry.MissionCount or 0,
                     entry.ReturnReason or 'unknown'
