@@ -11,11 +11,63 @@ function PerceptionComponent.new(options)
         PickNearestTarget = runtimeOptions.PickNearestTarget,
         SightRange = runtimeOptions.SightRange,
         EnableSenseNearestTarget = runtimeOptions.EnableSenseNearestTarget,
-        GetNow = runtimeOptions.GetNow,
+        EnableSightFallback = if runtimeOptions.EnableSightFallback == nil
+            then true
+            else runtimeOptions.EnableSightFallback == true,
+        ConsumeSoundStimuli = runtimeOptions.ConsumeSoundStimuli,
+        SoundMemorySeconds = runtimeOptions.SoundMemorySeconds or 4,
+        SoundRangeMultiplier = runtimeOptions.SoundRangeMultiplier or 1,
+        GetNow = runtimeOptions.GetNow or os.clock,
     }, PerceptionComponent)
 end
 
-function PerceptionComponent:update(blackboard)
+function PerceptionComponent:_pickSoundTarget(playerPositions, now, context)
+    if type(self.ConsumeSoundStimuli) ~= 'function' then
+        return nil, nil
+    end
+
+    local bestPlayer = nil
+    local bestPosition = nil
+    local bestScore = -math.huge
+
+    for _, stimulus in ipairs(self.ConsumeSoundStimuli(now) or {}) do
+        local player = stimulus.Player
+        local position = stimulus.Position or playerPositions[player]
+        local loudness = if type(stimulus.Loudness) == 'number' then stimulus.Loudness else 1
+        local heardAt = if type(stimulus.HeardAt) == 'number' then stimulus.HeardAt else now
+        local maxAge = if type(stimulus.MemorySeconds) == 'number'
+            then stimulus.MemorySeconds
+            else self.SoundMemorySeconds
+
+        if
+            player ~= nil
+            and position ~= nil
+            and playerPositions[player] ~= nil
+            and loudness > 0
+            and (now - heardAt) <= maxAge
+        then
+            local currentPosition = if context and context.CurrentPosition ~= nil
+                then context.CurrentPosition
+                else self.GetCurrentPosition()
+            local distance = if currentPosition ~= nil
+                then (position - currentPosition).Magnitude
+                else 0
+            local maxDistance = loudness * self.SoundRangeMultiplier
+            if distance <= maxDistance then
+                local score = loudness - distance / math.max(self.SoundRangeMultiplier, 1e-5)
+                if score > bestScore then
+                    bestScore = score
+                    bestPlayer = player
+                    bestPosition = position
+                end
+            end
+        end
+    end
+
+    return bestPlayer, bestPosition
+end
+
+function PerceptionComponent:update(blackboard, context)
     local playerPositions = {}
 
     for _, player in ipairs(self.GetPlayers()) do
@@ -30,15 +82,21 @@ function PerceptionComponent:update(blackboard)
 
     blackboard.TargetPositions = playerPositions
 
-    local targetPlayer
-    if self.EnableSenseNearestTarget then
-        targetPlayer =
-            self.PickNearestTarget(self.GetCurrentPosition(), playerPositions, self.SightRange)
+    local now = self.GetNow()
+    local targetPlayer, targetPosition = self:_pickSoundTarget(playerPositions, now, context)
+    if targetPlayer == nil and self.EnableSightFallback and self.EnableSenseNearestTarget then
+        local currentPosition = if context and context.CurrentPosition ~= nil
+            then context.CurrentPosition
+            else self.GetCurrentPosition()
+        targetPlayer = self.PickNearestTarget(currentPosition, playerPositions, self.SightRange)
+        targetPosition = playerPositions[targetPlayer]
+    end
+    if targetPlayer ~= nil and targetPosition ~= nil then
+        playerPositions[targetPlayer] = targetPosition
     end
 
     local previousTarget = blackboard.CurrentTarget
-    local now = self.GetNow()
-    blackboard:setTarget(targetPlayer, playerPositions[targetPlayer], now)
+    blackboard:setTarget(targetPlayer, targetPosition, now)
 
     return targetPlayer ~= previousTarget
 end

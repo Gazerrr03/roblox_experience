@@ -19,6 +19,18 @@ return function()
             and type(capturedRuntimeOptions.OnAttackHit) == 'function',
         'Maze runtime should wire server-side monster hit callback into MonsterService options'
     )
+    assert(
+        capturedRuntimeOptions.EnableSightFallback == false,
+        'Maze headline monster should disable sight fallback for sound-only targeting'
+    )
+    assert(
+        capturedRuntimeOptions.SoundMemorySeconds == 4,
+        'Maze headline monster should configure the first sound memory window'
+    )
+    assert(
+        capturedRuntimeOptions.SoundRangeMultiplier == 1,
+        'Maze headline monster should use loudness as the first hearing radius'
+    )
 
     service._setStatus = function(self, status)
         self.Status = status
@@ -66,4 +78,37 @@ return function()
         inactiveResult == nil,
         'Attack callback should not create or mutate state for players outside server tracking'
     )
+
+    local reportedSounds = {}
+    service.MonsterService = {
+        reportSoundStimulus = function(_, player, loudness)
+            table.insert(reportedSounds, {
+                Loudness = loudness,
+                UserId = player.UserId,
+            })
+            return true
+        end,
+    }
+    service.World = {
+        getDoor = function()
+            return {
+                IsOpen = true,
+            }
+        end,
+        toggleDoor = function()
+            return true
+        end,
+    }
+
+    service:_setPlayerSprinting(activePlayer, true)
+    service:_toggleDoor(activePlayer, 'Door_A')
+    service:_handleUseTool(activePlayer)
+
+    assert(#reportedSounds == 3, 'Sprint, door, and tool interactions should report sound')
+    assert(reportedSounds[1].Loudness == 48, 'Sprint should use the high sound pressure tier')
+    assert(
+        reportedSounds[2].Loudness == 34,
+        'Door interactions should use the map interaction tier'
+    )
+    assert(reportedSounds[3].Loudness == 28, 'Tool use should use the tool sound tier')
 end
