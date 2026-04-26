@@ -251,7 +251,7 @@ objectiveLabel.Text = 'Objective: --'
 local promptLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 86), Theme.Text, 16, false)
 -- === 修改：加上了按 F 键使用道具的提示 ===
 promptLabel.Text =
-    'In-world prompts:\n- Loot pickups\n- Blue return marker -> Run\n- Double Door controls\nKeyboard: Hold LeftShift to sprint\nKeyboard: Press F to use held tool'
+    'In-world prompts:\n- Pages pickups\n- Blue return marker -> bring Pages back alive\n- Double Door controls\nKeyboard: Hold LeftShift to sprint\nKeyboard: Press F to use held tool'
 
 if RunService:IsStudio() then
     promptLabel.Text ..= '\nStudio debug: H light damage | J heavy damage'
@@ -413,10 +413,11 @@ local function connectMazeRemotes(remotes)
         mazeInventoryForSwing = inventory
         visibleBackpackItems = inventory.BackpackItems or {}
         heldItemController:applyInventory(inventory)
+        local pageCount = inventory.MissionCount or inventory.LootCount or 0
         inventoryLabel.Text = string.format(
-            'Inventory: %d total | %d loot | %d clue | %d tool | %d/%d slots',
+            'Inventory: %d total | %d Pages | %d clue | %d tool | %d/%d slots',
             inventory.Count or 0,
-            inventory.LootCount or 0,
+            pageCount,
             inventory.ClueCount or 0,
             inventory.ToolCount or 0,
             inventory.Count or 0,
@@ -487,7 +488,7 @@ local function connectMazeRemotes(remotes)
         end
         rosterLabel.Text = table.concat(rosterLines, '\n')
 
-        local returnedLines = { 'Returned summaries:' }
+        local returnedLines = { 'Returned Pages:' }
         local returned = snapshot.ReturnedPlayerSummaries or {}
         if #returned == 0 then
             table.insert(returnedLines, '- No one has returned yet.')
@@ -496,9 +497,9 @@ local function connectMazeRemotes(remotes)
                 table.insert(
                     returnedLines,
                     string.format(
-                        '- %s: %d loot item(s) (%s)',
+                        '- %s: %d Page(s) (%s)',
                         entry.Name,
-                        entry.LootItemCount or entry.MissionCount or 0,
+                        entry.MissionCount or entry.LootItemCount or 0,
                         entry.ReturnReason or 'unknown'
                     )
                 )
