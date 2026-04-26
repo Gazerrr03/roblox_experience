@@ -93,9 +93,6 @@ function PerceptionComponent:update(blackboard, context)
     end
     if targetPlayer ~= nil and targetPosition ~= nil then
         playerPositions[targetPlayer] = targetPosition
-    elseif targetPlayer == nil and not self.EnableSightFallback then
-        blackboard.LastSeenPosition = nil
-        blackboard.LastSeenAt = nil
     end
 
     local previousTarget = blackboard.CurrentTarget

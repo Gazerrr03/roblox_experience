@@ -339,6 +339,7 @@ return function()
         expiryService.EnemyRuntime.Blackboard.CurrentTarget == expiryPlayer,
         'Fresh sound should drive a sound-only target'
     )
+    local positionAfterFreshSound = expiryService:_getCurrentPosition()
     soundClock.Now = 1
     expiryService:update(0.2)
     assert(
@@ -346,12 +347,16 @@ return function()
         'Expired sound should stop driving the sound-only target'
     )
     assert(
-        expiryService.EnemyRuntime.Blackboard.LastSeenPosition == nil,
-        'Expired sound should not leave a stale search position in sound-only mode'
+        expiryService.EnemyRuntime.Blackboard.LastSeenPosition ~= nil,
+        'Expired sound should leave a short-lived search position in sound-only mode'
     )
     assert(
         expiryChaseSounds[1].IsPlaying == false,
         'Expired sound should stop the sound-driven chase audio'
+    )
+    assert(
+        expiryService:_getCurrentPosition().X > positionAfterFreshSound.X,
+        'Expired sound should let the monster search toward the last heard position'
     )
     expiryService:destroy()
 end
