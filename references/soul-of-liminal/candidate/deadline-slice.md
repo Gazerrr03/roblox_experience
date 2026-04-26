@@ -3,12 +3,12 @@
 ## Routing
 
 - Related: `DESIGN-MAP.md`, `formal/terminology-and-player-facing-language.md`, `formal/first-30-minutes-slice-blueprint.md`
-- Superseded by: 无。它仍然是当前 deadline slice 的根本 framing。若与其他文档冲突，先以本篇为准。
-- Feeds into: `formal/* 当前确认版文档`, `candidate/crew-dynamics-and-information-asymmetry.md`, `candidate/reveal-ladder.md`
+- Superseded by: None. This remains the core framing for the current deadline slice. If other docs conflict, this document takes precedence.
+- Feeds into: `formal/` current confirmed documents, `candidate/crew-dynamics-and-information-asymmetry.md`, `candidate/reveal-ladder.md`
 
 
 Execution companion:
-`references/soul-of-liminal/candidate/deadline-sprint.md`
+`deadline-sprint.md`
 
 ## Framing
 
@@ -153,6 +153,7 @@ Use the existing cross-place session transport instead of redesigning the loop.
 Relevant files:
 
 - `packages/shared/src/Session/CampMazeSessionContract.luau`
+- `packages/shared/src/Config/SessionConfig.luau`
 - `places/run/src/ServerScriptService/Run/RunToMazeTransition.luau`
 - `places/maze/src/ServerScriptService/Maze/MazeToRunTransition.luau`
 

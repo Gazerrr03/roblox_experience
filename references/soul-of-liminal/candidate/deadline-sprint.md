@@ -3,8 +3,8 @@
 ## Routing
 
 - Related: `DESIGN-MAP.md`, `formal/round-pacing-and-economy.md`
-- Superseded by: 无。它仍然是当前 slice 的 execution companion。
-- Feeds into: `formal/* 文档中的 Slice Rule`, `后续内容与实现排期`
+- Superseded by: None. This remains the execution companion for the current slice.
+- Feeds into: `formal/` Slice Rule documents, later content and implementation scheduling
 
 
 Companion to `deadline-slice.md`.

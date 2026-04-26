@@ -3,7 +3,7 @@
 ## Routing
 
 - Related: `formal/understanding-standards.md`, `formal/round-pacing-and-economy.md`
-- Superseded by: 若本篇的表述与新增 formal 当前确认版冲突，优先执行新增 formal。
+- Superseded by: If this document conflicts with the current confirmed formal set, the formal documents take precedence.
 - Feeds into: `formal/understanding-standards.md`, `formal/round-pacing-and-economy.md`
 
 
