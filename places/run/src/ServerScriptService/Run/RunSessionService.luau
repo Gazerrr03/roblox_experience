@@ -49,7 +49,7 @@ local RUN_MAZE_GATE_RETURN_REASONS = table.freeze({
     returned = true,
 })
 local INITIAL_TEMPLE_STATUS =
-    'Leave the ship, spot the tower, and decide when to push into the maze.'
+    'Leave the ship, spot the maze route, and decide when to push into the maze.'
 local OCEAN_SPLASH_MESSAGE = 'Sea spray crashes over you.'
 local OCEAN_SLOWDOWN_DELAY_SECONDS = 1
 local OCEAN_SLOWDOWN_WALK_SPEED = 12
@@ -475,7 +475,7 @@ function RunSessionService:_resetForNextRound()
     end
 
     self.Status = string.format(
-        'Round %d of %d ready. Regroup at the ship, review clues, then head for the tower again.',
+        'Round %d of %d ready. Regroup at the ship, review clues, then head for the maze again.',
         self.CampSession.CurrentRound,
         self.CampSession.MaxRounds
     )
@@ -975,7 +975,7 @@ function RunSessionService:_applyReturnedPlayersFromTeleportData(players, accept
         )
     else
         self.Status =
-            'The ship is ready. Explore the wilderness, read the signs, and choose when to push for the tower.'
+            'The ship is ready. Explore the wilderness, read the signs, and choose when to push for the maze.'
     end
 end
 

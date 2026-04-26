@@ -757,7 +757,7 @@ local function updatePageLabels()
 
     if inventorySummary then
         shopInventoryLabel.Text = string.format(
-            'Inventory: %d total | %d Page | %d clue | %d tool',
+            'Inventory: %d total | %d Page(s) | %d clue | %d tool',
             inventorySummary.Count or 0,
             inventorySummary.LootCount or 0,
             inventorySummary.ClueCount or 0,
@@ -1215,7 +1215,7 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
     heldItemController:applyInventory(inventory)
     updatePageLabels()
     inventoryLabel.Text = string.format(
-        'Inventory: %d total | %d Page | %d clue | %d tool | %d/%d slots',
+        'Inventory: %d total | %d Page(s) | %d clue | %d tool | %d/%d slots',
         inventory.Count or 0,
         inventory.LootCount or 0,
         inventory.ClueCount or 0,
@@ -1235,7 +1235,7 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
         heldItem and string.format(
             'Held: %s | %s%s',
             heldItem.Name,
-            heldItem.ItemCategory or 'Page',
+            heldItem.ItemCategory == 'Loot' and 'Page' or (heldItem.ItemCategory or 'Page'),
             heldItem.Light and ' | Glow active' or ''
         ) or 'Held: Empty hands',
         'Backpack:',
@@ -1251,7 +1251,7 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
                     '- [%d] %s | %s',
                     itemIndex,
                     itemEntry.Name,
-                    itemEntry.ItemCategory or 'Page'
+                    itemEntry.ItemCategory == 'Loot' and 'Page' or (itemEntry.ItemCategory or 'Page')
                 )
             )
         end
