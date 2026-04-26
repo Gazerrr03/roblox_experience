@@ -141,6 +141,10 @@ Keep authored scene content under the matching static world root:
 - `Workspace/RunStaticWorld`
 - `Workspace/MazeStaticWorld`
 
+The Maze harness reset path also hydrates a starter
+`Workspace/MazeStaticWorld/Scenery` so the file opens with visible authored
+geometry in Studio.
+
 ### Connect Roblox Studio
 
 1. Start the desired `rojo serve` command and keep that terminal open.

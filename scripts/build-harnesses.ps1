@@ -23,6 +23,10 @@ try {
         }
 
         rojo build $ProjectPath -o $OutputPath
+
+        if ($OutputPath -eq 'places/maze/harness/maze.rbxlx') {
+            python scripts/hydrate-maze-harness.py $OutputPath
+        }
     }
 
     Build-Harness places/run/default.project.json places/run/harness/run.rbxlx

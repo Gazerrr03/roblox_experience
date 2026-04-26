@@ -72,11 +72,6 @@ local function getMazeAssets()
 end
 
 local function createRoot()
-    local existing = Workspace:FindFirstChild(MazeStaticWorldContract.RootName)
-    if existing ~= nil then
-        existing:Destroy()
-    end
-
     local root = Instance.new('Folder')
     root.Name = MazeStaticWorldContract.RootName
     root.Parent = Workspace
@@ -89,6 +84,26 @@ local function createRoot()
     return root, sceneryRoot
 end
 
+local function requireSceneryRoot(root, contextLabel)
+    local sceneryRoot = root:FindFirstChild(MazeStaticWorldContract.SceneryFolderName)
+    if sceneryRoot == nil then
+        sceneryRoot = Instance.new('Folder')
+        sceneryRoot.Name = MazeStaticWorldContract.SceneryFolderName
+        sceneryRoot.Parent = root
+    elseif not sceneryRoot:IsA('Folder') then
+        error(
+            string.format(
+                '%s must keep "%s" authored as a Folder.',
+                contextLabel,
+                MazeStaticWorldContract.SceneryFolderName
+            ),
+            0
+        )
+    end
+
+    return sceneryRoot
+end
+
 local function stabilizeChunkGeometry(chunkModel)
     for _, descendant in ipairs(chunkModel:GetDescendants()) do
         if descendant:IsA('BasePart') then
@@ -98,6 +113,63 @@ local function stabilizeChunkGeometry(chunkModel)
             descendant:SetAttribute('IsScenery', true)
         end
     end
+end
+
+local function applyRoomAttributes(room, definition)
+    for attributeName, attributeValue in pairs(definition) do
+        room:SetAttribute(attributeName, attributeValue)
+    end
+end
+
+local function validateRoot(root, contextLabel)
+    if not (root:IsA('Folder') or root:IsA('Model')) then
+        error(string.format('%s must be a Folder or Model.', contextLabel), 0)
+    end
+
+    root:SetAttribute('BuildFingerprint', MazeStaticWorldContract.BuildFingerprint)
+    requireSceneryRoot(root, contextLabel)
+
+    for _, partName in ipairs(MazeStaticWorldOverlayManifest.RootParts) do
+        requireBasePart(root, partName, contextLabel)
+    end
+
+    requirePrompt(requireBasePart(root, 'ReturnHoldPad', contextLabel), contextLabel)
+
+    for roomName, definition in pairs(MazeStaticWorldOverlayManifest.Rooms) do
+        local room = root:FindFirstChild(roomName)
+        if room == nil or not room:IsA('Model') then
+            error(
+                string.format('%s is missing required room model "%s".', contextLabel, roomName),
+                0
+            )
+        end
+
+        applyRoomAttributes(room, definition)
+    end
+
+    local lootRoom = root:FindFirstChild('Room_Loot')
+    if lootRoom == nil then
+        error(string.format('%s must define Room_Loot.', contextLabel), 0)
+    end
+
+    for _, nodeName in ipairs(MazeStaticWorldOverlayManifest.RequiredInteractionNodes) do
+        local node = root:FindFirstChild(nodeName, true)
+        if node == nil then
+            error(
+                string.format(
+                    '%s is missing required interaction node "%s".',
+                    contextLabel,
+                    nodeName
+                ),
+                0
+            )
+        end
+    end
+
+    requirePrompt(requireBasePart(lootRoom, 'LootPrompt', contextLabel), contextLabel)
+    requirePrompt(requireBasePart(lootRoom, 'Doorway_East', contextLabel), contextLabel)
+
+    return root
 end
 
 local function cloneChunkAsset(chunkAsset, chunkDefinition, sceneryRoot)
@@ -120,73 +192,19 @@ local function cloneChunkAsset(chunkAsset, chunkDefinition, sceneryRoot)
     end
 end
 
-local function applyRoomAttributes(room, definition)
-    for attributeName, attributeValue in pairs(definition) do
-        room:SetAttribute(attributeName, attributeValue)
-    end
-end
-
 local function cloneOverlayAsset(overlayAsset, root)
     for _, child in ipairs(overlayAsset:GetChildren()) do
         local clone = child:Clone()
         clone.Parent = root
     end
-
-    for _, partName in ipairs(MazeStaticWorldOverlayManifest.RootParts) do
-        requireBasePart(root, partName, 'Maze static world overlay')
-    end
-
-    requirePrompt(
-        requireBasePart(root, 'ReturnHoldPad', 'Maze static world overlay'),
-        'Maze static world overlay'
-    )
-
-    for roomName, definition in pairs(MazeStaticWorldOverlayManifest.Rooms) do
-        local room = root:FindFirstChild(roomName)
-        if room == nil or not room:IsA('Model') then
-            error(
-                string.format(
-                    'Maze static world overlay is missing required room model "%s".',
-                    roomName
-                ),
-                0
-            )
-        end
-
-        applyRoomAttributes(room, definition)
-    end
-
-    local lootRoom = root:FindFirstChild('Room_Loot')
-    if lootRoom == nil then
-        error('Maze static world overlay must define Room_Loot.', 0)
-    end
-
-    for _, nodeName in ipairs(MazeStaticWorldOverlayManifest.RequiredInteractionNodes) do
-        local node = root:FindFirstChild(nodeName, true)
-        if node == nil then
-            error(
-                string.format(
-                    'Maze static world overlay is missing required interaction node "%s".',
-                    nodeName
-                ),
-                0
-            )
-        end
-    end
-
-    -- MazeWorldScanner only binds gameplay nodes that are direct room children,
-    -- so the overlay authoring contract keeps these prompt parts at that level.
-    requirePrompt(
-        requireBasePart(lootRoom, 'LootPrompt', 'Maze static world overlay'),
-        'Maze static world overlay'
-    )
-    requirePrompt(
-        requireBasePart(lootRoom, 'Doorway_East', 'Maze static world overlay'),
-        'Maze static world overlay'
-    )
 end
 
 function MazeStaticWorldAssembler.assemble()
+    local existing = Workspace:FindFirstChild(MazeStaticWorldContract.RootName)
+    if existing ~= nil then
+        return validateRoot(existing, 'Authored MazeStaticWorld')
+    end
+
     local chunkAssets, overlayAssets = getMazeAssets()
     local root, sceneryRoot = createRoot()
 
@@ -214,7 +232,7 @@ function MazeStaticWorldAssembler.assemble()
         error('Maze chunk manifest must enable at least one geometry chunk.', 0)
     end
 
-    return root
+    return validateRoot(root, 'Maze scaffold static world')
 end
 
 return MazeStaticWorldAssembler
