@@ -1213,9 +1213,7 @@ function MonsterService:_runLogicStep(dt)
         self:_emitDecisionLog('AttackQueued', {
             MonsterId = self.Definition.Id,
         })
-        local target = if self.EnemyRuntime.Blackboard
-            then self.EnemyRuntime.Blackboard.CurrentTarget
-            else decision.TargetPlayer
+        local target = decision.TargetPlayer
         if target then
             self:_queueAttackIntent({
                 TargetPlayer = target,
