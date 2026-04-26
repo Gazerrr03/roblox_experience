@@ -154,6 +154,144 @@
           "Prompt": {
             "$className": "ProximityPrompt"
           }
+        },
+        "FirstCorpseClueScene": {
+          "$className": "Folder",
+          "CorpseBody": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "CanQuery": true,
+              "Transparency": 0.15,
+              "Position": [
+                90,
+                19.6,
+                210
+              ],
+              "Size": [
+                4.2,
+                0.8,
+                1.8
+              ]
+            }
+          },
+          "CorpseArm": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "CanQuery": true,
+              "Transparency": 0.2,
+              "Position": [
+                92.8,
+                19.6,
+                209.2
+              ],
+              "Size": [
+                2.2,
+                0.35,
+                0.45
+              ]
+            }
+          },
+          "CorpseRecorder": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "CanQuery": true,
+              "Transparency": 0,
+              "Position": [
+                93.4,
+                19.75,
+                210.6
+              ],
+              "Size": [
+                0.9,
+                0.25,
+                0.55
+              ]
+            }
+          },
+          "ScatteredScrap_1": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "CanQuery": true,
+              "Transparency": 0.05,
+              "Position": [
+                88.8,
+                19.55,
+                208.7
+              ],
+              "Size": [
+                1.1,
+                0.25,
+                0.45
+              ]
+            }
+          },
+          "ScatteredScrap_2": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "CanQuery": true,
+              "Transparency": 0.05,
+              "Position": [
+                91.5,
+                19.55,
+                212.1
+              ],
+              "Size": [
+                0.75,
+                0.25,
+                0.75
+              ]
+            }
+          },
+          "ClueMarker_FirstCorpse": {
+            "$className": "Part",
+            "$properties": {
+              "Anchored": true,
+              "CanCollide": false,
+              "CanTouch": false,
+              "CanQuery": true,
+              "Transparency": 0.35,
+              "Position": [
+                93.4,
+                20.05,
+                210.6
+              ],
+              "Size": [
+                3,
+                1.2,
+                3
+              ]
+            },
+            "$attributes": {
+              "ClueId": "first-corpse-sound-warning",
+              "SourceMarkerId": "ClueMarker_FirstCorpse",
+              "ReadableTitle": "Recorder Beside the Old Body",
+              "ReadableText": "The last voice is breathing too fast. Metal scrapes, boots hammer the floor, and something answers every noise before the recording cuts out.",
+              "ThreatHintId": "sound-predator",
+              "ItemName": "Corpse Recorder"
+            },
+            "Prompt": {
+              "$className": "ProximityPrompt",
+              "$properties": {
+                "ActionText": "Recover clue",
+                "ObjectText": "Old recorder"
+              }
+            }
+          }
         }
       }
     },
