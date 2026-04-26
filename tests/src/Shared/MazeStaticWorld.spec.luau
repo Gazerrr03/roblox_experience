@@ -145,8 +145,7 @@ return function()
     fakeSceneryShell.Parent = fakeSceneryRoom
 
     local world = scanner.BuildStaticWorld(root)
-    local scanResult = scanner.Scan(root)
-    local roomIds = scanner.GetRoomIds(scanResult)
+    local roomIds = world.RoomIds
 
     assert(world.Root == root, 'Static maze world should preserve the authored root')
     assert(
