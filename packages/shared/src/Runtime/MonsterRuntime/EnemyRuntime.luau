@@ -27,6 +27,7 @@ function EnemyRuntime.new(options)
             PatrolIndex = 1,
         },
         Clock = runtimeOptions.Clock or os.clock,
+        PendingDeathEvent = nil,
     }, EnemyRuntime)
 end
 
@@ -42,6 +43,21 @@ function EnemyRuntime:reset(patrolPoints, initialPatrolIndex)
     self.Blackboard.LastSeenAt = nil
     self.StateMachine.Current = EnemyStateMachine.State.Idle
     self.StateMachine.Previous = nil
+    self.PendingDeathEvent = nil
+    self.Health:reset()
+end
+
+function EnemyRuntime:spawn() end
+
+function EnemyRuntime:applyDamage(amount, source)
+    local remainingHealth = self.Health:applyDamage(amount)
+    if remainingHealth <= 0 and self.PendingDeathEvent == nil then
+        self.PendingDeathEvent = {
+            KilledBy = source or 'unknown',
+        }
+    end
+
+    return remainingHealth
 end
 
 function EnemyRuntime:update(dt)
@@ -55,6 +71,8 @@ function EnemyRuntime:update(dt)
             StateChanged = false,
             AttackQueued = false,
             PerceptionState = self.Blackboard.PerceptionState,
+            IsDead = true,
+            DeathEvent = self.PendingDeathEvent,
         }
     end
 
@@ -75,7 +93,29 @@ function EnemyRuntime:update(dt)
         StateChanged = stateChanged,
         AttackQueued = attackQueued,
         PerceptionState = state,
+        State = state,
+        TargetPlayer = self.Blackboard.CurrentTarget,
+        IsDead = false,
+        DeathEvent = nil,
     }
+end
+
+function EnemyRuntime:destroy()
+    for _, component in ipairs({ self.Perception, self.Movement, self.Attack, self.Health }) do
+        if component and component.destroy then
+            component:destroy()
+        end
+    end
+
+    self.Blackboard = nil
+    self.StateMachine = nil
+    self.Perception = nil
+    self.Movement = nil
+    self.Attack = nil
+    self.Health = nil
+    self.Context = nil
+    self.Clock = nil
+    self.PendingDeathEvent = nil
 end
 
 return EnemyRuntime

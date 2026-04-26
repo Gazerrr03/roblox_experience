@@ -53,6 +53,9 @@
         },
         "Maze": {
           "$path": "../places/maze/src/ServerScriptService/Maze"
+        },
+        "MazeContentHarness": {
+          "$path": "../places/maze/content-harness/src/ServerScriptService"
         }
       }
     },
