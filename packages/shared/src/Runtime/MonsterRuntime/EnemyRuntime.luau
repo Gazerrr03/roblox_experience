@@ -83,9 +83,7 @@ function EnemyRuntime:update(dt, context)
     return {
         NextPosition = movementDecision.NextPosition,
         AnimationName = movementDecision.AnimationName,
-        DesiredAnimation = movementDecision.AnimationName,
         AnimationSpeed = movementDecision.AnimationSpeed,
-        DesiredAnimationSpeed = movementDecision.AnimationSpeed,
         ShouldPlayChaseLoop = movementDecision.ShouldPlayChaseLoop,
         TargetChanged = targetChanged,
         StateChanged = stateChanged,
