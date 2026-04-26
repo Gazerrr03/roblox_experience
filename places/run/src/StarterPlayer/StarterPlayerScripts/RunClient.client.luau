@@ -1251,7 +1251,8 @@ Remotes.RunState.OnClientEvent:Connect(function(snapshot)
                     '- [%d] %s | %s',
                     itemIndex,
                     itemEntry.Name,
-                    itemEntry.ItemCategory == 'Loot' and 'Page' or (itemEntry.ItemCategory or 'Page')
+                    itemEntry.ItemCategory == 'Loot' and 'Page'
+                        or (itemEntry.ItemCategory or 'Page')
                 )
             )
         end
