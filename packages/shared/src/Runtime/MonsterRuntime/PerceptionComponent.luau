@@ -54,7 +54,7 @@ function PerceptionComponent:_pickSoundTarget(playerPositions, now, context)
                 else 0
             local maxDistance = loudness * self.SoundRangeMultiplier
             if distance <= maxDistance then
-                local score = loudness - distance / math.max(self.SoundRangeMultiplier, 1)
+                local score = loudness - distance / math.max(self.SoundRangeMultiplier, 1e-5)
                 if score > bestScore then
                     bestScore = score
                     bestPlayer = player
