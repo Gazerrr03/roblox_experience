@@ -45,7 +45,28 @@ return function()
         return {
             UserId = userId,
             Character = createCharacter(position),
+            DisplayName = string.format('Player%d', userId),
         }
+    end
+
+    local function createMonsterModel()
+        local monsterModel = Instance.new('Model')
+        monsterModel.Name = 'Noob'
+
+        local rootPart = Instance.new('Part')
+        rootPart.Name = 'HumanoidRootPart'
+        rootPart.Size = Vector3.new(2, 2, 1)
+        rootPart.Parent = monsterModel
+
+        local head = Instance.new('Part')
+        head.Name = 'Head'
+        head.Size = Vector3.new(2, 1, 1)
+        head.Parent = monsterModel
+
+        local humanoid = Instance.new('Humanoid')
+        humanoid.Parent = monsterModel
+
+        return monsterModel
     end
 
     local loadedTracks = {}
@@ -66,23 +87,7 @@ return function()
                     'Monster service should request the configured model asset'
                 )
 
-                local monsterModel = Instance.new('Model')
-                monsterModel.Name = 'Noob'
-
-                local rootPart = Instance.new('Part')
-                rootPart.Name = 'HumanoidRootPart'
-                rootPart.Size = Vector3.new(2, 2, 1)
-                rootPart.Parent = monsterModel
-
-                local head = Instance.new('Part')
-                head.Name = 'Head'
-                head.Size = Vector3.new(2, 1, 1)
-                head.Parent = monsterModel
-
-                local humanoid = Instance.new('Humanoid')
-                humanoid.Parent = monsterModel
-
-                return monsterModel
+                return createMonsterModel()
             end,
             LoadAnimationTrack = function(_, _, animationName)
                 local track = createTrack(animationName)
@@ -208,4 +213,145 @@ return function()
     assert(#fallbackWarnings == 1, 'Fallback loads should emit a warning for diagnostics')
 
     fallbackService:destroy()
+
+    local function createSoundOnlyService(soundPlayers, clock)
+        local chaseSounds = {}
+        local soundOnlyService = monsterServiceModule.new(
+            runtimeProfile,
+            function()
+                return true
+            end,
+            nil,
+            nil,
+            {
+                AssetLoader = function()
+                    return createMonsterModel()
+                end,
+                AutoUpdateOnHeartbeat = false,
+                Clock = function()
+                    return clock.Now
+                end,
+                CreateLoopSound = function()
+                    local sound = {
+                        IsPlaying = false,
+                        Play = function(self)
+                            self.IsPlaying = true
+                        end,
+                        Stop = function(self)
+                            self.IsPlaying = false
+                        end,
+                    }
+                    table.insert(chaseSounds, sound)
+                    return sound
+                end,
+                EnableSightFallback = false,
+                GetPlayers = function()
+                    return soundPlayers.List
+                end,
+                LoadAnimationTrack = function(_, _, animationName)
+                    return createTrack(animationName)
+                end,
+                SoundMemorySeconds = 0.4,
+                VisualSmoothingSpeed = 1,
+            }
+        )
+
+        soundOnlyService:spawn({
+            Vector3.new(0, 0, 0),
+        }, 1)
+
+        return soundOnlyService, chaseSounds
+    end
+
+    local soundPlayers = { List = {} }
+    local soundClock = { Now = 0 }
+    local noSoundService, noSoundChaseSounds = createSoundOnlyService(soundPlayers, soundClock)
+    local noSoundSpawnPosition = noSoundService:_getCurrentPosition()
+    soundPlayers.List = {
+        createPlayer(201, noSoundSpawnPosition + Vector3.new(8, 0, 0)),
+    }
+    noSoundService:update(0.2)
+    assert(
+        noSoundService.EnemyRuntime.Blackboard.CurrentTarget == nil,
+        'Sound-only monster should not target a visible nearby player without sound'
+    )
+    assert(
+        noSoundService:_getCurrentPosition() == noSoundSpawnPosition,
+        'Sound-only monster should stay still when no sound stimulus exists'
+    )
+    assert(
+        noSoundChaseSounds[1].IsPlaying == false,
+        'Sound-only monster should not start chase audio without sound'
+    )
+    noSoundService:destroy()
+
+    soundPlayers = { List = {} }
+    soundClock = { Now = 0 }
+    local heardService, heardChaseSounds = createSoundOnlyService(soundPlayers, soundClock)
+    local heardSpawnPosition = heardService:_getCurrentPosition()
+    local loudPlayer = createPlayer(202, heardSpawnPosition + Vector3.new(36, 0, 0))
+    soundPlayers.List = { loudPlayer }
+    assert(
+        heardService:reportSoundStimulus(loudPlayer, 64) == true,
+        'Valid player sound should be registered'
+    )
+    heardService:update(0.2)
+    assert(
+        heardService.EnemyRuntime.Blackboard.CurrentTarget == loudPlayer,
+        'Sound-only monster should target the player who made an in-range sound'
+    )
+    assert(
+        heardService:_getCurrentPosition().X > heardSpawnPosition.X,
+        'Sound-only monster should move toward a heard sound source'
+    )
+    assert(heardChaseSounds[1].IsPlaying == true, 'Sound-driven chase should start chase audio')
+    heardService:destroy()
+
+    soundPlayers = { List = {} }
+    soundClock = { Now = 0 }
+    local priorityService = createSoundOnlyService(soundPlayers, soundClock)
+    local prioritySpawnPosition = priorityService:_getCurrentPosition()
+    local nearVisualPlayer = createPlayer(203, prioritySpawnPosition + Vector3.new(5, 0, 0))
+    local farSoundPlayer = createPlayer(204, prioritySpawnPosition + Vector3.new(60, 0, 0))
+    local soundPosition = prioritySpawnPosition + Vector3.new(28, 0, 0)
+    soundPlayers.List = { nearVisualPlayer, farSoundPlayer }
+    priorityService:reportSoundStimulus(farSoundPlayer, 72, soundPosition)
+    priorityService:update(0.2)
+    assert(
+        priorityService.EnemyRuntime.Blackboard.CurrentTarget == farSoundPlayer,
+        'Sound-only monster should choose the loud player over a nearer visual player'
+    )
+    assert(
+        priorityService.EnemyRuntime.Blackboard.TargetPositions[farSoundPlayer] == soundPosition,
+        'Sound target movement should use the emitted sound position, not visual fallback'
+    )
+    priorityService:destroy()
+
+    soundPlayers = { List = {} }
+    soundClock = { Now = 0 }
+    local expiryService, expiryChaseSounds = createSoundOnlyService(soundPlayers, soundClock)
+    local expirySpawnPosition = expiryService:_getCurrentPosition()
+    local expiryPlayer = createPlayer(205, expirySpawnPosition + Vector3.new(30, 0, 0))
+    soundPlayers.List = { expiryPlayer }
+    expiryService:reportSoundStimulus(expiryPlayer, 64, nil, 0.2)
+    expiryService:update(0.2)
+    assert(
+        expiryService.EnemyRuntime.Blackboard.CurrentTarget == expiryPlayer,
+        'Fresh sound should drive a sound-only target'
+    )
+    soundClock.Now = 1
+    expiryService:update(0.2)
+    assert(
+        expiryService.EnemyRuntime.Blackboard.CurrentTarget == nil,
+        'Expired sound should stop driving the sound-only target'
+    )
+    assert(
+        expiryService.EnemyRuntime.Blackboard.LastSeenPosition == nil,
+        'Expired sound should not leave a stale search position in sound-only mode'
+    )
+    assert(
+        expiryChaseSounds[1].IsPlaying == false,
+        'Expired sound should stop the sound-driven chase audio'
+    )
+    expiryService:destroy()
 end

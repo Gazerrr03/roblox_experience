@@ -13,6 +13,11 @@ local CORPSE_COLOR = Color3.fromRGB(92, 92, 92)
 local CORPSE_MATERIAL = Enum.Material.Slate
 local CORPSE_SIZE = Vector3.new(4, 1.2, 2)
 local CORPSE_VERTICAL_OFFSET = -2.4
+local SOUND_PRESSURE = table.freeze({
+    Sprint = 48,
+    Door = 34,
+    Tool = 28,
+})
 local WORLD_BUILD_SOURCE = table.freeze({
     DirectBootDefault = 'DirectBootDefault',
     JoinDataMergedBeforeBuild = 'JoinDataMergedBeforeBuild',
@@ -480,6 +485,9 @@ end
 function MazeSessionService:_buildMonsterRuntimeOptions(randomSeed)
     return {
         RandomSeed = randomSeed,
+        SoundMemorySeconds = 4,
+        SoundRangeMultiplier = 1,
+        EnableSightFallback = false,
         OnAttackHit = function(player, damagePips, hitContext)
             local damageKind = damageKindFromPips(damagePips)
             if damageKind == nil then
@@ -494,6 +502,33 @@ function MazeSessionService:_buildMonsterRuntimeOptions(randomSeed)
             end
         end,
     }
+end
+
+function MazeSessionService:_reportPlayerSound(player, loudness, reason)
+    if
+        player == nil
+        or self.MonsterService == nil
+        or type(self.MonsterService.reportSoundStimulus) ~= 'function'
+    then
+        return false
+    end
+
+    if not self.RunTracker:isPlayerActive(player.UserId) then
+        return false
+    end
+
+    local reported = self.MonsterService:reportSoundStimulus(player, loudness)
+    if reported then
+        self:_setStatus(
+            string.format(
+                '%s made noise (%s). The maze threat may be listening.',
+                player.DisplayName,
+                reason or 'movement'
+            )
+        )
+    end
+
+    return reported
 end
 
 function MazeSessionService.new(options)
@@ -1161,6 +1196,7 @@ function MazeSessionService:_toggleDoor(player, doorwayId)
             string.format('%s %s a concrete double door.', player.DisplayName, stateText)
         )
     end
+    self:_reportPlayerSound(player, SOUND_PRESSURE.Door, 'door')
 end
 
 function MazeSessionService:_buildSummaryFor(
@@ -1381,6 +1417,9 @@ function MazeSessionService:_setPlayerSprinting(player, isSprinting)
     end
 
     self:_syncPlayerMovement(player)
+    if isSprinting then
+        self:_reportPlayerSound(player, SOUND_PRESSURE.Sprint, 'sprint')
+    end
 end
 
 function MazeSessionService:_equipItem(player, itemInstanceId)
@@ -1427,6 +1466,7 @@ end
 
 -- === 新增：处理道具使用的逻辑（这是本次手术最核心的部位） ===
 function MazeSessionService:_handleUseTool(player)
+    self:_reportPlayerSound(player, SOUND_PRESSURE.Tool, 'tool')
     Gameplay.HeldToolUseRequest.apply(player, {
         canManageInventory = function(p)
             return self:_canManageInventory(p)

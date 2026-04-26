@@ -10,7 +10,6 @@ local Gameplay = require(Packages:WaitForChild('Gameplay'))
 local MonsterBehaviorCatalog = Gameplay.Monsters.MonsterBehaviorCatalog
 local MonsterComponentConfig = Gameplay.Monsters.MonsterComponentConfig
 local MonsterLogic = Gameplay.Monsters.MonsterLogic
-local Enemy = Gameplay.Monsters.Enemy
 local MonsterRuntimeProfile = Gameplay.Monsters.MonsterRuntimeProfile
 local PlayerMonsterMelee = Gameplay.Combat.PlayerMonsterMelee
 local EnemyRuntime = require(script.Parent.MonsterRuntime.EnemyRuntime)
@@ -35,6 +34,8 @@ local DEFAULT_VISUAL_SMOOTHING_SPEED = 12
 local DEFAULT_LOGIC_TICK_RATE_HZ = 10
 local DEFAULT_MAX_LOGIC_STEPS_PER_UPDATE = 6
 local DEFAULT_DECISION_LOG_LIMIT = 128
+local DEFAULT_SOUND_MEMORY_SECONDS = 4
+local DEFAULT_SOUND_RANGE_MULTIPLIER = 1
 
 local function defaultOnAttackHit(_player, _damagePips, _hitContext) end
 
@@ -92,8 +93,8 @@ local function defaultCreateLoopSound(parent, soundAssetId, soundName)
     return sound
 end
 
-local function defaultEnemyFactory(monsterRuntimeProfile, options)
-    return Enemy.new(monsterRuntimeProfile, options)
+local function defaultEnemyFactory(_monsterRuntimeProfile, options)
+    return EnemyRuntime.new(options)
 end
 
 function MonsterService.new(
@@ -179,48 +180,20 @@ function MonsterService.new(
         DecisionLog = {},
         DecisionLogSink = runtimeOptions.DecisionLogSink,
         DecisionLogSequence = 0,
+        RuntimeClock = runtimeOptions.Clock or os.clock,
+        MemoryDurationSeconds = runtimeOptions.MemoryDurationSeconds,
         RandomSeed = randomSeed,
         RandomSource = runtimeOptions.RandomSource
             or if randomSeed ~= nil then Random.new(randomSeed) else Random.new(),
         CombatHitPointsRemaining = nil,
+        SoundStimuli = {},
+        SoundMemorySeconds = runtimeOptions.SoundMemorySeconds or DEFAULT_SOUND_MEMORY_SECONDS,
+        SoundRangeMultiplier = runtimeOptions.SoundRangeMultiplier
+            or DEFAULT_SOUND_RANGE_MULTIPLIER,
+        EnableSightFallback = if runtimeOptions.EnableSightFallback == nil
+            then true
+            else runtimeOptions.EnableSightFallback == true,
     }, MonsterService)
-
-    service.EnemyRuntime = EnemyRuntime.new({
-        MemoryDurationSeconds = runtimeOptions.MemoryDurationSeconds,
-        Perception = {
-            GetPlayers = function()
-                return service.GetPlayers()
-            end,
-            CanTargetPlayer = function(player)
-                return service.CanTargetPlayer(player)
-            end,
-            GetCurrentPosition = function()
-                return service:_getCurrentPosition()
-            end,
-            PickNearestTarget = MonsterLogic.pickNearestTarget,
-            SightRange = monsterRuntimeProfile.SightRange,
-            EnableSenseNearestTarget = monsterRuntimeProfile.Behaviors[MonsterBehaviorCatalog.Behavior.SenseNearestTarget]
-                == true,
-            GetNow = os.clock,
-        },
-        Movement = {
-            StepToward = MonsterLogic.stepToward,
-            GetCurrentPosition = function()
-                return service:_getCurrentPosition()
-            end,
-            SpawnOffset = monsterRuntimeProfile.SpawnOffset,
-            Speed = monsterRuntimeProfile.Speed,
-            PatrolSpeedMultiplier = monsterRuntimeProfile.PatrolSpeedMultiplier,
-            EnableChase = monsterRuntimeProfile.Behaviors[MonsterBehaviorCatalog.Behavior.Chase]
-                == true,
-            EnablePatrol = monsterRuntimeProfile.Behaviors[MonsterBehaviorCatalog.Behavior.Patrol]
-                == true,
-        },
-        Attack = {
-            AttackRange = monsterRuntimeProfile.AttackRange or 0,
-            CooldownSeconds = monsterRuntimeProfile.AttackCooldownSeconds,
-        },
-    })
 
     local combatHp = monsterRuntimeProfile.CombatHitPoints
     if type(combatHp) ~= 'number' or combatHp < 1 or math.floor(combatHp) ~= combatHp then
@@ -232,6 +205,111 @@ function MonsterService.new(
     service.CombatCurrentHealth = combatHp
 
     return service
+end
+
+function MonsterService:_buildEnemyRuntimeOptions()
+    return {
+        MemoryDurationSeconds = self.MemoryDurationSeconds,
+        Clock = self.RuntimeClock,
+        Perception = {
+            GetPlayers = function()
+                return self.GetPlayers()
+            end,
+            CanTargetPlayer = function(player)
+                return self.CanTargetPlayer(player)
+            end,
+            GetCurrentPosition = function()
+                return self:_getCurrentPosition()
+            end,
+            PickNearestTarget = MonsterLogic.pickNearestTarget,
+            SightRange = self.ComponentConfig.Perception.SightRange,
+            EnableSenseNearestTarget = self.Definition.Behaviors[MonsterBehaviorCatalog.Behavior.SenseNearestTarget]
+                == true,
+            EnableSightFallback = self.EnableSightFallback,
+            GetNow = self.RuntimeClock,
+            ConsumeSoundStimuli = function(now)
+                return self:_consumeSoundStimuli(now)
+            end,
+            SoundMemorySeconds = self.SoundMemorySeconds,
+            SoundRangeMultiplier = self.SoundRangeMultiplier,
+        },
+        Movement = {
+            StepToward = MonsterLogic.stepToward,
+            GetCurrentPosition = function()
+                return self:_getCurrentPosition()
+            end,
+            SpawnOffset = self.ComponentConfig.Movement.SpawnOffset,
+            Speed = self.ComponentConfig.Movement.Speed,
+            PatrolSpeedMultiplier = self.ComponentConfig.Movement.PatrolSpeedMultiplier,
+            EnableChase = self.Definition.Behaviors[MonsterBehaviorCatalog.Behavior.Chase] == true,
+            EnablePatrol = self.Definition.Behaviors[MonsterBehaviorCatalog.Behavior.Patrol]
+                == true,
+            ArrivalThreshold = self.ComponentConfig.Movement.PatrolReachDistance,
+        },
+        Attack = {
+            AttackRange = self.ComponentConfig.Attack.Range,
+            CooldownSeconds = self.ComponentConfig.Attack.CooldownSeconds,
+        },
+        Health = {
+            MaxHealth = self.ComponentConfig.Health.MaxHp,
+        },
+    }
+end
+
+function MonsterService:_createEnemyRuntime()
+    return self.EnemyFactory(self.Definition, self:_buildEnemyRuntimeOptions())
+end
+
+function MonsterService:reportSoundStimulus(player, loudness, position, memorySeconds)
+    if player == nil then
+        return false
+    end
+
+    local resolvedLoudness = if type(loudness) == 'number' then loudness else 0
+    if resolvedLoudness <= 0 then
+        return false
+    end
+
+    local stimulusPosition = position
+    if typeof(stimulusPosition) ~= 'Vector3' then
+        local character = player.Character
+        local rootPart = character and character:FindFirstChild('HumanoidRootPart')
+        stimulusPosition = rootPart and rootPart.Position or nil
+    end
+    if typeof(stimulusPosition) ~= 'Vector3' then
+        return false
+    end
+
+    table.insert(self.SoundStimuli, {
+        Player = player,
+        Position = stimulusPosition,
+        Loudness = resolvedLoudness,
+        HeardAt = self.RuntimeClock(),
+        MemorySeconds = memorySeconds,
+    })
+    self:_recordDecisionEvent('SoundStimulus', {
+        Loudness = resolvedLoudness,
+        TargetPlayer = player,
+    })
+    return true
+end
+
+function MonsterService:_consumeSoundStimuli(now)
+    local activeStimuli = {}
+    local retainedStimuli = {}
+
+    for _, stimulus in ipairs(self.SoundStimuli) do
+        local maxAge = if type(stimulus.MemorySeconds) == 'number'
+            then stimulus.MemorySeconds
+            else self.SoundMemorySeconds
+        if (now - stimulus.HeardAt) <= maxAge then
+            table.insert(retainedStimuli, stimulus)
+            table.insert(activeStimuli, stimulus)
+        end
+    end
+
+    self.SoundStimuli = retainedStimuli
+    return activeStimuli
 end
 
 function MonsterService:_emitDecisionLog(eventName, fields)
@@ -272,7 +350,9 @@ function MonsterService:destroy()
     self.LastTargetUserId = nil
     self.PendingVisualCFrame = nil
     if self.EnemyRuntime then
-        self.EnemyRuntime:destroy()
+        if self.EnemyRuntime.destroy then
+            self.EnemyRuntime:destroy()
+        end
         self.EnemyRuntime = nil
     end
 
@@ -1036,7 +1116,7 @@ function MonsterService:tryApplyPlayerMeleeHit(player, meleeOptions)
         TargetUserId = player.UserId,
     })
 
-    if self.EnemyRuntime then
+    if self.EnemyRuntime and self.EnemyRuntime.applyDamage then
         self.EnemyRuntime:applyDamage(damagePips, 'player')
     end
 
@@ -1066,7 +1146,6 @@ function MonsterService:spawn(patrolPoints, initialPatrolIndex)
     end
 
     self.PatrolIndex = math.clamp(initialPatrolIndex or 1, 1, #patrolPoints)
-    self.EnemyRuntime:reset(self.PatrolPoints, self.PatrolIndex)
     local spawnPosition = patrolPoints[self.PatrolIndex] + self.Definition.SpawnOffset
     local spawnOk, spawnReason = self:_spawnModel(spawnPosition)
     if not spawnOk then
@@ -1078,9 +1157,10 @@ function MonsterService:spawn(patrolPoints, initialPatrolIndex)
 
     self:_applyDefinitionCombatHealth()
 
-    self.EnemyRuntime = self.EnemyFactory(self.Definition, {
-        ComponentConfig = self.ComponentConfig,
-    })
+    self.EnemyRuntime = self:_createEnemyRuntime()
+    if self.EnemyRuntime.reset then
+        self.EnemyRuntime:reset(self.PatrolPoints, self.PatrolIndex)
+    end
     if self.EnemyRuntime and self.EnemyRuntime.spawn then
         self.EnemyRuntime:spawn()
     end
@@ -1098,8 +1178,15 @@ function MonsterService:_runLogicStep(dt)
         return
     end
 
-    local decision = self.EnemyRuntime:update(dt)
-    self.PatrolIndex = self.EnemyRuntime.Context.PatrolIndex
+    local decision = self.EnemyRuntime:update(dt, {
+        CurrentPosition = currentPosition,
+        NextRandomInteger = function(minValue, maxValue, reason)
+            return self:_nextRandomInteger(minValue, maxValue, reason)
+        end,
+    })
+    if self.EnemyRuntime.Context then
+        self.PatrolIndex = self.EnemyRuntime.Context.PatrolIndex
+    end
 
     if decision.IsDead then
         self:_recordDecisionEvent('Died', {
@@ -1126,7 +1213,9 @@ function MonsterService:_runLogicStep(dt)
         self:_emitDecisionLog('AttackQueued', {
             MonsterId = self.Definition.Id,
         })
-        local target = self.EnemyRuntime.Blackboard.CurrentTarget
+        local target = if self.EnemyRuntime.Blackboard
+            then self.EnemyRuntime.Blackboard.CurrentTarget
+            else decision.TargetPlayer
         if target then
             self:_queueAttackIntent({
                 TargetPlayer = target,
@@ -1154,7 +1243,10 @@ function MonsterService:_runLogicStep(dt)
             else currentRotation + nextPosition
         self.PendingVisualCFrame = facingCFrame
 
-        self:_setAnimationState(decision.AnimationName or 'Idle', decision.AnimationSpeed or 1)
+        self:_setAnimationState(
+            decision.AnimationName or decision.DesiredAnimation or 'Idle',
+            decision.AnimationSpeed or decision.DesiredAnimationSpeed or 1
+        )
         self:_setChaseLoopSoundPlaying(decision.ShouldPlayChaseLoop == true)
     else
         self.PendingVisualCFrame = nil

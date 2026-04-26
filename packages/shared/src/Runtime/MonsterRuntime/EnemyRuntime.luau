@@ -44,6 +44,12 @@ function EnemyRuntime:reset(patrolPoints, initialPatrolIndex)
     self.StateMachine.Previous = nil
 end
 
+function EnemyRuntime:destroy() end
+
+function EnemyRuntime:applyDamage(damage, source)
+    self.Health:applyDamage(damage, source)
+end
+
 function EnemyRuntime:update(dt)
     if not self.Health:isAlive() then
         return {
@@ -69,12 +75,16 @@ function EnemyRuntime:update(dt)
     return {
         NextPosition = movementDecision.NextPosition,
         AnimationName = movementDecision.AnimationName,
+        DesiredAnimation = movementDecision.AnimationName,
         AnimationSpeed = movementDecision.AnimationSpeed,
+        DesiredAnimationSpeed = movementDecision.AnimationSpeed,
         ShouldPlayChaseLoop = movementDecision.ShouldPlayChaseLoop,
         TargetChanged = targetChanged,
         StateChanged = stateChanged,
         AttackQueued = attackQueued,
         PerceptionState = state,
+        State = state,
+        TargetPlayer = self.Blackboard.CurrentTarget,
     }
 end
 
