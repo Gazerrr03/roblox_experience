@@ -7,6 +7,8 @@ return function()
     local mazeModules = ReplicatedStorage:WaitForChild('PlaceModules'):WaitForChild('Maze')
     local MazeStaticWorldAssembler = require(mazeModules:WaitForChild('MazeStaticWorldAssembler'))
     local MazeStaticWorldContract = require(mazeModules:WaitForChild('MazeStaticWorldContract'))
+    local MazeStaticWorldOverlayManifest =
+        require(mazeModules:WaitForChild('MazeStaticWorldOverlayManifest'))
     local MazeWorldBuilder = require(mazeModules:WaitForChild('MazeWorldBuilder'))
 
     local root = MazeStaticWorldAssembler.assemble()
@@ -56,6 +58,26 @@ return function()
     assert(
         world.LootNodes.Room_Loot ~= nil,
         'Assembled world should still expose overlay-authored loot nodes'
+    )
+    assert(
+        #MazeStaticWorldOverlayManifest.FirstPlayableChain == 5,
+        'Overlay manifest should publish the first playable payoff chain'
+    )
+    assert(
+        MazeStaticWorldOverlayManifest.FirstPlayableChain[4].PayoffHintId == 'sound-predator',
+        'Overlay manifest should bind the first payoff chain to the sound predator hint'
+    )
+    assert(
+        MazeStaticWorldOverlayManifest.FirstPlayableChain[5].TargetId == 'ReturnHoldPad',
+        'Overlay manifest should make return decision an explicit authored node'
+    )
+    assert(
+        root:FindFirstChild('Room_Camp'):GetAttribute('EncounterRole') == 'EntryBuffer',
+        'Assembler should apply the entry buffer role to the camp room'
+    )
+    assert(
+        root:FindFirstChild('Room_Loot'):GetAttribute('PayoffHintId') == 'sound-predator',
+        'Assembler should apply the first sound-predator payoff metadata to the loot room'
     )
     assert(
         world.Doorways['Room_Loot:Doorway_East'] ~= nil,
