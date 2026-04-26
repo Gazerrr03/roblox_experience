@@ -75,4 +75,58 @@ return function()
         invalidDamageReason == 'InvalidRuntimeComponentAttackDamagePips',
         'Invalid attack damage pips should expose a dedicated reason'
     )
+
+    local customHumanoidProfile = {
+        Id = 'custom-humanoid-spec',
+        Name = 'Custom Humanoid Spec',
+        Presentation = {
+            ModelAssetId = 4446576906,
+            RigType = presentationCatalog.RigType.CustomHumanoid,
+            AnimationMode = presentationCatalog.AnimationMode.CustomHumanoid,
+            AnimationAssetIds = {
+                Idle = 1001,
+                Walk = 1002,
+                Run = 1002,
+                Attack = 1003,
+            },
+            ChaseLoopSoundAssetId = 9118823108,
+        },
+        Behaviors = {
+            SenseNearestTarget = true,
+            Chase = true,
+            Attack = true,
+        },
+        Effects = {},
+        Speed = 12,
+        SightRange = 36,
+        PatrolSpeedMultiplier = 0.45,
+        SpawnOffset = Vector3.new(0, 4, 0),
+        AttackRange = 4,
+        AttackCooldownSeconds = 1,
+        AttackDamagePips = 1,
+        CombatHitPoints = 2,
+    }
+
+    local validCustomHumanoid, customHumanoidReason =
+        runtimeProfileModule.validate(customHumanoidProfile)
+    assert(
+        validCustomHumanoid == true,
+        string.format(
+            'Custom humanoid runtime payload should stay valid, got %s',
+            tostring(customHumanoidReason)
+        )
+    )
+
+    local missingCustomRunProfile = table.clone(customHumanoidProfile)
+    missingCustomRunProfile.Presentation = table.clone(customHumanoidProfile.Presentation)
+    missingCustomRunProfile.Presentation.AnimationAssetIds =
+        table.clone(customHumanoidProfile.Presentation.AnimationAssetIds)
+    missingCustomRunProfile.Presentation.AnimationAssetIds.Run = nil
+
+    local missingRunOk, missingRunReason = runtimeProfileModule.validate(missingCustomRunProfile)
+    assert(missingRunOk == false, 'Missing custom run animation asset ids should fail validation')
+    assert(
+        missingRunReason == 'MissingRuntimeAnimationAssetIdRun',
+        'Missing custom run animation should expose a dedicated runtime reason'
+    )
 end

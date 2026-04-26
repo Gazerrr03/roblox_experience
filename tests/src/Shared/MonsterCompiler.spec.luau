@@ -220,6 +220,66 @@ return function()
         'Missing presentation payloads should expose the expected reason'
     )
 
+    local customHumanoidProfile = table.clone(scrapWisp)
+    customHumanoidProfile.Executable = table.clone(scrapWisp.Executable)
+    customHumanoidProfile.Executable.Presentation = {
+        ModelAssetId = 4446576906,
+        RigType = presentationCatalog.RigType.CustomHumanoid,
+        AnimationMode = presentationCatalog.AnimationMode.CustomHumanoid,
+        AnimationAssetIds = {
+            Idle = 8001,
+            Walk = 8002,
+            Run = 8002,
+            Attack = 8003,
+        },
+        ChaseLoopSoundAssetId = monsterAssetIds.DefaultChaseLoopSoundAssetId,
+    }
+
+    local customCompileOk, customRuntimeProfile = compiler(customHumanoidProfile)
+    assert(
+        customCompileOk == true,
+        string.format(
+            'Expected custom humanoid compiler success, got %s',
+            tostring(customRuntimeProfile)
+        )
+    )
+    assert(
+        customRuntimeProfile.Presentation.RigType == presentationCatalog.RigType.CustomHumanoid,
+        'Custom humanoid compile should preserve the configured rig type'
+    )
+    assert(
+        customRuntimeProfile.Presentation.AnimationMode
+            == presentationCatalog.AnimationMode.CustomHumanoid,
+        'Custom humanoid compile should preserve the configured animation mode'
+    )
+    assert(
+        customRuntimeProfile.Presentation.AnimationAssetIds.Idle == 8001,
+        'Custom humanoid compile should preserve animation asset ids'
+    )
+    assert(
+        customRuntimeProfile.Presentation.AnimationAssetIds.Run == 8002,
+        'Custom humanoid compile should preserve the run animation asset id'
+    )
+
+    local missingCustomAnimationProfile = table.clone(customHumanoidProfile)
+    missingCustomAnimationProfile.Executable = table.clone(customHumanoidProfile.Executable)
+    missingCustomAnimationProfile.Executable.Presentation =
+        table.clone(customHumanoidProfile.Executable.Presentation)
+    missingCustomAnimationProfile.Executable.Presentation.AnimationAssetIds =
+        table.clone(customHumanoidProfile.Executable.Presentation.AnimationAssetIds)
+    missingCustomAnimationProfile.Executable.Presentation.AnimationAssetIds.Attack = nil
+
+    local missingCustomAnimationOk, missingCustomAnimationReason =
+        authorProfileModule.validate(missingCustomAnimationProfile)
+    assert(
+        missingCustomAnimationOk == false,
+        'Missing custom animation asset ids should fail author profile validation'
+    )
+    assert(
+        missingCustomAnimationReason == 'MissingAnimationAssetIdAttack',
+        'Missing custom animation asset ids should expose a dedicated authoring reason'
+    )
+
     local unknownBehaviorProfile = table.clone(scrapWisp)
     unknownBehaviorProfile.Executable = table.clone(scrapWisp.Executable)
     unknownBehaviorProfile.Executable.BehaviorIntents = {

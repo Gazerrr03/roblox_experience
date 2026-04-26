@@ -69,29 +69,71 @@ local function validateSummaryTable(summaryTable, missingReason)
     return true
 end
 
+local function isPositiveAssetId(value)
+    return type(value) == 'number' and value > 0
+end
+
+local function validateAnimationAssetIds(animationAssetIds, missingReasonPrefix, invalidReasonPrefix)
+    if type(animationAssetIds) ~= 'table' then
+        return false, missingReasonPrefix
+    end
+
+    for _, slotName in ipairs(MonsterPresentationCatalog.RequiredCustomAnimationSlots) do
+        if animationAssetIds[slotName] == nil then
+            return false, string.format('%s%s', missingReasonPrefix, slotName)
+        end
+
+        if not isPositiveAssetId(animationAssetIds[slotName]) then
+            return false, string.format('%s%s', invalidReasonPrefix, slotName)
+        end
+    end
+
+    return true
+end
+
 local function validatePresentation(presentation)
     if type(presentation) ~= 'table' then
         return false, 'MissingPresentation'
     end
 
-    if type(presentation.ModelAssetId) ~= 'number' or presentation.ModelAssetId <= 0 then
+    if not isPositiveAssetId(presentation.ModelAssetId) then
         return false, 'InvalidModelAssetId'
     end
 
-    if not MonsterPresentationCatalog.KnownRigType[presentation.RigType] then
+    local rigType = presentation.RigType
+    if not MonsterPresentationCatalog.KnownRigType[rigType] then
         return false, 'InvalidRigType'
     end
 
-    if not MonsterPresentationCatalog.KnownAnimationMode[presentation.AnimationMode] then
+    local animationMode = presentation.AnimationMode
+    if not MonsterPresentationCatalog.KnownAnimationMode[animationMode] then
         return false, 'InvalidAnimationMode'
+    end
+
+    local usesCustomHumanoid = animationMode == MonsterPresentationCatalog.AnimationMode.CustomHumanoid
+        or rigType == MonsterPresentationCatalog.RigType.CustomHumanoid
+    if usesCustomHumanoid then
+        if rigType ~= MonsterPresentationCatalog.RigType.CustomHumanoid then
+            return false, 'CustomHumanoidRequiresCustomRigType'
+        end
+
+        if animationMode ~= MonsterPresentationCatalog.AnimationMode.CustomHumanoid then
+            return false, 'CustomHumanoidRequiresCustomAnimationMode'
+        end
+
+        local animationAssetIdsOk, animationAssetIdsReason = validateAnimationAssetIds(
+            presentation.AnimationAssetIds,
+            'MissingAnimationAssetId',
+            'InvalidAnimationAssetId'
+        )
+        if not animationAssetIdsOk then
+            return false, animationAssetIdsReason
+        end
     end
 
     if
         presentation.ChaseLoopSoundAssetId ~= nil
-        and (
-            type(presentation.ChaseLoopSoundAssetId) ~= 'number'
-            or presentation.ChaseLoopSoundAssetId <= 0
-        )
+        and not isPositiveAssetId(presentation.ChaseLoopSoundAssetId)
     then
         return false, 'InvalidChaseLoopSoundAssetId'
     end

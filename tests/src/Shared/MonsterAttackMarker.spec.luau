@@ -1,9 +1,11 @@
 return function()
     local ReplicatedStorage = game:GetService('ReplicatedStorage')
     local packages = ReplicatedStorage:WaitForChild('Packages')
+    local gameplay = require(packages:WaitForChild('Gameplay'))
     local shared = require(packages:WaitForChild('Shared'))
 
     local MonsterService = shared.Runtime.MonsterService
+    local presentationCatalog = gameplay.Monsters.MonsterPresentationCatalog
 
     local function buildRuntimeProfile()
         return {
@@ -226,4 +228,62 @@ return function()
     noMarkerService:update(0.2)
     assert(noMarkerHits == 0, 'Animations without Hit marker support should never settle damage')
     noMarkerService:destroy()
+
+    local customTrackAssetIds = {}
+    local customRuntimeProfile = buildRuntimeProfile()
+    customRuntimeProfile.Presentation = {
+        ModelAssetId = 4446576906,
+        RigType = presentationCatalog.RigType.CustomHumanoid,
+        AnimationMode = presentationCatalog.AnimationMode.CustomHumanoid,
+        AnimationAssetIds = {
+            Idle = 7101,
+            Walk = 7102,
+            Run = 7102,
+            Attack = 7103,
+        },
+        ChaseLoopSoundAssetId = 9118823108,
+    }
+
+    local customMarkerHits = 0
+    local customService = MonsterService.new(
+        customRuntimeProfile,
+        function()
+            return true
+        end,
+        nil,
+        nil,
+        {
+            AssetLoader = function()
+                return createMonsterModel()
+            end,
+            GetPlayers = function()
+                return activePlayers
+            end,
+            LoadAnimationTrack = function(_, animationAssetId, animationName)
+                customTrackAssetIds[animationName] = animationAssetId
+                local supportsMarkers = animationName == 'MonsterAttack'
+                return createTrack(animationName, supportsMarkers)
+            end,
+            OnAttackHit = function()
+                customMarkerHits += 1
+            end,
+        }
+    )
+
+    activePlayers[1].Character.HumanoidRootPart.Position = Vector3.new(3, 4, 0)
+    customService:spawn({ Vector3.new(0, 0, 0) }, 1)
+    customService.MonsterRoot:PivotTo(CFrame.lookAt(Vector3.new(0, 4, 0), Vector3.new(5, 4, 0)))
+    customService:update(0.2)
+    assert(
+        customTrackAssetIds.MonsterAttack == 7103,
+        'Custom humanoid attack marker flow should load the configured attack animation asset'
+    )
+
+    customService.AttackAnimationTrack:FireMarker('Hit')
+    assert(
+        customMarkerHits == 1,
+        'Custom humanoid attack animations should still settle damage on the Hit marker'
+    )
+
+    customService:destroy()
 end
