@@ -1241,10 +1241,7 @@ function MonsterService:_runLogicStep(dt)
             else currentRotation + nextPosition
         self.PendingVisualCFrame = facingCFrame
 
-        self:_setAnimationState(
-            decision.AnimationName or decision.DesiredAnimation or 'Idle',
-            decision.AnimationSpeed or decision.DesiredAnimationSpeed or 1
-        )
+        self:_setAnimationState(decision.AnimationName or 'Idle', decision.AnimationSpeed or 1)
         self:_setChaseLoopSoundPlaying(decision.ShouldPlayChaseLoop == true)
     else
         self.PendingVisualCFrame = nil
