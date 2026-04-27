@@ -358,7 +358,7 @@ end
 local topHudFrame = Instance.new('Frame')
 topHudFrame.Name = 'TopHud'
 topHudFrame.AnchorPoint = Vector2.zero
-topHudFrame.Position = UDim2.new(0, 16, 0, 16)
+topHudFrame.Position = UDim2.fromOffset(16, 16)
 topHudFrame.Size = UDim2.fromOffset(380, 190)
 topHudFrame.BackgroundTransparency = 1
 topHudFrame.Parent = screenGui
@@ -418,7 +418,7 @@ staminaTrackCorner.Parent = staminaTrack
 
 local staminaFill = Instance.new('Frame')
 staminaFill.Name = 'StaminaFill'
-staminaFill.Size = UDim2.new(0, 0, 1, 0)
+staminaFill.Size = UDim2.fromScale(0, 1)
 staminaFill.BackgroundColor3 = Theme.Accent
 staminaFill.BorderSizePixel = 0
 staminaFill.Parent = staminaTrack
@@ -463,7 +463,7 @@ heldStatusLabel.Text = '当前手持：空手'
 local panel = makePanel(
     screenGui,
     'MazePanel',
-    UDim2.new(0, 16, 0, 220),
+    UDim2.fromOffset(16, 220),
     UDim2.fromOffset(360, 382),
     Vector2.zero,
     0.1
@@ -631,7 +631,7 @@ local function updateStaminaDisplay(currentStamina, maxStamina, movementStatus, 
 
     staminaValueLabel.Text =
         string.format('%d / %d', math.floor(currentValue + 0.5), math.floor(maxValue + 0.5))
-    staminaFill.Size = UDim2.new(ratio, 0, 1, 0)
+    staminaFill.Size = UDim2.fromScale(ratio, 1)
     if ratio >= 0.6 then
         staminaFill.BackgroundColor3 = Theme.Accent
     elseif ratio >= 0.25 then

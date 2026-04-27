@@ -18,6 +18,11 @@ local SOUND_PRESSURE = table.freeze({
     Door = 34,
     Tool = 28,
 })
+local DIRECT_BOOT_TEST_TOOL_ITEM_IDS = table.freeze({
+    'tool-flashlight',
+    'tool-crowbar',
+    'tool-potion',
+})
 local WORLD_BUILD_SOURCE = table.freeze({
     DirectBootDefault = 'DirectBootDefault',
     JoinDataMergedBeforeBuild = 'JoinDataMergedBeforeBuild',
@@ -562,6 +567,12 @@ function MazeSessionService.new(options)
     self.SnapshotThread = nil
     self.CampSessionLock = false
     self.DiagnosticSequence = 0
+    self.DirectBootTestToolsEnabled = if runtimeOptions.DirectBootTestToolsEnabled ~= nil
+        then runtimeOptions.DirectBootTestToolsEnabled == true
+        else RunService:IsStudio()
+    self.DirectBootLocalReturnEnabled = if runtimeOptions.DirectBootLocalReturnEnabled ~= nil
+        then runtimeOptions.DirectBootLocalReturnEnabled == true
+        else RunService:IsStudio()
     self.HasAcceptedTeleportData = false
     self.HasAcceptedTeleportDataBeforeBuild = false
     self.HasAuthoritativeSessionSeed = false
@@ -615,6 +626,7 @@ function MazeSessionService.new(options)
     self.SurfacePalette = Shared.Runtime.MazeLightingProfile.SurfacePalette
     self.RoundSignalBus = runtimeOptions.RoundSignalBus or RoundSignalBus.new()
     self.RoundSignalConnection = nil
+    self.RoundSignalSubscriptionVersion = 0
     self.RoundClosureInProgress = false
 
     self:_emitDiagnostic('InitDefaultState', {
@@ -692,12 +704,31 @@ function MazeSessionService:_subscribeToRoundSignals()
         self.RoundSignalConnection = nil
     end
 
-    local connection, ok = self.RoundSignalBus:subscribe(self.CampSession, function(payload)
-        self:_handleRoundSignal(payload)
+    self.RoundSignalSubscriptionVersion += 1
+    local subscriptionVersion = self.RoundSignalSubscriptionVersion
+    local campSession = self.CampSession
+
+    task.spawn(function()
+        local connection, ok, reason = self.RoundSignalBus:subscribe(campSession, function(payload)
+            self:_handleRoundSignal(payload)
+        end)
+
+        if subscriptionVersion ~= self.RoundSignalSubscriptionVersion then
+            if connection and connection.Disconnect then
+                connection:Disconnect()
+            end
+            return
+        end
+
+        if ok then
+            self.RoundSignalConnection = connection
+            return
+        end
+
+        self:_emitDiagnostic('RoundSignalSubscribeSkipped', {
+            Reason = reason or 'SubscribeFailed',
+        })
     end)
-    if ok then
-        self.RoundSignalConnection = connection
-    end
 end
 
 function MazeSessionService:_setBootPhase(phase)
@@ -936,6 +967,36 @@ function MazeSessionService:_hydratePlayerInventory(player, teleportData)
     )
 end
 
+function MazeSessionService:_seedDirectBootTestTools(player)
+    if self.DirectBootTestToolsEnabled ~= true or self.IsDirectBoot ~= true then
+        return false
+    end
+
+    local inventorySummary = self.InventoryService:getSummary(player)
+    if inventorySummary.Count > 0 then
+        return false
+    end
+
+    for _, itemId in ipairs(DIRECT_BOOT_TEST_TOOL_ITEM_IDS) do
+        local itemDef = Gameplay.Config.ToolItems[itemId]
+        if itemDef then
+            local success, reason = self.InventoryService:pickup(player, itemDef)
+            if not success then
+                error(
+                    string.format(
+                        'Failed to seed direct-boot test tool %s (%s).',
+                        itemId,
+                        tostring(reason)
+                    ),
+                    0
+                )
+            end
+        end
+    end
+
+    return true
+end
+
 function MazeSessionService:_addPlayerState(player)
     local added = self.RunTracker:addPlayer({
         UserId = player.UserId,
@@ -947,6 +1008,7 @@ function MazeSessionService:_addPlayerState(player)
     end
 
     self.InventoryService:addPlayer(player)
+    self:_seedDirectBootTestTools(player)
     self.CampSession = CampMazeSessionContract.markPlayerEntered(self.CampSession, {
         UserId = player.UserId,
         Name = player.DisplayName,
@@ -1063,6 +1125,48 @@ function MazeSessionService:_getObjectiveFor()
     return 'Read the room, dodge the threat, recover Pages, and bring them back to the ship alive.'
 end
 
+function MazeSessionService:_buildSnapshotFor(player, snapshotContext)
+    local context = snapshotContext or {}
+    local worldBuildFields = context.WorldBuildFields or self:_getWorldBuildMetadataFields()
+    local playerSummary = self.PlayerService:getSummary(player)
+    local controlState = self.ControlStateService:getSummary(player)
+
+    return {
+        IsLaunched = true,
+        Status = self.Status,
+        Area = self:_getPlayerArea(player),
+        Objective = self:_getObjectiveFor(),
+        State = self.RunTracker:getState(),
+        SessionPhase = context.SessionPhase,
+        HostUserId = self.CampSession.HostUserId,
+        RoundStarted = self.CampSession.RoundStarted == true,
+        DangerActive = self.CampSession.DangerActive == true,
+        RoundTimeRemainingSeconds = context.RoundTimeRemainingSeconds,
+        SettlementReason = self.CampSession.SettlementReason,
+        CurrentRound = self.CampSession.CurrentRound,
+        MaxRounds = self.CampSession.MaxRounds,
+        BankedItemCount = self.CampSession.BankedItemCount,
+        TargetItemCount = self.CampSession.TargetItemCount,
+        RoundOutcome = self.CampSession.RoundOutcome,
+        SessionOutcome = self.CampSession.SessionOutcome,
+        Inventory = self.InventoryService:getSummary(player),
+        Movement = FormalLocomotion.summarize(playerSummary, controlState),
+        ControlState = controlState,
+        PlayerState = playerSummary and playerSummary.PlayerState or nil,
+        Roster = context.Roster or {},
+        SessionId = self.CampSession.SessionId,
+        MazeAccessCode = self.CampSession.MazeAccessCode,
+        MazeStatus = context.MazeStatus or self:_getMazeStatus(),
+        ReturnedPlayerSummaries = context.ReturnedPlayerSummaries or {},
+        IsDirectBoot = self.IsDirectBoot,
+        WorldBuildSeed = worldBuildFields.WorldBuildSeed,
+        WorldBuildSessionId = worldBuildFields.WorldBuildSessionId,
+        WorldBuildMazeAccessCode = worldBuildFields.WorldBuildMazeAccessCode,
+        WorldBuildIsDirectBoot = worldBuildFields.WorldBuildIsDirectBoot,
+        WorldBuildSource = worldBuildFields.WorldBuildSource,
+    }
+end
+
 function MazeSessionService:_broadcastSnapshot()
     if not self.IsLaunched then
         return
@@ -1096,42 +1200,17 @@ function MazeSessionService:_broadcastSnapshot()
     }
     local sessionPhase = SessionPhase.resolveFromCampSession(sessionPhaseInput)
     local worldBuildFields = self:_getWorldBuildMetadataFields()
+    local snapshotContext = {
+        MazeStatus = mazeStatus,
+        ReturnedPlayerSummaries = returnedSummaries,
+        Roster = roster,
+        RoundTimeRemainingSeconds = roundTimeRemainingSeconds,
+        SessionPhase = sessionPhase,
+        WorldBuildFields = worldBuildFields,
+    }
 
     for _, player in ipairs(Players:GetPlayers()) do
-        self.Remotes.MazeState:FireClient(player, {
-            IsLaunched = true,
-            Status = self.Status,
-            Area = self:_getPlayerArea(player),
-            Objective = self:_getObjectiveFor(),
-            State = self.RunTracker:getState(),
-            SessionPhase = sessionPhase,
-            HostUserId = self.CampSession.HostUserId,
-            RoundStarted = self.CampSession.RoundStarted == true,
-            DangerActive = self.CampSession.DangerActive == true,
-            RoundTimeRemainingSeconds = roundTimeRemainingSeconds,
-            SettlementReason = self.CampSession.SettlementReason,
-            CurrentRound = self.CampSession.CurrentRound,
-            MaxRounds = self.CampSession.MaxRounds,
-            BankedItemCount = self.CampSession.BankedItemCount,
-            TargetItemCount = self.CampSession.TargetItemCount,
-            RoundOutcome = self.CampSession.RoundOutcome,
-            SessionOutcome = self.CampSession.SessionOutcome,
-            Inventory = self.InventoryService:getSummary(player),
-            Movement = self:_getMovementSummaryFor(player),
-            ControlState = self.ControlStateService:getSummary(player),
-            PlayerState = self.PlayerService:getSummary(player).PlayerState,
-            Roster = roster,
-            SessionId = self.CampSession.SessionId,
-            MazeAccessCode = self.CampSession.MazeAccessCode,
-            MazeStatus = mazeStatus,
-            ReturnedPlayerSummaries = returnedSummaries,
-            IsDirectBoot = self.IsDirectBoot,
-            WorldBuildSeed = worldBuildFields.WorldBuildSeed,
-            WorldBuildSessionId = worldBuildFields.WorldBuildSessionId,
-            WorldBuildMazeAccessCode = worldBuildFields.WorldBuildMazeAccessCode,
-            WorldBuildIsDirectBoot = worldBuildFields.WorldBuildIsDirectBoot,
-            WorldBuildSource = worldBuildFields.WorldBuildSource,
-        })
+        self.Remotes.MazeState:FireClient(player, self:_buildSnapshotFor(player, snapshotContext))
 
         self.Remotes.MazePrivateState:FireClient(player, nil)
     end
@@ -1284,6 +1363,12 @@ end
 
 function MazeSessionService:_canReturnToCamp()
     return SessionConfig.PlaceIds.Run ~= 0 and self.CampSession.CampAccessCode ~= 'local-debug-camp'
+end
+
+function MazeSessionService:_shouldStayLocalAfterDirectBootReturn()
+    return self.DirectBootLocalReturnEnabled == true
+        and self.IsDirectBoot == true
+        and not self:_canReturnToCamp()
 end
 
 function MazeSessionService:_teleportToCamp(players, summaries, mazeCompleted, countInventory)
@@ -1686,6 +1771,17 @@ function MazeSessionService:_returnPlayerToRunEntrance(player, returnReason)
     self:_clearPlayerMovement(player)
 
     self:_publishMazePresence()
+
+    if self:_shouldStayLocalAfterDirectBootReturn() then
+        self:_setStatus(
+            string.format(
+                '%s completed this local Maze PlayTest with %d Page(s). Stay in Studio to inspect the authored MazeStaticWorld.',
+                player.DisplayName,
+                bankedCount
+            )
+        )
+        return
+    end
 
     if self:_teleportToCamp({ player }, { summary }, mazeCompleted, true) then
         self:_setStatus(
