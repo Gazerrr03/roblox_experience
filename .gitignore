@@ -21,3 +21,7 @@ references/gdd-output/
 # Python venv for GDD generator skill
 .claude/skills/gdd-generator/venv/
 
+
+# Local large/imported maze artifacts
+places/maze/assets/maze-roblox.fbx
+places/maze/harness/maze_副本.rbxlx

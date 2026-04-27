@@ -998,6 +998,7 @@ end
 
 function MazeSessionService:_clearPlayerMovement(player)
     self.ControlStateService:requestSprintStop(player)
+    self.ControlStateService:requestSneakStop(player)
     self.PlayerService:setSprinting(player, false)
     self:_applyMovementMode(player)
 end
@@ -1423,6 +1424,30 @@ function MazeSessionService:_setPlayerSprinting(player, isSprinting)
     if isSprinting then
         self:_reportPlayerSound(player, SOUND_PRESSURE.Sprint, 'sprint')
     end
+end
+
+function MazeSessionService:_setPlayerSneaking(player, isSneaking)
+    if not self.RunTracker:isPlayerActive(player.UserId) then
+        return
+    end
+
+    local playerState = self.PlayerService:getSummary(player)
+    local success, result
+    if isSneaking then
+        success, result = self.ControlStateService:requestSneakStart(player, playerState)
+    else
+        success, result = self.ControlStateService:requestSneakStop(player)
+    end
+
+    if not success then
+        if result == 'Dead' then
+            self:_setStatus(string.format('%s cannot sneak while dead.', player.DisplayName))
+        end
+        self:_syncPlayerMovement(player)
+        return
+    end
+
+    self:_syncPlayerMovement(player)
 end
 
 function MazeSessionService:_equipItem(player, itemInstanceId)
@@ -1861,6 +1886,10 @@ function MazeSessionService:start()
             self:_setPlayerSprinting(player, true)
         elseif payload.Type == 'RequestSprintStop' then
             self:_setPlayerSprinting(player, false)
+        elseif payload.Type == 'RequestSneakStart' then
+            self:_setPlayerSneaking(player, true)
+        elseif payload.Type == 'RequestSneakStop' then
+            self:_setPlayerSneaking(player, false)
 
         -- === 新增：监听客户端喊出的那声“我要用道具！” ===
         elseif payload.Type == 'RequestUseTool' then

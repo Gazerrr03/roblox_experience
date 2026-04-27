@@ -60,6 +60,24 @@ function ControlStateService:requestSprintStop(player)
     return state:requestSprintStop()
 end
 
+function ControlStateService:requestSneakStart(player, playerStateSummary)
+    local state = self:get(player)
+    if not state then
+        return false, 'MissingControlState'
+    end
+
+    return state:requestSneakStart(playerStateSummary)
+end
+
+function ControlStateService:requestSneakStop(player)
+    local state = self:get(player)
+    if not state then
+        return false, 'MissingControlState'
+    end
+
+    return state:requestSneakStop()
+end
+
 function ControlStateService:syncPlayerState(player, playerStateSummary)
     local state = self:get(player)
     if not state then
