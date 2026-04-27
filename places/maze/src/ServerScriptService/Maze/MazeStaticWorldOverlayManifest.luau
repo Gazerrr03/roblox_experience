@@ -7,10 +7,43 @@ local function freezeRoomDefinition(definition)
         LootBudget = definition.LootBudget or 0,
         RoomTemplateId = definition.RoomTemplateId or definition.RoomType,
         RoomCategory = definition.RoomCategory or definition.RoomType,
+        EncounterRole = definition.EncounterRole,
+        PayoffHintId = definition.PayoffHintId,
+    })
+end
+
+local function freezeChainStep(definition)
+    return table.freeze({
+        StepId = definition.StepId,
+        TargetId = definition.TargetId,
+        PayoffHintId = definition.PayoffHintId,
     })
 end
 
 local MazeStaticWorldOverlayManifest = table.freeze({
+    FirstPlayableChain = table.freeze({
+        freezeChainStep({
+            StepId = 'EntryBuffer',
+            TargetId = 'Room_Camp',
+        }),
+        freezeChainStep({
+            StepId = 'Warning',
+            TargetId = 'Room_Loot',
+        }),
+        freezeChainStep({
+            StepId = 'PagesTemptation',
+            TargetId = 'Room_Loot',
+        }),
+        freezeChainStep({
+            StepId = 'SoundPredatorPayoff',
+            TargetId = 'Room_Loot',
+            PayoffHintId = 'sound-predator',
+        }),
+        freezeChainStep({
+            StepId = 'ReturnDecision',
+            TargetId = 'ReturnHoldPad',
+        }),
+    }),
     RootParts = table.freeze({
         'SpawnMarker',
         'ReturnHoldPad',
@@ -22,6 +55,7 @@ local MazeStaticWorldOverlayManifest = table.freeze({
             DifficultyTier = 0,
             RoomTemplateId = 'CampHub',
             RoomCategory = 'CampHub',
+            EncounterRole = 'EntryBuffer',
         }),
         Room_Loot = freezeRoomDefinition({
             RoomType = 'DeadEnd',
@@ -30,6 +64,8 @@ local MazeStaticWorldOverlayManifest = table.freeze({
             LootBudget = 1,
             RoomTemplateId = 'SearchCluster',
             RoomCategory = 'SearchCluster',
+            EncounterRole = 'WarningPayoffResourceTemptation',
+            PayoffHintId = 'sound-predator',
         }),
     }),
     RequiredInteractionNodes = table.freeze({

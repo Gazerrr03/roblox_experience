@@ -13,6 +13,11 @@ local CORPSE_COLOR = Color3.fromRGB(92, 92, 92)
 local CORPSE_MATERIAL = Enum.Material.Slate
 local CORPSE_SIZE = Vector3.new(4, 1.2, 2)
 local CORPSE_VERTICAL_OFFSET = -2.4
+local SOUND_PRESSURE = table.freeze({
+    Sprint = 48,
+    Door = 34,
+    Tool = 28,
+})
 local WORLD_BUILD_SOURCE = table.freeze({
     DirectBootDefault = 'DirectBootDefault',
     JoinDataMergedBeforeBuild = 'JoinDataMergedBeforeBuild',
@@ -480,6 +485,9 @@ end
 function MazeSessionService:_buildMonsterRuntimeOptions(randomSeed)
     return {
         RandomSeed = randomSeed,
+        SoundMemorySeconds = 4,
+        SoundRangeMultiplier = 1,
+        EnableSightFallback = false,
         OnAttackHit = function(player, damagePips, hitContext)
             local damageKind = damageKindFromPips(damagePips)
             if damageKind == nil then
@@ -494,6 +502,33 @@ function MazeSessionService:_buildMonsterRuntimeOptions(randomSeed)
             end
         end,
     }
+end
+
+function MazeSessionService:_reportPlayerSound(player, loudness, reason)
+    if
+        player == nil
+        or self.MonsterService == nil
+        or type(self.MonsterService.reportSoundStimulus) ~= 'function'
+    then
+        return false
+    end
+
+    if not self.RunTracker:isPlayerActive(player.UserId) then
+        return false
+    end
+
+    local reported = self.MonsterService:reportSoundStimulus(player, loudness)
+    if reported then
+        self:_setStatus(
+            string.format(
+                '%s made noise (%s). The maze threat may be listening.',
+                player.DisplayName,
+                reason or 'movement'
+            )
+        )
+    end
+
+    return reported
 end
 
 function MazeSessionService.new(options)
@@ -518,7 +553,8 @@ function MazeSessionService.new(options)
         MazeAccessCode = 'local-debug-maze',
         MazeStatus = CampMazeSessionContract.MazeStatus.Active,
     })
-    self.Status = 'Direct boot: maze session is live. Explore, loot, and find a return point.'
+    self.Status =
+        'Direct boot: maze session is live. Recover Pages, read the threat, and find a return point.'
     self.World = nil
     self.WorldInteractions = nil
     self.IsDirectBoot = true
@@ -763,7 +799,7 @@ function MazeSessionService:_mergeTeleportData(teleportData, resetInventoryServi
     self.IsDirectBoot = false
     self.CampSession.MaxRounds = self.SessionData.Mission.RoundCount
     self.CampSession.TargetItemCount = self.SessionData.Mission.TargetItemCount
-    self.Status = 'Maze session is live. Explore, loot, and find a return point.'
+    self.Status = 'Maze session is live. Recover Pages, read the threat, and find a return point.'
     self:_subscribeToRoundSignals()
     result.AcceptedBeforeBuild = self:_markAcceptedTeleportData(teleportData)
     result.Merged = true
@@ -1024,7 +1060,7 @@ function MazeSessionService:_getObjectiveFor()
         return 'This was the last round and the crew missed the quota. Return to the ship for final debrief.'
     end
 
-    return 'Read the room, dodge the threat, grab loot, and bring it back to the ship alive.'
+    return 'Read the room, dodge the threat, recover Pages, and bring them back to the ship alive.'
 end
 
 function MazeSessionService:_broadcastSnapshot()
@@ -1161,6 +1197,7 @@ function MazeSessionService:_toggleDoor(player, doorwayId)
             string.format('%s %s a concrete double door.', player.DisplayName, stateText)
         )
     end
+    self:_reportPlayerSound(player, SOUND_PRESSURE.Door, 'door')
 end
 
 function MazeSessionService:_buildSummaryFor(
@@ -1333,7 +1370,9 @@ function MazeSessionService:_beginFormalExpedition()
     local patrolPoints, initialPatrolIndex = self.World:getPatrolPoints()
     self:_setBootPhase('SpawnMonster')
     self.MonsterService:spawn(patrolPoints, initialPatrolIndex)
-    self:_setStatus('Maze session is live. Explore, loot, and find a return point.')
+    self:_setStatus(
+        'Maze session is live. Recover Pages, watch your noise, and find a return point.'
+    )
 end
 
 function MazeSessionService:_canManageInventory(player)
@@ -1381,6 +1420,9 @@ function MazeSessionService:_setPlayerSprinting(player, isSprinting)
     end
 
     self:_syncPlayerMovement(player)
+    if isSprinting then
+        self:_reportPlayerSound(player, SOUND_PRESSURE.Sprint, 'sprint')
+    end
 end
 
 function MazeSessionService:_equipItem(player, itemInstanceId)
@@ -1427,6 +1469,7 @@ end
 
 -- === 新增：处理道具使用的逻辑（这是本次手术最核心的部位） ===
 function MazeSessionService:_handleUseTool(player)
+    self:_reportPlayerSound(player, SOUND_PRESSURE.Tool, 'tool')
     Gameplay.HeldToolUseRequest.apply(player, {
         canManageInventory = function(p)
             return self:_canManageInventory(p)
@@ -1502,7 +1545,7 @@ function MazeSessionService:_handlePlayerDeath(player, damageKind)
 
     self:_setStatus(
         string.format(
-            '%s took %s damage and died, dropping their pack in the maze.',
+            '%s took %s damage and died, dropping their pack in the maze. Next time, make less noise and leave with Pages sooner.',
             player.DisplayName,
             string.lower(damageKind)
         )
@@ -1548,14 +1591,14 @@ end
 
 function MazeSessionService:_pickupLoot(player, roomId)
     if self.RunTracker:getState() ~= 'Expedition' then
-        self:_setStatus('Loot can only be collected during the expedition phase.')
+        self:_setStatus('Pages can only be recovered during the expedition phase.')
         return
     end
 
     if not self.RunTracker:isPlayerActive(player.UserId) then
         self:_setStatus(
             string.format(
-                '%s has already returned and cannot collect more loot.',
+                '%s has already returned and cannot recover more Pages this round.',
                 player.DisplayName
             )
         )
@@ -1584,12 +1627,13 @@ function MazeSessionService:_pickupLoot(player, roomId)
     self:_markLootCollected(roomId)
 
     local inventorySummary = self.InventoryService:getSummary(player)
+    local pageCount = inventorySummary.MissionCount or inventorySummary.LootCount or 0
     self:_setStatus(
         string.format(
-            '%s collected %s. They are now carrying %d loot item(s).',
+            '%s recovered a Page from %s. They are carrying %d Page(s): return now or risk more.',
             player.DisplayName,
             lootEntry.ItemDef.Name,
-            inventorySummary.LootCount or 0
+            pageCount
         )
     )
 end
@@ -1609,7 +1653,10 @@ function MazeSessionService:_returnPlayerToRunEntrance(player, returnReason)
 
     if self:_isPlayerDead(player) then
         self:_setStatus(
-            string.format('%s is dead and must wait for the round to end.', player.DisplayName)
+            string.format(
+                '%s is dead and dropped their pack. Survivors should leave with the Pages they can carry.',
+                player.DisplayName
+            )
         )
         return
     end
@@ -1643,7 +1690,7 @@ function MazeSessionService:_returnPlayerToRunEntrance(player, returnReason)
     if self:_teleportToCamp({ player }, { summary }, mazeCompleted, true) then
         self:_setStatus(
             string.format(
-                '%s returned to run with %d banked loot item(s) (%s).',
+                '%s returned alive with %d Page(s). Banking Pages alive is progress, even if you could have risked more. (%s)',
                 player.DisplayName,
                 bankedCount,
                 summary.ReturnReason
@@ -1659,7 +1706,7 @@ function MazeSessionService:_returnPlayerToRunEntrance(player, returnReason)
 
     self:_setStatus(
         string.format(
-            '%s reached the return point with %d banked loot item(s), but the handoff back to run failed.',
+            '%s reached the return point with %d Page(s), but the handoff back to run failed.',
             player.DisplayName,
             bankedCount
         )
