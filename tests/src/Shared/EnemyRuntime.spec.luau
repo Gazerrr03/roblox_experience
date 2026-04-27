@@ -93,4 +93,22 @@ return function()
     local lostDecision = runtime:update(0.5)
     assert(lostDecision.PerceptionState == 'Idle', 'Memory disabled should return directly to idle')
     assert(lostDecision.NextPosition == nil, 'Idle after losing target should stop movement')
+
+    local remainingHealth = runtime:applyDamage(1, 'spec')
+    assert(remainingHealth == 0, 'Applying lethal damage should reduce runtime health to zero')
+
+    local deathDecision = runtime:update(0.1)
+    assert(deathDecision.IsDead == true, 'Dead runtime should report IsDead')
+    assert(
+        deathDecision.DeathEvent and deathDecision.DeathEvent.KilledBy == 'spec',
+        'Dead runtime should report the recorded death source'
+    )
+
+    runtime:reset({ Vector3.new(0, 0, 0) }, 1)
+    local resetDecision = runtime:update(0.1)
+    assert(resetDecision.IsDead == false, 'Reset should restore runtime health')
+
+    runtime:destroy()
+    assert(runtime.Blackboard == nil, 'Destroy should release runtime blackboard state')
+    assert(runtime.Health == nil, 'Destroy should release runtime component references')
 end

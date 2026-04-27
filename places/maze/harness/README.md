@@ -14,3 +14,4 @@ After the scaffold exists, treat `places/maze/harness/maze.rbxlx` as the authore
 - Do not rebuild the harness from Rojo unless you intentionally want to reset it back to the source scaffold.
 - If you do need a reset, run `./scripts/build-harnesses.sh --force`.
 - Follow [STATIC_WORLD.md](../STATIC_WORLD.md) for the required authored structure.
+- Follow [CONTENT_TEST_PLAN.md](../CONTENT_TEST_PLAN.md) for the current Maze content validation checklist before importing external map assets.

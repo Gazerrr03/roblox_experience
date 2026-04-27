@@ -92,32 +92,53 @@ function PlayerService:getSummary(player)
         return nil
     end
 
+    local health = p.Components.Health
+    local stamina = p.Components.Stamina
+    local activeEffects = {}
+    if type(p.Blackboard) == 'table' and type(p.Blackboard.ActiveEffects) == 'table' then
+        for effectId, effectState in pairs(p.Blackboard.ActiveEffects) do
+            if effectState then
+                activeEffects[effectId] = effectState
+            end
+        end
+    end
+
     return {
         UserId = player.UserId,
         Health = {
-            CurrentHealthPips = p.Components.Health.CurrentHealthPips,
-            MaxHealthPips = p.Components.Health.MaxHealthPips,
-            IsDead = p.Components.Health.IsDead,
-            CorpseActive = p.Components.Health.CorpseActive,
+            CurrentHealthPips = health.CurrentHealthPips,
+            MaxHealthPips = health.MaxHealthPips,
+            IsDead = health.IsDead,
+            CorpseActive = health.CorpseActive,
         },
         Stamina = {
-            CurrentStamina = p.Components.Stamina.CurrentStamina,
-            MaxStamina = p.Components.Stamina.MaxStamina,
-            CanSprint = p.Components.Stamina.CanSprint,
-            IsSprinting = p.Components.Stamina.IsSprinting,
+            CurrentStamina = stamina.CurrentStamina,
+            MaxStamina = stamina.MaxStamina,
+            CanSprint = stamina.CanSprint,
+            IsSprinting = stamina.IsSprinting,
         },
         State = p.StateMachine:getState(),
         SlotCount = p.Components.Inventory.SlotCount,
         InteractionRange = p.Components.Inventory.InteractionRange,
+        -- Backward compatibility: movement/control services still expect the flat player-state shape.
+        CurrentHealthPips = health.CurrentHealthPips,
+        MaxHealthPips = health.MaxHealthPips,
+        CurrentStamina = stamina.CurrentStamina,
+        MaxStamina = stamina.MaxStamina,
+        IsDead = health.IsDead,
+        CanSprint = stamina.CanSprint,
+        CorpseActive = health.CorpseActive,
+        ActiveEffects = activeEffects,
         -- Backward compatibility: mirrors PlayerStateService:getSummary format
         PlayerState = {
-            HealthPips = p.Components.Health.CurrentHealthPips,
-            MaxHealthPips = p.Components.Health.MaxHealthPips,
-            CurrentStamina = p.Components.Stamina.CurrentStamina,
-            MaxStamina = p.Components.Stamina.MaxStamina,
-            IsDead = p.Components.Health.IsDead,
-            CanSprint = p.Components.Stamina.CanSprint,
-            CorpseActive = p.Components.Health.CorpseActive,
+            HealthPips = health.CurrentHealthPips,
+            MaxHealthPips = health.MaxHealthPips,
+            CurrentStamina = stamina.CurrentStamina,
+            MaxStamina = stamina.MaxStamina,
+            IsDead = health.IsDead,
+            CanSprint = stamina.CanSprint,
+            CorpseActive = health.CorpseActive,
+            ActiveEffects = activeEffects,
         },
     }
 end
