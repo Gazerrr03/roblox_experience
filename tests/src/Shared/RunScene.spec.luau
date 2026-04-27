@@ -114,9 +114,20 @@ return function()
     createPromptPart('SalvageTerminal', 2)
     createPromptPart('ObjectiveBoard', 4)
     createPromptPart('LoadoutBench', 6)
+    createPromptPart('UgcLabConsole', 8)
     local _, startGamePrompt = createPromptPart('StartGamePrompt', 9)
     local _, gatePrompt = createPromptPart('GateSwitch', 10)
     createPromptPart('MazeGateMarker', 72)
+
+    local doorLeft = Instance.new('Part')
+    doorLeft.Name = 'DoorLeft'
+    doorLeft.Anchored = true
+    doorLeft.Parent = root
+
+    local doorRight = Instance.new('Part')
+    doorRight.Name = 'DoorRight'
+    doorRight.Anchored = true
+    doorRight.Parent = root
 
     local clueScene = Instance.new('Folder')
     clueScene.Name = 'FirstCorpseClueScene'
