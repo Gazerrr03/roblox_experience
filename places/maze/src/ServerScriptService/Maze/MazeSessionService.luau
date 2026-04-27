@@ -8,6 +8,7 @@ local CAMP_SESSION_LOCK_WAIT_SECONDS = 0.05
 local SNAPSHOT_INTERVAL_SECONDS = 0.25
 local TELEPORT_DATA_WAIT_SECONDS = 3
 local TELEPORT_DATA_WAIT_STEP_SECONDS = 0.05
+local CHARACTER_SPAWN_LIFT_STUDS = 3
 local MAZE_DIAG_PREFIX = '[MazeDiag]'
 local CORPSE_COLOR = Color3.fromRGB(92, 92, 92)
 local CORPSE_MATERIAL = Enum.Material.Slate
@@ -142,12 +143,7 @@ local function bindCharacterTeleport(self, player)
             return
         end
 
-        local targetCFrame = self.World.SpawnCFrame
-        if not self.RunTracker:isPlayerActive(player.UserId) then
-            targetCFrame = self.World.ReturnHoldCFrame
-        end
-
-        character:PivotTo(targetCFrame)
+        character:PivotTo(self:_getCharacterSpawnCFrameFor(player))
         self:_applyMovementMode(player)
     end)
 end
@@ -1107,6 +1103,18 @@ function MazeSessionService:_getPlayerArea(player)
     end
 
     return string.format('%s Room', room.Kind)
+end
+
+function MazeSessionService:_getCharacterSpawnCFrameFor(player)
+    if not self.World then
+        return CFrame.new()
+    end
+
+    if not self.RunTracker:isPlayerActive(player.UserId) then
+        return self.World.ReturnHoldCFrame
+    end
+
+    return self.World.SpawnCFrame + Vector3.new(0, CHARACTER_SPAWN_LIFT_STUDS, 0)
 end
 
 function MazeSessionService:_getObjectiveFor()

@@ -28,6 +28,7 @@ return function()
         service._publishMazePresence = function() end
         service._clearPlayerMovement = function() end
         service.World = {
+            SpawnCFrame = CFrame.new(0, 10, 0),
             ReturnHoldCFrame = CFrame.new(),
         }
         return service
@@ -73,6 +74,17 @@ return function()
     assert(
         type(missingStateSnapshot.Movement) == 'table',
         'Snapshot should still provide safe movement fallback data'
+    )
+
+    local spawnLiftService = createService({
+        DirectBootTestToolsEnabled = false,
+    })
+    local spawnLiftPlayer = createPlayer(505, 'Echo')
+    spawnLiftService:_addPlayerState(spawnLiftPlayer)
+    local characterSpawnCFrame = spawnLiftService:_getCharacterSpawnCFrameFor(spawnLiftPlayer)
+    assert(
+        math.abs(characterSpawnCFrame.Position.Y - 13) < 0.001,
+        'Active players should spawn above the authored SpawnMarker instead of inside it'
     )
 
     local localReturnService = createService({
