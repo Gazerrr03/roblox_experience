@@ -93,8 +93,35 @@ local function defaultCreateLoopSound(parent, soundAssetId, soundName)
     return sound
 end
 
-local function defaultEnemyFactory(_monsterRuntimeProfile, options)
-    return EnemyRuntime.new(options)
+local function defaultEnemyFactory(_monsterRuntimeProfile, runtimeOptions)
+    return EnemyRuntime.new(runtimeOptions)
+end
+
+local function validateEnemyRuntimeContract(enemyRuntime)
+    if type(enemyRuntime) ~= 'table' then
+        error('Monster runtime factory must return a table', 0)
+    end
+
+    local requiredMethods = {
+        'reset',
+        'update',
+        'destroy',
+        'applyDamage',
+    }
+
+    for _, methodName in ipairs(requiredMethods) do
+        if type(enemyRuntime[methodName]) ~= 'function' then
+            error(string.format('Monster runtime missing required method %s()', methodName), 0)
+        end
+    end
+
+    if type(enemyRuntime.Context) ~= 'table' then
+        error('Monster runtime missing Context table', 0)
+    end
+
+    if type(enemyRuntime.Blackboard) ~= 'table' then
+        error('Monster runtime missing Blackboard table', 0)
+    end
 end
 
 function MonsterService.new(
@@ -154,7 +181,6 @@ function MonsterService.new(
         LoadMonsterModel = runtimeOptions.AssetLoader or defaultLoadMonsterModel,
         LoadAnimationTrack = runtimeOptions.LoadAnimationTrack or defaultLoadAnimationTrack,
         CreateLoopSound = runtimeOptions.CreateLoopSound or defaultCreateLoopSound,
-        EnemyFactory = runtimeOptions.EnemyFactory or defaultEnemyFactory,
         OnAttackHit = runtimeOptions.OnAttackHit or defaultOnAttackHit,
         Raycast = runtimeOptions.Raycast or defaultRaycast,
         GetPlayers = runtimeOptions.GetPlayers or function()
@@ -185,7 +211,9 @@ function MonsterService.new(
         RandomSeed = randomSeed,
         RandomSource = runtimeOptions.RandomSource
             or if randomSeed ~= nil then Random.new(randomSeed) else Random.new(),
-        CombatHitPointsRemaining = nil,
+        EnemyRuntimeFactory = runtimeOptions.EnemyRuntimeFactory
+            or runtimeOptions.EnemyFactory
+            or defaultEnemyFactory,
         SoundStimuli = {},
         SoundMemorySeconds = runtimeOptions.SoundMemorySeconds or DEFAULT_SOUND_MEMORY_SECONDS,
         SoundRangeMultiplier = runtimeOptions.SoundRangeMultiplier
@@ -195,7 +223,7 @@ function MonsterService.new(
             else runtimeOptions.EnableSightFallback == true,
     }, MonsterService)
 
-    local combatHp = monsterRuntimeProfile.CombatHitPoints
+    local combatHp = service.ComponentConfig.Health.MaxHp
     if type(combatHp) ~= 'number' or combatHp < 1 or math.floor(combatHp) ~= combatHp then
         combatHp = 1
     else
@@ -251,13 +279,16 @@ function MonsterService:_buildEnemyRuntimeOptions()
             CooldownSeconds = self.ComponentConfig.Attack.CooldownSeconds,
         },
         Health = {
+            MaxHp = self.ComponentConfig.Health.MaxHp,
             MaxHealth = self.ComponentConfig.Health.MaxHp,
         },
     }
 end
 
 function MonsterService:_createEnemyRuntime()
-    return self.EnemyFactory(self.Definition, self:_buildEnemyRuntimeOptions())
+    local enemyRuntime = self.EnemyRuntimeFactory(self.Definition, self:_buildEnemyRuntimeOptions())
+    validateEnemyRuntimeContract(enemyRuntime)
+    return enemyRuntime
 end
 
 function MonsterService:reportSoundStimulus(player, loudness, position, memorySeconds)
@@ -341,7 +372,6 @@ function MonsterService:destroy()
     self.PendingAttack = nil
     self.ActiveAnimation = nil
     self.MonsterHumanoid = nil
-    self.CombatHitPointsRemaining = nil
     self.MonsterPositionPart = nil
     self.LogicalPosition = nil
     self.LogicAccumulator = 0
@@ -539,7 +569,7 @@ function MonsterService:_spawnModel(spawnPosition)
 end
 
 function MonsterService:_applyDefinitionCombatHealth()
-    local maxPips = self.Definition.CombatHitPoints
+    local maxPips = self.ComponentConfig.Health.MaxHp
     if type(maxPips) ~= 'number' or maxPips < 1 or math.floor(maxPips) ~= maxPips then
         maxPips = 1
     end
@@ -551,11 +581,9 @@ function MonsterService:_applyDefinitionCombatHealth()
         humanoid.MaxHealth = maxPips
         humanoid.Health = maxPips
         self.CombatCurrentHealth = maxPips
-        self.CombatHitPointsRemaining = nil
         return
     end
 
-    self.CombatHitPointsRemaining = maxPips
     self.CombatCurrentHealth = maxPips
 end
 
@@ -952,6 +980,17 @@ function MonsterService:_queueAttackIntent(attackIntent)
     if hasMarkerConnection and not animationPlayed then
         self.PendingAttack = nil
     end
+
+    if not hasMarkerConnection or not animationPlayed then
+        self:_resolveQueuedAttack({
+            ArcDegrees = attackIntent.ArcDegrees or DEFAULT_ATTACK_ARC_DEGREES,
+            DamagePips = damagePips,
+            Effects = attackIntent.Effects,
+            MarkerName = markerName,
+            Range = range,
+            TargetPlayer = targetPlayer,
+        })
+    end
 end
 
 function MonsterService:_stepPendingAttack(dt)
@@ -977,12 +1016,34 @@ function MonsterService:_onAttackMarkerReached(markerName)
 
     self.PendingAttack = nil
 
+    self:_resolveQueuedAttack(pendingAttack)
+end
+
+function MonsterService:_resolveQueuedAttack(pendingAttack)
+    if type(pendingAttack) ~= 'table' then
+        return false
+    end
+
     local hitContext = self:_resolveAttackHitContext(pendingAttack)
     if hitContext.Hit ~= true then
-        return
+        self:_recordDecisionEvent('AttackResolved', {
+            DamagePips = pendingAttack.DamagePips,
+            Reason = hitContext.Reason,
+            Result = 'Miss',
+            TargetUserId = self:_resolveTargetUserId(pendingAttack.TargetPlayer),
+        })
+        return false
     end
 
     self.OnAttackHit(pendingAttack.TargetPlayer, pendingAttack.DamagePips, hitContext)
+    self:_recordDecisionEvent('AttackResolved', {
+        DamagePips = pendingAttack.DamagePips,
+        Distance = hitContext.Distance,
+        Reason = hitContext.Reason,
+        Result = 'Hit',
+        TargetUserId = self:_resolveTargetUserId(pendingAttack.TargetPlayer),
+    })
+    return true
 end
 
 function MonsterService:_playerMeleeLineOfSightClear(player, playerPosition, monsterPosition)
@@ -1086,27 +1147,17 @@ function MonsterService:tryApplyPlayerMeleeHit(player, meleeOptions)
         return false, 'BlockedLineOfSight'
     end
 
-    local monsterHumanoid = self.MonsterHumanoid
-    local killed = false
-    local remainingHitPoints
-
-    if monsterHumanoid then
-        local nextHealth = math.max(0, monsterHumanoid.Health - damagePips)
-        monsterHumanoid.Health = nextHealth
-        remainingHitPoints = math.ceil(nextHealth)
-        self.CombatCurrentHealth = remainingHitPoints
-        if nextHealth <= 0 then
-            killed = true
-        end
-    elseif type(self.CombatHitPointsRemaining) == 'number' then
-        self.CombatHitPointsRemaining -= damagePips
-        remainingHitPoints = math.max(0, self.CombatHitPointsRemaining)
-        self.CombatCurrentHealth = remainingHitPoints
-        if remainingHitPoints <= 0 then
-            killed = true
-        end
-    else
+    if not self.EnemyRuntime then
         return false, 'MonsterCombatStateMissing'
+    end
+
+    local remainingHitPoints = self.EnemyRuntime:applyDamage(damagePips, 'player')
+    local killed = remainingHitPoints <= 0
+    self.CombatCurrentHealth = remainingHitPoints
+
+    local monsterHumanoid = self.MonsterHumanoid
+    if monsterHumanoid then
+        monsterHumanoid.Health = remainingHitPoints
     end
 
     self:_recordDecisionEvent('PlayerMeleeHit', {
@@ -1115,10 +1166,6 @@ function MonsterService:tryApplyPlayerMeleeHit(player, meleeOptions)
         RemainingHitPoints = remainingHitPoints,
         TargetUserId = player.UserId,
     })
-
-    if self.EnemyRuntime and self.EnemyRuntime.applyDamage then
-        self.EnemyRuntime:applyDamage(damagePips, 'player')
-    end
 
     if killed then
         self:destroy()
@@ -1146,7 +1193,9 @@ function MonsterService:spawn(patrolPoints, initialPatrolIndex)
     end
 
     self.PatrolIndex = math.clamp(initialPatrolIndex or 1, 1, #patrolPoints)
-    local spawnPosition = patrolPoints[self.PatrolIndex] + self.Definition.SpawnOffset
+    self.EnemyRuntime = self:_createEnemyRuntime()
+    self.EnemyRuntime:reset(self.PatrolPoints, self.PatrolIndex)
+    local spawnPosition = patrolPoints[self.PatrolIndex] + self.ComponentConfig.Movement.SpawnOffset
     local spawnOk, spawnReason = self:_spawnModel(spawnPosition)
     if not spawnOk then
         self:_warnFallback(spawnReason)
@@ -1156,11 +1205,6 @@ function MonsterService:spawn(patrolPoints, initialPatrolIndex)
     end
 
     self:_applyDefinitionCombatHealth()
-
-    self.EnemyRuntime = self:_createEnemyRuntime()
-    if self.EnemyRuntime.reset then
-        self.EnemyRuntime:reset(self.PatrolPoints, self.PatrolIndex)
-    end
     if self.EnemyRuntime and self.EnemyRuntime.spawn then
         self.EnemyRuntime:spawn()
     end

@@ -59,8 +59,32 @@ return function()
         return table.concat(segments, ',')
     end
 
+    local function createInjectedRuntime(updateFn)
+        return {
+            Context = {
+                PatrolIndex = 1,
+            },
+            Blackboard = {
+                CurrentTarget = nil,
+            },
+            spawn = function() end,
+            destroy = function() end,
+            applyDamage = function()
+                return 1
+            end,
+            reset = function(self, _patrolPoints, initialPatrolIndex)
+                self.Context.PatrolIndex = initialPatrolIndex or 1
+                self.Blackboard.CurrentTarget = nil
+            end,
+            update = function(self, dt)
+                return updateFn(self, dt)
+            end,
+        }
+    end
+
     local function runDeterminismSimulation(seed, frameDts)
-        local service = MonsterService.new(
+        local service
+        service = MonsterService.new(
             runtimeProfile,
             function()
                 return true
@@ -74,22 +98,23 @@ return function()
                 AutoUpdateOnHeartbeat = false,
                 DecisionLogLimit = 256,
                 EnemyFactory = function()
-                    return {
-                        spawn = function() end,
-                        destroy = function() end,
-                        update = function(_, dt, context)
-                            local roll = context.NextRandomInteger(1, 100, 'DeterministicWander')
-                            local step = (roll / 100) * dt
-                            return {
-                                DesiredAnimation = 'Walk',
-                                DesiredAnimationSpeed = 1,
-                                NextPosition = context.CurrentPosition + Vector3.new(step, 0, 0),
-                                ShouldPlayChaseLoop = false,
-                                State = 'Idle',
-                                TargetPlayer = nil,
-                            }
-                        end,
-                    }
+                    return createInjectedRuntime(function(_runtime, dt)
+                        local currentPosition = service:_getCurrentPosition()
+                        local roll = service:_nextRandomInteger(1, 100, 'DeterministicWander')
+                        local step = (roll / 100) * dt
+                        return {
+                            AnimationName = 'Walk',
+                            AnimationSpeed = 1,
+                            NextPosition = currentPosition + Vector3.new(step, 0, 0),
+                            ShouldPlayChaseLoop = false,
+                            State = 'Idle',
+                            TargetPlayer = nil,
+                            TargetChanged = false,
+                            StateChanged = false,
+                            AttackQueued = false,
+                            IsDead = false,
+                        }
+                    end)
                 end,
                 LoadAnimationTrack = function()
                     return createTrack()
@@ -136,7 +161,8 @@ return function()
     )
 
     local eventNames = {}
-    local stateSwitchService = MonsterService.new(
+    local stateSwitchService
+    stateSwitchService = MonsterService.new(
         runtimeProfile,
         function()
             return true
@@ -153,24 +179,24 @@ return function()
             end,
             EnemyFactory = function()
                 local tick = 0
-                return {
-                    spawn = function() end,
-                    destroy = function() end,
-                    update = function(_, _dt, context)
-                        tick += 1
-                        local target = if tick % 2 == 0 then { UserId = 404 } else nil
-                        local state = if tick % 2 == 0 then 'Alert' else 'Idle'
-                        return {
-                            AttackResult = if tick == 3 then 'Miss' else nil,
-                            DesiredAnimation = 'Walk',
-                            DesiredAnimationSpeed = 1,
-                            NextPosition = context.CurrentPosition,
-                            ShouldPlayChaseLoop = false,
-                            State = state,
-                            TargetPlayer = target,
-                        }
-                    end,
-                }
+                return createInjectedRuntime(function(runtime, _dt)
+                    tick += 1
+                    local target = if tick % 2 == 0 then { UserId = 404 } else nil
+                    runtime.Blackboard.CurrentTarget = target
+                    return {
+                        AttackResult = if tick == 3 then 'Miss' else nil,
+                        AnimationName = 'Walk',
+                        AnimationSpeed = 1,
+                        NextPosition = stateSwitchService:_getCurrentPosition(),
+                        ShouldPlayChaseLoop = false,
+                        State = if tick % 2 == 0 then 'Alert' else 'Idle',
+                        TargetPlayer = target,
+                        TargetChanged = false,
+                        StateChanged = false,
+                        AttackQueued = false,
+                        IsDead = false,
+                    }
+                end)
             end,
             LoadAnimationTrack = function()
                 return createTrack()
@@ -190,7 +216,8 @@ return function()
     assert(eventNames.TargetSwitch == true, 'Decision log should include target switch events')
     assert(eventNames.AttackResult == true, 'Decision log should include attack result events')
 
-    local zeroDtService = MonsterService.new(
+    local zeroDtService
+    zeroDtService = MonsterService.new(
         runtimeProfile,
         function()
             return true
@@ -204,21 +231,21 @@ return function()
             AutoUpdateOnHeartbeat = false,
             DecisionLogLimit = 64,
             EnemyFactory = function()
-                return {
-                    spawn = function() end,
-                    destroy = function() end,
-                    update = function(_, _dt, context)
-                        context.NextRandomInteger(1, 5, 'ZeroDtGuard')
-                        return {
-                            DesiredAnimation = 'Idle',
-                            DesiredAnimationSpeed = 1,
-                            NextPosition = context.CurrentPosition,
-                            ShouldPlayChaseLoop = false,
-                            State = 'Idle',
-                            TargetPlayer = nil,
-                        }
-                    end,
-                }
+                return createInjectedRuntime(function(_runtime, _dt)
+                    zeroDtService:_nextRandomInteger(1, 5, 'ZeroDtGuard')
+                    return {
+                        AnimationName = 'Idle',
+                        AnimationSpeed = 1,
+                        NextPosition = zeroDtService:_getCurrentPosition(),
+                        ShouldPlayChaseLoop = false,
+                        State = 'Idle',
+                        TargetPlayer = nil,
+                        TargetChanged = false,
+                        StateChanged = false,
+                        AttackQueued = false,
+                        IsDead = false,
+                    }
+                end)
             end,
             LoadAnimationTrack = function()
                 return createTrack()
