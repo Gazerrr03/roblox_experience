@@ -374,9 +374,14 @@ sprintInputEndedConnection = UserInputService.InputEnded:Connect(function(input,
     end
 
     if isSneakKey(input.KeyCode) then
-        Remotes.MazeAction:FireServer({
-            Type = 'RequestSneakStop',
-        })
+        if
+            not UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
+            and not UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
+        then
+            Remotes.MazeAction:FireServer({
+                Type = 'RequestSneakStop',
+            })
+        end
     end
 end)
 
