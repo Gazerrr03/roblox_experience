@@ -100,6 +100,12 @@ return function()
         end,
     }
 
+    service:_setPlayerSneaking(activePlayer, true)
+    local sneakMovement = service:_getMovementSummaryFor(activePlayer)
+    assert(sneakMovement.Mode == 'Sneak', 'Sneak intent should enter formal sneak movement')
+    assert(sneakMovement.WalkSpeed == 12, 'Sneak intent should use 75 percent walk speed')
+    assert(#reportedSounds == 0, 'Sneak intent should not report sound stimulus')
+
     service:_setPlayerSprinting(activePlayer, true)
     service:_toggleDoor(activePlayer, 'Door_A')
     service:_handleUseTool(activePlayer)

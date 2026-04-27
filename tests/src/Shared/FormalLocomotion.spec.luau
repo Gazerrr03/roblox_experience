@@ -32,6 +32,22 @@ return function()
         'Sprint summary should use the formal sprint speed'
     )
 
+    local sneakSummary = locomotion.summarize({
+        IsDead = false,
+        CanSprint = true,
+    }, {
+        Mode = locomotion.Mode.Sneak,
+    })
+    assert(sneakSummary.Mode == locomotion.Mode.Sneak, 'Sneak summary should stay in sneak mode')
+    assert(
+        sneakSummary.WalkSpeed == locomotion.SneakWalkSpeed,
+        'Sneak summary should use 75 percent of the formal walk speed'
+    )
+    assert(
+        locomotion.SneakWalkSpeed == locomotion.WalkSpeed * 0.75,
+        'Sneak speed should stay at 75 percent of normal walk speed'
+    )
+
     local recoveringSummary = locomotion.summarize({
         IsDead = false,
         CanSprint = false,
@@ -71,6 +87,12 @@ return function()
     assert(
         humanoid.WalkSpeed == locomotion.SprintWalkSpeed,
         'Sprint movement should apply the formal sprint speed to the humanoid'
+    )
+
+    locomotion.applyToHumanoid(humanoid, sneakSummary)
+    assert(
+        humanoid.WalkSpeed == locomotion.SneakWalkSpeed,
+        'Sneak movement should apply the formal sneak speed to the humanoid'
     )
 
     locomotion.applyToHumanoid(humanoid, deadSummary)

@@ -9,6 +9,7 @@ local FormalLocomotion = {}
 
 FormalLocomotion.Mode = MODE
 FormalLocomotion.WalkSpeed = 16
+FormalLocomotion.SneakWalkSpeed = 12
 FormalLocomotion.SprintWalkSpeed = 24
 
 function FormalLocomotion.summarize(playerStateSummary, controlStateSummary)
@@ -20,6 +21,8 @@ function FormalLocomotion.summarize(playerStateSummary, controlStateSummary)
     local mode = MODE.Walk
     if not isDead and controlState.Mode == MODE.Sprint then
         mode = MODE.Sprint
+    elseif not isDead and controlState.Mode == MODE.Sneak then
+        mode = MODE.Sneak
     end
 
     local walkSpeed = FormalLocomotion.WalkSpeed
@@ -27,6 +30,8 @@ function FormalLocomotion.summarize(playerStateSummary, controlStateSummary)
         walkSpeed = 0
     elseif mode == MODE.Sprint then
         walkSpeed = FormalLocomotion.SprintWalkSpeed
+    elseif mode == MODE.Sneak then
+        walkSpeed = FormalLocomotion.SneakWalkSpeed
     end
 
     return {
