@@ -61,14 +61,38 @@ return function()
         world.Doorways['Room_Loot:Doorway_East'] ~= nil,
         'Assembled world should still expose overlay-authored doorway nodes'
     )
+    local authoredSpawnCFrame = CFrame.new(-374, 283.584, -578)
+    local authoredSpawnMarker = root:FindFirstChild('SpawnMarker', true)
+    assert(
+        authoredSpawnMarker ~= nil and authoredSpawnMarker:IsA('BasePart'),
+        'Assembler should expose the authored SpawnMarker'
+    )
+    authoredSpawnMarker.CFrame = authoredSpawnCFrame
+
     local scene = MazeWorldBuilder.build()
     assert(
-        scene.Root.Name == MazeStaticWorldContract.RootName,
-        'World builder should assemble before scanning'
+        scene.Root == root,
+        'World builder should reuse the current Workspace MazeStaticWorld instead of replacing it'
+    )
+    assert(
+        (scene.SpawnCFrame.Position - authoredSpawnCFrame.Position).Magnitude < 0.001,
+        'World builder should keep the manually authored SpawnMarker position'
     )
     assert(
         scene:getLootNode('Room_Loot') ~= nil,
-        'World builder should produce a MazeScene from the assembled static world'
+        'World builder should produce a MazeScene from the current static world'
+    )
+
+    root:Destroy()
+
+    local fallbackScene = MazeWorldBuilder.build()
+    assert(
+        fallbackScene.Root.Name == MazeStaticWorldContract.RootName,
+        'World builder should assemble a fallback static world only when Workspace is missing one'
+    )
+    assert(
+        fallbackScene:getLootNode('Room_Loot') ~= nil,
+        'Fallback static world should still expose overlay-authored loot nodes'
     )
 
     local overlayAsset = ReplicatedStorage.Assets.Maze.Overlays:FindFirstChild(
