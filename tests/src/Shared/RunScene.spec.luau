@@ -114,9 +114,43 @@ return function()
     createPromptPart('SalvageTerminal', 2)
     createPromptPart('ObjectiveBoard', 4)
     createPromptPart('LoadoutBench', 6)
+    createPromptPart('UgcLabConsole', 8)
     local _, startGamePrompt = createPromptPart('StartGamePrompt', 9)
     local _, gatePrompt = createPromptPart('GateSwitch', 10)
     createPromptPart('MazeGateMarker', 72)
+
+    local doorLeft = Instance.new('Part')
+    doorLeft.Name = 'DoorLeft'
+    doorLeft.Anchored = true
+    doorLeft.Parent = root
+
+    local doorRight = Instance.new('Part')
+    doorRight.Name = 'DoorRight'
+    doorRight.Anchored = true
+    doorRight.Parent = root
+
+    local clueScene = Instance.new('Folder')
+    clueScene.Name = 'FirstCorpseClueScene'
+    clueScene.Parent = root
+
+    local corpseRecorderMarker = Instance.new('Part')
+    corpseRecorderMarker.Name = 'ClueMarker_FirstCorpse'
+    corpseRecorderMarker.Anchored = true
+    corpseRecorderMarker:SetAttribute('ClueId', 'first-corpse-sound-warning')
+    corpseRecorderMarker:SetAttribute('SourceMarkerId', 'ClueMarker_FirstCorpse')
+    corpseRecorderMarker:SetAttribute('ReadableTitle', 'Recorder Beside the Old Body')
+    corpseRecorderMarker:SetAttribute(
+        'ReadableText',
+        'The last voice is breathing too fast. Metal scrapes, boots hammer the floor, and something answers every noise before the recording cuts out.'
+    )
+    corpseRecorderMarker:SetAttribute('ThreatHintId', 'sound-predator')
+    corpseRecorderMarker:SetAttribute('ItemName', 'Corpse Recorder')
+    corpseRecorderMarker.Parent = clueScene
+
+    local corpseRecorderPrompt = Instance.new('ProximityPrompt')
+    corpseRecorderPrompt.ActionText = 'Recover clue'
+    corpseRecorderPrompt.ObjectText = 'Old recorder'
+    corpseRecorderPrompt.Parent = corpseRecorderMarker
 
     local scene = RunScene.new(root)
 
@@ -152,6 +186,36 @@ return function()
     assert(
         scene.StartGamePrompt == startGamePrompt,
         'RunScene should expose the optional ship start prompt when authored'
+    )
+    assert(#scene.ClueMarkers == 1, 'RunScene should discover nested authored clue markers')
+    local firstCorpseClue = scene.ClueMarkers[1]
+    assert(
+        firstCorpseClue.ClueId == 'first-corpse-sound-warning',
+        'First corpse clue should preserve its authored clue id'
+    )
+    assert(
+        firstCorpseClue.SourceMarkerId == 'ClueMarker_FirstCorpse',
+        'First corpse clue should preserve its authored source marker id'
+    )
+    assert(
+        firstCorpseClue.ReadableTitle == 'Recorder Beside the Old Body',
+        'First corpse clue should preserve its readable title'
+    )
+    assert(
+        string.find(firstCorpseClue.ReadableText, 'something answers every noise', 1, true) ~= nil,
+        'First corpse clue should preserve the sound-predator warning text'
+    )
+    assert(
+        firstCorpseClue.ThreatHintId == 'sound-predator',
+        'First corpse clue should preserve the sound predator threat hint'
+    )
+    assert(
+        firstCorpseClue.ItemName == 'Corpse Recorder',
+        'First corpse clue should preserve its inventory item name'
+    )
+    assert(
+        firstCorpseClue.Prompt == corpseRecorderPrompt,
+        'First corpse clue should preserve its recovery prompt'
     )
 
     scene:openGate()
