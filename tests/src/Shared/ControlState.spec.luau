@@ -22,6 +22,7 @@ return function()
     local state = ControlState.new()
     local defaultSummary = state:getSummary()
     assert(defaultSummary.Mode == ControlState.Mode.Walk, 'Controls should start in walk mode')
+    assert(defaultSummary.SneakRequested == false, 'Sneak should not start requested')
     assert(defaultSummary.SprintEnabled == true, 'Sprint should be enabled in v1')
     assert(defaultSummary.CrouchEnabled == false, 'Crouch should stay deferred in v1')
 
@@ -84,9 +85,65 @@ return function()
         'Explicit re-press after recovery should re-enter sprint mode'
     )
 
+    local sneakState = ControlState.new()
+    local sneakStarted, sneakSummary = sneakState:requestSneakStart(healthyPlayerState)
+    assert(sneakStarted == true, 'Healthy players should be able to start sneaking')
+    assert(sneakSummary.Mode == ControlState.Mode.Sneak, 'Sneak start should enter sneak mode')
+    assert(sneakSummary.SneakRequested == true, 'Sneak start should preserve sneak intent')
+    assert(sneakSummary.SprintRequested == false, 'Sneak start should clear sprint intent')
+
+    local sprintFromSneakOk, sprintFromSneakSummary =
+        sneakState:requestSprintStart(healthyPlayerState)
+    assert(sprintFromSneakOk == true, 'Healthy players should be able to sprint from sneak')
+    assert(
+        sprintFromSneakSummary.Mode == ControlState.Mode.Sprint,
+        'Sprint should override sneak mode'
+    )
+    assert(sprintFromSneakSummary.SneakRequested == false, 'Sprint start should clear sneak intent')
+
+    local sneakFromSprintOk, sneakFromSprintSummary =
+        sneakState:requestSneakStart(healthyPlayerState)
+    assert(sneakFromSprintOk == true, 'Healthy players should be able to sneak from sprint')
+    assert(
+        sneakFromSprintSummary.Mode == ControlState.Mode.Sneak,
+        'Sneak should override sprint mode'
+    )
+    assert(
+        sneakFromSprintSummary.SprintRequested == false,
+        'Sneak start should clear sprint intent'
+    )
+
+    local sneakStopped, sneakStopSummary = sneakState:requestSneakStop()
+    assert(sneakStopped == true, 'Sneak stop should always succeed')
+    assert(sneakStopSummary.Mode == ControlState.Mode.Walk, 'Sneak stop should return to walk mode')
+    assert(sneakStopSummary.SneakRequested == false, 'Sneak stop should clear sneak intent')
+
+    local exhaustedSneakState = ControlState.new()
+    local exhaustedSneakOk, exhaustedSneakSummary =
+        exhaustedSneakState:requestSneakStart(exhaustedPlayerState)
+    assert(exhaustedSneakOk == true, 'Exhausted players should still be able to sneak')
+    assert(
+        exhaustedSneakSummary.Mode == ControlState.Mode.Sneak,
+        'Exhausted sneak should enter sneak mode'
+    )
+
     local deadSprintStart, deadReason = state:requestSprintStart(deadPlayerState)
     assert(deadSprintStart == false, 'Dead players should not start sprinting')
     assert(deadReason == 'Dead', 'Dead sprint requests should expose Dead')
+
+    local deadSneakStart, deadSneakReason = sneakState:requestSneakStart(deadPlayerState)
+    assert(deadSneakStart == false, 'Dead players should not start sneaking')
+    assert(deadSneakReason == 'Dead', 'Dead sneak requests should expose Dead')
+
+    exhaustedSneakState:syncPlayerState(deadPlayerState)
+    assert(
+        exhaustedSneakState:getSummary().Mode == ControlState.Mode.Walk,
+        'Death should clear sneak mode'
+    )
+    assert(
+        exhaustedSneakState:getSummary().SneakRequested == false,
+        'Death should clear sneak intent'
+    )
 
     local deadSyncSummary = state:syncPlayerState(deadPlayerState)
     assert(deadSyncSummary.Mode == ControlState.Mode.Walk, 'Dead players should stay in walk mode')
@@ -113,6 +170,21 @@ return function()
     local stopOk, stoppedSummary = service:requestSprintStop(fakePlayer)
     assert(stopOk == true, 'Service should stop sprinting cleanly')
     assert(stoppedSummary.SprintRequested == false, 'Service stop should clear sprint intent')
+
+    local serviceSneakOk, serviceSneakSummary =
+        service:requestSneakStart(fakePlayer, exhaustedPlayerState)
+    assert(serviceSneakOk == true, 'Service should allow exhausted players to sneak')
+    assert(
+        serviceSneakSummary.Mode == ControlState.Mode.Sneak,
+        'Service sneak should enter sneak mode'
+    )
+
+    local serviceSneakStopOk, serviceSneakStopSummary = service:requestSneakStop(fakePlayer)
+    assert(serviceSneakStopOk == true, 'Service should stop sneaking cleanly')
+    assert(
+        serviceSneakStopSummary.SneakRequested == false,
+        'Service sneak stop should clear sneak intent'
+    )
 
     service:removePlayer(fakePlayer)
     local fallbackSummary = service:getSummary(fakePlayer)

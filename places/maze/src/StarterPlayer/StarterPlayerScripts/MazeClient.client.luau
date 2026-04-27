@@ -33,6 +33,10 @@ local lastToolUseRequestAt = -math.huge
 local heldToolCooldownSeconds = 0.2
 local mazeInventoryForSwing: { [string]: any }? = nil
 
+local function isSneakKey(keyCode)
+    return keyCode == Enum.KeyCode.LeftControl or keyCode == Enum.KeyCode.RightControl
+end
+
 local function presentationIconSuffix(itemEntry: { [string]: any }?)
     if type(itemEntry) ~= 'table' then
         return ''
@@ -251,7 +255,7 @@ objectiveLabel.Text = 'Objective: --'
 local promptLabel = makeTextLabel(panel, UDim2.new(1, 0, 0, 86), Theme.Text, 16, false)
 -- === 修改：加上了按 F 键使用道具的提示 ===
 promptLabel.Text =
-    'In-world prompts:\n- Pages pickups\n- Blue return marker -> bring Pages back alive\n- Double Door controls\nKeyboard: Hold LeftShift to sprint\nKeyboard: Press F to use held tool'
+    'In-world prompts:\n- Pages pickups\n- Blue return marker -> bring Pages back alive\n- Double Door controls\nKeyboard: Hold LeftShift to sprint\nKeyboard: Hold Ctrl to sneak\nKeyboard: Press F to use held tool'
 
 if RunService:IsStudio() then
     promptLabel.Text ..= '\nStudio debug: H light damage | J heavy damage'
@@ -283,6 +287,13 @@ actionInputConnection = UserInputService.InputBegan:Connect(function(input, game
     if input.KeyCode == Enum.KeyCode.LeftShift then
         Remotes.MazeAction:FireServer({
             Type = 'RequestSprintStart',
+        })
+        return
+    end
+
+    if isSneakKey(input.KeyCode) then
+        Remotes.MazeAction:FireServer({
+            Type = 'RequestSneakStart',
         })
         return
     end
@@ -355,13 +366,18 @@ sprintInputEndedConnection = UserInputService.InputEnded:Connect(function(input,
         return
     end
 
-    if input.KeyCode ~= Enum.KeyCode.LeftShift then
+    if input.KeyCode == Enum.KeyCode.LeftShift then
+        Remotes.MazeAction:FireServer({
+            Type = 'RequestSprintStop',
+        })
         return
     end
 
-    Remotes.MazeAction:FireServer({
-        Type = 'RequestSprintStop',
-    })
+    if isSneakKey(input.KeyCode) then
+        Remotes.MazeAction:FireServer({
+            Type = 'RequestSneakStop',
+        })
+    end
 end)
 
 script.Destroying:Connect(function()
