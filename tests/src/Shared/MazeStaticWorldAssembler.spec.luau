@@ -11,6 +11,36 @@ return function()
         require(mazeModules:WaitForChild('MazeStaticWorldOverlayManifest'))
     local MazeWorldBuilder = require(mazeModules:WaitForChild('MazeWorldBuilder'))
 
+    local chunkAsset = ReplicatedStorage.Assets.Maze.Chunks:FindFirstChild('MazeChunk_maze_v1')
+    assert(
+        chunkAsset ~= nil and chunkAsset:IsA('Model'),
+        'Tests should mount the maze chunk asset in ReplicatedStorage.Assets.Maze.Chunks'
+    )
+
+    local function createSceneryLightFixture(modelName, lightName)
+        local model = Instance.new('Model')
+        model.Name = modelName
+
+        local mount = Instance.new('Part')
+        mount.Name = 'LightMount'
+        mount.Anchored = true
+        mount.Parent = model
+
+        local light = Instance.new('PointLight')
+        light.Name = lightName
+        light.Brightness = 0.25
+        light.Range = 8
+        light.Shadows = true
+        light.Parent = mount
+
+        model.Parent = chunkAsset
+
+        return model
+    end
+
+    local torchFixture = createSceneryLightFixture('TorchWallSconce_Test', 'TorchLightProbe')
+    local fireFixture = createSceneryLightFixture('FireBowl_Test', 'FireLightProbe')
+
     local root = MazeStaticWorldAssembler.assemble()
     assert(
         root.Name == MazeStaticWorldContract.RootName,
@@ -52,6 +82,26 @@ return function()
     assert(
         table.find(roomIds, 'maze.3dm') == nil,
         'Geometry chunk containers under Scenery must be ignored by the runtime scanner'
+    )
+
+    local torchLight = root:FindFirstChild('TorchLightProbe', true)
+    assert(
+        torchLight ~= nil
+            and torchLight:IsA('PointLight')
+            and torchLight.Brightness == 4.5
+            and torchLight.Range == 32
+            and torchLight.Shadows == false,
+        'Assembler should normalize authored torch brightness and range inside scenery'
+    )
+
+    local fireLight = root:FindFirstChild('FireLightProbe', true)
+    assert(
+        fireLight ~= nil
+            and fireLight:IsA('PointLight')
+            and fireLight.Brightness == 5.5
+            and fireLight.Range == 40
+            and fireLight.Shadows == false,
+        'Assembler should normalize authored fire brightness and range inside scenery'
     )
 
     local world = shared.Runtime.MazeWorldScanner.BuildStaticWorld(root)
@@ -152,4 +202,7 @@ return function()
     if finalRoot ~= nil then
         finalRoot:Destroy()
     end
+
+    torchFixture:Destroy()
+    fireFixture:Destroy()
 end

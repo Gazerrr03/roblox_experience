@@ -7,6 +7,25 @@ local MazeStaticWorldOverlayManifest = require(script.Parent.MazeStaticWorldOver
 
 local MazeStaticWorldAssembler = {}
 
+local SCENERY_LIGHT_PROFILE_ATTRIBUTE = 'MazeSceneryLightProfile'
+local SCENERY_LIGHT_PROFILES = table.freeze({
+    Fire = table.freeze({
+        Brightness = 5.5,
+        Range = 40,
+        Shadows = false,
+        NameTokens = table.freeze({ 'fire', 'flame' }),
+    }),
+    Torch = table.freeze({
+        Brightness = 4.5,
+        Range = 32,
+        Shadows = false,
+        NameTokens = table.freeze({ 'torch' }),
+    }),
+})
+local SCENERY_LIGHT_PROFILE_ORDER = table.freeze({ 'Fire', 'Torch' })
+
+MazeStaticWorldAssembler.SceneryLightProfiles = SCENERY_LIGHT_PROFILES
+
 local function requireFolder(parent, name, contextLabel)
     local child = parent:FindFirstChild(name)
     if child == nil or not child:IsA('Folder') then
@@ -87,6 +106,71 @@ local function createRoot()
     sceneryRoot.Parent = root
 
     return root, sceneryRoot
+end
+
+local function isAuthoredSceneryLight(instance)
+    return instance:IsA('PointLight') or instance:IsA('SpotLight') or instance:IsA('SurfaceLight')
+end
+
+local function findProfileFromAttribute(instance)
+    local profileName = instance:GetAttribute(SCENERY_LIGHT_PROFILE_ATTRIBUTE)
+    if type(profileName) ~= 'string' then
+        return nil
+    end
+
+    local normalizedProfileName = string.lower(profileName)
+    for _, profileKey in ipairs(SCENERY_LIGHT_PROFILE_ORDER) do
+        if normalizedProfileName == string.lower(profileKey) then
+            return SCENERY_LIGHT_PROFILES[profileKey]
+        end
+    end
+
+    return nil
+end
+
+local function findProfileFromName(instance)
+    local lowerName = string.lower(instance.Name)
+    for _, profileName in ipairs(SCENERY_LIGHT_PROFILE_ORDER) do
+        local profile = SCENERY_LIGHT_PROFILES[profileName]
+        for _, token in ipairs(profile.NameTokens) do
+            if string.find(lowerName, token, 1, true) ~= nil then
+                return profile
+            end
+        end
+    end
+
+    return nil
+end
+
+local function findSceneryLightProfile(light, sceneryRoot)
+    local current = light
+    while current ~= nil and current ~= sceneryRoot do
+        local profile = findProfileFromAttribute(current) or findProfileFromName(current)
+        if profile ~= nil then
+            return profile
+        end
+
+        current = current.Parent
+    end
+
+    return nil
+end
+
+local function applySceneryLightProfile(light, profile)
+    light.Brightness = profile.Brightness
+    light.Range = profile.Range
+    light.Shadows = profile.Shadows
+end
+
+local function applySceneryLightingProfiles(sceneryRoot)
+    for _, descendant in ipairs(sceneryRoot:GetDescendants()) do
+        if isAuthoredSceneryLight(descendant) then
+            local profile = findSceneryLightProfile(descendant, sceneryRoot)
+            if profile ~= nil then
+                applySceneryLightProfile(descendant, profile)
+            end
+        end
+    end
 end
 
 local function stabilizeChunkGeometry(chunkModel)
@@ -213,6 +297,8 @@ function MazeStaticWorldAssembler.assemble()
     if enabledChunkCount == 0 then
         error('Maze chunk manifest must enable at least one geometry chunk.', 0)
     end
+
+    applySceneryLightingProfiles(sceneryRoot)
 
     return root
 end
