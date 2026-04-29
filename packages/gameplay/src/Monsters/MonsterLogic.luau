@@ -48,11 +48,7 @@ function MonsterLogic.stepToward(currentPosition, targetPosition, speed, dt)
     local stepDistance = math_min(speed * dt, distance)
     local ratio = stepDistance / distance
 
-    return Vector3_new(
-        cx + dx * ratio,
-        cy + dy * ratio,
-        cz + dz * ratio
-    )
+    return Vector3_new(cx + dx * ratio, cy + dy * ratio, cz + dz * ratio)
 end
 
 return MonsterLogic
