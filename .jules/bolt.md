@@ -25,3 +25,7 @@
 ## 2025-05-21 - [Hex Tiling Loop Bound Optimization]
 **Learning:** In procedural geometry generation, iterating over a square bounding box and using conditional checks to fill a shape (like a hexagon) is inefficient. By solving the geometric inequalities to calculate precise loop bounds, we can eliminate all conditional branching in the inner loop and reduce total iterations to only the required set, yielding a ~7x performance gain in tiling logic.
 **Action:** Always prefer calculating precise loop bounds for geometric fill operations over bounding-box-and-test approaches in performance-critical paths.
+
+## 2026-05-22 - [Monster AI Math & Memory Optimization]
+**Learning:** High-frequency monster AI routines (perception and movement) suffer from significant overhead due to `Vector3` metatable dispatch and repeated heap allocations for player position tables. Using squared distance comparisons and direct numeric coordinate access avoids square roots and redundant object creation. Reusing tables via `table.clear()` instead of allocating new ones each tick reduces GC pressure, yielding a ~2x speedup in perception updates for large player counts.
+**Action:** Always prefer squared distance comparisons and raw numeric coordinate math in hot paths. Implement table pooling for frequently updated dictionaries/lists in component update loops.

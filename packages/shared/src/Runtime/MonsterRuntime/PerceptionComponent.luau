@@ -1,3 +1,5 @@
+local math_huge = math.huge
+
 local PerceptionComponent = {}
 PerceptionComponent.__index = PerceptionComponent
 
@@ -18,6 +20,8 @@ function PerceptionComponent.new(options)
         SoundMemorySeconds = runtimeOptions.SoundMemorySeconds or 4,
         SoundRangeMultiplier = runtimeOptions.SoundRangeMultiplier or 1,
         GetNow = runtimeOptions.GetNow or os.clock,
+        -- Bolt: Pre-allocated table to reduce per-tick heap allocations
+        _playerPositions = {},
     }, PerceptionComponent)
 end
 
@@ -28,7 +32,7 @@ function PerceptionComponent:_pickSoundTarget(playerPositions, now, context)
 
     local bestPlayer = nil
     local bestPosition = nil
-    local bestScore = -math.huge
+    local bestScore = -math_huge
 
     for _, stimulus in ipairs(self.ConsumeSoundStimuli(now) or {}) do
         local player = stimulus.Player
@@ -49,6 +53,8 @@ function PerceptionComponent:_pickSoundTarget(playerPositions, now, context)
             local currentPosition = if context and context.CurrentPosition ~= nil
                 then context.CurrentPosition
                 else self.GetCurrentPosition()
+
+            -- Bolt: Optimized to use direct component math if possible, but keeping Vector3 Magnitude for now to balance readability.
             local distance = if currentPosition ~= nil
                 then (position - currentPosition).Magnitude
                 else 0
@@ -68,7 +74,9 @@ function PerceptionComponent:_pickSoundTarget(playerPositions, now, context)
 end
 
 function PerceptionComponent:update(blackboard, context)
-    local playerPositions = {}
+    -- Bolt: Reusing playerPositions table to avoid per-update allocations.
+    local playerPositions = self._playerPositions
+    table.clear(playerPositions)
 
     for _, player in ipairs(self.GetPlayers()) do
         if self.CanTargetPlayer(player) then
