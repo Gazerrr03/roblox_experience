@@ -1,0 +1,332 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Core palette */
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-tertiary: #1a1a1a;
+  --bg-card: #141414;
+
+  /* Text */
+  --text-primary: #e0e0e0;
+  --text-secondary: #6b6b6b;
+  --text-amber: #c4a35a;
+  --text-amber-dim: #8b7340;
+  --text-muted: #4a4a4a;
+
+  /* Accents */
+  --accent-gold: #d4a853;
+  --accent-red: #8b1a1a;
+  --accent-red-bright: #c0392b;
+  --accent-stone: #2a2520;
+
+  /* Fonts */
+  --font-jetbrains-mono: "JetBrains Mono", "Courier New", monospace;
+  --font-inter: "Inter", system-ui, sans-serif;
+
+  /* Spacing */
+  --section-gap: 6rem;
+  --content-max: 72rem;
+
+  /* Dynamic effects — controlled by Sound Tier demo */
+  --scanline-opacity: 0.03;
+  --noise-intensity: 0.02;
+  --border-alert: rgba(196, 163, 90, 0.05);
+  --screen-shake: 0px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  height: 100%;
+}
+
+body {
+  min-height: 100%;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-inter);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Stone texture overlay */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.04;
+  background-image:
+    url("data:image/svg+xml,%3Csvg width='800' height='800' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  background-size: 400px 400px;
+}
+
+/* Scanlines overlay — opacity driven by --scanline-opacity */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: var(--scanline-opacity);
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.15) 2px,
+    rgba(0, 0, 0, 0.15) 4px
+  );
+}
+
+/* Content wrapper above overlays */
+#__next,
+main {
+  position: relative;
+  z-index: 2;
+}
+
+/* Terminal text styles */
+.terminal-text {
+  font-family: var(--font-jetbrains-mono);
+  color: var(--text-amber);
+  letter-spacing: 0.02em;
+}
+
+.terminal-text--dim {
+  color: var(--text-amber-dim);
+}
+
+.terminal-text--white {
+  color: var(--text-primary);
+}
+
+/* Terminal cursor blink */
+.terminal-cursor::after {
+  content: "█";
+  animation: cursor-blink 1s step-end infinite;
+  color: var(--text-amber);
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Typewriter reveal animation */
+.typewriter {
+  overflow: hidden;
+  white-space: nowrap;
+  animation: typewriter 2s steps(60) 1s forwards;
+  width: 0;
+}
+
+@keyframes typewriter {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+/* Card styles */
+.card-dossier {
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-left: 3px solid var(--accent-red);
+  transition: border-color 0.3s ease, background 0.3s ease;
+}
+
+.card-dossier:hover {
+  border-color: var(--accent-red-bright);
+  background: var(--bg-tertiary);
+}
+
+.card-stone {
+  background: var(--bg-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* Classified text */
+.classified {
+  color: var(--accent-red);
+  font-family: var(--font-jetbrains-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+
+/* Stone texture section breaks */
+.section-divider {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--text-muted),
+    transparent
+  );
+  margin: var(--section-gap) 0;
+}
+
+/* Link styles */
+.link-terminal {
+  color: var(--accent-gold);
+  text-decoration: none;
+  font-family: var(--font-jetbrains-mono);
+  font-size: 0.875rem;
+  transition: color 0.2s ease;
+}
+
+.link-terminal:hover {
+  color: var(--text-amber);
+}
+
+/* Glitch text on hover */
+.glitch-hover {
+  transition: text-shadow 0.2s ease;
+}
+
+.glitch-hover:hover {
+  text-shadow:
+    1px 0 var(--accent-red),
+    -1px 0 var(--text-amber);
+}
+
+/* Fade in on scroll */
+.fade-in {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeIn 0.8s ease forwards;
+}
+
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Noise texture for cards */
+.noise-overlay {
+  position: relative;
+}
+
+.noise-overlay::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.5'/%3E%3C/svg%3E");
+}
+
+/* Scrollbar styling for the dark theme */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* ── Chapter narrative scroll layout ── */
+
+.chapter-section {
+  position: relative;
+}
+
+.chapter-canvas-sticky {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  width: 100%;
+}
+
+.chapter-canvas-sticky canvas {
+  display: block;
+}
+
+.chapter-text-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* ── Landing page interaction animations ── */
+
+/* Screen shake — active on Sound Tier 4 */
+@keyframes screen-shake {
+  0%, 100% { transform: translateX(0); }
+  10% { transform: translateX(-2px); }
+  30% { transform: translateX(2px); }
+  50% { transform: translateX(-1px); }
+  70% { transform: translateX(1px); }
+  90% { transform: translateX(-0.5px); }
+}
+
+body.screen-shake {
+  animation: screen-shake 0.3s ease-in-out infinite;
+}
+
+/* Decrypt: text goes from blurred redacted to clear */
+@keyframes decrypt {
+  0% { filter: blur(6px); opacity: 0.3; color: var(--accent-red); }
+  30% { filter: blur(3px); opacity: 0.6; color: var(--accent-red-bright); }
+  60% { filter: blur(1px); opacity: 0.85; color: var(--text-amber); }
+  100% { filter: blur(0); opacity: 1; color: var(--text-primary); }
+}
+
+.decrypting {
+  animation: decrypt 0.8s ease-out forwards;
+}
+
+/* Decrypt — character scramble flash */
+@keyframes char-scramble {
+  0% { opacity: 0; }
+  50% { opacity: 0.5; }
+  100% { opacity: 0; }
+}
+
+.char-scramble-overlay {
+  position: relative;
+}
+
+.char-scramble-overlay::after {
+  content: "████████";
+  position: absolute;
+  inset: 0;
+  color: var(--accent-red);
+  font-family: var(--font-jetbrains-mono);
+  animation: char-scramble 0.6s ease-out forwards;
+  pointer-events: none;
+}
+
+/* Border alert pulse */
+@keyframes border-pulse {
+  0%, 100% { border-color: var(--border-alert); }
+  50% { border-color: rgba(196, 163, 90, 0.2); }
+}
+
+/* Scroll hint fade */
+@keyframes scroll-hint-fade {
+  0% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  80% { opacity: 0.3; transform: translateX(-50%) translateY(6px); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(8px); }
+}
+
+.scroll-hint {
+  animation: scroll-hint-fade 3s ease forwards;
+  animation-delay: 2s;
+}
