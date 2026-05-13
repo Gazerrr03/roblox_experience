@@ -1,14 +1,22 @@
 local MonsterLogic = {}
 
+local Vector3_new = Vector3.new
+
 function MonsterLogic.pickNearestTarget(currentPosition, playerPositions, sightRange)
     local closestPlayer = nil
-    local closestDistance = sightRange
+    local closestDistanceSq = sightRange * sightRange
+
+    local cx, cy, cz = currentPosition.X, currentPosition.Y, currentPosition.Z
 
     for player, position in pairs(playerPositions) do
-        local distance = (position - currentPosition).Magnitude
-        if distance <= closestDistance then
+        local dx = position.X - cx
+        local dy = position.Y - cy
+        local dz = position.Z - cz
+        local distSq = dx * dx + dy * dy + dz * dz
+
+        if distSq <= closestDistanceSq then
             closestPlayer = player
-            closestDistance = distance
+            closestDistanceSq = distSq
         end
     end
 
@@ -16,15 +24,29 @@ function MonsterLogic.pickNearestTarget(currentPosition, playerPositions, sightR
 end
 
 function MonsterLogic.stepToward(currentPosition, targetPosition, speed, dt)
-    local offset = targetPosition - currentPosition
-    local distance = offset.Magnitude
+    local cx, cy, cz = currentPosition.X, currentPosition.Y, currentPosition.Z
+    local tx, ty, tz = targetPosition.X, targetPosition.Y, targetPosition.Z
 
-    if distance == 0 then
+    local dx = tx - cx
+    local dy = ty - cy
+    local dz = tz - cz
+    local distSq = dx * dx + dy * dy + dz * dz
+
+    if distSq == 0 then
         return currentPosition
     end
 
-    local stepDistance = math.min(speed * dt, distance)
-    return currentPosition + offset.Unit * stepDistance
+    local maxStep = speed * dt
+    -- Bolt: If we are close enough to reach the target in this step, return target.
+    -- The maxStep >= 0 check ensures that if speed is negative, we move away instead of jumping to target.
+    if maxStep >= 0 and maxStep * maxStep >= distSq then
+        return targetPosition
+    end
+
+    local distance = math.sqrt(distSq)
+    local fraction = maxStep / distance
+
+    return Vector3_new(cx + dx * fraction, cy + dy * fraction, cz + dz * fraction)
 end
 
 return MonsterLogic
