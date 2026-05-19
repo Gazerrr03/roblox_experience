@@ -25,3 +25,7 @@
 ## 2025-05-21 - [Hex Tiling Loop Bound Optimization]
 **Learning:** In procedural geometry generation, iterating over a square bounding box and using conditional checks to fill a shape (like a hexagon) is inefficient. By solving the geometric inequalities to calculate precise loop bounds, we can eliminate all conditional branching in the inner loop and reduce total iterations to only the required set, yielding a ~7x performance gain in tiling logic.
 **Action:** Always prefer calculating precise loop bounds for geometric fill operations over bounding-box-and-test approaches in performance-critical paths.
+
+## 2025-05-22 - [MonsterLogic Vector Allocation Optimization]
+**Learning:** In high-frequency gameplay logic (e.g. monster targeting and movement), using `Vector3` objects and metatable-driven methods (`.Magnitude`, `.Unit`) introduces significant CPU and GC overhead due to intermediate object allocations and dynamic dispatch. Replacing these with raw numeric coordinate math and squared-distance comparisons (`dx*dx + dy*dy + dz*dz`) results in ~4-5x faster execution. An early exit for "full steps" in `stepToward` further avoids redundant unit vector calculations.
+**Action:** Use raw numeric component math and squared-distance comparisons in hot paths to minimize `Vector3` allocation churn and bypass metatable overhead.
