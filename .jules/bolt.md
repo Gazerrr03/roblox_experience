@@ -25,3 +25,7 @@
 ## 2025-05-21 - [Hex Tiling Loop Bound Optimization]
 **Learning:** In procedural geometry generation, iterating over a square bounding box and using conditional checks to fill a shape (like a hexagon) is inefficient. By solving the geometric inequalities to calculate precise loop bounds, we can eliminate all conditional branching in the inner loop and reduce total iterations to only the required set, yielding a ~7x performance gain in tiling logic.
 **Action:** Always prefer calculating precise loop bounds for geometric fill operations over bounding-box-and-test approaches in performance-critical paths.
+
+## 2025-05-22 - [MonsterLogic Math & Allocation Optimization]
+**Learning:** In Luau/Roblox, `Vector3` metatable dispatch (e.g., `.Magnitude`, `.Unit`, or operator overloading) and object allocations in hot loops (like monster perception or movement) are significant CPU bottlenecks. Replacing `(posA - posB).Magnitude <= range` with a squared distance check using raw components (`dx*dx + dy*dy + dz*dz <= rangeSq`) avoids both an allocation and a square root.
+**Action:** Use squared distance comparisons and raw numeric coordinate access in all entity-sensing and high-frequency movement logic. Inline Vector3 component math to minimize intermediate object churn.
