@@ -2,13 +2,19 @@ local MonsterLogic = {}
 
 function MonsterLogic.pickNearestTarget(currentPosition, playerPositions, sightRange)
     local closestPlayer = nil
-    local closestDistance = sightRange
+    local closestDistanceSq = sightRange * sightRange
+
+    local cx, cy, cz = currentPosition.X, currentPosition.Y, currentPosition.Z
 
     for player, position in pairs(playerPositions) do
-        local distance = (position - currentPosition).Magnitude
-        if distance <= closestDistance then
+        local dx = position.X - cx
+        local dy = position.Y - cy
+        local dz = position.Z - cz
+        local distSq = dx * dx + dy * dy + dz * dz
+
+        if distSq <= closestDistanceSq then
             closestPlayer = player
-            closestDistance = distance
+            closestDistanceSq = distSq
         end
     end
 
@@ -16,15 +22,34 @@ function MonsterLogic.pickNearestTarget(currentPosition, playerPositions, sightR
 end
 
 function MonsterLogic.stepToward(currentPosition, targetPosition, speed, dt)
-    local offset = targetPosition - currentPosition
-    local distance = offset.Magnitude
+    local tx, ty, tz = targetPosition.X, targetPosition.Y, targetPosition.Z
+    local cx, cy, cz = currentPosition.X, currentPosition.Y, currentPosition.Z
 
-    if distance == 0 then
+    local dx = tx - cx
+    local dy = ty - cy
+    local dz = tz - cz
+
+    local distSq = dx * dx + dy * dy + dz * dz
+
+    if distSq == 0 then
         return currentPosition
     end
 
-    local stepDistance = math.min(speed * dt, distance)
-    return currentPosition + offset.Unit * stepDistance
+    local maxStep = speed * dt
+    -- Bolt: optimization - early exit if target is reached in current step.
+    -- Also handles negative speed (moving away) if maxStep < 0.
+    if maxStep >= 0 and maxStep * maxStep >= distSq then
+        return targetPosition
+    end
+
+    local dist = math.sqrt(distSq)
+    local invDist = maxStep / dist
+
+    return Vector3.new(
+        cx + dx * invDist,
+        cy + dy * invDist,
+        cz + dz * invDist
+    )
 end
 
 return MonsterLogic
