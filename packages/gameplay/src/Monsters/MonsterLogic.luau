@@ -57,11 +57,7 @@ function MonsterLogic.stepToward(currentPosition, targetPosition, speed, dt)
     local stepDistance = math.min(maxStep, distance)
     local invDist = stepDistance / distance
 
-    return Vector3.new(
-        cx + dx * invDist,
-        cy + dy * invDist,
-        cz + dz * invDist
-    )
+    return Vector3.new(cx + dx * invDist, cy + dy * invDist, cz + dz * invDist)
 end
 
 return MonsterLogic
