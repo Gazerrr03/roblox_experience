@@ -1,14 +1,26 @@
+local math_sqrt = math.sqrt
+local Vector3_new = Vector3.new
+
 local MonsterLogic = {}
 
 function MonsterLogic.pickNearestTarget(currentPosition, playerPositions, sightRange)
     local closestPlayer = nil
-    local closestDistance = sightRange
+    -- Bolt: Use squared distance to avoid expensive square root calculations in the loop.
+    local closestDistanceSq = sightRange * sightRange
+
+    local cx, cy, cz = currentPosition.X, currentPosition.Y, currentPosition.Z
 
     for player, position in pairs(playerPositions) do
-        local distance = (position - currentPosition).Magnitude
-        if distance <= closestDistance then
+        -- Bolt: Direct numeric component access is faster than Vector3 metatable dispatch.
+        local dx = position.X - cx
+        local dy = position.Y - cy
+        local dz = position.Z - cz
+        local distSq = dx * dx + dy * dy + dz * dz
+
+        -- Bolt: Ensure sightRange was not negative to preserve original behavior where negative range fails.
+        if sightRange >= 0 and distSq <= closestDistanceSq then
             closestPlayer = player
-            closestDistance = distance
+            closestDistanceSq = distSq
         end
     end
 
@@ -16,15 +28,30 @@ function MonsterLogic.pickNearestTarget(currentPosition, playerPositions, sightR
 end
 
 function MonsterLogic.stepToward(currentPosition, targetPosition, speed, dt)
-    local offset = targetPosition - currentPosition
-    local distance = offset.Magnitude
+    local maxStep = speed * dt
+    local ox = targetPosition.X - currentPosition.X
+    local oy = targetPosition.Y - currentPosition.Y
+    local oz = targetPosition.Z - currentPosition.Z
+    local distSq = ox * ox + oy * oy + oz * oz
 
-    if distance == 0 then
+    if distSq == 0 then
         return currentPosition
     end
 
-    local stepDistance = math.min(speed * dt, distance)
-    return currentPosition + offset.Unit * stepDistance
+    -- Bolt: Fast-path for when the step exceeds the remaining distance.
+    if maxStep >= 0 and maxStep * maxStep >= distSq then
+        return targetPosition
+    end
+
+    -- Bolt: Perform math on raw components to avoid multiple intermediate Vector3 allocations.
+    local distance = math_sqrt(distSq)
+    local invDist = 1 / distance
+
+    return Vector3_new(
+        currentPosition.X + ox * invDist * maxStep,
+        currentPosition.Y + oy * invDist * maxStep,
+        currentPosition.Z + oz * invDist * maxStep
+    )
 end
 
 return MonsterLogic
