@@ -2,13 +2,22 @@ local MonsterLogic = {}
 
 function MonsterLogic.pickNearestTarget(currentPosition, playerPositions, sightRange)
     local closestPlayer = nil
-    local closestDistance = sightRange
+    -- Bolt: Use squared distance to avoid expensive math.sqrt in Magnitude calls.
+    -- We must guard against negative sightRange to maintain original behavior.
+    local closestDistSq = if sightRange < 0 then -1 else sightRange * sightRange
+
+    -- Bolt: Access X, Y, Z components directly to avoid Vector3 metatable overhead.
+    local cx, cy, cz = currentPosition.X, currentPosition.Y, currentPosition.Z
 
     for player, position in pairs(playerPositions) do
-        local distance = (position - currentPosition).Magnitude
-        if distance <= closestDistance then
+        local dx = position.X - cx
+        local dy = position.Y - cy
+        local dz = position.Z - cz
+        local distSq = dx * dx + dy * dy + dz * dz
+
+        if distSq <= closestDistSq then
             closestPlayer = player
-            closestDistance = distance
+            closestDistSq = distSq
         end
     end
 
@@ -16,15 +25,30 @@ function MonsterLogic.pickNearestTarget(currentPosition, playerPositions, sightR
 end
 
 function MonsterLogic.stepToward(currentPosition, targetPosition, speed, dt)
-    local offset = targetPosition - currentPosition
-    local distance = offset.Magnitude
+    -- Bolt: Access X, Y, Z components directly to avoid intermediate Vector3 objects.
+    local ox = targetPosition.X - currentPosition.X
+    local oy = targetPosition.Y - currentPosition.Y
+    local oz = targetPosition.Z - currentPosition.Z
+    local distSq = ox * ox + oy * oy + oz * oz
 
-    if distance == 0 then
+    if distSq == 0 then
         return currentPosition
     end
 
-    local stepDistance = math.min(speed * dt, distance)
-    return currentPosition + offset.Unit * stepDistance
+    local maxStep = speed * dt
+    -- Bolt: Fast-path for overshoot. If maxStep covers the distance, return target.
+    -- We check maxStep >= 0 to preserve movement-away behavior for negative speeds.
+    if maxStep >= 0 and maxStep * maxStep >= distSq then
+        return targetPosition
+    end
+
+    local dist = math.sqrt(distSq)
+    local invDist = maxStep / dist
+    return Vector3.new(
+        currentPosition.X + ox * invDist,
+        currentPosition.Y + oy * invDist,
+        currentPosition.Z + oz * invDist
+    )
 end
 
 return MonsterLogic
