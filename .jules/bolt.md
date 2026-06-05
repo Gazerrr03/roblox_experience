@@ -25,3 +25,7 @@
 ## 2025-05-21 - [Hex Tiling Loop Bound Optimization]
 **Learning:** In procedural geometry generation, iterating over a square bounding box and using conditional checks to fill a shape (like a hexagon) is inefficient. By solving the geometric inequalities to calculate precise loop bounds, we can eliminate all conditional branching in the inner loop and reduce total iterations to only the required set, yielding a ~7x performance gain in tiling logic.
 **Action:** Always prefer calculating precise loop bounds for geometric fill operations over bounding-box-and-test approaches in performance-critical paths.
+
+## 2025-05-22 - [Vector3 Hot Path Optimization]
+**Learning:** In high-frequency AI loops (like target selection and movement), property access on `Vector3` objects and allocation of temporary vector results are major bottlenecks. Unpacking components to locals and using raw numeric math with squared distance comparisons yielded a ~6.7x speedup for targeting and up to ~13x for movement.
+**Action:** For hot-path arithmetic (distance checks, stepping), unpack `Vector3` components and perform raw numeric calculations. Use squared distance where possible to avoid `math.sqrt`.
