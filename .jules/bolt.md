@@ -3,7 +3,7 @@
 **Action:** Pre-calculate all 6 rotated variants (including door masks and sorted direction lists) of each room prefab type at module initialization. This allows the generator to use O(1) bitwise operations and O(1) table lookups in the main expansion loop, reducing generation time by ~60%.
 
 ## 2025-05-16 - [Spatial Hash Room Lookup]
-**Learning:** O(N) linear search for spatial queries (like `findRoomByPosition`) is a major bottleneck as the maze size grows. Using a grid-based spatial hash with bit-packed numeric keys (`bit32.bor`) provides O(1) average lookup and avoids string/Vector3 allocations. A 3x3 neighborhood search is required to maintain correctness when the detection radius approaches the cell size.
+**Learning:** O(N) linear search for spatial queries (like `findRoomByPosition`) is a major bottleneck as the maze size grows. Using a grid-based spatial hash with bit-packed numeric keys (`bit32_bor`) provides O(1) average lookup and avoids string/Vector3 allocations. A 3x3 neighborhood search is required to maintain correctness when the detection radius approaches the cell size.
 **Action:** Implement a spatial hash for all position-based entity lookups in rendering or runtime logic. Use numeric bit-packed keys for grid coordinates to minimize GC pressure in Luau.
 
 ## 2025-05-17 - [Hex Tiling Optimization]
@@ -25,3 +25,7 @@
 ## 2025-05-21 - [Hex Tiling Loop Bound Optimization]
 **Learning:** In procedural geometry generation, iterating over a square bounding box and using conditional checks to fill a shape (like a hexagon) is inefficient. By solving the geometric inequalities to calculate precise loop bounds, we can eliminate all conditional branching in the inner loop and reduce total iterations to only the required set, yielding a ~7x performance gain in tiling logic.
 **Action:** Always prefer calculating precise loop bounds for geometric fill operations over bounding-box-and-test approaches in performance-critical paths.
+
+## 2025-05-22 - [Monster Logic Math & Allocation Optimization]
+**Learning:** In `MonsterLogic.luau`, hot-path AI functions like `pickNearestTarget` and `stepToward` can be optimized by avoiding `Vector3` property access (`.Magnitude`, `.Unit`) and using raw numeric component math (X, Y, Z). Squared distance comparisons eliminate expensive `math.sqrt` calls in O(N) loops. Implementing a fast-path for target arrival in `stepToward` further reduces computation when the entity is within reach.
+**Action:** Use squared distance for proximity checks and perform numeric component math in high-frequency AI/movement loops to minimize `Vector3` metatable overhead and object churn.
