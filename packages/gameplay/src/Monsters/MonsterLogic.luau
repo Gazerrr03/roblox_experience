@@ -1,14 +1,25 @@
 local MonsterLogic = {}
 
 function MonsterLogic.pickNearestTarget(currentPosition, playerPositions, sightRange)
+    -- Bolt: Optimized by using squared distance and component-based math to avoid Vector3 metatable overhead.
     local closestPlayer = nil
-    local closestDistance = sightRange
+    local closestDistanceSq = sightRange * sightRange
+
+    if sightRange < 0 then
+        return nil
+    end
+
+    local cx, cy, cz = currentPosition.X, currentPosition.Y, currentPosition.Z
 
     for player, position in pairs(playerPositions) do
-        local distance = (position - currentPosition).Magnitude
-        if distance <= closestDistance then
+        local dx = position.X - cx
+        local dy = position.Y - cy
+        local dz = position.Z - cz
+        local distSq = dx * dx + dy * dy + dz * dz
+
+        if distSq <= closestDistanceSq then
             closestPlayer = player
-            closestDistance = distance
+            closestDistanceSq = distSq
         end
     end
 
@@ -16,15 +27,32 @@ function MonsterLogic.pickNearestTarget(currentPosition, playerPositions, sightR
 end
 
 function MonsterLogic.stepToward(currentPosition, targetPosition, speed, dt)
-    local offset = targetPosition - currentPosition
-    local distance = offset.Magnitude
+    -- Bolt: Optimized to use component-based math and avoid multiple Vector3 allocations and redundant sqrt/Unit calculations.
+    local tx, ty, tz = targetPosition.X, targetPosition.Y, targetPosition.Z
+    local cx, cy, cz = currentPosition.X, currentPosition.Y, currentPosition.Z
 
-    if distance == 0 then
+    local dx = tx - cx
+    local dy = ty - cy
+    local dz = tz - cz
+
+    local distanceSq = dx * dx + dy * dy + dz * dz
+    if distanceSq == 0 then
         return currentPosition
     end
 
-    local stepDistance = math.min(speed * dt, distance)
-    return currentPosition + offset.Unit * stepDistance
+    local maxStep = speed * dt
+    if distanceSq <= maxStep * maxStep then
+        return targetPosition
+    end
+
+    local distance = math.sqrt(distanceSq)
+    local invDist = 1 / distance
+
+    local stepX = dx * invDist * maxStep
+    local stepY = dy * invDist * maxStep
+    local stepZ = dz * invDist * maxStep
+
+    return Vector3.new(cx + stepX, cy + stepY, cz + stepZ)
 end
 
 return MonsterLogic
