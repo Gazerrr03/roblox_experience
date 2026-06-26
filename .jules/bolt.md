@@ -25,3 +25,7 @@
 ## 2025-05-21 - [Hex Tiling Loop Bound Optimization]
 **Learning:** In procedural geometry generation, iterating over a square bounding box and using conditional checks to fill a shape (like a hexagon) is inefficient. By solving the geometric inequalities to calculate precise loop bounds, we can eliminate all conditional branching in the inner loop and reduce total iterations to only the required set, yielding a ~7x performance gain in tiling logic.
 **Action:** Always prefer calculating precise loop bounds for geometric fill operations over bounding-box-and-test approaches in performance-critical paths.
+
+## 2026-04-12 - [Monster AI Vector Math Optimization]
+**Learning:** High-frequency Vector3 math in Luau AI loops (like `pickNearestTarget` and `stepToward`) is heavily bottlenecked by metatable dispatch and `math.sqrt` calls. Using squared distance comparisons and raw numeric component math (X, Y, Z) to avoid metatable overhead can yield a ~5x-6x speedup. A `sightRange < 0` guard is essential when using squared distances to maintain parity with original comparison logic.
+**Action:** In high-frequency AI or collision loops, unpack Vector3 components once and perform numeric math. Use squared distances for range checks to skip `math.sqrt`.
