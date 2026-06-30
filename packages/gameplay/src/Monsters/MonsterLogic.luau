@@ -1,14 +1,27 @@
 local MonsterLogic = {}
 
+local Vector3_new = Vector3.new
+local math_sqrt = math.sqrt
+
 function MonsterLogic.pickNearestTarget(currentPosition, playerPositions, sightRange)
+    if sightRange < 0 then
+        return nil
+    end
+
     local closestPlayer = nil
-    local closestDistance = sightRange
+    local closestDistanceSq = sightRange * sightRange
+
+    local cx, cy, cz = currentPosition.X, currentPosition.Y, currentPosition.Z
 
     for player, position in pairs(playerPositions) do
-        local distance = (position - currentPosition).Magnitude
-        if distance <= closestDistance then
+        local dx = position.X - cx
+        local dy = position.Y - cy
+        local dz = position.Z - cz
+        local dSq = dx * dx + dy * dy + dz * dz
+
+        if dSq <= closestDistanceSq then
             closestPlayer = player
-            closestDistance = distance
+            closestDistanceSq = dSq
         end
     end
 
@@ -16,15 +29,27 @@ function MonsterLogic.pickNearestTarget(currentPosition, playerPositions, sightR
 end
 
 function MonsterLogic.stepToward(currentPosition, targetPosition, speed, dt)
-    local offset = targetPosition - currentPosition
-    local distance = offset.Magnitude
+    local dx = targetPosition.X - currentPosition.X
+    local dy = targetPosition.Y - currentPosition.Y
+    local dz = targetPosition.Z - currentPosition.Z
+    local dSq = dx * dx + dy * dy + dz * dz
 
-    if distance == 0 then
+    if dSq == 0 then
         return currentPosition
     end
 
-    local stepDistance = math.min(speed * dt, distance)
-    return currentPosition + offset.Unit * stepDistance
+    local stepDistance = speed * dt
+    if dSq <= stepDistance * stepDistance then
+        return targetPosition
+    end
+
+    local distance = math_sqrt(dSq)
+    local invDist = stepDistance / distance
+    return Vector3_new(
+        currentPosition.X + dx * invDist,
+        currentPosition.Y + dy * invDist,
+        currentPosition.Z + dz * invDist
+    )
 end
 
 return MonsterLogic
