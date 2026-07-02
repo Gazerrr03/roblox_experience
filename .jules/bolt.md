@@ -25,3 +25,7 @@
 ## 2025-05-21 - [Hex Tiling Loop Bound Optimization]
 **Learning:** In procedural geometry generation, iterating over a square bounding box and using conditional checks to fill a shape (like a hexagon) is inefficient. By solving the geometric inequalities to calculate precise loop bounds, we can eliminate all conditional branching in the inner loop and reduce total iterations to only the required set, yielding a ~7x performance gain in tiling logic.
 **Action:** Always prefer calculating precise loop bounds for geometric fill operations over bounding-box-and-test approaches in performance-critical paths.
+
+## 2025-05-22 - [MonsterLogic Math & Allocation Optimization]
+**Learning:** High-frequency AI loops (like `pickNearestTarget` and `stepToward`) suffer from `Vector3` metatable overhead and intermediate object churn. Using squared distance comparisons and raw numeric component math (X, Y, Z) bypasses metatable dispatch and reduces GC pressure.
+**Action:** Always prefer raw numeric component math and squared distance comparisons in performance-critical AI or movement loops. Implement early-exit "snapping" for arrival to avoid redundant unit vector calculations.
