@@ -25,3 +25,11 @@
 ## 2025-05-21 - [Hex Tiling Loop Bound Optimization]
 **Learning:** In procedural geometry generation, iterating over a square bounding box and using conditional checks to fill a shape (like a hexagon) is inefficient. By solving the geometric inequalities to calculate precise loop bounds, we can eliminate all conditional branching in the inner loop and reduce total iterations to only the required set, yielding a ~7x performance gain in tiling logic.
 **Action:** Always prefer calculating precise loop bounds for geometric fill operations over bounding-box-and-test approaches in performance-critical paths.
+
+## 2025-05-22 - [Vector3 Math & Metatable Optimization]
+**Learning:** In Luau, high-frequency vector operations (like distance checks and normalization) are significantly slower when using `Vector3` metatable methods compared to raw numeric component math. Accessing `.X`, `.Y`, and `.Z` directly and performing scalar arithmetic bypasses metatable dispatch and reduces object churn. Furthermore, using squared distance comparisons avoids expensive `math.sqrt` calls in loops.
+**Action:** In performance-critical loops, unpack `Vector3` components and perform raw numeric math. Use squared distance for comparisons.
+
+## 2025-05-22 - [Standalone Luau Verification Pattern]
+**Learning:** Standalone Luau environments (v0.619) often lack `loadfile` and have a read-only `_G`, making it difficult to test modules that depend on Roblox globals. Copy-pasting logic into tests is an anti-pattern that fails to verify the actual source. A more robust pattern is to concatenate a mock environment, the target module's source (stripping the final return), and the test suite into a single script for execution.
+**Action:** Use code concatenation to inject mock environments and test actual source files in standalone Luau environments.
